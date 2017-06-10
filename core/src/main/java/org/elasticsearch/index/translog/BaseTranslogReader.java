@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 
 import java.io.IOException;
@@ -52,7 +51,9 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
 
     public abstract long sizeInBytes();
 
-    public abstract  int totalOperations();
+    public abstract int totalOperations();
+
+    abstract Checkpoint getCheckpoint();
 
     public final long getFirstOperationOffset() {
         return firstOperationOffset;
@@ -76,7 +77,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     }
 
     public Translog.Snapshot newSnapshot() {
-        return new TranslogSnapshot(generation, channel, path, firstOperationOffset, sizeInBytes(), totalOperations());
+        return new TranslogSnapshot(this, sizeInBytes());
     }
 
     /**

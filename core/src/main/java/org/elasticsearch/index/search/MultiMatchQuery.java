@@ -22,9 +22,6 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -61,12 +58,7 @@ public class MultiMatchQuery extends MatchQuery {
 
     private Query parseAndApply(Type type, String fieldName, Object value, String minimumShouldMatch, Float boostValue) throws IOException {
         Query query = parse(type, fieldName, value);
-        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
-        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
-        // and multiple variations of the same word in the query (synonyms for instance).
-        if (query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
-            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
-        }
+        query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
         if (query != null && boostValue != null && boostValue != AbstractQueryBuilder.DEFAULT_BOOST) {
             query = new BoostQuery(query, boostValue);
         }
@@ -89,7 +81,7 @@ public class MultiMatchQuery extends MatchQuery {
                     queryBuilder = new QueryBuilder(tieBreaker);
                     break;
                 case CROSS_FIELDS:
-                    queryBuilder = new CrossFieldsQueryBuilder(tieBreaker);
+                    queryBuilder = new CrossFieldsQueryBuilder();
                     break;
                 default:
                     throw new IllegalStateException("No such type: " + type);
@@ -104,15 +96,9 @@ public class MultiMatchQuery extends MatchQuery {
     private QueryBuilder queryBuilder;
 
     public class QueryBuilder {
-        protected final boolean groupDismax;
         protected final float tieBreaker;
 
         public QueryBuilder(float tieBreaker) {
-            this(tieBreaker != 1.0f, tieBreaker);
-        }
-
-        public QueryBuilder(boolean groupDismax, float tieBreaker) {
-            this.groupDismax = groupDismax;
             this.tieBreaker = tieBreaker;
         }
 
@@ -139,19 +125,11 @@ public class MultiMatchQuery extends MatchQuery {
             if (groupQuery.size() == 1) {
                 return groupQuery.get(0);
             }
-            if (groupDismax) {
-                List<Query> queries = new ArrayList<>();
-                for (Query query : groupQuery) {
-                    queries.add(query);
-                }
-                return new DisjunctionMaxQuery(queries, tieBreaker);
-            } else {
-                final BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
-                for (Query query : groupQuery) {
-                    booleanQuery.add(query, BooleanClause.Occur.SHOULD);
-                }
-                return booleanQuery.build();
+            List<Query> queries = new ArrayList<>();
+            for (Query query : groupQuery) {
+                queries.add(query);
             }
+            return new DisjunctionMaxQuery(queries, tieBreaker);
         }
 
         public Query blendTerm(Term term, MappedFieldType fieldType) {
@@ -170,8 +148,8 @@ public class MultiMatchQuery extends MatchQuery {
     final class CrossFieldsQueryBuilder extends QueryBuilder {
         private FieldAndFieldType[] blendedFields;
 
-        public CrossFieldsQueryBuilder(float tieBreaker) {
-            super(false, tieBreaker);
+        CrossFieldsQueryBuilder() {
+            super(0.0f);
         }
 
         @Override
@@ -310,9 +288,7 @@ public class MultiMatchQuery extends MatchQuery {
             terms = Arrays.copyOf(terms, i);
             blendedBoost = Arrays.copyOf(blendedBoost, i);
             if (commonTermsCutoff != null) {
-                queries.add(BlendedTermQuery.commonTermsBlendedQuery(terms, blendedBoost, false, commonTermsCutoff));
-            } else if (tieBreaker == 1.0f) {
-                queries.add(BlendedTermQuery.booleanBlendedQuery(terms, blendedBoost, false));
+                queries.add(BlendedTermQuery.commonTermsBlendedQuery(terms, blendedBoost, commonTermsCutoff));
             } else {
                 queries.add(BlendedTermQuery.dismaxBlendedQuery(terms, blendedBoost, tieBreaker));
             }
@@ -323,12 +299,7 @@ public class MultiMatchQuery extends MatchQuery {
             // best effort: add clauses that are not term queries so that they have an opportunity to match
             // however their score contribution will be different
             // TODO: can we improve this?
-            BooleanQuery.Builder bq = new BooleanQuery.Builder();
-            bq.setDisableCoord(true);
-            for (Query query : queries) {
-                bq.add(query, Occur.SHOULD);
-            }
-            return bq.build();
+            return new DisjunctionMaxQuery(queries, 1.0f);
         }
     }
 

@@ -24,8 +24,6 @@ import org.apache.lucene.analysis.uk.UkrainianMorfologikAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
-import org.elasticsearch.index.analysis.Analysis;
 
 public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<UkrainianMorfologikAnalyzer> {
 
@@ -33,8 +31,10 @@ public class UkrainianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Ukr
 
     public UkrainianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new UkrainianMorfologikAnalyzer(Analysis.parseStopWords(env, settings, UkrainianMorfologikAnalyzer.getDefaultStopSet()),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new UkrainianMorfologikAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, UkrainianMorfologikAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

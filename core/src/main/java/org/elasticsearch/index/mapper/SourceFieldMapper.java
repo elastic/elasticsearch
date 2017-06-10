@@ -47,8 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
-
 public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_source";
@@ -116,7 +114,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(lenientNodeBooleanValue(fieldNode));
+                    builder.enabled(TypeParsers.nodeBooleanValue(name, "enabled", fieldNode, parserContext));
                     iterator.remove();
                 } else if ("format".equals(fieldName) && parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
                     // ignore on old indices, reject on and after 5.0
@@ -151,7 +149,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     static final class SourceFieldType extends MappedFieldType {
 
-        public SourceFieldType() {}
+        SourceFieldType() {}
 
         protected SourceFieldType(SourceFieldType ref) {
             super(ref);
@@ -243,7 +241,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         if (filter != null) {
             // we don't update the context source if we filter, we want to keep it as is...
-            Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(source, true);
+            Tuple<XContentType, Map<String, Object>> mapTuple =
+                XContentHelper.convertToMap(source, true, context.sourceToParse().getXContentType());
             Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
             BytesStreamOutput bStream = new BytesStreamOutput();
             XContentType contentType = mapTuple.v1();

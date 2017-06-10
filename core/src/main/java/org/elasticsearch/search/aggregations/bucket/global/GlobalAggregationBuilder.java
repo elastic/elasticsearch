@@ -26,24 +26,22 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
 public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalAggregationBuilder> {
     public static final String NAME = "global";
-    private static final Type TYPE = new Type(NAME);
 
     public GlobalAggregationBuilder(String name) {
-        super(name, TYPE);
+        super(name);
     }
 
     /**
      * Read from a stream.
      */
     public GlobalAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE);
+        super(in);
     }
 
     @Override
@@ -54,7 +52,7 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
     @Override
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
-        return new GlobalAggregatorFactory(name, type, context, parent, subFactoriesBuilder, metaData);
+        return new GlobalAggregatorFactory(name, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
@@ -80,7 +78,7 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

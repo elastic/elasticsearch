@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -31,12 +32,14 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 abstract class AtomicLongFieldData implements AtomicNumericFieldData {
 
     private final long ramBytesUsed;
-    /** True if this numeric data is for a boolean field, and so only has values 0 and 1. */
-    private final boolean isBoolean;
+    /**
+     * Type of this field. Used to expose appropriate types in {@link #getScriptValues()}.
+     */
+    private final NumericType numericType;
 
-    AtomicLongFieldData(long ramBytesUsed, boolean isBoolean) {
+    AtomicLongFieldData(long ramBytesUsed, NumericType numericType) {
         this.ramBytesUsed = ramBytesUsed;
-        this.isBoolean = isBoolean;
+        this.numericType = numericType;
     }
 
     @Override
@@ -45,10 +48,13 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
     }
 
     @Override
-    public final ScriptDocValues getScriptValues() {
-        if (isBoolean) {
+    public final ScriptDocValues<?> getScriptValues() {
+        switch (numericType) {
+        case DATE:
+            return new ScriptDocValues.Dates(getLongValues());
+        case BOOLEAN:
             return new ScriptDocValues.Booleans(getLongValues());
-        } else {
+        default:
             return new ScriptDocValues.Longs(getLongValues());
         }
     }

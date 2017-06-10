@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -60,7 +61,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
                         .collectMode(aggCollectionMode))
                 .execute().actionGet();
 
-        assertThat(response.getHits().totalHits(), equalTo((long) recordCount));
+        assertThat(response.getHits().getTotalHits(), equalTo((long) recordCount));
 
         assertThat(((Terms) response.getAggregations().get("test")).getBuckets().size(), equalTo(recordCount + 1));
         assertThat(((Terms) response.getAggregations().get("test_raw")).getBuckets().size(), equalTo(recordCount));
@@ -76,7 +77,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
             .endObject().endObject().endObject().string();
         assertAcked(
             client().admin().indices().prepareCreate("test-idx")
-                .addMapping("doc", mapping)
+                .addMapping("doc", mapping, XContentType.JSON)
         );
         client().prepareIndex("test-idx", "doc", "1")
             .setSource("foo", "bar")
@@ -84,7 +85,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
         SearchResponse response = client().prepareSearch("test-idx")
             .setQuery(QueryBuilders.termQuery("root.top.child", "bar")).get();
-        assertThat(response.getHits().totalHits(), equalTo(1L));
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
     }
 
     private XContentBuilder createDynamicTemplateMapping() throws IOException {

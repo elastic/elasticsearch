@@ -72,7 +72,7 @@ public class ShardStateActionTests extends ESTestCase {
     private ClusterService clusterService;
 
     private static class TestShardStateAction extends ShardStateAction {
-        public TestShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService, AllocationService allocationService, RoutingService routingService) {
+        TestShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService, AllocationService allocationService, RoutingService routingService) {
             super(settings, clusterService, transportService, allocationService, routingService, THREAD_POOL);
         }
 
@@ -108,7 +108,7 @@ public class ShardStateActionTests extends ESTestCase {
         this.transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         shardStateAction = new TestShardStateAction(Settings.EMPTY, clusterService, transportService, null, null);

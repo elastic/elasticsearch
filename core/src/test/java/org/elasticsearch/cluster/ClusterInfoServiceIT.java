@@ -172,7 +172,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             IndexShard indexShard = indexService.getShardOrNull(shard.id());
             assertEquals(indexShard.shardPath().getRootDataPath().toString(), dataPath);
         }
-
     }
 
     public void testClusterInfoServiceInformationClearOnError() throws InterruptedException, ExecutionException {

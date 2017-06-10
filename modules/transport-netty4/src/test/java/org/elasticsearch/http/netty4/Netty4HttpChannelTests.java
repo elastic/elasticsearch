@@ -41,14 +41,26 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.util.Attribute;
 import io.netty.util.AttributeKey;
-
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.http.NullDispatcher;
 import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
+import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -58,6 +70,8 @@ import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.SocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -69,7 +83,9 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ME
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -188,7 +204,8 @@ public class Netty4HttpChannelTests extends ESTestCase {
     public void testHeadersSet() {
         Settings settings = Settings.builder().build();
         try (Netty4HttpServerTransport httpServerTransport =
-                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry())) {
+                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
+                         new NullDispatcher())) {
             httpServerTransport.start();
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             httpRequest.headers().add(HttpHeaderNames.ORIGIN, "remote");
@@ -215,10 +232,60 @@ public class Netty4HttpChannelTests extends ESTestCase {
         }
     }
 
+    public void testReleaseOnSendToClosedChannel() {
+        final Settings settings = Settings.builder().build();
+        final NamedXContentRegistry registry = xContentRegistry();
+        try (Netty4HttpServerTransport httpServerTransport =
+                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, registry, new NullDispatcher())) {
+            final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
+            final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
+            final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);
+            final HttpPipelinedRequest pipelinedRequest = randomBoolean() ? new HttpPipelinedRequest(request.request(), 1) : null;
+            final Netty4HttpChannel channel =
+                    new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, randomBoolean(), threadPool.getThreadContext());
+            final TestResponse response = new TestResponse(bigArrays);
+            assertThat(response.content(), instanceOf(Releasable.class));
+            embeddedChannel.close();
+            channel.sendResponse(response);
+            // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
+        }
+    }
+
+    public void testReleaseOnSendToChannelAfterException() throws IOException {
+        final Settings settings = Settings.builder().build();
+        final NamedXContentRegistry registry = xContentRegistry();
+        try (Netty4HttpServerTransport httpServerTransport =
+                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, registry, new NullDispatcher())) {
+            final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
+            final EmbeddedChannel embeddedChannel = new EmbeddedChannel();
+            final Netty4HttpRequest request = new Netty4HttpRequest(registry, httpRequest, embeddedChannel);
+            final HttpPipelinedRequest pipelinedRequest = randomBoolean() ? new HttpPipelinedRequest(request.request(), 1) : null;
+            final Netty4HttpChannel channel =
+                new Netty4HttpChannel(httpServerTransport, request, pipelinedRequest, randomBoolean(), threadPool.getThreadContext());
+            final BytesRestResponse response = new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR,
+                JsonXContent.contentBuilder().startObject().endObject());
+            assertThat(response.content(), not(instanceOf(Releasable.class)));
+
+            // ensure we have reserved bytes
+            if (randomBoolean()) {
+                BytesStreamOutput out = channel.bytesOutput();
+                assertThat(out, instanceOf(ReleasableBytesStreamOutput.class));
+            } else {
+                try (XContentBuilder builder = channel.newBuilder()) {
+                    // do something builder
+                    builder.startObject().endObject();
+                }
+            }
+
+            channel.sendResponse(response);
+            // ESTestCase#after will invoke ensureAllArraysAreReleased which will fail if the response content was not released
+        }
+    }
+
     public void testConnectionClose() throws Exception {
         final Settings settings = Settings.builder().build();
         try (Netty4HttpServerTransport httpServerTransport =
-                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry())) {
+                 new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(), new NullDispatcher())) {
             httpServerTransport.start();
             final FullHttpRequest httpRequest;
             final boolean close = randomBoolean();
@@ -253,7 +320,8 @@ public class Netty4HttpChannelTests extends ESTestCase {
     private FullHttpResponse executeRequest(final Settings settings, final String originValue, final String host) {
         // construct request and send it over the transport layer
         try (Netty4HttpServerTransport httpServerTransport =
-                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry())) {
+                     new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
+                             new NullDispatcher())) {
             httpServerTransport.start();
             final FullHttpRequest httpRequest = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/");
             if (originValue != null) {
@@ -505,6 +573,24 @@ public class Netty4HttpChannelTests extends ESTestCase {
 
     private static class TestResponse extends RestResponse {
 
+        private final BytesReference reference;
+
+        TestResponse() {
+            reference = Netty4Utils.toBytesReference(Unpooled.copiedBuffer("content", StandardCharsets.UTF_8));
+        }
+
+        TestResponse(final BigArrays bigArrays) {
+            final byte[] bytes;
+            try {
+                bytes = "content".getBytes("UTF-8");
+            } catch (final UnsupportedEncodingException e) {
+                throw new AssertionError(e);
+            }
+            final ByteArray bigArray = bigArrays.newByteArray(bytes.length);
+            bigArray.set(0, bytes, 0, bytes.length);
+            reference = new ReleasablePagedBytesReference(bigArrays, bigArray, bytes.length, Releasables.releaseOnce(bigArray));
+        }
+
         @Override
         public String contentType() {
             return "text";
@@ -512,7 +598,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
 
         @Override
         public BytesReference content() {
-            return Netty4Utils.toBytesReference(Unpooled.copiedBuffer("content", StandardCharsets.UTF_8));
+            return reference;
         }
 
         @Override

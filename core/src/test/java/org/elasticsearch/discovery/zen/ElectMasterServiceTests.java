@@ -139,4 +139,19 @@ public class ElectMasterServiceTests extends ESTestCase {
             }
         }
     }
+
+    public void testCountMasterNodes() {
+        List<DiscoveryNode> nodes = generateRandomNodes();
+        ElectMasterService service = electMasterService();
+
+        int masterNodes = 0;
+
+        for (DiscoveryNode node : nodes) {
+            if (node.isMasterNode()) {
+                masterNodes++;
+            }
+        }
+
+        assertEquals(masterNodes, service.countMasterNodes(nodes));
+    }
 }

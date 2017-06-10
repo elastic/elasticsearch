@@ -97,7 +97,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             .forceSource(DEFAULT_FORCE_SOURCE).fragmentCharSize(DEFAULT_FRAGMENT_CHAR_SIZE)
             .numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS).encoder(DEFAULT_ENCODER)
             .boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN).boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
-            .noMatchSize(DEFAULT_NO_MATCH_SIZE).phraseLimit(DEFAULT_PHRASE_LIMIT).build();
+            .boundaryScannerLocale(Locale.ROOT).noMatchSize(DEFAULT_NO_MATCH_SIZE).phraseLimit(DEFAULT_PHRASE_LIMIT).build();
 
     private final List<Field> fields = new ArrayList<>();
 
@@ -327,11 +327,17 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         if (highlighterBuilder.requireFieldMatch != null) {
             targetOptionsBuilder.requireFieldMatch(highlighterBuilder.requireFieldMatch);
         }
+        if (highlighterBuilder.boundaryScannerType != null) {
+            targetOptionsBuilder.boundaryScannerType(highlighterBuilder.boundaryScannerType);
+        }
         if (highlighterBuilder.boundaryMaxScan != null) {
             targetOptionsBuilder.boundaryMaxScan(highlighterBuilder.boundaryMaxScan);
         }
         if (highlighterBuilder.boundaryChars != null) {
             targetOptionsBuilder.boundaryChars(convertCharArray(highlighterBuilder.boundaryChars));
+        }
+        if (highlighterBuilder.boundaryScannerLocale != null) {
+            targetOptionsBuilder.boundaryScannerLocale(highlighterBuilder.boundaryScannerLocale);
         }
         if (highlighterBuilder.highlighterType != null) {
             targetOptionsBuilder.highlighterType(highlighterBuilder.highlighterType);
@@ -498,16 +504,12 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         NONE, SCORE;
 
         public static Order readFromStream(StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown Order ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(Order.class);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.ordinal());
+            out.writeEnum(this);
         }
 
         public static Order fromString(String order) {
@@ -515,6 +517,28 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 return Order.SCORE;
             }
             return NONE;
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+    }
+
+    public enum BoundaryScannerType implements Writeable {
+        CHARS, WORD, SENTENCE;
+
+        public static BoundaryScannerType readFromStream(StreamInput in) throws IOException {
+            return in.readEnum(BoundaryScannerType.class);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeEnum(this);
+        }
+
+        public static BoundaryScannerType fromString(String boundaryScannerType) {
+            return valueOf(boundaryScannerType.toUpperCase(Locale.ROOT));
         }
 
         @Override

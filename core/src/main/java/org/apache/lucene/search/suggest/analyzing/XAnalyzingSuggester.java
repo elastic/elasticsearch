@@ -392,7 +392,7 @@ public long ramBytesUsed() {
     final BytesRefBuilder spare = new BytesRefBuilder();
     private char sepLabel;
 
-    public EscapingTokenStreamToAutomaton(char sepLabel) {
+    EscapingTokenStreamToAutomaton(char sepLabel) {
       this.sepLabel = sepLabel;
     }
 
@@ -432,7 +432,7 @@ public long ramBytesUsed() {
 
     private final boolean hasPayloads;
 
-    public AnalyzingComparator(boolean hasPayloads) {
+    AnalyzingComparator(boolean hasPayloads) {
       this.hasPayloads = hasPayloads;
     }
 
@@ -486,7 +486,7 @@ public long ramBytesUsed() {
     }
   }
 
-    /** Non-null if this sugggester created a temp dir, needed only during build */
+    /** Non-null if this suggester created a temp dir, needed only during build */
     private static FSDirectory tmpBuildDir;
 
     @SuppressForbidden(reason = "access temp directory for building index")
@@ -1114,7 +1114,7 @@ public long ramBytesUsed() {
             BytesRef payload;
             long weight;
 
-            public SurfaceFormAndPayload(BytesRef payload, long cost) {
+            SurfaceFormAndPayload(BytesRef payload, long cost) {
                 super();
                 this.payload = payload;
                 this.weight = cost;

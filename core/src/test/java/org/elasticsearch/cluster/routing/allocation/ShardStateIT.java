@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -48,10 +51,23 @@ public class ShardStateIT extends ESIntegTestCase {
         indicesService.indexService(resolveIndex("test")).getShard(shard).failShard("simulated test failure", null);
 
         logger.info("--> waiting for a yellow index");
-        // JDK 9 type inference gets confused, so we have to help the
-        // type inference
-        assertBusy(((Runnable) () -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(),
-                equalTo(ClusterHealthStatus.YELLOW))));
+        ensureYellow();
+
+        // this forces the primary term to propagate to the replicas
+        int id = 0;
+        while (true) {
+            // find an ID that routes to the right shard, we will only index to the shard that saw a primary failure
+            final String idAsString = Integer.toString(id);
+            final int hash = Math.floorMod(Murmur3HashFunction.hash(idAsString), 2);
+            if (hash == shard) {
+                client()
+                        .index(new IndexRequest("test", "type", idAsString).source("{ \"f\": \"" + idAsString + "\"}", XContentType.JSON))
+                        .get();
+                break;
+            } else {
+                id++;
+            }
+        }
 
         final long term0 = shard == 0 ? 2 : 1;
         final long term1 = shard == 1 ? 2 : 1;
@@ -63,13 +79,13 @@ public class ShardStateIT extends ESIntegTestCase {
         assertPrimaryTerms(term0, term1);
     }
 
-    protected void assertPrimaryTerms(long term0, long term1) {
+    protected void assertPrimaryTerms(long shard0Term, long shard1Term) {
         for (String node : internalCluster().getNodeNames()) {
             logger.debug("--> asserting primary terms terms on [{}]", node);
             ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
             IndexMetaData metaData = state.metaData().index("test");
-            assertThat(metaData.primaryTerm(0), equalTo(term0));
-            assertThat(metaData.primaryTerm(1), equalTo(term1));
+            assertThat(metaData.primaryTerm(0), equalTo(shard0Term));
+            assertThat(metaData.primaryTerm(1), equalTo(shard1Term));
             IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
             IndexService indexService = indicesService.indexService(metaData.getIndex());
             if (indexService != null) {

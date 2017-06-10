@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-import org.elasticsearch.search.internal.InternalSearchHit;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -45,7 +45,7 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
             .field("field", "value")
             .endObject();
         FetchSubPhase.HitContext hitContext = hitExecute(source, true, null, null);
-        assertEquals(Collections.singletonMap("field","value"), hitContext.hit().sourceAsMap());
+        assertEquals(Collections.singletonMap("field","value"), hitContext.hit().getSourceAsMap());
     }
 
     public void testBasicFiltering() throws IOException {
@@ -54,16 +54,16 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
             .field("field2", "value2")
             .endObject();
         FetchSubPhase.HitContext hitContext = hitExecute(source, false, null, null);
-        assertNull(hitContext.hit().sourceAsMap());
+        assertNull(hitContext.hit().getSourceAsMap());
 
         hitContext = hitExecute(source, true, "field1", null);
-        assertEquals(Collections.singletonMap("field1","value"), hitContext.hit().sourceAsMap());
+        assertEquals(Collections.singletonMap("field1","value"), hitContext.hit().getSourceAsMap());
 
         hitContext = hitExecute(source, true, "hello", null);
-        assertEquals(Collections.emptyMap(), hitContext.hit().sourceAsMap());
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
 
         hitContext = hitExecute(source, true, "*", "field2");
-        assertEquals(Collections.singletonMap("field1","value"), hitContext.hit().sourceAsMap());
+        assertEquals(Collections.singletonMap("field1","value"), hitContext.hit().getSourceAsMap());
     }
 
     public void testMultipleFiltering() throws IOException {
@@ -72,18 +72,18 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
             .field("field2", "value2")
             .endObject();
         FetchSubPhase.HitContext hitContext = hitExecuteMultiple(source, true, new String[]{"*.notexisting", "field"}, null);
-        assertEquals(Collections.singletonMap("field","value"), hitContext.hit().sourceAsMap());
+        assertEquals(Collections.singletonMap("field","value"), hitContext.hit().getSourceAsMap());
 
         hitContext = hitExecuteMultiple(source, true, new String[]{"field.notexisting.*", "field"}, null);
-        assertEquals(Collections.singletonMap("field","value"), hitContext.hit().sourceAsMap());
+        assertEquals(Collections.singletonMap("field","value"), hitContext.hit().getSourceAsMap());
     }
 
     public void testSourceDisabled() throws IOException {
         FetchSubPhase.HitContext hitContext = hitExecute(null, true, null, null);
-        assertNull(hitContext.hit().sourceAsMap());
+        assertNull(hitContext.hit().getSourceAsMap());
 
         hitContext = hitExecute(null, false, null, null);
-        assertNull(hitContext.hit().sourceAsMap());
+        assertNull(hitContext.hit().getSourceAsMap());
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> hitExecute(null, true, "field1", null));
         assertEquals("unable to fetch fields from _source field: _source is disabled in the mappings " +
@@ -105,7 +105,7 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
         FetchSourceContext fetchSourceContext = new FetchSourceContext(fetchSource, includes, excludes);
         SearchContext searchContext = new FetchSourceSubPhaseTestSearchContext(fetchSourceContext, source == null ? null : source.bytes());
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
-        hitContext.reset(new InternalSearchHit(1, null, null, null), null, 1, null);
+        hitContext.reset(new SearchHit(1, null, null, null), null, 1, null);
         FetchSourceSubPhase phase = new FetchSourceSubPhase();
         phase.hitExecute(searchContext, hitContext);
         return hitContext;

@@ -131,9 +131,9 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                         new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['binaryData'].get(0).length", emptyMap()))
                 .get();
 
-        assertThat(response.getHits().totalHits(), equalTo(1L));
-        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
-        assertThat(response.getHits().getAt(0).fields().get("sbinaryData").values().get(0), equalTo(16));
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(0).getFields().get("sbinaryData").getValues().get(0), equalTo(16));
 
     }
 
@@ -178,11 +178,11 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                         new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
                 .get();
 
-        assertThat(response.getHits().totalHits(), equalTo(2L));
-        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
-        assertThat(response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat(response.getHits().getAt(1).id(), equalTo("3"));
-        assertThat(response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().getTotalHits(), equalTo(2L));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(1).getId(), equalTo("3"));
+        assertThat(response.getHits().getAt(1).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
 
         Map<String, Object> params = new HashMap<>();
         params.put("param1", 2);
@@ -196,9 +196,9 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                         new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
                 .get();
 
-        assertThat(response.getHits().totalHits(), equalTo(1L));
-        assertThat(response.getHits().getAt(0).id(), equalTo("3"));
-        assertThat(response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().getTotalHits(), equalTo(1L));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
+        assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
 
         params = new HashMap<>();
         params.put("param1", -1);
@@ -211,13 +211,13 @@ public class ScriptQuerySearchIT extends ESIntegTestCase {
                         new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
                 .get();
 
-        assertThat(response.getHits().totalHits(), equalTo(3L));
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        assertThat(response.getHits().getAt(0).fields().get("sNum1").values().get(0), equalTo(1.0));
-        assertThat(response.getHits().getAt(1).id(), equalTo("2"));
-        assertThat(response.getHits().getAt(1).fields().get("sNum1").values().get(0), equalTo(2.0));
-        assertThat(response.getHits().getAt(2).id(), equalTo("3"));
-        assertThat(response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(3.0));
+        assertThat(response.getHits().getTotalHits(), equalTo(3L));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(1.0));
+        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+        assertThat(response.getHits().getAt(1).getFields().get("sNum1").getValues().get(0), equalTo(2.0));
+        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+        assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
     }
 
     private static AtomicInteger scriptCounter = new AtomicInteger(0);

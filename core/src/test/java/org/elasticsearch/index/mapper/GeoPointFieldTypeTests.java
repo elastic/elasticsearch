@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper.GeoPointFieldType;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     @Override

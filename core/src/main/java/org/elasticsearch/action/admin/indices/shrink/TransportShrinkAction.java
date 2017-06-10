@@ -91,8 +91,13 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
                         IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                         return shard == null ? null : shard.getPrimary().getDocs();
                     }, indexNameExpressionResolver);
-                createIndexService.createIndex(updateRequest, ActionListener.wrap(response ->
-                    listener.onResponse(new ShrinkResponse(response.isAcknowledged(), response.isShardsAcked())), listener::onFailure));
+                createIndexService.createIndex(
+                    updateRequest,
+                    ActionListener.wrap(response ->
+                        listener.onResponse(new ShrinkResponse(response.isAcknowledged(), response.isShardsAcked(), updateRequest.index())),
+                        listener::onFailure
+                    )
+                );
             }
 
             @Override
@@ -130,6 +135,9 @@ public class TransportShrinkAction extends TransportMasterNodeAction<ShrinkReque
                 }
             }
 
+        }
+        if (IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexSettings)) {
+            throw new IllegalArgumentException("cannot provide a routing partition size value when shrinking an index");
         }
         targetIndex.cause("shrink_index");
         Settings.Builder settingsBuilder = Settings.builder().put(targetIndexSettings);

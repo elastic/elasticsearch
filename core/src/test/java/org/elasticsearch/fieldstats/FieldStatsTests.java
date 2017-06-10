@@ -319,9 +319,9 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
 
     public void testNumberFiltering() {
         createIndex("test1", Settings.EMPTY, "type", "value", "type=long");
-        client().prepareIndex("test1", "test").setSource("value", 1L).get();
+        client().prepareIndex("test1", "type").setSource("value", 1L).get();
         createIndex("test2", Settings.EMPTY, "type", "value", "type=long");
-        client().prepareIndex("test2", "test").setSource("value", 3L).get();
+        client().prepareIndex("test2", "type").setSource("value", 3L).get();
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse response = client().prepareFieldStats()
@@ -426,10 +426,10 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         String dateTime2Str = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().print(dateTime2);
 
         createIndex("test1", Settings.EMPTY, "type", "value", "type=date", "value2", "type=date,index=false");
-        client().prepareIndex("test1", "test")
+        client().prepareIndex("test1", "type")
             .setSource("value", dateTime1Str, "value2", dateTime1Str).get();
         createIndex("test2", Settings.EMPTY, "type", "value", "type=date");
-        client().prepareIndex("test2", "test").setSource("value", dateTime2Str).get();
+        client().prepareIndex("test2", "type").setSource("value", dateTime2Str).get();
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse response = client().prepareFieldStats()
@@ -596,7 +596,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareRefresh().get();
 
         FieldStatsResponse response = client().prepareFieldStats()
-            .setFields("_id", "_type")
+            .setFields("_uid", "_type")
             .get();
         assertEquals(response.getAllFieldStats().size(), 1);
         assertEquals(response.getAllFieldStats().get("_type").isSearchable(), true);
@@ -606,7 +606,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     public void testSerialization() throws IOException {
         for (Version version : new Version[] {Version.CURRENT, Version.V_5_0_1}){
             for (int i = 0; i < 20; i++) {
-                assertSerialization(randomFieldStats(version.onOrAfter(Version.V_5_2_0_UNRELEASED)), version);
+                assertSerialization(randomFieldStats(version.onOrAfter(Version.V_5_2_0)), version);
             }
         }
     }
@@ -614,7 +614,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
     /**
      * creates a random field stats which does not guarantee that {@link FieldStats#maxValue} is greater than {@link FieldStats#minValue}
      **/
-    private FieldStats randomFieldStats(boolean withNullMinMax) throws UnknownHostException {
+    public static FieldStats randomFieldStats(boolean withNullMinMax) throws UnknownHostException {
         int type = randomInt(5);
         switch (type) {
             case 0:
@@ -649,7 +649,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 } else {
                     return new FieldStats.Text(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
                         randomNonNegativeLong(), randomBoolean(), randomBoolean(),
-                        new BytesRef(randomAsciiOfLength(10)), new BytesRef(randomAsciiOfLength(20)));
+                        new BytesRef(randomAlphaOfLength(10)), new BytesRef(randomAlphaOfLength(20)));
                 }
             case 4:
                 if (withNullMinMax && randomBoolean()) {

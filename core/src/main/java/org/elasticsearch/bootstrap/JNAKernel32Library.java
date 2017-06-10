@@ -109,7 +109,7 @@ final class JNAKernel32Library {
 
         private final ConsoleCtrlHandler handler;
 
-        public NativeHandlerCallback(ConsoleCtrlHandler handler) {
+        NativeHandlerCallback(ConsoleCtrlHandler handler) {
             this.handler = handler;
         }
 
@@ -155,11 +155,13 @@ final class JNAKernel32Library {
 
     public static class SizeT extends IntegerType {
 
+        // JNA requires this no-arg constructor to be public,
+        // otherwise it fails to register kernel32 library
         public SizeT() {
             this(0);
         }
 
-        public SizeT(long value) {
+        SizeT(long value) {
             super(Native.SIZE_T_SIZE, value);
         }
 

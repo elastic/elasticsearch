@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,13 +35,12 @@ import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
  * read from the incoming stream, usually done adding a constructor that takes {@link StreamInput} as
  * an argument.
  *
- * Registration happens through {@link SearchPlugin#getSearchExts()}, which also needs a {@link SearchExtParser} that's able to parse
+ * Registration happens through {@link SearchPlugin#getSearchExts()}, which also needs a {@link CheckedFunction} that's able to parse
  * the incoming request from the REST layer into the proper {@link SearchExtBuilder} subclass.
  *
  * {@link #getWriteableName()} must return the same name as the one used for the registration
  * of the {@link SearchExtSpec}.
  *
- * @see SearchExtParser
  * @see SearchExtSpec
  */
 public abstract class SearchExtBuilder implements NamedWriteable, ToXContent {

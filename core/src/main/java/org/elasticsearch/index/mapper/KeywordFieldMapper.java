@@ -136,10 +136,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
                     iterator.remove();
                 } else if (propName.equals("norms")) {
-                    builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode) == false);
+                    builder.omitNorms(XContentMapValues.nodeBooleanValue(propNode, "norms") == false);
                     iterator.remove();
                 } else if (propName.equals("eager_global_ordinals")) {
-                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode, "eager_global_ordinals"));
                     iterator.remove();
                 } else if (propName.equals("normalizer")) {
                     if (propNode != null) {
@@ -236,6 +236,15 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         protected BytesRef indexedValueForSearch(Object value) {
+            if (searchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
+                // keyword analyzer with the default attribute source which encodes terms using UTF8
+                // in that case we skip normalization, which may be slow if there many terms need to
+                // parse (eg. large terms query) since Analyzer.normalize involves things like creating
+                // attributes through reflection
+                // This if statement will be used whenever a normalizer is NOT configured
+                return super.indexedValueForSearch(value);
+            }
+
             if (value == null) {
                 return null;
             }
@@ -300,7 +309,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         final NamedAnalyzer normalizer = fieldType().normalizer();
         if (normalizer != null) {
-            try (final TokenStream ts = normalizer.tokenStream(name(), value)) {
+            try (TokenStream ts = normalizer.tokenStream(name(), value)) {
                 final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
                 ts.reset();
                 if (ts.incrementToken() == false) {

@@ -19,12 +19,15 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
@@ -172,7 +175,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         String date = "2015-10-12T14:10:55";
         long instant = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date).getMillis();
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(LongPoint.newRangeQuery("field", instant, instant + 999), ft.termQuery(date, context));
+        Query expected = new IndexOrDocValuesQuery(
+                LongPoint.newRangeQuery("field", instant, instant + 999),
+                SortedNumericDocValuesField.newRangeQuery("field", instant, instant + 999));
+        assertEquals(expected, ft.termQuery(date, context));
 
         ft.setIndexOptions(IndexOptions.NONE);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -193,7 +199,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant1 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date1).getMillis();
         long instant2 = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date2).getMillis() + 999;
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(LongPoint.newRangeQuery("field", instant1, instant2),
+        Query expected = new IndexOrDocValuesQuery(
+                LongPoint.newRangeQuery("field", instant1, instant2),
+                SortedNumericDocValuesField.newRangeQuery("field", instant1, instant2));
+        assertEquals(expected,
                 ft.rangeQuery(date1, date2, true, true, context).rewrite(new MultiReader()));
 
         ft.setIndexOptions(IndexOptions.NONE);

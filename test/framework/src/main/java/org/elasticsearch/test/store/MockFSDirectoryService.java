@@ -190,7 +190,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         private final BaseDirectoryWrapper dir;
         private final TestRuleMarkFailure failureMarker;
 
-        public CloseableDirectory(BaseDirectoryWrapper dir) {
+        CloseableDirectory(BaseDirectoryWrapper dir) {
             this.dir = dir;
             this.failureMarker = ESTestCase.getSuiteFailureMarker();
         }

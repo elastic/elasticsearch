@@ -29,21 +29,19 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.Suggester;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 
@@ -106,20 +104,19 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
             response.addTerm(resultEntry);
 
             final BytesRefBuilder byteSpare = new BytesRefBuilder();
-            final Function<Map<String, Object>, ExecutableScript> collateScript = suggestion.getCollateQueryScript();
-            final boolean collatePrune = (collateScript != null) && suggestion.collatePrune();
+            final TemplateScript.Factory scriptFactory = suggestion.getCollateQueryScript();
+            final boolean collatePrune = (scriptFactory != null) && suggestion.collatePrune();
             for (int i = 0; i < checkerResult.corrections.length; i++) {
                 Correction correction = checkerResult.corrections[i];
                 spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, null, null));
                 boolean collateMatch = true;
-                if (collateScript != null) {
+                if (scriptFactory != null) {
                     // Checks if the template query collateScript yields any documents
                     // from the index for a correction, collateMatch is updated
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
                     QueryShardContext shardContext = suggestion.getShardContext();
-                    final ExecutableScript executable = collateScript.apply(vars);
-                    final BytesReference querySource = (BytesReference) executable.run();
+                    final String querySource = scriptFactory.newInstance(vars).execute();
                     try (XContentParser parser = XContentFactory.xContent(querySource).createParser(shardContext.getXContentRegistry(),
                             querySource)) {
                         QueryBuilder innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();
@@ -151,15 +148,5 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private static PhraseSuggestion.Entry buildResultEntry(SuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
         spare.copyUTF8Bytes(suggestion.getText());
         return new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length(), cutoffScore);
-    }
-
-    @Override
-    public SuggestionBuilder<?> innerFromXContent(QueryParseContext context) throws IOException {
-        return PhraseSuggestionBuilder.innerFromXContent(context);
-    }
-
-    @Override
-    public SuggestionBuilder<?> read(StreamInput in) throws IOException {
-        return new PhraseSuggestionBuilder(in);
     }
 }

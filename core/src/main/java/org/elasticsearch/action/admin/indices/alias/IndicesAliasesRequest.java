@@ -19,20 +19,15 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
-import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,6 +37,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 
@@ -63,9 +59,10 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
 public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> {
     private List<AliasActions> allAliasActions = new ArrayList<>();
 
-    //indices options that require every specified index to exist, expand wildcards only to open indices and
-    //don't allow that no indices are resolved from wildcard expressions
-    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false);
+    // indices options that require every specified index to exist, expand wildcards only to open
+    // indices, don't allow that no indices are resolved from wildcard expressions and resolve the
+    // expressions only against indices
+    private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false, true, false, true);
 
     public IndicesAliasesRequest() {
 
@@ -92,10 +89,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
 
             public static Type fromValue(byte value) {
                 switch (value) {
-                case 0: return ADD;
-                case 1: return REMOVE;
-                case 2: return REMOVE_INDEX;
-                default: throw new IllegalArgumentException("No type for action [" + value + "]");
+                    case 0: return ADD;
+                    case 1: return REMOVE;
+                    case 2: return REMOVE_INDEX;
+                    default: throw new IllegalArgumentException("No type for action [" + value + "]");
                 }
             }
         }
@@ -106,20 +103,23 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         public static AliasActions add() {
             return new AliasActions(AliasActions.Type.ADD);
         }
+
         /**
          * Build a new {@link AliasAction} to remove aliases.
          */
         public static AliasActions remove() {
             return new AliasActions(AliasActions.Type.REMOVE);
         }
+
         /**
-         * Build a new {@link AliasAction} to remove aliases.
+         * Build a new {@link AliasAction} to remove an index.
          */
         public static AliasActions removeIndex() {
             return new AliasActions(AliasActions.Type.REMOVE_INDEX);
         }
-        private static ObjectParser<AliasActions, ParseFieldMatcherSupplier> parser(String name, Supplier<AliasActions> supplier) {
-            ObjectParser<AliasActions, ParseFieldMatcherSupplier> parser = new ObjectParser<>(name, supplier);
+
+        private static ObjectParser<AliasActions, Void> parser(String name, Supplier<AliasActions> supplier) {
+            ObjectParser<AliasActions, Void> parser = new ObjectParser<>(name, supplier);
             parser.declareString((action, index) -> {
                 if (action.indices() != null) {
                     throw new IllegalArgumentException("Only one of [index] and [indices] is supported");
@@ -147,7 +147,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return parser;
         }
 
-        private static final ObjectParser<AliasActions, ParseFieldMatcherSupplier> ADD_PARSER = parser("add", AliasActions::add);
+        private static final ObjectParser<AliasActions, Void> ADD_PARSER = parser("add", AliasActions::add);
         static {
             ADD_PARSER.declareObject(AliasActions::filter, (parser, m) -> {
                 try {
@@ -157,18 +157,17 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 }
             }, new ParseField("filter"));
             // Since we need to support numbers AND strings here we have to use ValueType.INT.
-            ADD_PARSER.declareField(AliasActions::routing, p -> p.text(), new ParseField("routing"), ValueType.INT);
-            ADD_PARSER.declareField(AliasActions::indexRouting, p -> p.text(), new ParseField("index_routing"), ValueType.INT);
-            ADD_PARSER.declareField(AliasActions::searchRouting, p -> p.text(), new ParseField("search_routing"), ValueType.INT);
+            ADD_PARSER.declareField(AliasActions::routing, XContentParser::text, new ParseField("routing"), ValueType.INT);
+            ADD_PARSER.declareField(AliasActions::indexRouting, XContentParser::text, new ParseField("index_routing"), ValueType.INT);
+            ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, new ParseField("search_routing"), ValueType.INT);
         }
-        private static final ObjectParser<AliasActions, ParseFieldMatcherSupplier> REMOVE_PARSER = parser("remove", AliasActions::remove);
-        private static final ObjectParser<AliasActions, ParseFieldMatcherSupplier> REMOVE_INDEX_PARSER = parser("remove_index",
-                AliasActions::removeIndex);
+        private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser("remove", AliasActions::remove);
+        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser("remove_index", AliasActions::removeIndex);
 
         /**
          * Parser for any one {@link AliasAction}.
          */
-        public static final ConstructingObjectParser<AliasActions, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<AliasActions, Void> PARSER = new ConstructingObjectParser<>(
                 "alias_action", a -> {
                     // Take the first action and complain if there are more than one actions
                     AliasActions action = null;
@@ -401,24 +400,6 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         @Override
         public IndicesOptions indicesOptions() {
             return INDICES_OPTIONS;
-        }
-
-        public String[] concreteAliases(MetaData metaData, String concreteIndex) {
-            if (expandAliasesWildcards()) {
-                //for DELETE we expand the aliases
-                String[] indexAsArray = {concreteIndex};
-                ImmutableOpenMap<String, List<AliasMetaData>> aliasMetaData = metaData.findAliases(aliases, indexAsArray);
-                List<String> finalAliases = new ArrayList<>();
-                for (ObjectCursor<List<AliasMetaData>> curAliases : aliasMetaData.values()) {
-                    for (AliasMetaData aliasMeta: curAliases.value) {
-                        finalAliases.add(aliasMeta.alias());
-                    }
-                }
-                return finalAliases.toArray(new String[finalAliases.size()]);
-            } else {
-                //for add we just return the current aliases
-                return aliases;
-            }
         }
 
         @Override

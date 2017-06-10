@@ -32,7 +32,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SortBy;
@@ -104,7 +103,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /**
      * Read from a stream.
      */
-    TermSuggestionBuilder(StreamInput in) throws IOException {
+    public TermSuggestionBuilder(StreamInput in) throws IOException {
         super(in);
         suggestMode = SuggestMode.readFromStream(in);
         accuracy = in.readFloat();
@@ -387,8 +386,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         return builder;
     }
 
-    static TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static TermSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
         TermSuggestionBuilder tmpSuggestion = new TermSuggestionBuilder("_na_");
         XContentParser.Token token;
         String currentFieldName = null;
@@ -513,15 +511,11 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
 
         public static SuggestMode readFromStream(final StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown SuggestMode ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(SuggestMode.class);
         }
 
         public static SuggestMode resolve(final String str) {
@@ -573,15 +567,11 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
-            out.writeVInt(ordinal());
+            out.writeEnum(this);
         }
 
         public static StringDistanceImpl readFromStream(final StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown StringDistanceImpl ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
+            return in.readEnum(StringDistanceImpl.class);
         }
 
         public static StringDistanceImpl resolve(final String str) {

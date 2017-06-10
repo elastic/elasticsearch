@@ -19,24 +19,21 @@
 
 package org.elasticsearch.search.aggregations.metrics.min;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-public class InternalMinTests extends AbstractWireSerializingTestCase<InternalMin> {
-
+public class InternalMinTests extends InternalAggregationTestCase<InternalMin> {
     @Override
-    protected InternalMin createTestInstance() {
-        return new InternalMin(randomAsciiOfLengthBetween(1, 20), randomDouble(),
-                randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH, DocValueFormat.IP, DocValueFormat.RAW), Collections.emptyList(),
-                new HashMap<>());
+    protected InternalMin createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+        double value = frequently() ? randomDouble() : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY });
+        DocValueFormat formatter = randomNumericDocValueFormat();
+        return new InternalMin(name, value, formatter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -45,18 +42,20 @@ public class InternalMinTests extends AbstractWireSerializingTestCase<InternalMi
     }
 
     @Override
-    protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        List<Entry> entries = new ArrayList<>();
-        entries.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.BOOLEAN.getWriteableName(),
-                in -> DocValueFormat.BOOLEAN));
-        entries.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new));
-        entries.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new));
-        entries.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.GEOHASH.getWriteableName(),
-                in -> DocValueFormat.GEOHASH));
-        entries.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP));
-        entries.add(
-                new NamedWriteableRegistry.Entry(DocValueFormat.class, DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW));
-        return new NamedWriteableRegistry(entries);
+    protected void assertReduced(InternalMin reduced, List<InternalMin> inputs) {
+        assertEquals(inputs.stream().mapToDouble(InternalMin::value).min().getAsDouble(), reduced.value(), 0);
     }
 
+    @Override
+    protected void assertFromXContent(InternalMin min, ParsedAggregation parsedAggregation) {
+        ParsedMin parsed = ((ParsedMin) parsedAggregation);
+        if (Double.isInfinite(min.getValue()) == false) {
+            assertEquals(min.getValue(), parsed.getValue(), Double.MIN_VALUE);
+            assertEquals(min.getValueAsString(), parsed.getValueAsString());
+        } else {
+            // we write Double.NEGATIVE_INFINITY and Double.POSITIVE_INFINITY to xContent as 'null', so we
+            // cannot differentiate between them. Also we cannot recreate the exact String representation
+            assertEquals(parsed.getValue(), Double.POSITIVE_INFINITY, 0);
+        }
+    }
 }

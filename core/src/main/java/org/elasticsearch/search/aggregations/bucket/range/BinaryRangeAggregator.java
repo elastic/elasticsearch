@@ -18,15 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-
-import static java.util.Collections.emptyList;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -41,6 +32,15 @@ import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.emptyList;
 
 /** A range aggregator for values that are stored in SORTED_SET doc values. */
 public final class BinaryRangeAggregator extends BucketsAggregator {
@@ -127,7 +127,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         final LeafBucketCollector sub;
 
         SortedSetRangeLeafCollector(SortedSetDocValues values,
-                Range[] ranges, LeafBucketCollector sub) {
+                Range[] ranges, LeafBucketCollector sub) throws IOException {
             super(sub, values);
             for (int i = 1; i < ranges.length; ++i) {
                 if (RANGE_COMPARATOR.compare(ranges[i-1], ranges[i]) > 0) {
@@ -167,10 +167,13 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
         @Override
         public void collect(int doc, long bucket) throws IOException {
-            values.setDocument(doc);
-            int lo = 0;
-            for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
-                lo = collect(doc, ord, bucket, lo);
+            if (values.advanceExact(doc)) {
+                int lo = 0;
+                for (long ord = values
+                        .nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values
+                                .nextOrd()) {
+                    lo = collect(doc, ord, bucket, lo);
+                }
             }
         }
 
@@ -259,11 +262,12 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
 
         @Override
         public void collect(int doc, long bucket) throws IOException {
-            values.setDocument(doc);
-            final int valuesCount = values.count();
-            for (int i = 0, lo = 0; i < valuesCount; ++i) {
-                final BytesRef value = values.valueAt(i);
-                lo = collect(doc, value, bucket, lo);
+            if (values.advanceExact(doc)) {
+                final int valuesCount = values.docValueCount();
+                for (int i = 0, lo = 0; i < valuesCount; ++i) {
+                    final BytesRef value = values.nextValue();
+                    lo = collect(doc, value, bucket, lo);
+                }
             }
         }
 

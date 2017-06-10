@@ -29,13 +29,16 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
@@ -65,7 +68,7 @@ public class SliceBuilderTests extends ESTestCase {
     private static SliceBuilder randomSliceBuilder() throws IOException {
         int max = randomIntBetween(2, MAX_SLICE);
         int id = randomIntBetween(1, max - 1);
-        String field = randomAsciiOfLengthBetween(5, 20);
+        String field = randomAlphaOfLengthBetween(5, 20);
         return new SliceBuilder(field, id, max);
     }
 
@@ -104,7 +107,7 @@ public class SliceBuilderTests extends ESTestCase {
         sliceBuilder.innerToXContent(builder);
         builder.endObject();
         XContentParser parser = createParser(shuffleXContent(builder));
-        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser);
         SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(context);
         assertNotSame(sliceBuilder, secondSliceBuilder);
         assertEquals(sliceBuilder, secondSliceBuilder);
@@ -157,6 +160,14 @@ public class SliceBuilderTests extends ESTestCase {
             fieldType.setHasDocValues(false);
             when(context.fieldMapper(UidFieldMapper.NAME)).thenReturn(fieldType);
             when(context.getIndexReader()).thenReturn(reader);
+            Settings settings = Settings.builder()
+                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build();
+            IndexMetaData indexState = IndexMetaData.builder("index").settings(settings).build();
+            IndexSettings indexSettings = new IndexSettings(indexState, Settings.EMPTY);
+            when(context.getIndexSettings()).thenReturn(indexSettings);
             SliceBuilder builder = new SliceBuilder(5, 10);
             Query query = builder.toFilter(context, 0, 1);
             assertThat(query, instanceOf(TermsSliceQuery.class));

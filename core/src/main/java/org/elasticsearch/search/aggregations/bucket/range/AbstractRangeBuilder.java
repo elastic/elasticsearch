@@ -44,7 +44,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
     protected boolean keyed = false;
 
     protected AbstractRangeBuilder(String name, InternalRange.Factory<?, ?> rangeFactory) {
-        super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        super(name, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         this.rangeFactory = rangeFactory;
     }
 
@@ -53,7 +53,7 @@ public abstract class AbstractRangeBuilder<AB extends AbstractRangeBuilder<AB, R
      */
     protected AbstractRangeBuilder(StreamInput in, InternalRange.Factory<?, ?> rangeFactory, Writeable.Reader<R> rangeReader)
             throws IOException {
-        super(in, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
+        super(in, rangeFactory.getValueSourceType(), rangeFactory.getValueType());
         this.rangeFactory = rangeFactory;
         ranges = in.readList(rangeReader);
         keyed = in.readBoolean();

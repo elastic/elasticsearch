@@ -21,8 +21,6 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -31,6 +29,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * A mocked script engine that can be used for testing purpose.
@@ -44,7 +44,7 @@ import java.util.function.Function;
  *
  * The function is used to provide the result of the script execution and can return anything.
  */
-public class MockScriptEngine implements ScriptEngineService {
+public class MockScriptEngine implements ScriptEngine {
 
     public static final String NAME = "mockscript";
 
@@ -66,12 +66,7 @@ public class MockScriptEngine implements ScriptEngineService {
     }
 
     @Override
-    public String getExtension() {
-        return getType();
-    }
-
-    @Override
-    public Object compile(String name, String source, Map<String, String> params) {
+    public <T> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
         // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
         // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.
         Function<Map<String, Object>, Object> script = scripts.get(source);
@@ -79,42 +74,41 @@ public class MockScriptEngine implements ScriptEngineService {
             throw new IllegalArgumentException("No pre defined script matching [" + source + "] for script with name [" + name + "], " +
                     "did you declare the mocked script?");
         }
-        return new MockCompiledScript(name, params, source, script);
+        MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script);
+        if (context.instanceClazz.equals(SearchScript.class)) {
+            SearchScript.Factory factory = mockCompiled::createSearchScript;
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
+            ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(TemplateScript.class)) {
+            TemplateScript.Factory factory = vars -> {
+                // TODO: need a better way to implement all these new contexts
+                // this is just a shim to act as an executable script just as before
+                ExecutableScript execScript = mockCompiled.createExecutableScript(vars);
+                    return new TemplateScript(vars) {
+                        @Override
+                        public String execute() {
+                            return (String) execScript.run();
+                        }
+                    };
+                };
+            return context.factoryClazz.cast(factory);
+        }
+        throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
-
-    @Override
-    public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-        MockCompiledScript compiled = (MockCompiledScript) compiledScript.compiled();
-        return compiled.createExecutableScript(vars);
-    }
-
-    @Override
-    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        MockCompiledScript compiled = (MockCompiledScript) compiledScript.compiled();
-        return compiled.createSearchScript(vars, lookup);
-    }
-
-    @Override
-    public void close() throws IOException {
-    }
-
-    @Override
-    public boolean isInlineScriptEnabled() {
-        return true;
-    }
-
 
     public class MockCompiledScript {
 
         private final String name;
         private final String source;
-        private final Map<String, String> params;
+        private final Map<String, String> options;
         private final Function<Map<String, Object>, Object> script;
 
-        public MockCompiledScript(String name, Map<String, String> params, String source, Function<Map<String, Object>, Object> script) {
+        public MockCompiledScript(String name, Map<String, String> options, String source, Function<Map<String, Object>, Object> script) {
             this.name = name;
             this.source = source;
-            this.params = params;
+            this.options = options;
             this.script = script;
         }
 
@@ -122,24 +116,28 @@ public class MockScriptEngine implements ScriptEngineService {
             return name;
         }
 
-        public ExecutableScript createExecutableScript(Map<String, Object> vars) {
+        public ExecutableScript createExecutableScript(Map<String, Object> params) {
             Map<String, Object> context = new HashMap<>();
+            if (options != null) {
+                context.putAll(options); // TODO: remove this once scripts know to look for options under options key
+                context.put("options", options);
+            }
             if (params != null) {
-                context.putAll(params);
+                context.putAll(params); // TODO: remove this once scripts know to look for params under params key
+                context.put("params", params);
             }
-            if (vars != null) {
-                context.putAll(vars);
-            }
-            return new MockExecutableScript(context, script != null ? script : ctx -> new BytesArray(source));
+            return new MockExecutableScript(context, script != null ? script : ctx -> source);
         }
 
-        public SearchScript createSearchScript(Map<String, Object> vars, SearchLookup lookup) {
+        public SearchScript.LeafFactory createSearchScript(Map<String, Object> params, SearchLookup lookup) {
             Map<String, Object> context = new HashMap<>();
-            if (params != null) {
-                context.putAll(params);
+            if (options != null) {
+                context.putAll(options); // TODO: remove this once scripts know to look for options under options key
+                context.put("options", options);
             }
-            if (vars != null) {
-                context.putAll(vars);
+            if (params != null) {
+                context.putAll(params); // TODO: remove this once scripts know to look for params under params key
+                context.put("params", params);
             }
             return new MockSearchScript(lookup, context, script != null ? script : ctx -> source);
         }
@@ -166,7 +164,7 @@ public class MockScriptEngine implements ScriptEngineService {
         }
     }
 
-    public class MockSearchScript implements SearchScript {
+    public class MockSearchScript implements SearchScript.LeafFactory {
 
         private final Function<Map<String, Object>, Object> script;
         private final Map<String, Object> vars;
@@ -179,20 +177,28 @@ public class MockScriptEngine implements ScriptEngineService {
         }
 
         @Override
-        public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+        public SearchScript newInstance(LeafReaderContext context) throws IOException {
             LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
 
-            Map<String, Object> ctx = new HashMap<>();
-            ctx.putAll(leafLookup.asMap());
+            Map<String, Object> ctx = new HashMap<>(leafLookup.asMap());
             if (vars != null) {
                 ctx.putAll(vars);
             }
 
-            AbstractSearchScript leafSearchScript = new AbstractSearchScript() {
-
+            return new SearchScript(vars, lookup, context) {
                 @Override
                 public Object run() {
                     return script.apply(ctx);
+                }
+
+                @Override
+                public long runAsLong() {
+                    return ((Number) run()).longValue();
+                }
+
+                @Override
+                public double runAsDouble() {
+                    return ((Number) run()).doubleValue();
                 }
 
                 @Override
@@ -202,12 +208,14 @@ public class MockScriptEngine implements ScriptEngineService {
 
                 @Override
                 public void setScorer(Scorer scorer) {
-                    super.setScorer(scorer);
                     ctx.put("_score", new ScoreAccessor(scorer));
                 }
+
+                @Override
+                public void setDocument(int doc) {
+                    leafLookup.setDocument(doc);
+                }
             };
-            leafSearchScript.setLookup(leafLookup);
-            return leafSearchScript;
         }
 
         @Override
@@ -215,4 +223,9 @@ public class MockScriptEngine implements ScriptEngineService {
             return true;
         }
     }
+
+    public static Script mockInlineScript(final String script) {
+        return new Script(ScriptType.INLINE, "mock", script, emptyMap());
+    }
+
 }

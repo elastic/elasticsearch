@@ -132,7 +132,7 @@ public final class IngestMetadata implements MetaData.Custom {
             this.pipelines = DiffableUtils.diff(before.pipelines, after.pipelines, DiffableUtils.getStringKeySerializer());
         }
 
-        public IngestMetadataDiff(StreamInput in) throws IOException {
+        IngestMetadataDiff(StreamInput in) throws IOException {
             pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), PipelineConfiguration::readFrom,
                 PipelineConfiguration::readDiffFrom);
         }

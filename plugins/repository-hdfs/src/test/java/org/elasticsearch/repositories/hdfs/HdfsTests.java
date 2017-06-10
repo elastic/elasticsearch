@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryException;
-import org.elasticsearch.repositories.hdfs.HdfsPlugin;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -184,6 +183,6 @@ public class HdfsTests extends ESSingleNodeTestCase {
     }
 
     private long count(Client client, String index) {
-        return client.prepareSearch(index).setSize(0).get().getHits().totalHits();
+        return client.prepareSearch(index).setSize(0).get().getHits().getTotalHits();
     }
 }

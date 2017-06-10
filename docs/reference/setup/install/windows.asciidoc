@@ -45,7 +45,7 @@ Elasticsearch can be started from the command line as follows:
 
 [source,sh]
 --------------------------------------------
-.\bin\elasticsearch
+.\bin\elasticsearch.bat
 --------------------------------------------
 
 By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT`,
@@ -54,7 +54,7 @@ and can be stopped by pressing `Ctrl-C`.
 [[windows-configuring]]
 ==== Configuring Elasticsearch on the command line
 
-Elasticsearch loads its configuration from the `%ES_HOME%/config/elasticsearch.yml`
+Elasticsearch loads its configuration from the `%ES_HOME%\config\elasticsearch.yml`
 file by default.  The format of this config file is explained in
 <<settings>>.
 
@@ -63,7 +63,7 @@ the command line, using the `-E` syntax as follows:
 
 [source,sh]
 --------------------------------------------
-./bin/elasticsearch -Ecluster.name=my_cluster -Enode.name=node_1
+.\bin\elasticsearch.bat -Ecluster.name=my_cluster -Enode.name=node_1
 --------------------------------------------
 
 NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-Epath.logs="C:\My Logs\logs"`.
@@ -121,13 +121,18 @@ The service 'elasticsearch-service-x64' has been installed.
 
 NOTE: While a JRE can be used for the Elasticsearch service, due to its use of a client VM (as opposed to a server JVM which offers better performance for long-running applications) its usage is discouraged and a warning will be issued.
 
-NOTE: Upgrading (or downgrading) JVM versions does not require the service to be reinstalled. However, upgrading across JVM types (e.g. JRE versus SE) is not supported, and does require the service to be reinstalled.
+NOTE: The system environment variable `JAVA_HOME` should be set to the path to
+the JDK installation that you want the service to use. If you upgrade the JDK,
+you are not required to the reinstall the service but you must set the value of
+the system environment variable `JAVA_HOME` to the path to the new JDK
+installation. However, upgrading across JVM types (e.g. JRE versus SE) is not
+supported, and does require the service to be reinstalled.
 
 [[windows-service-settings]]
 [float]
 === Customizing service settings
 
-The Elasticsearch service can be configured prior to installation by setting the the following environment variables (either using the https://technet.microsoft.com/en-us/library/cc754250(v=ws.10).aspx[set command] from the command line, or through the `System Properties->Environment Variables` GUI).
+The Elasticsearch service can be configured prior to installation by setting the following environment variables (either using the https://technet.microsoft.com/en-us/library/cc754250(v=ws.10).aspx[set command] from the command line, or through the `System Properties->Environment Variables` GUI).
 
 [horizontal]
 `SERVICE_ID`::
@@ -249,11 +254,6 @@ directory so that you do not delete important data later on.
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.
  d| Not configured
   | path.repo
-
-| script
-  | Location of script files.
-  | %ES_HOME%\scripts
-  | path.scripts
 
 |=======================================================================
 

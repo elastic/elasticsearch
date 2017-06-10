@@ -19,12 +19,14 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 
+import java.io.IOException;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
@@ -33,9 +35,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-public class LeafDocLookup implements Map {
+public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
-    private final Map<String, ScriptDocValues> localCacheFieldData = new HashMap<>(4);
+    private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
 
     private final MapperService mapperService;
     private final IndexFieldDataService fieldDataService;
@@ -67,26 +69,30 @@ public class LeafDocLookup implements Map {
     }
 
     @Override
-    public Object get(Object key) {
+    public ScriptDocValues<?> get(Object key) {
         // assume its a string...
         String fieldName = key.toString();
-        ScriptDocValues scriptValues = localCacheFieldData.get(fieldName);
+        ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
         if (scriptValues == null) {
             final MappedFieldType fieldType = mapperService.fullName(fieldName);
             if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types) + "");
+                throw new IllegalArgumentException("No field found for [" + fieldName + "] in mapping with types " + Arrays.toString(types));
             }
             // load fielddata on behalf of the script: otherwise it would need additional permissions
             // to deal with pagedbytes/ramusagestimator/etc
-            scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues>() {
+            scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues<?>>() {
                 @Override
-                public ScriptDocValues run() {
+                public ScriptDocValues<?> run() {
                     return fieldDataService.getForField(fieldType).load(reader).getScriptValues();
                 }
             });
             localCacheFieldData.put(fieldName, scriptValues);
         }
-        scriptValues.setNextDocId(docId);
+        try {
+            scriptValues.setNextDocId(docId);
+        } catch (IOException e) {
+            throw ExceptionsHelper.convertToElastic(e);
+        }
         return scriptValues;
     }
 
@@ -94,7 +100,7 @@ public class LeafDocLookup implements Map {
     public boolean containsKey(Object key) {
         // assume its a string...
         String fieldName = key.toString();
-        ScriptDocValues scriptValues = localCacheFieldData.get(fieldName);
+        ScriptDocValues<?> scriptValues = localCacheFieldData.get(fieldName);
         if (scriptValues == null) {
             MappedFieldType fieldType = mapperService.fullName(fieldName);
             if (fieldType == null) {
@@ -120,17 +126,17 @@ public class LeafDocLookup implements Map {
     }
 
     @Override
-    public Object put(Object key, Object value) {
+    public ScriptDocValues<?> put(String key, ScriptDocValues<?> value) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Object remove(Object key) {
+    public ScriptDocValues<?> remove(Object key) {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public void putAll(Map m) {
+    public void putAll(Map<? extends String, ? extends ScriptDocValues<?>> m) {
         throw new UnsupportedOperationException();
     }
 
@@ -140,17 +146,17 @@ public class LeafDocLookup implements Map {
     }
 
     @Override
-    public Set keySet() {
+    public Set<String> keySet() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Collection values() {
+    public Collection<ScriptDocValues<?>> values() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Set entrySet() {
+    public Set<Map.Entry<String, ScriptDocValues<?>>> entrySet() {
         throw new UnsupportedOperationException();
     }
 }

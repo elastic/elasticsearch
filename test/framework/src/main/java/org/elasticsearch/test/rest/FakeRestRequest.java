@@ -21,28 +21,31 @@ package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 
+import java.net.SocketAddress;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class FakeRestRequest extends RestRequest {
 
-    private final Map<String, String> headers;
     private final BytesReference content;
     private final Method method;
-
+    private final SocketAddress remoteAddress;
 
     public FakeRestRequest() {
-        this(NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), null, Method.GET, "/");
+        this(NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), null, Method.GET, "/", null);
     }
 
-    private FakeRestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> headers, Map<String, String> params,
-            BytesReference content, Method method, String path) {
-        super(xContentRegistry, params, path);
-        this.headers = headers;
+    private FakeRestRequest(NamedXContentRegistry xContentRegistry, Map<String, List<String>> headers, Map<String, String> params,
+                            BytesReference content, Method method, String path, SocketAddress remoteAddress) {
+        super(xContentRegistry, params, path, headers);
         this.content = content;
         this.method = method;
+        this.remoteAddress = remoteAddress;
     }
 
     @Override
@@ -66,19 +69,14 @@ public class FakeRestRequest extends RestRequest {
     }
 
     @Override
-    public String header(String name) {
-        return headers.get(name);
-    }
-
-    @Override
-    public Iterable<Map.Entry<String, String>> headers() {
-        return headers.entrySet();
+    public SocketAddress getRemoteAddress() {
+        return remoteAddress;
     }
 
     public static class Builder {
         private final NamedXContentRegistry xContentRegistry;
 
-        private Map<String, String> headers = new HashMap<>();
+        private Map<String, List<String>> headers = new HashMap<>();
 
         private Map<String, String> params = new HashMap<>();
 
@@ -88,11 +86,13 @@ public class FakeRestRequest extends RestRequest {
 
         private Method method = Method.GET;
 
+        private SocketAddress address = null;
+
         public Builder(NamedXContentRegistry xContentRegistry) {
             this.xContentRegistry = xContentRegistry;
         }
 
-        public Builder withHeaders(Map<String, String> headers) {
+        public Builder withHeaders(Map<String, List<String>> headers) {
             this.headers = headers;
             return this;
         }
@@ -102,8 +102,11 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
-        public Builder withContent(BytesReference content) {
+        public Builder withContent(BytesReference content, XContentType xContentType) {
             this.content = content;
+            if (xContentType != null) {
+                headers.put("Content-Type", Collections.singletonList(xContentType.mediaType()));
+            }
             return this;
         }
 
@@ -117,8 +120,13 @@ public class FakeRestRequest extends RestRequest {
             return this;
         }
 
+        public Builder withRemoteAddress(SocketAddress address) {
+            this.address = address;
+            return this;
+        }
+
         public FakeRestRequest build() {
-            return new FakeRestRequest(xContentRegistry, headers, params, content, method, path);
+            return new FakeRestRequest(xContentRegistry, headers, params, content, method, path, address);
         }
 
     }

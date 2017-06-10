@@ -96,7 +96,6 @@ public class GceDiscoverTests extends ESIntegTestCase {
             .put("node.portsfile", "true")
             .put("cloud.gce.project_id", "testproject")
             .put("cloud.gce.zone", "primaryzone")
-            .put("discovery.initial_state_timeout", "1s")
             .put("cloud.gce.host", "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort())
             .put("cloud.gce.root_url", "https://" + httpsServer.getAddress().getHostName() +
                 ":" + httpsServer.getAddress().getPort())

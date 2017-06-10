@@ -34,4 +34,7 @@ grant {
   // TODO: get these fixed in aws sdk
   // See https://github.com/aws/aws-sdk-java/issues/766
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  // s3 client opens socket connections for to access repository
+  permission java.net.SocketPermission "*", "connect";
 };

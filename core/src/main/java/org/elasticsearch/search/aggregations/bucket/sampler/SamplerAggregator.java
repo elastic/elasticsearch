@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -34,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -52,7 +52,6 @@ public class SamplerAggregator extends SingleBucketAggregator {
     public static final ParseField SHARD_SIZE_FIELD = new ParseField("shard_size");
     public static final ParseField MAX_DOCS_PER_VALUE_FIELD = new ParseField("max_docs_per_value");
     public static final ParseField EXECUTION_HINT_FIELD = new ParseField("execution_hint");
-
 
     public enum ExecutionMode {
 
@@ -116,7 +115,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
                     return mode;
                 }
             }
-            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + values());
+            throw new IllegalArgumentException("Unknown `execution_hint`: [" + value + "], expected any of " + Arrays.toString(values()));
         }
 
         private final ParseField parseField;
@@ -125,8 +124,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
             this.parseField = parseField;
         }
 
-        abstract Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
-                SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+        abstract Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue,
+                ValuesSource valuesSource, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException;
 
         abstract boolean needsGlobalOrdinals();
@@ -141,7 +140,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
     protected final int shardSize;
     protected BestDocsDeferringCollector bdd;
 
-    public SamplerAggregator(String name, int shardSize, AggregatorFactories factories, SearchContext context,
+    SamplerAggregator(String name, int shardSize, AggregatorFactories factories, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.shardSize = shardSize;
@@ -156,9 +155,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
     public DeferringBucketCollector getDeferringCollector() {
         bdd = new BestDocsDeferringCollector(shardSize, context.bigArrays());
         return bdd;
-
     }
-
 
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
@@ -193,4 +190,3 @@ public class SamplerAggregator extends SingleBucketAggregator {
     }
 
 }
-

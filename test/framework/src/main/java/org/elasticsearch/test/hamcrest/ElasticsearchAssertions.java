@@ -19,6 +19,7 @@
 package org.elasticsearch.test.hamcrest;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -65,6 +66,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
@@ -196,21 +198,25 @@ public class ElasticsearchAssertions {
     }
 
     public static String formatShardStatus(BroadcastResponse response) {
-        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
-                + response.getFailedShards() + " shard failures:";
+        StringBuilder msg = new StringBuilder();
+        msg.append(" Total shards: ").append(response.getTotalShards())
+           .append(" Successful shards: ").append(response.getSuccessfulShards())
+           .append(" & ").append(response.getFailedShards()).append(" shard failures:");
         for (ShardOperationFailedException failure : response.getShardFailures()) {
-            msg += "\n " + failure.toString();
+            msg.append("\n ").append(failure);
         }
-        return msg;
+        return msg.toString();
     }
 
     public static String formatShardStatus(SearchResponse response) {
-        String msg = " Total shards: " + response.getTotalShards() + " Successful shards: " + response.getSuccessfulShards() + " & "
-                + response.getFailedShards() + " shard failures:";
+        StringBuilder msg = new StringBuilder();
+        msg.append(" Total shards: ").append(response.getTotalShards())
+           .append(" Successful shards: ").append(response.getSuccessfulShards())
+           .append(" & ").append(response.getFailedShards()).append(" shard failures:");
         for (ShardSearchFailure failure : response.getShardFailures()) {
-            msg += "\n " + failure.toString();
+            msg.append("\n ").append(failure);
         }
-        return msg;
+        return msg.toString();
     }
 
     public static void assertNoSearchHits(SearchResponse searchResponse) {
@@ -222,7 +228,7 @@ public class ElasticsearchAssertions {
 
         Set<String> idsSet = new HashSet<>(Arrays.asList(ids));
         for (SearchHit hit : searchResponse.getHits()) {
-            assertThat("id [" + hit.getId() + "] was found in search results but wasn't expected (type [" + hit.getType() + "], index [" + hit.index() + "])"
+            assertThat("id [" + hit.getId() + "] was found in search results but wasn't expected (type [" + hit.getType() + "], index [" + hit.getIndex() + "])"
                             + shardStatus, idsSet.remove(hit.getId()),
                     equalTo(true));
         }
@@ -244,17 +250,17 @@ public class ElasticsearchAssertions {
 
     public static void assertOrderedSearchHits(SearchResponse searchResponse, String... ids) {
         String shardStatus = formatShardStatus(searchResponse);
-        assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().hits().length, equalTo(ids.length));
+        assertThat("Expected different hit count. " + shardStatus, searchResponse.getHits().getHits().length, equalTo(ids.length));
         for (int i = 0; i < ids.length; i++) {
-            SearchHit hit = searchResponse.getHits().hits()[i];
+            SearchHit hit = searchResponse.getHits().getHits()[i];
             assertThat("Expected id: " + ids[i] + " at position " + i + " but wasn't." + shardStatus, hit.getId(), equalTo(ids[i]));
         }
         assertVersionSerializable(searchResponse);
     }
 
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
-        if (countResponse.getHits().totalHits() != expectedHitCount) {
-            fail("Count is " + countResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
+        if (countResponse.getHits().getTotalHits() != expectedHitCount) {
+            fail("Count is " + countResponse.getHits().getTotalHits() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
         assertVersionSerializable(countResponse);
     }
@@ -287,7 +293,7 @@ public class ElasticsearchAssertions {
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
         assertThat(number, greaterThan(0));
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
-        assertThat(searchResponse.getHits().totalHits(), greaterThanOrEqualTo((long) number));
+        assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo((long) number));
         assertSearchHit(searchResponse.getHits().getAt(number - 1), matcher);
         assertVersionSerializable(searchResponse);
     }
@@ -375,21 +381,21 @@ public class ElasticsearchAssertions {
 
     private static void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher<Integer> fragmentsMatcher, Matcher<String> matcher) {
         assertNoFailures(resp);
-        assertThat("not enough hits", resp.getHits().hits().length, greaterThan(hit));
-        assertHighlight(resp.getHits().hits()[hit], field, fragment, fragmentsMatcher, matcher);
+        assertThat("not enough hits", resp.getHits().getHits().length, greaterThan(hit));
+        assertHighlight(resp.getHits().getHits()[hit], field, fragment, fragmentsMatcher, matcher);
         assertVersionSerializable(resp);
     }
 
     private static void assertHighlight(SearchHit hit, String field, int fragment, Matcher<Integer> fragmentsMatcher, Matcher<String> matcher) {
         assertThat(hit.getHighlightFields(), hasKey(field));
         assertThat(hit.getHighlightFields().get(field).fragments().length, fragmentsMatcher);
-        assertThat(hit.highlightFields().get(field).fragments()[fragment].string(), matcher);
+        assertThat(hit.getHighlightFields().get(field).fragments()[fragment].string(), matcher);
     }
 
     public static void assertNotHighlighted(SearchResponse resp, int hit, String field) {
         assertNoFailures(resp);
-        assertThat("not enough hits", resp.getHits().hits().length, greaterThan(hit));
-        assertThat(resp.getHits().hits()[hit].getHighlightFields(), not(hasKey(field)));
+        assertThat("not enough hits", resp.getHits().getHits().length, greaterThan(hit));
+        assertThat(resp.getHits().getHits()[hit].getHighlightFields(), not(hasKey(field)));
     }
 
     public static void assertSuggestionSize(Suggest searchSuggest, int entry, int size, String key) {
@@ -508,6 +514,14 @@ public class ElasticsearchAssertions {
         assertThat(q.clauses().size(), greaterThan(i));
         assertThat(q.clauses().get(i).getQuery(), instanceOf(subqueryType));
         return subqueryType.cast(q.clauses().get(i).getQuery());
+    }
+
+    public static <T extends Query> T assertDisjunctionSubQuery(Query query, Class<T> subqueryType, int i) {
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery q = (DisjunctionMaxQuery) query;
+        assertThat(q.getDisjuncts().size(), greaterThan(i));
+        assertThat(q.getDisjuncts().get(i), instanceOf(subqueryType));
+        return subqueryType.cast(q.getDisjuncts().get(i));
     }
 
     /**
@@ -786,11 +800,19 @@ public class ElasticsearchAssertions {
         //1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok
         //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
         //Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
+        Map<String, Object> actualMap = null;
+        Map<String, Object> expectedMap = null;
         try (XContentParser actualParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, actual)) {
-            Map<String, Object> actualMap = actualParser.map();
+            actualMap = actualParser.map();
             try (XContentParser expectedParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, expected)) {
-                Map<String, Object> expectedMap = expectedParser.map();
-                assertMapEquals(expectedMap, actualMap);
+                expectedMap = expectedParser.map();
+                try {
+                    assertMapEquals(expectedMap, actualMap);
+                } catch (AssertionError error) {
+                    NotEqualMessageBuilder message = new NotEqualMessageBuilder();
+                    message.compareMaps(actualMap, expectedMap);
+                    throw new AssertionError("Error when comparing xContent.\n" + message.toString(), error);
+                }
             }
         }
     }
@@ -798,7 +820,6 @@ public class ElasticsearchAssertions {
     /**
      * Compares two maps recursively, using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
-    @SuppressWarnings("unchecked")
     private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual) {
         assertEquals(expected.size(), actual.size());
         for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {

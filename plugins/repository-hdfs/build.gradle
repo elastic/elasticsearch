@@ -18,6 +18,8 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.test.RestIntegTestTask
+
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -42,7 +44,7 @@ dependencies {
   compile "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
   compile "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
   compile 'org.apache.htrace:htrace-core:3.1.0-incubating'
-  compile 'com.google.guava:guava:16.0.1'
+  compile 'com.google.guava:guava:11.0.2'
   compile 'com.google.protobuf:protobuf-java:2.5.0'
   compile 'commons-logging:commons-logging:1.1.3'
   compile 'commons-cli:commons-cli:1.2'
@@ -60,7 +62,7 @@ dependencyLicenses {
   mapping from: /hadoop-.*/, to: 'hadoop'
 }
 
-task hdfsFixture(type: org.elasticsearch.gradle.test.Fixture) {
+task hdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   dependsOn project.configurations.hdfsFixture
   executable = new File(project.javaHome, 'bin/java')
   env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
@@ -68,33 +70,143 @@ task hdfsFixture(type: org.elasticsearch.gradle.test.Fixture) {
        baseDir
 }
 
-integTest {
-  boolean fixtureSupported = false;
-  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-    // hdfs fixture will not start without hadoop native libraries on windows
-    String nativePath = System.getenv("HADOOP_HOME")
-    if (nativePath != null) {
-      Path path = Paths.get(nativePath);
-      if (Files.isDirectory(path) &&
-          Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
-          Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
-          Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
-        fixtureSupported = true
-      } else {
-        throw new IllegalStateException("HADOOP_HOME: " + path.toString() + " is invalid, does not contain hadoop native libraries in $HADOOP_HOME/bin");
-      }
+// MIT Kerberos Vagrant Testing Fixture
+String box = "krb5kdc"
+Map<String,String> vagrantEnvVars = [
+        'VAGRANT_CWD'           : "${project(':test:fixtures:krb5kdc-fixture').projectDir}",
+        'VAGRANT_VAGRANTFILE'   : 'Vagrantfile',
+        'VAGRANT_PROJECT_DIR'   : "${project(':test:fixtures:krb5kdc-fixture').projectDir}"
+]
+
+task krb5kdcUpdate(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
+  command 'box'
+  subcommand 'update'
+  boxName box
+  environmentVars vagrantEnvVars
+}
+
+task krb5kdcFixture(type: org.elasticsearch.gradle.test.VagrantFixture) {
+  command 'up'
+  args '--provision', '--provider', 'virtualbox'
+  boxName box
+  environmentVars vagrantEnvVars
+  dependsOn krb5kdcUpdate
+}
+
+task krb5AddPrincipals {
+  dependsOn krb5kdcFixture
+}
+
+List<String> principals = [ "elasticsearch", "hdfs/hdfs.build.elastic.co" ]
+String realm = "BUILD.ELASTIC.CO"
+
+for (String principal : principals) {
+  Task create = project.tasks.create("addPrincipal#${principal}", org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
+    command 'ssh'
+    args '--command', "sudo bash /vagrant/src/main/resources/provision/addprinc.sh $principal"
+    boxName box
+    environmentVars vagrantEnvVars
+    dependsOn krb5kdcFixture
+  }
+  krb5AddPrincipals.dependsOn(create)
+}
+
+task secureHdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
+  dependsOn project.configurations.hdfsFixture, krb5kdcFixture, krb5AddPrincipals
+  executable = new File(project.javaHome, 'bin/java')
+  env 'CLASSPATH', "${ -> project.configurations.hdfsFixture.asPath }"
+
+  Path keytabPath = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab")
+  Path krb5Config = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf")
+
+  args "-Djava.security.krb5.conf=${krb5Config}", 'hdfs.MiniHDFS',
+          baseDir,
+          "hdfs/hdfs.build.elastic.co@${realm}",
+          "${keytabPath}"
+}
+
+boolean fixtureSupported = false;
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  // hdfs fixture will not start without hadoop native libraries on windows
+  String nativePath = System.getenv("HADOOP_HOME")
+  if (nativePath != null) {
+    Path path = Paths.get(nativePath);
+    if (Files.isDirectory(path) &&
+        Files.exists(path.resolve("bin").resolve("winutils.exe")) &&
+        Files.exists(path.resolve("bin").resolve("hadoop.dll")) &&
+        Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
+      fixtureSupported = true
+    } else {
+      throw new IllegalStateException("HADOOP_HOME: ${path} is invalid, does not contain hadoop native libraries in \$HADOOP_HOME/bin");
     }
-  } else {
-    fixtureSupported = true
+  }
+} else {
+  fixtureSupported = true
+}
+
+if (fixtureSupported) {
+  integTestCluster.dependsOn hdfsFixture
+  integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository'
+} else {
+  logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
+  // just tests that the plugin loads
+  integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
+}
+
+boolean secureFixtureSupported = false;
+if (fixtureSupported) {
+  // Only do secure fixture support if the regular fixture is supported,
+  // and if vagrant is installed. The ignoreExitValue on exec only matters
+  // in cases where the command can be found and successfully started. In
+  // situations where the vagrant command isn't able to be started at all
+  // (it's not installed) then Gradle still throws ExecException.
+  ByteArrayOutputStream pipe = new ByteArrayOutputStream()
+  try {
+    ExecResult runResult = exec {
+      commandLine 'vagrant', '--version'
+      standardOutput pipe
+      ignoreExitValue true
+    }
+    String output = pipe.toString().trim()
+    if (runResult.exitValue == 0) {
+      secureFixtureSupported = (output ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/)
+    } else {
+      logger.warn("Could not read installed vagrant version:\n" + output)
+    }
+  } catch (org.gradle.process.internal.ExecException e) {
+    logger.warn("Could not find vagrant: " + e.message)
+    // Swallow error. Vagrant isn't installed. Leave secure fixture support off.
+  }
+}
+
+// Create a Integration Test suite just for security based tests
+if (secureFixtureSupported && false) { // This fails due to a vagrant configuration issue - remove the false check to re-enable
+  // This must execute before the afterEvaluate block from integTestSecure
+  project.afterEvaluate {
+    Path elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("elasticsearch.keytab").toAbsolutePath()
+    Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
+
+    project.integTestSecureCluster.dependsOn(project.bundlePlugin)
+    project.integTestSecure.clusterConfig.plugin(project.path)
+    project.integTestSecure.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
+    project.integTestSecure.clusterConfig.jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+            " " + "-Djava.security.krb5.conf=${krb5conf}" +
+            " " + System.getProperty('tests.jvm.argline', '')
   }
 
-  if (fixtureSupported) {
-    dependsOn hdfsFixture
-  } else {
-    logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
-    // just tests that the plugin loads
-    systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
+  RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', RestIntegTestTask.class) {
+    description = "Runs rest tests against an elasticsearch cluster with HDFS secured by MIT Kerberos."
   }
+
+  integTestSecure.mustRunAfter(project.integTest)
+  project.check.dependsOn(integTestSecure)
+
+  // Fixture dependencies
+  integTestSecureCluster.dependsOn secureHdfsFixture, krb5kdcFixture
+  integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
+} else {
+  logger.warn("secured hdfsFixture is unsupported, please install Vagrant 1.8.6+ to enable")
 }
 
 thirdPartyAudit.excludes = [
@@ -340,9 +452,6 @@ thirdPartyAudit.excludes = [
   'org.apache.hadoop.security.SecurityUtil$QualifiedHostResolver',
 
   // internal java api: sun.misc.Unsafe
-  'com.google.common.cache.Striped64',
-  'com.google.common.cache.Striped64$1',
-  'com.google.common.cache.Striped64$Cell',
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator', 
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
   'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
@@ -368,3 +477,9 @@ thirdPartyAudit.excludes = [
   'org.apache.log4j.helpers.ISO8601DateFormat',
   'org.apache.log4j.spi.ThrowableInformation'
 ]
+
+// Gradle 2.13 bundles org.slf4j.impl.StaticLoggerBinder in its core.jar which leaks into the forbidden APIs ant task
+// Gradle 2.14+ does not bundle this class anymore so we need to properly exclude it here.
+if (GradleVersion.current() > GradleVersion.version("2.13")) {
+  thirdPartyAudit.excludes += ['org.slf4j.impl.StaticLoggerBinder']
+}

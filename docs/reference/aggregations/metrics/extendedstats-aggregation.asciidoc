@@ -89,7 +89,7 @@ Computing the grades stats based on a script:
         "grades_stats" : { 
             "extended_stats" : { 
                 "script" : { 
-                    "inline" : "doc['grade'].value",
+                    "source" : "doc['grade'].value",
                     "lang" : "painless"
                  }
              }
@@ -109,7 +109,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
         "grades_stats" : { 
             "extended_stats" : { 
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "grade"
                     }
@@ -119,8 +119,6 @@ This will interpret the `script` parameter as an `inline` script with the `painl
     }
 }
 --------------------------------------------------
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ===== Value Script
 
@@ -138,7 +136,7 @@ It turned out that the exam was way above the level of the students and a grade 
                     "field" : "grade",
                     "script" : {
                         "lang" : "painless",
-                        "inline": "_value * params.correction",
+                        "source": "_value * params.correction",
                         "params" : {
                             "correction" : 1.2
                         }

@@ -20,7 +20,6 @@ x * Licensed to Elasticsearch under one or more contributor
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -40,12 +39,12 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
     private List<Object> missingContent = Arrays.asList(
             "_last",
             "_first",
-            randomAsciiOfLength(10), randomUnicodeOfCodepointLengthBetween(5, 15),
+            Integer.toString(randomInt()),
             randomInt());
 
 
     public FieldSortBuilder randomFieldSortBuilder() {
-        String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
+        String fieldName = rarely() ? FieldSortBuilder.DOC_FIELD_NAME : randomAlphaOfLengthBetween(1, 10);
         FieldSortBuilder builder = new FieldSortBuilder(fieldName);
         if (randomBoolean()) {
             builder.order(randomFrom(SortOrder.values()));
@@ -56,7 +55,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            builder.unmappedType(randomAsciiOfLengthBetween(1, 10));
+            builder.unmappedType(randomAlphaOfLengthBetween(1, 10));
         }
 
         if (randomBoolean()) {
@@ -68,7 +67,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         }
 
         if (randomBoolean()) {
-            builder.setNestedPath(randomAsciiOfLengthBetween(1, 10));
+            builder.setNestedPath(randomAlphaOfLengthBetween(1, 10));
         }
 
         return builder;
@@ -82,7 +81,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         case 0:
             mutated.setNestedPath(randomValueOtherThan(
                     original.getNestedPath(),
-                    () -> randomAsciiOfLengthBetween(1, 10)));
+                    () -> randomAlphaOfLengthBetween(1, 10)));
             break;
         case 1:
             mutated.setNestedFilter(randomValueOtherThan(
@@ -95,7 +94,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         case 3:
             mutated.unmappedType(randomValueOtherThan(
                     original.unmappedType(),
-                    () -> randomAsciiOfLengthBetween(1, 10)));
+                    () -> randomAlphaOfLengthBetween(1, 10)));
             break;
         case 4:
             mutated.missing(randomValueOtherThan(original.missing(), () -> randomFrom(missingContent)));
@@ -134,7 +133,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser);
 
         try {
           FieldSortBuilder.fromXContent(context, "");

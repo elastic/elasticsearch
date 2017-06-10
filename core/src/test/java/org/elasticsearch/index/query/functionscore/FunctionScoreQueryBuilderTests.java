@@ -20,12 +20,10 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -39,7 +37,6 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -86,6 +83,9 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<FunctionScoreQueryBuilder> {
 
+    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[] {Script.PARAMS_PARSE_FIELD.getPreferredName(),
+        ExponentialDecayFunctionBuilder.NAME, LinearDecayFunctionBuilder.NAME, GaussDecayFunctionBuilder.NAME};
+
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.singleton(TestPlugin.class);
@@ -107,6 +107,12 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             functionScoreQueryBuilder.setMinScore(randomFloat());
         }
         return functionScoreQueryBuilder;
+    }
+
+    @Override
+    protected String[] shuffleProtectedFields() {
+        // do not shuffle fields that may contain arbitrary content
+        return SHUFFLE_PROTECTED_FIELDS;
     }
 
     @Override
@@ -183,7 +189,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 } else if (randomBoolean()) {
                     randomScoreFunctionBuilder.seed(randomInt());
                 } else {
-                    randomScoreFunctionBuilder.seed(randomAsciiOfLengthBetween(1, 10));
+                    randomScoreFunctionBuilder.seed(randomAlphaOfLengthBetween(1, 10));
                 }
             }
             functionBuilder = randomScoreFunctionBuilder;
@@ -221,7 +227,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             break;
         case DATE_FIELD_NAME:
             origin = new DateTime(System.currentTimeMillis() - randomIntBetween(0, 1000000), DateTimeZone.UTC).toString();
-            scale = randomPositiveTimeValue();
+            scale = randomTimeValue(1, 1000, new String[]{"d", "h", "ms", "s", "m"});
             offset = randomPositiveTimeValue();
             break;
         default:
@@ -617,7 +623,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "  }\n" +
                 "}";
 
-        FunctionScoreQueryBuilder parsed = (FunctionScoreQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        FunctionScoreQueryBuilder parsed = (FunctionScoreQueryBuilder) parseQuery(json);
         // this should be equivalent to the same with a match_all query
         String expected =
                 "{\n" +
@@ -639,7 +645,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     "  }\n" +
                     "}";
 
-        FunctionScoreQueryBuilder expectedParsed = (FunctionScoreQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        FunctionScoreQueryBuilder expectedParsed = (FunctionScoreQueryBuilder) parseQuery(json);
         assertEquals(expectedParsed, parsed);
 
         assertEquals(json, 2, parsed.filterFunctionBuilders().length);
@@ -775,13 +781,13 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     static class RandomScoreFunctionBuilderWithFixedSeed extends RandomScoreFunctionBuilder {
         public static final String NAME = "random_with_fixed_seed";
 
-        public RandomScoreFunctionBuilderWithFixedSeed() {
+        RandomScoreFunctionBuilderWithFixedSeed() {
         }
 
         /**
          * Read from a stream.
          */
-        public RandomScoreFunctionBuilderWithFixedSeed(StreamInput in) throws IOException {
+        RandomScoreFunctionBuilderWithFixedSeed(StreamInput in) throws IOException {
             super(in);
         }
 

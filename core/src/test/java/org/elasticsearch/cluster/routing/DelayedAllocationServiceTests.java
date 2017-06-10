@@ -464,13 +464,13 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     private static class TestDelayAllocationService extends DelayedAllocationService {
         private volatile long nanoTimeOverride = -1L;
 
-        public TestDelayAllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                          AllocationService allocationService) {
+        TestDelayAllocationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
+                                   AllocationService allocationService) {
             super(settings, threadPool, clusterService, allocationService);
         }
 
         @Override
-        protected void assertClusterStateThread() {
+        protected void assertClusterOrMasterStateThread() {
             // do not check this in the unit tests
         }
 

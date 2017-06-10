@@ -29,7 +29,7 @@ final class CandidateScorer {
     private final int maxNumCorrections;
     private final int gramSize;
 
-    public CandidateScorer(WordScorer scorer, int maxNumCorrections, int gramSize) {
+    CandidateScorer(WordScorer scorer, int maxNumCorrections, int gramSize) {
         this.scorer = scorer;
         this.maxNumCorrections = maxNumCorrections;
         this.gramSize = gramSize;

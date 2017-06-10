@@ -19,6 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -37,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 
 public class IndicesSegmentResponse extends BroadcastResponse implements ToXContent {
 
@@ -140,6 +145,9 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
                         if (segment.getMergeId() != null) {
                             builder.field(Fields.MERGE_ID, segment.getMergeId());
                         }
+                        if (segment.getSegmentSort() != null) {
+                            toXContent(builder, segment.getSegmentSort());
+                        }
                         if (segment.ramTree != null) {
                             builder.startArray(Fields.RAM_TREE);
                             for (Accountable child : segment.ramTree.getChildResources()) {
@@ -162,6 +170,25 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
 
         builder.endObject();
         return builder;
+    }
+
+    static void toXContent(XContentBuilder builder, Sort sort) throws IOException {
+        builder.startArray("sort");
+        for (SortField field : sort.getSort()) {
+            builder.startObject();
+            builder.field("field", field.getField());
+            if (field instanceof SortedNumericSortField) {
+                builder.field("mode", ((SortedNumericSortField) field).getSelector()
+                    .toString().toLowerCase(Locale.ROOT));
+            } else if (field instanceof SortedSetSortField) {
+                builder.field("mode", ((SortedSetSortField) field).getSelector()
+                    .toString().toLowerCase(Locale.ROOT));
+            }
+            builder.field("missing", field.getMissingValue());
+            builder.field("reverse", field.getReverse());
+            builder.endObject();
+        }
+        builder.endArray();
     }
 
     static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {

@@ -60,7 +60,7 @@ public class GetRepositoriesResponse extends ActionResponse implements Iterable<
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        List<RepositoryMetaData> repositoryListBuilder = new ArrayList<>();
+        List<RepositoryMetaData> repositoryListBuilder = new ArrayList<>(size);
         for (int j = 0; j < size; j++) {
             repositoryListBuilder.add(new RepositoryMetaData(
                     in.readString(),

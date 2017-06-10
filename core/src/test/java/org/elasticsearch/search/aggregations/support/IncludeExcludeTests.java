@@ -20,17 +20,16 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
@@ -42,8 +41,6 @@ import java.util.Collections;
 import java.util.TreeSet;
 
 public class IncludeExcludeTests extends ESTestCase {
-    private final ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.STRICT;
-
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(
                 new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
@@ -61,13 +58,14 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testSingleTermWithOrds() throws IOException {
-        RandomAccessOrds ords = new RandomAccessOrds() {
+        SortedSetDocValues ords = new AbstractSortedSetDocValues() {
 
             boolean consumed = true;
 
             @Override
-            public void setDocument(int docID) {
+            public boolean advanceExact(int docID) {
                 consumed = false;
+                return true;
             }
 
             @Override
@@ -91,15 +89,6 @@ public class IncludeExcludeTests extends ESTestCase {
                 return 1;
             }
 
-            @Override
-            public long ordAt(int index) {
-                return 0;
-            }
-
-            @Override
-            public int cardinality() {
-                return 1;
-            }
         };
         IncludeExclude inexcl = new IncludeExclude(
                 new TreeSet<>(Collections.singleton(new BytesRef("foo"))),
@@ -234,7 +223,7 @@ public class IncludeExcludeTests extends ESTestCase {
         assertEquals(field.getPreferredName(), parser.currentName());
         token = parser.nextToken();
 
-        QueryParseContext parseContext = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(parser);
         if (field.getPreferredName().equalsIgnoreCase("include")) {
             return IncludeExclude.parseInclude(parser, parseContext);
         } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
@@ -274,7 +263,7 @@ public class IncludeExcludeTests extends ESTestCase {
         builder.endObject();
 
         XContentParser parser = createParser(builder);
-        QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(parser);
         XContentParser.Token token = parser.nextToken();
         assertEquals(token, XContentParser.Token.START_OBJECT);
 

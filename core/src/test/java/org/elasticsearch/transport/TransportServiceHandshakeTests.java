@@ -67,20 +67,17 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                         new NamedWriteableRegistry(Collections.emptyList()),
                         new NetworkService(settings, Collections.emptyList()));
         TransportService transportService = new MockTransportService(settings, transport, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, (boundAddress) -> new DiscoveryNode(
+            nodeNameAndId,
+            nodeNameAndId,
+            boundAddress.publishAddress(),
+            emptyMap(),
+            emptySet(),
+            version), null);
         transportService.start();
         transportService.acceptIncomingRequests();
-        DiscoveryNode node =
-                new DiscoveryNode(
-                        nodeNameAndId,
-                        nodeNameAndId,
-                        transportService.boundAddress().publishAddress(),
-                        emptyMap(),
-                        emptySet(),
-                        version);
-        transportService.setLocalNode(node);
         transportServices.add(transportService);
-        return new NetworkHandle(transportService, node);
+        return new NetworkHandle(transportService, transportService.getLocalNode());
     }
 
     @After
@@ -164,11 +161,29 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
     }
 
+    public void testNodeConnectWithDifferentNodeId() {
+        Settings settings = Settings.builder().put("cluster.name", "test").build();
+        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
+        NetworkHandle handleB = startServices("TS_B", settings, Version.CURRENT);
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            randomAlphaOfLength(10),
+            handleB.discoveryNode.getAddress(),
+            emptyMap(),
+            emptySet(),
+            handleB.discoveryNode.getVersion());
+        ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> {
+            handleA.transportService.connectToNode(discoveryNode, MockTcpTransport.LIGHT_PROFILE);
+        });
+        assertThat(ex.getMessage(), containsString("unexpected remote node"));
+        assertFalse(handleA.transportService.nodeConnected(discoveryNode));
+    }
+
+
     private static class NetworkHandle {
         private TransportService transportService;
         private DiscoveryNode discoveryNode;
 
-        public NetworkHandle(TransportService transportService, DiscoveryNode discoveryNode) {
+        NetworkHandle(TransportService transportService, DiscoveryNode discoveryNode) {
             this.transportService = transportService;
             this.discoveryNode = discoveryNode;
         }

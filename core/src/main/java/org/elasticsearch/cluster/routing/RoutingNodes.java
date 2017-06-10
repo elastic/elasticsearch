@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -451,6 +452,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      *
      * Moves the initializing shard to started. If the shard is a relocation target, also removes the relocation source.
      *
+     * If the started shard is a primary relocation target, this also reinitializes currently initializing replicas as their
+     * recovery source changes
+     *
      * @return the started shard
      */
     public ShardRouting startShard(Logger logger, ShardRouting initializingShard, RoutingChangesObserver routingChangesObserver) {
@@ -468,6 +472,30 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 + initializingShard + " but was: " + relocationSourceShard.getTargetRelocatingShard();
             remove(relocationSourceShard);
             routingChangesObserver.relocationCompleted(relocationSourceShard);
+
+            // if this is a primary shard with ongoing replica recoveries, reinitialize them as their recovery source changed
+            if (startedShard.primary()) {
+                List<ShardRouting> assignedShards = assignedShards(startedShard.shardId());
+                // copy list to prevent ConcurrentModificationException
+                for (ShardRouting routing : new ArrayList<>(assignedShards)) {
+                    if (routing.initializing() && routing.primary() == false) {
+                        if (routing.isRelocationTarget()) {
+                            // find the relocation source
+                            ShardRouting sourceShard = getByAllocationId(routing.shardId(), routing.allocationId().getRelocationId());
+                            // cancel relocation and start relocation to same node again
+                            ShardRouting startedReplica = cancelRelocation(sourceShard);
+                            remove(routing);
+                            routingChangesObserver.shardFailed(routing,
+                                new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, "primary changed"));
+                            relocateShard(startedReplica, sourceShard.relocatingNodeId(),
+                                sourceShard.getExpectedShardSize(), routingChangesObserver);
+                        } else {
+                            ShardRouting reinitializedReplica = reinitReplica(routing);
+                            routingChangesObserver.initializedReplicaReinitialized(routing, reinitializedReplica);
+                        }
+                    }
+                }
+            }
         }
         return startedShard;
     }
@@ -540,9 +568,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 if (failedShard.primary()) {
                     // promote active replica to primary if active replica exists (only the case for shadow replicas)
                     ShardRouting activeReplica = activeReplica(failedShard.shardId());
-                    assert activeReplica == null || IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) :
-                        "initializing primary [" + failedShard + "] with active replicas [" + activeReplica + "] only expected when " +
-                            "using shadow replicas";
                     if (activeReplica == null) {
                         moveToUnassigned(failedShard, unassignedInfo);
                     } else {
@@ -599,10 +624,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert activeReplica.started() : "replica relocation should have been cancelled: " + activeReplica;
         ShardRouting primarySwappedCandidate = promoteActiveReplicaShardToPrimary(activeReplica);
         routingChangesObserver.replicaPromoted(activeReplica);
-        if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings())) {
-            ShardRouting initializedShard = reinitShadowPrimary(primarySwappedCandidate);
-            routingChangesObserver.startedPrimaryReinitialized(primarySwappedCandidate, initializedShard);
-        }
     }
 
     /**
@@ -727,6 +748,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         inactivePrimaryCount++;
         inactiveShardCount++;
         addRecovery(reinitializedShard);
+        return reinitializedShard;
+    }
+
+    private ShardRouting reinitReplica(ShardRouting shard) {
+        assert shard.primary() == false : "shard must be a replica: " + shard;
+        assert shard.initializing() : "can only reinitialize an initializing replica: " + shard;
+        assert shard.isRelocationTarget() == false : "replication target cannot be reinitialized: " + shard;
+        ShardRouting reinitializedShard = shard.reinitializeReplicaShard();
+        updateAssigned(shard, reinitializedShard);
         return reinitializedShard;
     }
 
@@ -989,9 +1019,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      *         this method does nothing.
      */
     public static boolean assertShardStats(RoutingNodes routingNodes) {
-        boolean run = false;
-        assert (run = true); // only run if assertions are enabled!
-        if (!run) {
+        if (!Assertions.ENABLED) {
             return true;
         }
         int unassignedPrimaryCount = 0;

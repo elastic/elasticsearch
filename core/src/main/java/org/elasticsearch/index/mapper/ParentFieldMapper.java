@@ -37,7 +37,7 @@ import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -65,6 +65,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setHasDocValues(true);
             FIELD_TYPE.setDocValuesType(DocValuesType.SORTED);
+            FIELD_TYPE.setEagerGlobalOrdinals(true);
             FIELD_TYPE.freeze();
         }
     }
@@ -122,7 +123,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                     }
                     iterator.remove();
                 } else if (fieldName.equals("eager_global_ordinals")) {
-                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(fieldNode));
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(fieldNode, "eager_global_ordinals"));
                     iterator.remove();
                 }
             }
@@ -152,7 +153,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         final String documentType;
 
-        public ParentFieldType() {
+        ParentFieldType() {
             documentType = null;
             setEagerGlobalOrdinals(true);
         }
@@ -196,7 +197,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
-            return new ParentChildIndexFieldData.Builder();
+            return new DocValuesIndexFieldData.Builder();
         }
     }
 
@@ -295,9 +296,10 @@ public class ParentFieldMapper extends MetadataFieldMapper {
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
+        ParentFieldType currentFieldType = (ParentFieldType) fieldType.clone();
         super.doMerge(mergeWith, updateAllTypes);
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
-        if (Objects.equals(parentType, fieldMergeWith.parentType) == false) {
+        if (fieldMergeWith.parentType != null && Objects.equals(parentType, fieldMergeWith.parentType) == false) {
             throw new IllegalArgumentException("The _parent field's type option can't be changed: [" + parentType + "]->[" + fieldMergeWith.parentType + "]");
         }
 
@@ -308,7 +310,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
         }
 
         if (active()) {
-            fieldType = fieldMergeWith.fieldType.clone();
+            fieldType = currentFieldType;
         }
     }
 

@@ -60,7 +60,7 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             globalCheckpoint = in.readZLong();
         } else {
             globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
@@ -72,7 +72,7 @@ public class RecoveryFinalizeRecoveryRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             out.writeZLong(globalCheckpoint);
         }
     }

@@ -56,12 +56,9 @@ public final class SFunction extends AStatement {
     public static final class FunctionReserved implements Reserved {
         private int maxLoopCounter = 0;
 
-        public void markReserved(String name) {
+        @Override
+        public void markUsedVariable(String name) {
             // Do nothing.
-        }
-
-        public boolean isReserved(String name) {
-            return Locals.FUNCTION_KEYWORDS.contains(name);
         }
 
         @Override
@@ -109,9 +106,9 @@ public final class SFunction extends AStatement {
         throw new IllegalStateException("Illegal tree structure");
     }
 
-    void generateSignature() {
+    void generateSignature(Definition definition) {
         try {
-            rtnType = Definition.getType(rtnTypeStr);
+            rtnType = definition.getType(rtnTypeStr);
         } catch (IllegalArgumentException exception) {
             throw createError(new IllegalArgumentException("Illegal return type [" + rtnTypeStr + "] for function [" + name + "]."));
         }
@@ -125,7 +122,7 @@ public final class SFunction extends AStatement {
 
         for (int param = 0; param < this.paramTypeStrs.size(); ++param) {
             try {
-                Type paramType = Definition.getType(this.paramTypeStrs.get(param));
+                Type paramType = definition.getType(this.paramTypeStrs.get(param));
 
                 paramClasses[param] = paramType.clazz;
                 paramTypes.add(paramType);
@@ -177,7 +174,7 @@ public final class SFunction extends AStatement {
 
     /** Writes the function to given ClassVisitor. */
     void write (ClassVisitor writer, CompilerSettings settings, Globals globals) {
-        int access = Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC;
+        int access = Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC;
         if (synthetic) {
             access |= Opcodes.ACC_SYNTHETIC;
         }

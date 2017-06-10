@@ -134,8 +134,8 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 } else {
                     assertThat(hits.length, equalTo(searchResponse.getHits().getHits().length));
                     for (int j = 0; j < hitCount; j++) {
-                        assertThat("" + j, currentHits[j].score(), equalTo(hits[j].score()));
-                        assertThat("" + j, currentHits[j].id(), equalTo(hits[j].id()));
+                        assertThat("" + j, currentHits[j].getScore(), equalTo(hits[j].getScore()));
+                        assertThat("" + j, currentHits[j].getId(), equalTo(hits[j].getId()));
                     }
                 }
 
@@ -263,9 +263,9 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 .setExplain(true)
                 .get();
         assertNoFailures(resp);
-        assertEquals(1, resp.getHits().totalHits());
+        assertEquals(1, resp.getHits().getTotalHits());
         SearchHit firstHit = resp.getHits().getAt(0);
-        assertThat(firstHit.explanation().toString(), containsString("" + seed));
+        assertThat(firstHit.getExplanation().toString(), containsString("" + seed));
     }
 
     public void testNoDocs() throws Exception {
@@ -276,7 +276,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                 .setQuery(functionScoreQuery(matchAllQuery(), randomFunction(1234)))
                 .get();
         assertNoFailures(resp);
-        assertEquals(0, resp.getHits().totalHits());
+        assertEquals(0, resp.getHits().getTotalHits());
     }
 
     public void testScoreRange() throws Exception {
@@ -300,7 +300,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
 
             assertNoFailures(searchResponse);
             for (SearchHit hit : searchResponse.getHits().getHits()) {
-                assertThat(hit.score(), allOf(greaterThanOrEqualTo(0.0f), lessThanOrEqualTo(1.0f)));
+                assertThat(hit.getScore(), allOf(greaterThanOrEqualTo(0.0f), lessThanOrEqualTo(1.0f)));
             }
         }
     }
@@ -351,7 +351,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
                     .setQuery(functionScoreQuery(matchAllQuery(), new RandomScoreFunctionBuilder()))
                     .execute().actionGet();
 
-            matrix[Integer.valueOf(searchResponse.getHits().getAt(0).id())]++;
+            matrix[Integer.valueOf(searchResponse.getHits().getAt(0).getId())]++;
         }
 
         int filled = 0;

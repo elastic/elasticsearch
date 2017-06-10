@@ -3,6 +3,8 @@
 
 experimental[]
 
+deprecated[5.4.0, `_field_stats` is deprecated, use `_field_caps` instead or run an min/max aggregation on the desired fields]
+
 The field stats api allows one to find statistical properties of a field
 without executing a search, but looking up measurements that are natively
 available in the Lucene index. This can be useful to explore a dataset which
@@ -16,15 +18,20 @@ All indices:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/_field_stats?fields=rating"
+GET _field_stats?fields=rating
 --------------------------------------------------
+// CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 Specific indices:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/index1,index2/_field_stats?fields=rating"
+GET twitter/_field_stats?fields=rating
 --------------------------------------------------
+// CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
+// TEST[setup:twitter]
 
 Supported request options:
 
@@ -38,10 +45,13 @@ Alternatively the `fields` option can also be defined in the request body:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
+POST _field_stats?level=indices
+{
    "fields" : ["rating"]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 This is equivalent to the previous request.
 
@@ -114,8 +124,10 @@ Request:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name"
+GET _field_stats?fields=rating,answer_count,creation_date,display_name
 --------------------------------------------------
+// CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 Response:
 
@@ -226,8 +238,10 @@ Request:
 
 [source,js]
 --------------------------------------------------
-curl -XGET "http://localhost:9200/_field_stats?fields=rating,answer_count,creation_date,display_name&level=indices"
+GET _field_stats?fields=rating,answer_count,creation_date,display_name&level=indices
 --------------------------------------------------
+// CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 Response:
 
@@ -307,8 +321,9 @@ holding questions created in the year 2014:
 
 [source,js]
 --------------------------------------------------
-curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
-   "fields" : ["answer_count"] <1>
+POST _field_stats?level=indices
+{
+   "fields" : ["answer_count"], <1>
    "index_constraints" : { <2>
       "creation_date" : { <3>
          "max_value" : { <4>
@@ -319,8 +334,10 @@ curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
          }
       }
    }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 <1> The fields to compute and return field stats for.
 <2> The set index constraints. Note that index constrains can be defined for fields that aren't defined in the `fields` option.
@@ -341,8 +358,9 @@ If missing, the format configured in the field's mapping is used.
 
 [source,js]
 --------------------------------------------------
-curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
-   "fields" : ["answer_count"]
+POST _field_stats?level=indices
+{
+   "fields" : ["answer_count"],
    "index_constraints" : {
       "creation_date" : {
          "max_value" : {
@@ -355,7 +373,9 @@ curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
          }
       }
    }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[warning:[_field_stats] endpoint is deprecated! Use [_field_caps] instead or run a min/max aggregations on the desired fields.]
 
 <1> Custom date format

@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -149,7 +148,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
 
         final ParsingException e = expectThrows(
                 ParsingException.class,
-                () -> parseQuery(json, ParseFieldMatcher.EMPTY));
+                () -> parseQuery(json));
         assertThat(e.getMessage(), containsString("[span_near] query does not support [collect_payloads]"));
     }
 }

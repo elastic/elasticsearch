@@ -1,0 +1,79 @@
+---
+"Reindex from remote with parent/child":
+  - do:
+      indices.create:
+          index: source
+          body:
+              settings:
+                mapping.single_type: false
+              mappings:
+                foo: {}
+                bar:
+                  _parent:
+                    type:  foo
+  - do:
+      indices.create:
+          index: dest
+          body:
+              settings:
+                mapping.single_type: false
+              mappings:
+                foo: {}
+                bar:
+                  _parent:
+                    type:  foo
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   source
+        type:    bar
+        id:      1
+        parent:  1
+        body:    { "text": "test2" }
+  - do:
+      indices.refresh: {}
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            remote:
+              host: http://${host}
+            index: source
+          dest:
+            index: dest
+  - match: {created: 2}
+
+  - do:
+      search:
+        index: dest
+        body:
+          query:
+            has_parent:
+              parent_type: foo
+              query:
+                match:
+                  text: test
+  - match: {hits.total: 1}
+
+  # Make sure reindex closed all the scroll contexts
+  - do:
+      indices.stats:
+        index: source
+        metric: search
+  - match: {indices.source.total.search.open_contexts: 0}

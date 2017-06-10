@@ -38,7 +38,7 @@ public class DynamicTemplate implements ToXContent {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DynamicTemplate.class));
 
-    public static enum MatchType {
+    public enum MatchType {
         SIMPLE {
             @Override
             public boolean matches(String pattern, String value) {
@@ -205,7 +205,7 @@ public class DynamicTemplate implements ToXContent {
             try {
                 xcontentFieldType = XContentFieldType.fromString(matchMappingType);
             } catch (IllegalArgumentException e) {
-                if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1)) {
                     throw e;
                 } else {
                     DEPRECATION_LOGGER.deprecated("match_mapping_type [" + matchMappingType + "] is invalid and will be ignored: "
@@ -318,7 +318,7 @@ public class DynamicTemplate implements ToXContent {
     }
 
     private List processList(List list, String name, String dynamicType) {
-        List processedList = new ArrayList();
+        List processedList = new ArrayList(list.size());
         for (Object value : list) {
             if (value instanceof Map) {
                 value = processMap((Map<String, Object>) value, name, dynamicType);

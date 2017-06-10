@@ -136,7 +136,7 @@ It is also possible to customize the key for each range:
             "range" : {
                 "script" : {
                     "lang": "painless",
-                    "inline": "doc['price'].value"
+                    "source": "doc['price'].value"
                 },
                 "ranges" : [
                     { "to" : 50 },
@@ -149,7 +149,7 @@ It is also possible to customize the key for each range:
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -158,7 +158,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
         "price_ranges" : {
             "range" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "price"
                     }
@@ -174,8 +174,6 @@ This will interpret the `script` parameter as an `inline` script with the `painl
 }
 --------------------------------------------------
 
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
-
 ==== Value Script
 
 Lets say the product prices are in USD but we would like to get the price ranges in EURO. We can use value script to convert the prices prior the aggregation (assuming conversion rate of 0.8)
@@ -189,7 +187,7 @@ Lets say the product prices are in USD but we would like to get the price ranges
                 "field" : "price",
                 "script" : {
                     "lang": "painless",
-                    "inline": "_value * params.conversion_rate",
+                    "source": "_value * params.conversion_rate",
                     "params" : {
                         "conversion_rate" : 0.8
                     }

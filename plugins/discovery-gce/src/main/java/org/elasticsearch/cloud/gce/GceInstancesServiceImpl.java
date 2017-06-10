@@ -21,10 +21,7 @@ package org.elasticsearch.cloud.gce;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.security.AccessController;
 import java.security.GeneralSecurityException;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -43,6 +40,7 @@ import com.google.api.services.compute.model.InstanceList;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.cloud.gce.util.Access;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -68,21 +66,14 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
             try {
                 // hack around code messiness in GCE code
                 // TODO: get this fixed
-                SecurityManager sm = System.getSecurityManager();
-                if (sm != null) {
-                    sm.checkPermission(new SpecialPermission());
-                }
-                InstanceList instanceList = AccessController.doPrivileged(new PrivilegedExceptionAction<InstanceList>() {
-                    @Override
-                    public InstanceList run() throws Exception {
-                        Compute.Instances.List list = client().instances().list(project, zoneId);
-                        return list.execute();
-                    }
+                InstanceList instanceList = Access.doPrivilegedIOException(() -> {
+                    Compute.Instances.List list = client().instances().list(project, zoneId);
+                    return list.execute();
                 });
                 // assist type inference
-                return instanceList.isEmpty()  || instanceList.getItems() == null ?
+                return instanceList.isEmpty() || instanceList.getItems() == null ?
                     Collections.<Instance>emptyList() : instanceList.getItems();
-            } catch (PrivilegedActionException e) {
+            } catch (IOException e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
                 logger.debug("Full exception:", e);
                 // assist type inference
@@ -134,7 +125,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
     public synchronized Compute client() {
         if (refreshInterval != null && refreshInterval.millis() != 0) {
             if (client != null &&
-                    (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
+                (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
                 if (logger.isTraceEnabled()) logger.trace("using cache to retrieve client");
                 return client;
             }
@@ -151,22 +142,12 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
             String tokenServerEncodedUrl = GceMetadataService.GCE_HOST.get(settings) +
                 "/computeMetadata/v1/instance/service-accounts/default/token";
             ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
-                    .setTokenServerEncodedUrl(tokenServerEncodedUrl)
-                    .build();
+                .setTokenServerEncodedUrl(tokenServerEncodedUrl)
+                .build();
 
             // hack around code messiness in GCE code
             // TODO: get this fixed
-            SecurityManager sm = System.getSecurityManager();
-            if (sm != null) {
-                sm.checkPermission(new SpecialPermission());
-            }
-            AccessController.doPrivileged(new PrivilegedExceptionAction<Void>() {
-                @Override
-                public Void run() throws IOException {
-                    credential.refreshToken();
-                    return null;
-                }
-            });
+            Access.doPrivilegedIOException(credential::refreshToken);
 
             logger.debug("token [{}] will expire in [{}] s", credential.getAccessToken(), credential.getExpiresInSeconds());
             if (credential.getExpiresInSeconds() != null) {

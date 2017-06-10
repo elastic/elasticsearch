@@ -25,6 +25,7 @@ import org.apache.http.HttpResponse;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
@@ -52,10 +53,11 @@ public class ResponseExceptionTests extends RestClientTestCase {
         if (hasBody) {
             HttpEntity entity;
             if (getRandom().nextBoolean()) {
-                entity = new StringEntity(responseBody, StandardCharsets.UTF_8);
+                entity = new StringEntity(responseBody, ContentType.APPLICATION_JSON);
             } else {
                 //test a non repeatable entity
-                entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)));
+                entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)),
+                    ContentType.APPLICATION_JSON);
             }
             httpResponse.setEntity(entity);
         }

@@ -122,5 +122,14 @@ public class SettingsUpdaterTests extends ESTestCase {
             Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), false).build());
         assertEquals(clusterState.blocks().global().size(), 0);
 
+
+        clusterState = updater.updateSettings(build, Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build(),
+            Settings.builder().put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 1.6).put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), 1.0f).build());
+        assertEquals(clusterState.blocks().global().size(), 1);
+        assertEquals(clusterState.blocks().global().iterator().next(), MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+        clusterState = updater.updateSettings(build, Settings.EMPTY,
+            Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false).build());
+        assertEquals(clusterState.blocks().global().size(), 0);
+
     }
 }

@@ -26,7 +26,6 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -251,8 +250,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     protected static final List<QueryBuilder> readQueries(StreamInput in) throws IOException {
-        List<QueryBuilder> queries = new ArrayList<>();
         int size = in.readVInt();
+        List<QueryBuilder> queries = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             queries.add(in.readNamedWriteable(QueryBuilder.class));
         }
@@ -284,7 +283,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Extracts the inner hits from the query tree.
      * While it extracts inner hits, child inner hits are inlined into the inner hit builder they belong to.
      */
-    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
     }
 
     // Like Objects.requireNotNull(...) but instead throws a IllegalArgumentException
@@ -309,7 +308,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * {@link MatchAllQueryBuilder} and {@link MatchNoneQueryBuilder} support these fields so they
      * should use this method.
      */
-    protected static void declareStandardFields(AbstractObjectParser<? extends QueryBuilder, ? extends ParseFieldMatcherSupplier> parser) {
+    protected static void declareStandardFields(AbstractObjectParser<? extends QueryBuilder, ?> parser) {
         parser.declareFloat((builder, value) -> builder.boost(value), AbstractQueryBuilder.BOOST_FIELD);
         parser.declareString((builder, value) -> builder.queryName(value), AbstractQueryBuilder.NAME_FIELD);
     }

@@ -79,22 +79,19 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
             false,
             output -> assertThat(output, containsString("Positional arguments not allowed, found [foo]")),
             (foreground, pidFile, quiet, esSettings) -> {},
-            "foo"
-        );
+            "foo");
         runTest(
             ExitCodes.USAGE,
             false,
             output -> assertThat(output, containsString("Positional arguments not allowed, found [foo, bar]")),
             (foreground, pidFile, quiet, esSettings) -> {},
-            "foo", "bar"
-        );
+            "foo", "bar");
         runTest(
             ExitCodes.USAGE,
             false,
             output -> assertThat(output, containsString("Positional arguments not allowed, found [foo]")),
             (foreground, pidFile, quiet, esSettings) -> {},
-            "-E", "foo=bar", "foo", "-E", "baz=qux"
-        );
+            "-E", "foo=bar", "foo", "-E", "baz=qux");
     }
 
     public void testThatPidFileCanBeConfigured() throws Exception {
@@ -152,23 +149,30 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 ExitCodes.OK,
                 true,
                 output -> {},
-                (foreground, pidFile, quiet, esSettings) -> {
-                    Map<String, String> settings = esSettings.getAsMap();
+                (foreground, pidFile, quiet, env) -> {
+                    Map<String, String> settings = env.settings().getAsMap();
                     assertThat(settings, hasEntry("foo", "bar"));
                     assertThat(settings, hasEntry("baz", "qux"));
                 },
-                "-Efoo=bar", "-E", "baz=qux"
-        );
+                "-Efoo=bar", "-E", "baz=qux");
     }
 
     public void testElasticsearchSettingCanNotBeEmpty() throws Exception {
         runTest(
                 ExitCodes.USAGE,
                 false,
-                output -> assertThat(output, containsString("Setting [foo] must not be empty")),
+                output -> assertThat(output, containsString("setting [foo] must not be empty")),
                 (foreground, pidFile, quiet, esSettings) -> {},
-                "-E", "foo="
-        );
+                "-E", "foo=");
+    }
+
+    public void testElasticsearchSettingCanNotBeDuplicated() throws Exception {
+        runTest(
+                ExitCodes.USAGE,
+                false,
+                output -> assertThat(output, containsString("setting [foo] already set, saw [bar] and [baz]")),
+                (foreground, pidFile, quiet, initialEnv) -> {},
+                "-E", "foo=bar", "-E", "foo=baz");
     }
 
     public void testUnknownOption() throws Exception {

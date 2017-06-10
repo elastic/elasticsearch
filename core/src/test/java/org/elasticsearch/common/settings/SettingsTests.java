@@ -19,14 +19,16 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +38,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -67,7 +70,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testReplacePropertiesPlaceholderByEnvironmentVariables() {
-        final String hostname = randomAsciiOfLength(16);
+        final String hostname = randomAlphaOfLength(16);
         final Settings implicitEnvSettings = Settings.builder()
             .put("setting1", "${HOSTNAME}")
             .replacePropertyPlaceholders(name -> "HOSTNAME".equals(name) ? hostname : null)
@@ -143,9 +146,75 @@ public class SettingsTests extends ESTestCase {
 
         Settings fooSettings = settings.getAsSettings("foo");
         assertFalse(fooSettings.isEmpty());
-        assertEquals(2, fooSettings.getAsMap().size());
+        assertEquals(2, fooSettings.size());
         assertThat(fooSettings.get("bar"), equalTo("def"));
         assertThat(fooSettings.get("baz"), equalTo("ghi"));
+    }
+
+    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
+    public void testLenientBooleanForPreEs6Index() throws IOException {
+        // time to say goodbye?
+        assertTrue(
+            "It's time to implement #22298. Please delete this test and Settings#getAsBooleanLenientForPreEs6Indices().",
+            Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1));
+
+
+        String falsy = randomFrom("false", "off", "no", "0");
+        String truthy = randomFrom("true", "on", "yes", "1");
+
+        Settings settings = Settings.builder()
+            .put("foo", falsy)
+            .put("bar", truthy).build();
+
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("testLenientBooleanForPreEs6Index"));
+
+        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "foo", null, deprecationLogger));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "bar", null, deprecationLogger));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.V_5_0_0, "baz", true, deprecationLogger));
+
+        List<String> expectedDeprecationWarnings = new ArrayList<>();
+        if (Booleans.isBoolean(falsy) == false) {
+            expectedDeprecationWarnings.add(
+                "The value [" + falsy + "] of setting [foo] is not coerced into boolean anymore. Please change this value to [false].");
+        }
+        if (Booleans.isBoolean(truthy) == false) {
+            expectedDeprecationWarnings.add(
+                "The value [" + truthy + "] of setting [bar] is not coerced into boolean anymore. Please change this value to [true].");
+        }
+
+        if (expectedDeprecationWarnings.isEmpty() == false) {
+            assertWarnings(expectedDeprecationWarnings.toArray(new String[1]));
+        }
+    }
+
+    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
+    public void testInvalidLenientBooleanForCurrentIndexVersion() {
+        String falsy = randomFrom("off", "no", "0");
+        String truthy = randomFrom("on", "yes", "1");
+
+        Settings settings = Settings.builder()
+            .put("foo", falsy)
+            .put("bar", truthy).build();
+
+        final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(ESLoggerFactory.getLogger("testInvalidLenientBooleanForCurrentIndexVersion"));
+        expectThrows(IllegalArgumentException.class,
+            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null, deprecationLogger));
+        expectThrows(IllegalArgumentException.class,
+            () -> settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null, deprecationLogger));
+    }
+
+    @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
+    public void testValidLenientBooleanForCurrentIndexVersion() {
+        Settings settings = Settings.builder()
+            .put("foo", "false")
+            .put("bar", "true").build();
+
+        final DeprecationLogger deprecationLogger =
+            new DeprecationLogger(ESLoggerFactory.getLogger("testValidLenientBooleanForCurrentIndexVersion"));
+        assertFalse(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "foo", null, deprecationLogger));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "bar", null, deprecationLogger));
+        assertTrue(settings.getAsBooleanLenientForPreEs6Indices(Version.CURRENT, "baz", true, deprecationLogger));
     }
 
     public void testMultLevelGetPrefix() {
@@ -157,13 +226,13 @@ public class SettingsTests extends ESTestCase {
 
         Settings firstLevelSettings = settings.getByPrefix("1.");
         assertFalse(firstLevelSettings.isEmpty());
-        assertEquals(2, firstLevelSettings.getAsMap().size());
+        assertEquals(2, firstLevelSettings.size());
         assertThat(firstLevelSettings.get("2.3.4"), equalTo("abc"));
         assertThat(firstLevelSettings.get("2.3"), equalTo("hello world"));
 
         Settings secondLevelSetting = firstLevelSettings.getByPrefix("2.");
         assertFalse(secondLevelSetting.isEmpty());
-        assertEquals(2, secondLevelSetting.getAsMap().size());
+        assertEquals(2, secondLevelSetting.size());
         assertNull(secondLevelSetting.get("2.3.4"));
         assertNull(secondLevelSetting.get("1.2.3.4"));
         assertNull(secondLevelSetting.get("1.2.3"));
@@ -172,7 +241,7 @@ public class SettingsTests extends ESTestCase {
 
         Settings thirdLevelSetting = secondLevelSetting.getByPrefix("3.");
         assertFalse(thirdLevelSetting.isEmpty());
-        assertEquals(1, thirdLevelSetting.getAsMap().size());
+        assertEquals(1, thirdLevelSetting.size());
         assertNull(thirdLevelSetting.get("2.3.4"));
         assertNull(thirdLevelSetting.get("3.4"));
         assertNull(thirdLevelSetting.get("1.2.3"));
@@ -312,7 +381,7 @@ public class SettingsTests extends ESTestCase {
                 .normalizePrefix("foo.")
                 .build();
 
-        assertThat(settings.getAsMap().size(), equalTo(1));
+        assertThat(settings.size(), equalTo(1));
         assertThat(settings.get("bar"), nullValue());
         assertThat(settings.get("foo.bar"), equalTo("baz"));
 
@@ -323,7 +392,7 @@ public class SettingsTests extends ESTestCase {
                 .normalizePrefix("foo.")
                 .build();
 
-        assertThat(settings.getAsMap().size(), equalTo(2));
+        assertThat(settings.size(), equalTo(2));
         assertThat(settings.get("bar"), nullValue());
         assertThat(settings.get("foo.bar"), equalTo("baz"));
         assertThat(settings.get("foo.test"), equalTo("test"));
@@ -334,7 +403,7 @@ public class SettingsTests extends ESTestCase {
                 .build();
 
 
-        assertThat(settings.getAsMap().size(), equalTo(1));
+        assertThat(settings.size(), equalTo(1));
         assertThat(settings.get("foo.test"), equalTo("test"));
     }
 
@@ -447,6 +516,39 @@ public class SettingsTests extends ESTestCase {
         expectThrows(NoSuchElementException.class, () -> prefixIterator.next());
     }
 
+    public void testSecureSettingsPrefix() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.prefix.foo", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.setSecureSettings(secureSettings);
+        Settings settings = builder.build();
+        Settings prefixSettings = settings.getByPrefix("test.prefix.");
+        assertTrue(prefixSettings.names().contains("foo"));
+    }
+
+    public void testGroupPrefix() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.key1.foo", "somethingsecure");
+        secureSettings.setString("test.key1.bar", "somethingsecure");
+        secureSettings.setString("test.key2.foo", "somethingsecure");
+        secureSettings.setString("test.key2.bog", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.put("test.key1.baz", "blah1");
+        builder.put("test.key1.other", "blah2");
+        builder.put("test.key2.baz", "blah3");
+        builder.put("test.key2.else", "blah4");
+        builder.setSecureSettings(secureSettings);
+        Settings settings = builder.build();
+        Map<String, Settings> groups = settings.getGroups("test");
+        assertEquals(2, groups.size());
+        Settings key1 = groups.get("key1");
+        assertNotNull(key1);
+        assertThat(key1.names(), containsInAnyOrder("foo", "bar", "baz", "other"));
+        Settings key2 = groups.get("key2");
+        assertNotNull(key2);
+        assertThat(key2.names(), containsInAnyOrder("foo", "bog", "baz", "else"));
+    }
+
     public void testEmptyFilterMap() {
         Settings.Builder builder = Settings.builder();
         builder.put("a", "a1");
@@ -481,4 +583,29 @@ public class SettingsTests extends ESTestCase {
         }
         expectThrows(NoSuchElementException.class, () -> iterator.next());
     }
+
+    public void testEmpty() {
+        assertTrue(Settings.EMPTY.isEmpty());
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        assertTrue(Settings.builder().setSecureSettings(secureSettings).build().isEmpty());
+    }
+
+    public void testSecureSettingConflict() {
+        Setting<SecureString> setting = SecureSetting.secureString("something.secure", null);
+        Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
+        assertTrue(e.getMessage().contains("must be stored inside the Elasticsearch keystore"));
+    }
+
+    public void testGetAsArrayFailsOnDuplicates() {
+        final Settings settings =
+                Settings.builder()
+                        .put("foobar.0", "bar")
+                        .put("foobar.1", "baz")
+                        .put("foobar", "foo")
+                        .build();
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> settings.getAsArray("foobar"));
+        assertThat(e, hasToString(containsString("settings object contains values for [foobar=foo] and [foobar.0=bar]")));
+    }
+
 }

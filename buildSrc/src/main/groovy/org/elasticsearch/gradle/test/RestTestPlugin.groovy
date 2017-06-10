@@ -22,6 +22,7 @@ import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.plugins.JavaBasePlugin
 
 /**
  * Adds support for starting an Elasticsearch cluster before running integration
@@ -39,11 +40,13 @@ public class RestTestPlugin implements Plugin<Project> {
         if (false == REQUIRED_PLUGINS.any {project.pluginManager.hasPlugin(it)}) {
             throw new InvalidUserDataException('elasticsearch.rest-test '
                 + 'requires either elasticsearch.build or '
-                + 'elasticsearch.standalone-test')
+                + 'elasticsearch.standalone-rest-test')
         }
 
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.cluster.distribution = 'zip' // rest tests should run with the real zip
+        integTest.description = 'Runs rest tests against an elasticsearch cluster.'
+        integTest.group = JavaBasePlugin.VERIFICATION_GROUP
+        integTest.clusterConfig.distribution = 'zip' // rest tests should run with the real zip
         integTest.mustRunAfter(project.precommit)
         project.check.dependsOn(integTest)
     }

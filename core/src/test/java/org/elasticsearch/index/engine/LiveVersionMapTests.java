@@ -22,16 +22,18 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageTester;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 public class LiveVersionMapTests extends ESTestCase {
 
     public void testRamBytesUsed() throws Exception {
+        assumeTrue("Test disabled for JDK 9", JavaVersion.current().compareTo(JavaVersion.parse("9")) < 0);
         LiveVersionMap map = new LiveVersionMap();
         for (int i = 0; i < 100000; ++i) {
             BytesRefBuilder uid = new BytesRefBuilder();
             uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
-            VersionValue version = new VersionValue(randomLong());
+            VersionValue version = new VersionValue(randomLong(), randomLong(), randomLong());
             map.putUnderLock(uid.toBytesRef(), version);
         }
         long actualRamBytesUsed = RamUsageTester.sizeOf(map);
@@ -46,7 +48,7 @@ public class LiveVersionMapTests extends ESTestCase {
         for (int i = 0; i < 100000; ++i) {
             BytesRefBuilder uid = new BytesRefBuilder();
             uid.copyChars(TestUtil.randomSimpleString(random(), 10, 20));
-            VersionValue version = new VersionValue(randomLong());
+            VersionValue version = new VersionValue(randomLong(), randomLong(), randomLong());
             map.putUnderLock(uid.toBytesRef(), version);
         }
         actualRamBytesUsed = RamUsageTester.sizeOf(map);

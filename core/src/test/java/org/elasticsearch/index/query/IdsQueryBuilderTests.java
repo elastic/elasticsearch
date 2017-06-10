@@ -20,12 +20,12 @@
 package org.elasticsearch.index.query;
 
 
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -46,7 +46,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 if (frequently()) {
                     types[i] = randomFrom(getCurrentTypes());
                 } else {
-                    types[i] = randomAsciiOfLengthBetween(1, 10);
+                    types[i] = randomAlphaOfLengthBetween(1, 10);
                 }
             }
         } else {
@@ -59,7 +59,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         int numberOfIds = randomIntBetween(0, 10);
         String[] ids = new String[numberOfIds];
         for (int i = 0; i < numberOfIds; i++) {
-            ids[i] = randomAsciiOfLengthBetween(1, 10);
+            ids[i] = randomAlphaOfLengthBetween(1, 10);
         }
         IdsQueryBuilder query;
         if (types.length > 0 || randomBoolean()) {
@@ -74,10 +74,10 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        if (queryBuilder.ids().size() == 0) {
+        if (queryBuilder.ids().size() == 0 || context.getQueryShardContext().fieldMapper(UidFieldMapper.NAME) == null) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
-            assertThat(query, instanceOf(TermsQuery.class));
+            assertThat(query, instanceOf(TermInSetQuery.class));
         }
     }
 
@@ -161,7 +161,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 "    }\n" +
                 "}";
 
-        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(contentString, ParseFieldMatcher.EMPTY);
+        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(contentString);
         assertEquals(testQuery, parsed);
 
         parseQuery(contentString);
@@ -174,7 +174,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 "        \"values\" : [ ]\n" +
                 "    }\n" +
                 "}";
-        parsed = (IdsQueryBuilder) parseQuery(contentString2, ParseFieldMatcher.EMPTY);
+        parsed = (IdsQueryBuilder) parseQuery(contentString2);
         assertEquals(testQuery, parsed);
 
         parseQuery(contentString2);

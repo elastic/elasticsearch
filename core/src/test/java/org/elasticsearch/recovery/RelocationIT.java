@@ -42,6 +42,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -83,7 +84,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.index.IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -101,12 +101,6 @@ public class RelocationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(MockTransportService.TestPlugin.class, MockIndexEventListener.TestPlugin.class);
-    }
-
-    @Override
-    public Settings indexSettings() {
-        return Settings.builder().put(super.indexSettings())
-            .put(INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getKey(), "200ms").build();
     }
 
     @Override
@@ -130,7 +124,6 @@ public class RelocationIT extends ESIntegTestCase {
                         final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
                         assertThat(shardStats.getShardRouting() + " local checkpoint mismatch",
                             seqNoStats.getLocalCheckpoint(), equalTo(primarySeqNoStats.getLocalCheckpoint()));
-
                         assertThat(shardStats.getShardRouting() + " global checkpoint mismatch",
                             seqNoStats.getGlobalCheckpoint(), equalTo(primarySeqNoStats.getGlobalCheckpoint()));
                         assertThat(shardStats.getShardRouting() + " max seq no mismatch",
@@ -164,7 +157,7 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20L));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits(), equalTo(20L));
 
         logger.info("--> start another node");
         final String node_2 = internalCluster().startNode();
@@ -181,10 +174,10 @@ public class RelocationIT extends ESIntegTestCase {
 
         logger.info("--> verifying count again...");
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20L));
+        assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits(), equalTo(20L));
     }
 
-    @TestLogging("org.elasticsearch.action.index:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
+    @TestLogging("org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
     public void testRelocationWhileIndexingRandom() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -255,14 +248,14 @@ public class RelocationIT extends ESIntegTestCase {
                     logger.info("--> START search test round {}", i + 1);
                     SearchHits hits = client().prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexer.totalIndexedDocs()).storedFields().execute().actionGet().getHits();
                     ranOnce = true;
-                    if (hits.totalHits() != indexer.totalIndexedDocs()) {
+                    if (hits.getTotalHits() != indexer.totalIndexedDocs()) {
                         int[] hitIds = new int[(int) indexer.totalIndexedDocs()];
                         for (int hit = 0; hit < indexer.totalIndexedDocs(); hit++) {
                             hitIds[hit] = hit + 1;
                         }
                         IntHashSet set = IntHashSet.from(hitIds);
-                        for (SearchHit hit : hits.hits()) {
-                            int id = Integer.parseInt(hit.id());
+                        for (SearchHit hit : hits.getHits()) {
+                            int id = Integer.parseInt(hit.getId());
                             if (!set.remove(id)) {
                                 logger.error("Extra id [{}]", id);
                             }
@@ -271,7 +264,7 @@ public class RelocationIT extends ESIntegTestCase {
                             logger.error("Missing id [{}]", value);
                         });
                     }
-                    assertThat(hits.totalHits(), equalTo(indexer.totalIndexedDocs()));
+                    assertThat(hits.getTotalHits(), equalTo(indexer.totalIndexedDocs()));
                     logger.info("--> DONE search test round {}", i + 1);
 
             }
@@ -281,7 +274,7 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.action.index:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
+    @TestLogging("org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
     public void testRelocationWhileRefreshing() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -334,12 +327,12 @@ public class RelocationIT extends ESIntegTestCase {
 
             List<IndexRequestBuilder> builders1 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders1.add(client().prepareIndex("test", "type").setSource("{}"));
+                builders1.add(client().prepareIndex("test", "type").setSource("{}", XContentType.JSON));
             }
 
             List<IndexRequestBuilder> builders2 = new ArrayList<>();
             for (int numDocs = randomIntBetween(10, 30); numDocs > 0; numDocs--) {
-                builders2.add(client().prepareIndex("test", "type").setSource("{}"));
+                builders2.add(client().prepareIndex("test", "type").setSource("{}", XContentType.JSON));
             }
 
             logger.info("--> START relocate the shard from {} to {}", nodes[fromNode], nodes[toNode]);
@@ -368,13 +361,17 @@ public class RelocationIT extends ESIntegTestCase {
                 SearchResponse response = client.prepareSearch("test").setPreference("_local").setSize(0).get();
                 assertNoFailures(response);
                 if (expectedCount < 0) {
-                    expectedCount = response.getHits().totalHits();
+                    expectedCount = response.getHits().getTotalHits();
                 } else {
-                    assertEquals(expectedCount, response.getHits().totalHits());
+                    assertEquals(expectedCount, response.getHits().getTotalHits());
                 }
             }
 
         }
+
+        // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
+        client().admin().indices().prepareRefresh("test").get();
+
     }
 
     public void testCancellationCleansTempFiles() throws Exception {
@@ -392,7 +389,7 @@ public class RelocationIT extends ESIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}"));
+            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("3").setWaitForGreenStatus().get().isTimedOut());
@@ -452,7 +449,11 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.action.index:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
+    @TestLogging(
+            "org.elasticsearch.action.bulk:TRACE,"
+                    + "org.elasticsearch.action.search:TRACE,"
+                    + "org.elasticsearch.cluster.service:TRACE,"
+                    + "org.elasticsearch.index.seqno:TRACE")
     public void testIndexAndRelocateConcurrently() throws ExecutionException, InterruptedException {
         int halfNodes = randomIntBetween(1, 3);
         Settings[] nodeSettings = Stream.concat(
@@ -510,13 +511,24 @@ public class RelocationIT extends ESIntegTestCase {
             assertNoFailures(afterRelocation);
             assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
         }
+
+        // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
+        client().admin().indices().prepareRefresh("test").get();
+        /*
+         * We have to execute a second refresh as in the face of relocations, the relocation target is not aware of the in-sync set and so
+         * the first refresh would bring back the local checkpoint for any shards added to the in-sync set that the relocation target was
+         * not tracking.
+         */
+        // TODO: remove this after a primary context is transferred during relocation handoff
+        client().admin().indices().prepareRefresh("test").get();
+
     }
 
     class RecoveryCorruption extends MockTransportService.DelegateTransport {
 
         private final CountDownLatch corruptionCount;
 
-        public RecoveryCorruption(Transport transport, CountDownLatch corruptionCount) {
+        RecoveryCorruption(Transport transport, CountDownLatch corruptionCount) {
             super(transport);
             this.corruptionCount = corruptionCount;
         }

@@ -57,7 +57,6 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.mockito.Mockito.mock;
 
 public class TransportNodesActionTests extends ESTestCase {
 
@@ -113,9 +112,9 @@ public class TransportNodesActionTests extends ESTestCase {
         nodeResponses.add(new OtherNodeResponse());
         List<FailedNodeException> failures = mockList(
             () -> new FailedNodeException(
-                randomAsciiOfLength(8),
-                randomAsciiOfLength(8),
-                new IllegalStateException(randomAsciiOfLength(8))),
+                randomAlphaOfLength(8),
+                randomAlphaOfLength(8),
+                new IllegalStateException(randomAlphaOfLength(8))),
             randomIntBetween(0, 2));
 
         List<Object> allResponses = new ArrayList<>(expectedNodeResponses);
@@ -182,7 +181,7 @@ public class TransportNodesActionTests extends ESTestCase {
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         int numNodes = randomIntBetween(3, 10);
@@ -192,7 +191,7 @@ public class TransportNodesActionTests extends ESTestCase {
             Map<String, String> attributes = new HashMap<>();
             Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
             if (frequently()) {
-                attributes.put("custom", randomBoolean() ? "match" : randomAsciiOfLengthBetween(3, 5));
+                attributes.put("custom", randomBoolean() ? "match" : randomAlphaOfLengthBetween(3, 5));
             }
             final DiscoveryNode node = newNode(i, attributes, roles);
             discoBuilder = discoBuilder.add(node);
@@ -275,10 +274,6 @@ public class TransportNodesActionTests extends ESTestCase {
             return new TestNodeResponse();
         }
 
-        @Override
-        protected boolean accumulateExceptions() {
-            return false;
-        }
     }
 
     private static class DataNodesOnlyTransportNodesAction

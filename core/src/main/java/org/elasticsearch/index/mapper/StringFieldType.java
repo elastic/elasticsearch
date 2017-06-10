@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import java.util.List;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -53,11 +53,11 @@ public abstract class StringFieldType extends TermBasedFieldType {
         for (int i = 0; i < bytesRefs.length; i++) {
             bytesRefs[i] = indexedValueForSearch(values.get(i));
         }
-        return new TermsQuery(name(), bytesRefs);
+        return new TermInSetQuery(name(), bytesRefs);
     }
 
     @Override
-    public final Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
+    public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
             boolean transpositions) {
         failIfNotIndexed();
         return new FuzzyQuery(new Term(name(), indexedValueForSearch(value)),
@@ -65,7 +65,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public final Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         failIfNotIndexed();
         PrefixQuery query = new PrefixQuery(new Term(name(), indexedValueForSearch(value)));
         if (method != null) {
@@ -75,7 +75,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public final Query regexpQuery(String value, int flags, int maxDeterminizedStates,
+    public Query regexpQuery(String value, int flags, int maxDeterminizedStates,
             MultiTermQuery.RewriteMethod method, QueryShardContext context) {
         failIfNotIndexed();
         RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), flags, maxDeterminizedStates);

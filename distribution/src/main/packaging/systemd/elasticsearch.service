@@ -38,6 +38,9 @@ StandardError=inherit
 # Specifies the maximum file descriptor number that can be opened by this process
 LimitNOFILE=65536
 
+# Specifies the maximum number of processes
+LimitNPROC=4096
+
 # Specifies the maximum number of bytes of memory that may be locked into RAM
 # Set to "infinity" if you use the 'bootstrap.memory_lock: true' option
 # in elasticsearch.yml and 'MAX_LOCKED_MEMORY=unlimited' in ${path.env}

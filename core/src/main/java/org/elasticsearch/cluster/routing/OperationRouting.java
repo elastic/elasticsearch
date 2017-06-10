@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -68,7 +69,7 @@ public class OperationRouting extends AbstractComponent {
         return preferenceActiveShardIterator(indexShard, clusterState.nodes().getLocalNodeId(), clusterState.nodes(), preference);
     }
 
-    public GroupShardsIterator searchShards(ClusterState clusterState, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) {
+    public GroupShardsIterator<ShardIterator> searchShards(ClusterState clusterState, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         final Set<ShardIterator> set = new HashSet<>(shards.size());
         for (IndexShardRoutingTable shard : shards) {
@@ -77,7 +78,7 @@ public class OperationRouting extends AbstractComponent {
                 set.add(iterator);
             }
         }
-        return new GroupShardsIterator(new ArrayList<>(set));
+        return new GroupShardsIterator<>(new ArrayList<>(set));
     }
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
@@ -92,13 +93,10 @@ public class OperationRouting extends AbstractComponent {
             final Set<String> effectiveRouting = routing.get(index);
             if (effectiveRouting != null) {
                 for (String r : effectiveRouting) {
-                    int shardId = generateShardId(indexMetaData, null, r);
-                    IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
-                    if (indexShard == null) {
-                        throw new ShardNotFoundException(new ShardId(indexRouting.getIndex(), shardId));
+                    final int routingPartitionSize = indexMetaData.getRoutingPartitionSize();
+                    for (int partitionOffset = 0; partitionOffset < routingPartitionSize; partitionOffset++) {
+                        set.add(shardRoutingTable(indexRouting, calculateScaledShardId(indexMetaData, r, partitionOffset)));
                     }
-                    // we might get duplicates, but that's ok, they will override one another
-                    set.add(indexShard);
                 }
             } else {
                 for (IndexShardRoutingTable indexShard : indexRouting) {
@@ -180,11 +178,29 @@ public class OperationRouting extends AbstractComponent {
             }
         }
         // if not, then use it as the index
-        if (awarenessAttributes.length == 0) {
-            return indexShard.activeInitializingShardsIt(Murmur3HashFunction.hash(preference));
-        } else {
-            return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, Murmur3HashFunction.hash(preference));
+        int routingHash = Murmur3HashFunction.hash(preference);
+        if (nodes.getMinNodeVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            // The AllocationService lists shards in a fixed order based on nodes
+            // so earlier versions of this class would have a tendency to
+            // select the same node across different shardIds.
+            // Better overall balancing can be achieved if each shardId opts
+            // for a different element in the list by also incorporating the
+            // shard ID into the hash of the user-supplied preference key.
+            routingHash = 31 * routingHash + indexShard.shardId.hashCode();
         }
+        if (awarenessAttributes.length == 0) {
+            return indexShard.activeInitializingShardsIt(routingHash);
+        } else {
+            return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, routingHash);
+        }
+    }
+
+    private IndexShardRoutingTable shardRoutingTable(IndexRoutingTable indexRouting, int shardId) {
+        IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
+        if (indexShard == null) {
+            throw new ShardNotFoundException(new ShardId(indexRouting.getIndex(), shardId));
+        }
+        return indexShard;
     }
 
     protected IndexRoutingTable indexRoutingTable(ClusterState clusterState, String index) {
@@ -213,15 +229,33 @@ public class OperationRouting extends AbstractComponent {
         return new ShardId(indexMetaData.getIndex(), generateShardId(indexMetaData, id, routing));
     }
 
-    static int generateShardId(IndexMetaData indexMetaData, String id, @Nullable String routing) {
-        final int hash;
+    static int generateShardId(IndexMetaData indexMetaData, @Nullable String id, @Nullable String routing) {
+        final String effectiveRouting;
+        final int partitionOffset;
+
         if (routing == null) {
-            hash = Murmur3HashFunction.hash(id);
+            assert(indexMetaData.isRoutingPartitionedIndex() == false) : "A routing value is required for gets from a partitioned index";
+            effectiveRouting = id;
         } else {
-            hash = Murmur3HashFunction.hash(routing);
+            effectiveRouting = routing;
         }
+
+        if (indexMetaData.isRoutingPartitionedIndex()) {
+            partitionOffset = Math.floorMod(Murmur3HashFunction.hash(id), indexMetaData.getRoutingPartitionSize());
+        } else {
+            // we would have still got 0 above but this check just saves us an unnecessary hash calculation
+            partitionOffset = 0;
+        }
+
+        return calculateScaledShardId(indexMetaData, effectiveRouting, partitionOffset);
+    }
+
+    private static int calculateScaledShardId(IndexMetaData indexMetaData, String effectiveRouting, int partitionOffset) {
+        final int hash = Murmur3HashFunction.hash(effectiveRouting) + partitionOffset;
+
         // we don't use IMD#getNumberOfShards since the index might have been shrunk such that we need to use the size
         // of original index to hash documents
         return Math.floorMod(hash, indexMetaData.getRoutingNumShards()) / indexMetaData.getRoutingFactor();
     }
+
 }

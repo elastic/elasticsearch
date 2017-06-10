@@ -32,6 +32,8 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlock;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -44,9 +46,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -74,7 +78,21 @@ import static org.mockito.Mockito.when;
 
 public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndicesClusterStateServiceTestCase {
 
-    private final ClusterStateChanges cluster = new ClusterStateChanges(xContentRegistry());
+    private ThreadPool threadPool;
+    private ClusterStateChanges cluster;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool(getClass().getName());
+        cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        terminate(threadPool);
+    }
 
     public void testRandomClusterStateUpdates() {
         // we have an IndicesClusterStateService per node in the cluster
@@ -135,7 +153,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
      */
     public void testJoiningNewClusterOnlyRemovesInMemoryIndexStructures() {
         // a cluster state derived from the initial state that includes a created index
-        String name = "index_" + randomAsciiOfLength(8).toLowerCase(Locale.ROOT);
+        String name = "index_" + randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         ShardRoutingState[] replicaStates = new ShardRoutingState[randomIntBetween(0, 3)];
         Arrays.fill(replicaStates, ShardRoutingState.INITIALIZING);
         ClusterState stateWithIndex = ClusterStateCreationUtils.state(name, randomBoolean(), ShardRoutingState.INITIALIZING, replicaStates);
@@ -216,19 +234,32 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
     public ClusterState randomlyUpdateClusterState(ClusterState state,
                                                    Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap,
                                                    Supplier<MockIndicesService> indicesServiceSupplier) {
+        // randomly remove no_master blocks
+        if (randomBoolean() && state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
+            state = ClusterState.builder(state).blocks(
+                ClusterBlocks.builder().blocks(state.blocks()).removeGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)).build();
+        }
+
+        // randomly add no_master blocks
+        if (rarely() && state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID) == false) {
+            ClusterBlock block = randomBoolean() ? DiscoverySettings.NO_MASTER_BLOCK_ALL : DiscoverySettings.NO_MASTER_BLOCK_WRITES;
+            state = ClusterState.builder(state).blocks(ClusterBlocks.builder().blocks(state.blocks()).addGlobalBlock(block)).build();
+        }
+
+        // if no_master block is in place, make no other cluster state changes
+        if (state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID)) {
+            return state;
+        }
+
         // randomly create new indices (until we have 200 max)
         for (int i = 0; i < randomInt(5); i++) {
             if (state.metaData().indices().size() > 200) {
                 break;
             }
-            String name = "index_" + randomAsciiOfLength(15).toLowerCase(Locale.ROOT);
+            String name = "index_" + randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
             Settings.Builder settingsBuilder = Settings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
                 .put(SETTING_NUMBER_OF_REPLICAS, randomInt(2));
-            if (randomBoolean()) {
-                settingsBuilder.put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                    .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true);
-            }
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));
@@ -368,7 +399,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final MockIndicesService indicesService = indicesServiceSupplier.get();
         final Settings settings = Settings.builder().put("node.name", discoveryNode.getName()).build();
         final TransportService transportService = new TransportService(settings, null, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null);
         final ClusterService clusterService = mock(ClusterService.class);
         final RepositoriesService repositoriesService = new RepositoriesService(settings, clusterService,
             transportService, null);
@@ -388,7 +420,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             null,
             null,
-            shardId -> {});
+            null);
     }
 
     private class RecordingIndicesService extends MockIndicesService {

@@ -184,7 +184,7 @@ public abstract class MetaDataStateFormat<T> {
      */
     public final T read(NamedXContentRegistry namedXContentRegistry, Path file) throws IOException {
         try (Directory dir = newDirectory(file.getParent())) {
-            try (final IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
+            try (IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                  // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
                 CodecUtil.checksumEntireFile(indexInput);
                 final int fileVersion = CodecUtil.checkHeader(indexInput, STATE_FILE_CODEC, MIN_COMPATIBLE_STATE_FILE_VERSION,

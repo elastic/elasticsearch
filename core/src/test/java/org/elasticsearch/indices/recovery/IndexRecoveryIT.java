@@ -43,6 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.store.Store;
@@ -76,6 +77,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.node.RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -239,6 +241,12 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
     }
 
+    @TestLogging(
+            "_root:DEBUG,"
+                    + "org.elasticsearch.cluster.service:TRACE,"
+                    + "org.elasticsearch.indices.cluster:TRACE,"
+                    + "org.elasticsearch.indices.recovery:TRACE,"
+                    + "org.elasticsearch.index.shard:TRACE")
     public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
@@ -341,39 +349,28 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         assertRecoveryState(recoveryStates.get(0), 0, PeerRecoverySource.INSTANCE, true, Stage.DONE, nodeA, nodeB);
         validateIndexRecoveryState(recoveryStates.get(0).getIndex());
-
-        statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-        assertThat(statsResponse.getNodes(), hasSize(2));
-        for (NodeStats nodeStats : statsResponse.getNodes()) {
+        Consumer<String> assertNodeHasThrottleTimeAndNoRecoveries = nodeName ->  {
+            NodesStatsResponse nodesStatsResponse = client().admin().cluster().prepareNodesStats().setNodesIds(nodeName)
+                .clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
+            assertThat(nodesStatsResponse.getNodes(), hasSize(1));
+            NodeStats nodeStats = nodesStatsResponse.getNodes().get(0);
             final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
             assertThat(recoveryStats.currentAsSource(), equalTo(0));
             assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-            if (nodeStats.getNode().getName().equals(nodeA)) {
-                assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
-            }
-            if (nodeStats.getNode().getName().equals(nodeB)) {
-                assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
-            }
-        }
+            assertThat(nodeName + " throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
+        };
+        // we have to use assertBusy as recovery counters are decremented only when the last reference to the RecoveryTarget
+        // is decremented, which may happen after the recovery was done.
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeA));
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeB));
 
         logger.info("--> bump replica count");
         client().admin().indices().prepareUpdateSettings(INDEX_NAME)
                 .setSettings(Settings.builder().put("number_of_replicas", 1)).execute().actionGet();
         ensureGreen();
 
-        statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-        assertThat(statsResponse.getNodes(), hasSize(2));
-        for (NodeStats nodeStats : statsResponse.getNodes()) {
-            final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-            assertThat(recoveryStats.currentAsSource(), equalTo(0));
-            assertThat(recoveryStats.currentAsTarget(), equalTo(0));
-            if (nodeStats.getNode().getName().equals(nodeA)) {
-                assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0L));
-            }
-            if (nodeStats.getNode().getName().equals(nodeB)) {
-                assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0L));
-            }
-        }
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeA));
+        assertBusy(() -> assertNodeHasThrottleTimeAndNoRecoveries.accept(nodeB));
 
         logger.info("--> start node C");
         String nodeC = internalCluster().startNode();
@@ -530,13 +527,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             docs[i] = client().prepareIndex(name, INDEX_TYPE).
                     setSource("foo-int", randomInt(),
-                            "foo-string", randomAsciiOfLength(32),
+                            "foo-string", randomAlphaOfLength(32),
                             "foo-float", randomFloat());
         }
 
         indexRandom(true, docs);
         flush();
-        assertThat(client().prepareSearch(name).setSize(0).get().getHits().totalHits(), equalTo((long) numDocs));
+        assertThat(client().prepareSearch(name).setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs));
         return client().admin().indices().prepareStats(name).execute().actionGet();
     }
 
@@ -576,7 +573,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}"));
+            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);
@@ -635,7 +632,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         private final String recoveryActionToBlock;
         private final CountDownLatch requestBlocked;
 
-        public RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, Transport delegate, CountDownLatch requestBlocked) {
+        RecoveryActionBlocker(boolean dropRequests, String recoveryActionToBlock, Transport delegate, CountDownLatch requestBlocked) {
             super(delegate);
             this.dropRequests = dropRequests;
             this.recoveryActionToBlock = recoveryActionToBlock;
@@ -686,7 +683,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         List<IndexRequestBuilder> requests = new ArrayList<>();
         int numDocs = scaledRandomIntBetween(25, 250);
         for (int i = 0; i < numDocs; i++) {
-            requests.add(client().prepareIndex(indexName, "type").setSource("{}"));
+            requests.add(client().prepareIndex(indexName, "type").setSource("{}", XContentType.JSON));
         }
         indexRandom(true, requests);
         ensureSearchable(indexName);

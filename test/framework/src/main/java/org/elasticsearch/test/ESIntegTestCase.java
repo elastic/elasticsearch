@@ -23,8 +23,8 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.http.HttpHost;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -46,7 +46,10 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -96,6 +99,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.Discovery;
@@ -111,6 +115,7 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.MergeSchedulerConfig;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
@@ -125,6 +130,7 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -293,6 +299,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public static final String TESTS_ENABLE_MOCK_MODULES = "tests.enable_mock_modules";
 
+    private static final boolean MOCK_MODULES_ENABLED = "true".equals(System.getProperty(TESTS_ENABLE_MOCK_MODULES, "true"));
     /**
      * Threshold at which indexing switches from frequently async to frequently bulk.
      */
@@ -563,7 +570,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
                                 final ZenDiscovery zenDiscovery = (ZenDiscovery) discovery;
                                 assertBusy(() -> {
                                     final ClusterState[] states = zenDiscovery.pendingClusterStates();
-                                    assertThat(zenDiscovery.localNode().getName() + " still having pending states:\n" +
+                                    assertThat(zenDiscovery.clusterState().nodes().getLocalNode().getName() +
+                                            " still having pending states:\n" +
                                             Stream.of(states).map(ClusterState::toString).collect(Collectors.joining("\n")),
                                         states, emptyArray());
                                 });
@@ -704,7 +712,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
         // 30% of the time
         if (randomInt(9) < 3) {
-            final String dataPath = randomAsciiOfLength(10);
+            final String dataPath = randomAlphaOfLength(10);
             logger.info("using custom data_path for index: [{}]", dataPath);
             builder.put(IndexMetaData.SETTING_DATA_PATH, dataPath);
         }
@@ -856,7 +864,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             String failMsg = sb.toString();
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
-                    .append("] id [").append(hit.id()).append("]");
+                    .append("] id [").append(hit.getId()).append("]");
             }
             logger.warn("{}", sb);
             fail(failMsg);
@@ -876,7 +884,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             getExcludeSettings(index, n, builder);
         }
         Settings build = builder.build();
-        if (!build.getAsMap().isEmpty()) {
+        if (!build.isEmpty()) {
             logger.debug("allowNodes: updating [{}]'s setting to [{}]", index, build.toDelimitedString(';'));
             client().admin().indices().prepareUpdateSettings(index).setSettings(build).execute().actionGet();
         }
@@ -1013,7 +1021,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
             if (lastKnownCount.get() >= numDocs) {
                 try {
-                    long count = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits();
+                    long count = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().getTotalHits();
                     if (count == lastKnownCount.get()) {
                         // no progress - try to refresh for the next time
                         client().admin().indices().prepareRefresh().get();
@@ -1168,6 +1176,18 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 + stateResponse.getState());
         }
         assertThat(clusterHealthResponse.isTimedOut(), is(false));
+        ensureFullyConnectedCluster();
+    }
+
+    /**
+     * Ensures that all nodes in the cluster are connected to each other.
+     *
+     * Some network disruptions may leave nodes that are not the master disconnected from each other.
+     * {@link org.elasticsearch.cluster.NodeConnectionsService} will eventually reconnect but it's
+     * handy to be able to ensure this happens faster
+     */
+    protected void ensureFullyConnectedCluster() {
+        NetworkDisruption.ensureFullyConnectedCluster(internalCluster());
     }
 
     /**
@@ -1226,10 +1246,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
      * <p>
-     * where source is a String.
+     * where source is a JSON String.
      */
     protected final IndexResponse index(String index, String type, String id, String source) {
-        return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
+        return client().prepareIndex(index, type, id).setSource(source, XContentType.JSON).execute().actionGet();
     }
 
     /**
@@ -1320,9 +1340,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         indexRandom(forceRefresh, dummyDocuments, Arrays.asList(builders));
     }
 
-
-    private static final String RANDOM_BOGUS_TYPE = "RANDOM_BOGUS_TYPE______";
-
     /**
      * Indexes the given {@link IndexRequestBuilder} instances randomly. It shuffles the given builders and either
      * indexes them in a blocking or async fashion. This is very useful to catch problems that relate to internal document
@@ -1370,31 +1387,33 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * @param builders       the documents to index.
      */
     public void indexRandom(boolean forceRefresh, boolean dummyDocuments, boolean maybeFlush, List<IndexRequestBuilder> builders) throws InterruptedException, ExecutionException {
-
         Random random = random();
-        Set<String> indicesSet = new HashSet<>();
+        Map<String, Set<String>> indicesAndTypes = new HashMap<>();
         for (IndexRequestBuilder builder : builders) {
-            indicesSet.add(builder.request().index());
+            final Set<String> types = indicesAndTypes.computeIfAbsent(builder.request().index(), index -> new HashSet<>());
+            types.add(builder.request().type());
         }
-        Set<Tuple<String, String>> bogusIds = new HashSet<>();
+        Set<List<String>> bogusIds = new HashSet<>(); // (index, type, id)
         if (random.nextBoolean() && !builders.isEmpty() && dummyDocuments) {
             builders = new ArrayList<>(builders);
-            final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
             // inject some bogus docs
             final int numBogusDocs = scaledRandomIntBetween(1, builders.size() * 2);
             final int unicodeLen = between(1, 10);
             for (int i = 0; i < numBogusDocs; i++) {
-                String id = randomRealisticUnicodeOfLength(unicodeLen) + Integer.toString(dummmyDocIdGenerator.incrementAndGet());
-                String index = RandomPicks.randomFrom(random, indices);
-                bogusIds.add(new Tuple<>(index, id));
-                builders.add(client().prepareIndex(index, RANDOM_BOGUS_TYPE, id).setSource("{}"));
+                String id = "bogus_doc_" + randomRealisticUnicodeOfLength(unicodeLen) + Integer.toString(dummmyDocIdGenerator.incrementAndGet());
+                Map.Entry<String, Set<String>> indexAndTypes = RandomPicks.randomFrom(random, indicesAndTypes.entrySet());
+                String index = indexAndTypes.getKey();
+                String type = RandomPicks.randomFrom(random, indexAndTypes.getValue());
+                bogusIds.add(Arrays.asList(index, type, id));
+                // We configure a routing key in case the mapping requires it
+                builders.add(client().prepareIndex(index, type, id).setSource("{}", XContentType.JSON).setRouting(id));
             }
         }
-        final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
         Collections.shuffle(builders, random());
         final CopyOnWriteArrayList<Tuple<IndexRequestBuilder, Exception>> errors = new CopyOnWriteArrayList<>();
         List<CountDownLatch> inFlightAsyncOperations = new ArrayList<>();
         // If you are indexing just a few documents then frequently do it one at a time.  If many then frequently in bulk.
+        final String[] indices = indicesAndTypes.keySet().toArray(new String[0]);
         if (builders.size() < FREQUENT_BULK_THRESHOLD ? frequently() : builders.size() < ALWAYS_BULK_THRESHOLD ? rarely() : false) {
             if (frequently()) {
                 logger.info("Index [{}] docs async: [{}] bulk: [{}]", builders.size(), true, false);
@@ -1436,10 +1455,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertThat(actualErrors, emptyIterable());
         if (!bogusIds.isEmpty()) {
             // delete the bogus types again - it might trigger merges or at least holes in the segments and enforces deleted docs!
-            for (Tuple<String, String> doc : bogusIds) {
-                assertEquals("failed to delete a dummy doc [" + doc.v1() + "][" + doc.v2() + "]",
+            for (List<String> doc : bogusIds) {
+                assertEquals("failed to delete a dummy doc [" + doc.get(0) + "][" + doc.get(2) + "]",
                     DocWriteResponse.Result.DELETED,
-                    client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get().getResult());
+                    client().prepareDelete(doc.get(0), doc.get(1), doc.get(2)).setRouting(doc.get(2)).get().getResult());
             }
         }
         if (forceRefresh) {
@@ -1463,7 +1482,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Sets or unsets the cluster read_only mode **/
     public static void setClusterReadOnly(boolean value) {
-        Settings settings = Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), value).build();
+        Settings settings = value ? Settings.builder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), value).build() :
+            Settings.builder().putNull(MetaData.SETTING_READ_ONLY_SETTING.getKey()).build()  ;
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
     }
 
@@ -1581,7 +1601,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     private class LatchedActionListener<Response> implements ActionListener<Response> {
         private final CountDownLatch latch;
 
-        public LatchedActionListener(CountDownLatch latch) {
+        LatchedActionListener(CountDownLatch latch) {
             this.latch = latch;
         }
 
@@ -1609,7 +1629,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         private final CopyOnWriteArrayList<Tuple<T, Exception>> errors;
         private final T builder;
 
-        public PayloadLatchedActionListener(T builder, CountDownLatch latch, CopyOnWriteArrayList<Tuple<T, Exception>> errors) {
+        PayloadLatchedActionListener(T builder, CountDownLatch latch, CopyOnWriteArrayList<Tuple<T, Exception>> errors) {
             super(latch);
             this.errors = errors;
             this.builder = builder;
@@ -1701,9 +1721,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             // from failing on nodes without enough disk space
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
-            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000)
-            .put("script.stored", "true")
-            .put("script.inline", "true")
+            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 2048)
             // by default we never cache below 10k docs in a segment,
             // bypass this limit so that caching gets some testing in
             // integration tests that usually create few documents
@@ -1865,7 +1883,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /** Return the mock plugins the cluster should use */
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
         final ArrayList<Class<? extends Plugin>> mocks = new ArrayList<>();
-        if (randomBoolean()) { // sometimes run without those completely
+        if (MOCK_MODULES_ENABLED && randomBoolean()) { // sometimes run without those completely
             if (randomBoolean() && addMockTransportService()) {
                 mocks.add(MockTransportService.TestPlugin.class);
             }
@@ -1950,7 +1968,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assert repoFiles.length > 0;
         Path path;
         do {
-            path = repoFiles[0].resolve(randomAsciiOfLength(10));
+            path = repoFiles[0].resolve(randomAlphaOfLength(10));
         } while (Files.exists(path));
         return path;
     }
@@ -1981,6 +1999,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
         }
         return nodes;
+    }
+
+
+    /**
+     * Asserts that all segments are sorted with the provided {@link Sort}.
+     */
+    public void assertSortedSegments(String indexName, Sort expectedIndexSort) {
+        IndicesSegmentResponse segmentResponse =
+            client().admin().indices().prepareSegments(indexName).execute().actionGet();
+        IndexSegments indexSegments = segmentResponse.getIndices().get(indexName);
+        for (IndexShardSegments indexShardSegments : indexSegments.getShards().values()) {
+            for (ShardSegments shardSegments : indexShardSegments.getShards()) {
+                for (Segment segment : shardSegments) {
+                    assertThat(expectedIndexSort, equalTo(segment.getSegmentSort()));
+                }
+            }
+        }
     }
 
     protected static class NumShards {

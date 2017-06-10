@@ -11,6 +11,13 @@ scripts, and when sorting:
 [source,js]
 --------------------------
 # Example documents
+PUT my_index
+{
+  "settings": {
+    "mapping.single_type": false
+  }
+}
+
 PUT my_index/type_1/1
 {
   "text": "Document with type 1"
@@ -21,7 +28,7 @@ PUT my_index/type_2/2?refresh=true
   "text": "Document with type 2"
 }
 
-GET my_index/type_*/_search
+GET my_index/_search
 {
   "query": {
     "terms": {
@@ -47,7 +54,7 @@ GET my_index/type_*/_search
     "type": {
       "script": {
         "lang": "painless",
-        "inline": "doc['_type']" <4>
+        "source": "doc['_type']" <4>
       }
     }
   }

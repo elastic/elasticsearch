@@ -24,9 +24,16 @@ green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   5   0          0            0   
 // TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ _cat]
 
 We can tell quickly how many shards make up an index, the number of
-docs at the Lucene level, including hidden docs (e.g., from nested types),
-deleted docs, primary store size, and total store size (all shards including replicas).
+docs, deleted docs, primary store size, and total store size (all shards including replicas).
 All these exposed metrics come directly from Lucene APIs.
+
+*Notes:*
+
+1. As the number of documents and deleted documents shown in this are at the lucene level,
+it includes all the hidden documents (e.g. from nested documents) as well.
+
+2. To get actual count of documents at the elasticsearch level, the recommended way
+is to use either the <<cat-count>> or the <<search-count>>
 
 [float]
 [[pri-flag]]

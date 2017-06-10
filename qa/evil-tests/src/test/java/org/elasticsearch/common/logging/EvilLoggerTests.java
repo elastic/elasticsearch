@@ -29,29 +29,34 @@ import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
-import javax.management.MBeanServerPermission;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessControlException;
-import java.security.Permission;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
 
 public class EvilLoggerTests extends ESTestCase {
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        LogConfigurator.registerErrorListener();
+    }
 
     @Override
     public void tearDown() throws Exception {
@@ -70,7 +75,11 @@ public class EvilLoggerTests extends ESTestCase {
         testLogger.info("This is an info message");
         testLogger.debug("This is a debug message");
         testLogger.trace("This is a trace message");
-        final String path = System.getProperty("es.logs") + ".log";
+        final String path =
+            System.getProperty("es.logs.base_path") +
+                System.getProperty("file.separator") +
+                System.getProperty("es.logs.cluster_name") +
+                ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
         assertThat(events.size(), equalTo(5));
         final String location = "org.elasticsearch.common.logging.EvilLoggerTests.testLocationInfoTest";
@@ -88,7 +97,11 @@ public class EvilLoggerTests extends ESTestCase {
         final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
 
         deprecationLogger.deprecated("This is a deprecation message");
-        final String deprecationPath = System.getProperty("es.logs") + "_deprecation.log";
+        final String deprecationPath =
+            System.getProperty("es.logs.base_path") +
+                System.getProperty("file.separator") +
+                System.getProperty("es.logs.cluster_name") +
+                "_deprecation.log";
         final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
         assertThat(deprecationEvents.size(), equalTo(1));
         assertLogLine(
@@ -116,14 +129,18 @@ public class EvilLoggerTests extends ESTestCase {
     public void testPrefixLogger() throws IOException, IllegalAccessException, UserException {
         setupLogging("prefix");
 
-        final String prefix = randomBoolean() ? null : randomAsciiOfLength(16);
+        final String prefix = randomBoolean() ? null : randomAlphaOfLength(16);
         final Logger logger = Loggers.getLogger("prefix", prefix);
         logger.info("test");
         logger.info("{}", "test");
         final Exception e = new Exception("exception");
         logger.info(new ParameterizedMessage("{}", "test"), e);
 
-        final String path = System.getProperty("es.logs") + ".log";
+        final String path =
+            System.getProperty("es.logs.base_path") +
+                System.getProperty("file.separator") +
+                System.getProperty("es.logs.cluster_name") +
+                ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
 
         final StringWriter sw = new StringWriter();
@@ -151,56 +168,42 @@ public class EvilLoggerTests extends ESTestCase {
 
         // this will free the weakly referenced keys in the marker cache
         System.gc();
-        assertThat(PrefixLogger.markersSize() < 1 << 20, equalTo(true));
+        assertThat(PrefixLogger.markersSize(), lessThan(1 << 20));
     }
 
-    public void testLog4jShutdownHack() {
-        final AtomicBoolean denied = new AtomicBoolean();
-        final SecurityManager sm = System.getSecurityManager();
-        try {
-            System.setSecurityManager(new SecurityManager() {
-                @Override
-                public void checkPermission(Permission perm) {
-                    // just grant all permissions to Log4j, except we deny MBeanServerPermission
-                    // "createMBeanServer" as this will trigger the Log4j bug
-                    if (perm instanceof MBeanServerPermission && "createMBeanServer".equals(perm.getName())) {
-                        // without the hack in place, Log4j will try to get an MBean server which we will deny
-                        // with the hack in place, this permission should never be requested by Log4j
-                        denied.set(true);
-                        throw new AccessControlException("denied");
-                    }
-                }
+    public void testProperties() throws IOException, UserException {
+        final Settings.Builder builder = Settings.builder().put("cluster.name", randomAlphaOfLength(16));
+        if (randomBoolean()) {
+            builder.put("node.name", randomAlphaOfLength(16));
+        }
+        final Settings settings = builder.build();
+        setupLogging("minimal", settings);
 
-                @Override
-                public void checkPropertyAccess(String key) {
-                    /*
-                     * grant access to all properties; this is so that Log4j can check if its usage
-                     * of JMX is disabled or not by reading log4j2.disable.jmx but there are other
-                     * properties that Log4j will try to read as well and its simpler to just grant
-                     * them all
-                     */
-                }
-            });
+        assertNotNull(System.getProperty("es.logs.base_path"));
 
-            // this will trigger the bug without the hack
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
-
-            // Log4j should have never requested permissions to create an MBean server
-            assertFalse(denied.get());
-        } finally {
-            System.setSecurityManager(sm);
+        assertThat(System.getProperty("es.logs.cluster_name"), equalTo(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()));
+        if (Node.NODE_NAME_SETTING.exists(settings)) {
+            assertThat(System.getProperty("es.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
+        } else {
+            assertNull(System.getProperty("es.logs.node_name"));
         }
     }
 
     private void setupLogging(final String config) throws IOException, UserException {
+        setupLogging(config, Settings.EMPTY);
+    }
+
+    private void setupLogging(final String config, final Settings settings) throws IOException, UserException {
+        assert !Environment.PATH_CONF_SETTING.exists(settings);
+        assert !Environment.PATH_HOME_SETTING.exists(settings);
         final Path configDir = getDataPath(config);
         // need to set custom path.conf so we can use a custom log4j2.properties file for the test
-        final Settings settings = Settings.builder()
-                .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
-        final Environment environment = new Environment(settings);
+        final Settings mergedSettings = Settings.builder()
+            .put(settings)
+            .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        final Environment environment = new Environment(mergedSettings);
         LogConfigurator.configure(environment);
     }
 

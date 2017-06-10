@@ -43,7 +43,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
         assertThat(response.getHits().getAt(0).getType(), nullValue());
-        assertThat(response.getHits().getAt(0).sourceAsString(), nullValue());
+        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
         response = client()
             .prepareSearch("test")
@@ -51,7 +51,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
         assertThat(response.getHits().getAt(0).getType(), nullValue());
-        assertThat(response.getHits().getAt(0).sourceAsString(), nullValue());
+        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
     }
 
     public void testWithRouting() {
@@ -69,7 +69,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getId(), nullValue());
         assertThat(response.getHits().getAt(0).getType(), nullValue());
         assertThat(response.getHits().getAt(0).field("_routing"), nullValue());
-        assertThat(response.getHits().getAt(0).sourceAsString(), nullValue());
+        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
 
         response = client()
             .prepareSearch("test")
@@ -77,7 +77,7 @@ public class MetadataFetchingIT extends ESIntegTestCase {
             .get();
         assertThat(response.getHits().getAt(0).getId(), nullValue());
         assertThat(response.getHits().getAt(0).getType(), nullValue());
-        assertThat(response.getHits().getAt(0).sourceAsString(), nullValue());
+        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
     }
 
     public void testInvalid() {

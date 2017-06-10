@@ -30,7 +30,7 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
     protected abstract QB createQueryBuilder(String fieldName, Object value);
 
     public void testIllegalArguments() throws QueryShardException {
-        String term = randomAsciiOfLengthBetween(1, 30);
+        String term = randomAlphaOfLengthBetween(1, 30);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> createQueryBuilder(null, term));
         assertEquals("field name is null or empty", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> createQueryBuilder("", term));

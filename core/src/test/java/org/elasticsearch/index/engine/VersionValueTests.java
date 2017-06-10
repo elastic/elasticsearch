@@ -20,19 +20,17 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.RamUsageTester;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogTests;
 import org.elasticsearch.test.ESTestCase;
 
 public class VersionValueTests extends ESTestCase {
 
     public void testRamBytesUsed() {
-        VersionValue versionValue = new VersionValue(randomLong());
+        VersionValue versionValue = new VersionValue(randomLong(), randomLong(), randomLong());
         assertEquals(RamUsageTester.sizeOf(versionValue), versionValue.ramBytesUsed());
     }
 
     public void testDeleteRamBytesUsed() {
-        DeleteVersionValue versionValue = new DeleteVersionValue(randomLong(), randomLong());
+        DeleteVersionValue versionValue = new DeleteVersionValue(randomLong(), randomLong(), randomLong(), randomLong());
         assertEquals(RamUsageTester.sizeOf(versionValue), versionValue.ramBytesUsed());
     }
 

@@ -34,6 +34,7 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 import java.util.function.ToLongBiFunction;
 
 /**
@@ -166,7 +167,7 @@ public class Cache<K, V> {
         Entry<K, V> after;
         State state = State.NEW;
 
-        public Entry(K key, V value, long writeTime) {
+        Entry(K key, V value, long writeTime) {
             this.key = key;
             this.value = value;
             this.writeTime = this.accessTime = writeTime;
@@ -193,33 +194,35 @@ public class Cache<K, V> {
         SegmentStats segmentStats = new SegmentStats();
 
         /**
-         * get an entry from the segment
+         * get an entry from the segment; expired entries will be returned as null but not removed from the cache until the LRU list is
+         * pruned or a manual {@link Cache#refresh()} is performed
          *
-         * @param key the key of the entry to get from the cache
-         * @param now the access time of this entry
+         * @param key       the key of the entry to get from the cache
+         * @param now       the access time of this entry
+         * @param isExpired test if the entry is expired
          * @return the entry if there was one, otherwise null
          */
-        Entry<K, V> get(K key, long now) {
+        Entry<K, V> get(K key, long now, Predicate<Entry<K, V>> isExpired) {
             CompletableFuture<Entry<K, V>> future;
             Entry<K, V> entry = null;
             try (ReleasableLock ignored = readLock.acquire()) {
                 future = map.get(key);
             }
             if (future != null) {
-              try {
-                  entry = future.handle((ok, ex) -> {
-                      if (ok != null) {
-                          segmentStats.hit();
-                          ok.accessTime = now;
-                          return ok;
-                      } else {
-                          segmentStats.miss();
-                          return null;
-                      }
-                  }).get();
-              } catch (ExecutionException | InterruptedException e) {
-                  throw new IllegalStateException(e);
-              }
+                try {
+                    entry = future.handle((ok, ex) -> {
+                        if (ok != null && !isExpired.test(ok)) {
+                            segmentStats.hit();
+                            ok.accessTime = now;
+                            return ok;
+                        } else {
+                            segmentStats.miss();
+                            return null;
+                        }
+                    }).get();
+                } catch (ExecutionException | InterruptedException e) {
+                    throw new IllegalStateException(e);
+                }
             }
             else {
                 segmentStats.miss();
@@ -332,8 +335,8 @@ public class Cache<K, V> {
 
     private V get(K key, long now) {
         CacheSegment<K, V> segment = getCacheSegment(key);
-        Entry<K, V> entry = segment.get(key, now);
-        if (entry == null || isExpired(entry, now)) {
+        Entry<K, V> entry = segment.get(key, now, e -> isExpired(e, now));
+        if (entry == null) {
             return null;
         } else {
             promote(entry, now);

@@ -65,12 +65,12 @@ public class TransportRethrottleActionTests extends ESTestCase {
     private void rethrottleTestCase(int runningSlices, Consumer<ActionListener<ListTasksResponse>> simulator,
             Consumer<ActionListener<TaskInfo>> verifier) {
         Client client = mock(Client.class);
-        String localNodeId = randomAsciiOfLength(5);
+        String localNodeId = randomAlphaOfLength(5);
         float newRequestsPerSecond = randomValueOtherThanMany(f -> f <= 0, () -> randomFloat());
         @SuppressWarnings("unchecked")
         ActionListener<TaskInfo> listener = mock(ActionListener.class);
 
-        TransportRethrottleAction.rethrottle(localNodeId, client, task, newRequestsPerSecond, listener);
+        TransportRethrottleAction.rethrottle(logger, localNodeId, client, task, newRequestsPerSecond, listener);
 
         // Capture the sub request and the listener so we can verify they are sane
         ArgumentCaptor<RethrottleRequest> subRequest = ArgumentCaptor.forClass(RethrottleRequest.class);
@@ -114,7 +114,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         for (int i = 0; i < succeeded; i++) {
             BulkByScrollTask.Status status = believeableCompletedStatus(i);
             task.onSliceResponse(neverCalled(), i,
-                    new BulkIndexByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
+                    new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
         List<TaskInfo> tasks = new ArrayList<>();
@@ -132,12 +132,12 @@ public class TransportRethrottleActionTests extends ESTestCase {
         List<BulkByScrollTask.StatusOrException> sliceStatuses = new ArrayList<>(slices);
         for (int i = 0; i < slices; i++) {
             @SuppressWarnings("unchecked")
-            ActionListener<BulkIndexByScrollResponse> listener = i < slices - 1 ? neverCalled() : mock(ActionListener.class);
+            ActionListener<BulkByScrollResponse> listener = i < slices - 1 ? neverCalled() : mock(ActionListener.class);
             BulkByScrollTask.Status status = believeableCompletedStatus(i);
-            task.onSliceResponse(listener, i, new BulkIndexByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
+            task.onSliceResponse(listener, i, new BulkByScrollResponse(timeValueMillis(10), status, emptyList(), emptyList(), false));
             if (i == slices - 1) {
                 // The whole thing succeeded so we should have got the success
-                captureResponse(BulkIndexByScrollResponse.class, listener).getStatus();
+                captureResponse(BulkByScrollResponse.class, listener).getStatus();
             }
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
@@ -182,7 +182,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         return new BulkByScrollTask.Status(sliceId, 10, 10, 0, 0, 0, 0, 0, 0, 0, timeValueMillis(0), 0, null, timeValueMillis(0));
     }
 
-    static <T> ActionListener<T> neverCalled() {
+    private <T> ActionListener<T> neverCalled() {
         return new ActionListener<T>() {
             @Override
             public void onResponse(T response) {
@@ -196,7 +196,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         };
     }
 
-    static <T> T captureResponse(Class<T> responseClass, ActionListener<T> listener) {
+    private <T> T captureResponse(Class<T> responseClass, ActionListener<T> listener) {
         ArgumentCaptor<Exception> failure = ArgumentCaptor.forClass(Exception.class);
         // Rethrow any failures just so we get a nice exception if there were any. We don't expect any though.
         verify(listener, atMost(1)).onFailure(failure.capture());

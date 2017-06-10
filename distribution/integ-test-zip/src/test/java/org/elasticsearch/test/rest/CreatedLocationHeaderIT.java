@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.rest;
 
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 
@@ -47,12 +48,14 @@ public class CreatedLocationHeaderIT extends ESRestTestCase {
     public void testUpsert() throws IOException {
         locationTestCase(client().performRequest("POST", "test/test/1/_update", emptyMap(), new StringEntity("{"
                 + "\"doc\": {\"test\": \"test\"},"
-                + "\"doc_as_upsert\": true}")));
+                + "\"doc_as_upsert\": true}", ContentType.APPLICATION_JSON)));
     }
 
     private void locationTestCase(String method, String url) throws IOException {
-        locationTestCase(client().performRequest(method, url, emptyMap(), new StringEntity("{\"test\": \"test\"}")));
-        locationTestCase(client().performRequest(method, url + "?routing=cat", emptyMap(), new StringEntity("{\"test\": \"test\"}")));
+        locationTestCase(client().performRequest(method, url, emptyMap(),
+            new StringEntity("{\"test\": \"test\"}", ContentType.APPLICATION_JSON)));
+        locationTestCase(client().performRequest(method, url + "?routing=cat", emptyMap(),
+            new StringEntity("{\"test\": \"test\"}", ContentType.APPLICATION_JSON)));
     }
 
     private void locationTestCase(Response response) throws IOException {

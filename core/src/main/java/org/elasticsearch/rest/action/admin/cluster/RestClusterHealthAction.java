@@ -25,7 +25,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -40,13 +39,16 @@ import java.util.Set;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 
 public class RestClusterHealthAction extends BaseRestHandler {
-
-    @Inject
     public RestClusterHealthAction(Settings settings, RestController controller) {
         super(settings);
 
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/health", this);
         controller.registerHandler(RestRequest.Method.GET, "/_cluster/health/{index}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "cluster_health_action";
     }
 
     @Override

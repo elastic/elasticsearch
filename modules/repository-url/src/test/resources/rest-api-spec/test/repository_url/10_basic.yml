@@ -1,0 +1,32 @@
+# Integration tests for URL Repository component
+#
+"URL Repository plugin loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.modules.0.name: repository-url }
+
+---
+setup:
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo1
+        body:
+          type: url
+          settings:
+            url: "http://snapshot.test1"
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo2
+        body:
+          type: url
+          settings:
+            url: "http://snapshot.test2"

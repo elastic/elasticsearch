@@ -24,18 +24,18 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -47,6 +47,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -76,12 +77,8 @@ public final class NetworkModule {
     private final Settings settings;
     private final boolean transportClient;
 
-    private static final AllocationCommandRegistry allocationCommandRegistry = new AllocationCommandRegistry();
     private static final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-
-    private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
-    private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
+    private static final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
 
     static {
         registerAllocationCommand(CancelAllocationCommand::new, CancelAllocationCommand::fromXContent,
@@ -99,6 +96,11 @@ public final class NetworkModule {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
     }
+
+    private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
+    private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
+    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
+
     /**
      * Creates a network module that custom networking classes can be plugged into.
      * @param settings The settings for the node
@@ -109,13 +111,13 @@ public final class NetworkModule {
                          CircuitBreakerService circuitBreakerService,
                          NamedWriteableRegistry namedWriteableRegistry,
                          NamedXContentRegistry xContentRegistry,
-                         NetworkService networkService) {
+                         NetworkService networkService, HttpServerTransport.Dispatcher dispatcher) {
         this.settings = settings;
         this.transportClient = transportClient;
         for (NetworkPlugin plugin : plugins) {
             if (transportClient == false && HTTP_ENABLED.get(settings)) {
                 Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(settings, threadPool, bigArrays,
-                    circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService);
+                    circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, dispatcher);
                 for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
                     registerHttpTransport(entry.getKey(), entry.getValue());
                 }
@@ -125,7 +127,8 @@ public final class NetworkModule {
             for (Map.Entry<String, Supplier<Transport>> entry : httpTransportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
             }
-            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(namedWriteableRegistry);
+            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(namedWriteableRegistry,
+                threadPool.getThreadContext());
             for (TransportInterceptor interceptor : transportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
@@ -165,20 +168,17 @@ public final class NetworkModule {
      *        it is the name under which the command's reader is registered.
      */
     private static <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader,
-                                                                            AllocationCommand.Parser<T> parser, ParseField commandName) {
-        allocationCommandRegistry.register(parser, commandName);
-        namedWriteables.add(new Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
+            CheckedFunction<XContentParser, T, IOException> parser, ParseField commandName) {
+        namedXContents.add(new NamedXContentRegistry.Entry(AllocationCommand.class, commandName, parser));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
     }
 
-    /**
-     * The registry of allocation command parsers.
-     */
-    public static AllocationCommandRegistry getAllocationCommandRegistry() {
-        return allocationCommandRegistry;
-    }
-
-    public static List<Entry> getNamedWriteables() {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Collections.unmodifiableList(namedWriteables);
+    }
+
+    public static List<NamedXContentRegistry.Entry> getNamedXContents() {
+        return Collections.unmodifiableList(namedXContents);
     }
 
     public Supplier<HttpServerTransport> getHttpServerTransportSupplier() {
@@ -237,9 +237,10 @@ public final class NetworkModule {
 
         @Override
         public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
+                                                                                        boolean forceExecution,
                                                                                         TransportRequestHandler<T> actualHandler) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
-                actualHandler = interceptor.interceptHandler(action, executor, actualHandler);
+                actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler);
             }
             return actualHandler;
         }

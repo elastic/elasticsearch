@@ -30,7 +30,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.plain.IndexIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -92,7 +92,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     static final class IndexFieldType extends MappedFieldType {
 
-        public IndexFieldType() {}
+        IndexFieldType() {}
 
         protected IndexFieldType(IndexFieldType ref) {
             super(ref);
@@ -157,7 +157,7 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
-            return new IndexIndexFieldData.Builder();
+            return new ConstantIndexFieldData.Builder(mapperService -> mapperService.index().getName());
         }
     }
 

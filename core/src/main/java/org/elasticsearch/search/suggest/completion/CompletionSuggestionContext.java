@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.suggest.document.CompletionQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -77,15 +78,7 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         CompletionFieldMapper.CompletionFieldType fieldType = getFieldType();
         final CompletionQuery query;
         if (getPrefix() != null) {
-            if (fuzzyOptions != null) {
-                query = fieldType.fuzzyQuery(getPrefix().utf8ToString(),
-                        Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
-                        fuzzyOptions.getFuzzyPrefixLength(), fuzzyOptions.getFuzzyMinLength(),
-                        fuzzyOptions.getMaxDeterminizedStates(), fuzzyOptions.isTranspositions(),
-                        fuzzyOptions.isUnicodeAware());
-            } else {
-                query = fieldType.prefixQuery(getPrefix());
-            }
+            query = createCompletionQuery(getPrefix(), fieldType);
         } else if (getRegex() != null) {
             if (fuzzyOptions != null) {
                 throw new IllegalArgumentException("can not use 'fuzzy' options with 'regex");
@@ -95,12 +88,28 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
             }
             query = fieldType.regexpQuery(getRegex(), regexOptions.getFlagsValue(),
                     regexOptions.getMaxDeterminizedStates());
+        } else if (getText() != null) {
+            query = createCompletionQuery(getText(), fieldType);
         } else {
-            throw new IllegalArgumentException("'prefix' or 'regex' must be defined");
+            throw new IllegalArgumentException("'prefix/text' or 'regex' must be defined");
         }
         if (fieldType.hasContextMappings()) {
             ContextMappings contextMappings = fieldType.getContextMappings();
             return contextMappings.toContextQuery(query, queryContexts);
+        }
+        return query;
+    }
+
+    private CompletionQuery createCompletionQuery(BytesRef prefix, CompletionFieldMapper.CompletionFieldType fieldType) {
+        final CompletionQuery query;
+        if (fuzzyOptions != null) {
+            query = fieldType.fuzzyQuery(prefix.utf8ToString(),
+                    Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
+                    fuzzyOptions.getFuzzyPrefixLength(), fuzzyOptions.getFuzzyMinLength(),
+                    fuzzyOptions.getMaxDeterminizedStates(), fuzzyOptions.isTranspositions(),
+                    fuzzyOptions.isUnicodeAware());
+        } else {
+            query = fieldType.prefixQuery(prefix);
         }
         return query;
     }

@@ -19,42 +19,26 @@
 
 package org.elasticsearch.percolator;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
 
-public class PercolatorPlugin extends Plugin implements MapperPlugin, ActionPlugin, SearchPlugin {
+public class PercolatorPlugin extends Plugin implements MapperPlugin, SearchPlugin {
 
     private final Settings settings;
 
     public PercolatorPlugin(Settings settings) {
         this.settings = settings;
-    }
-
-    @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(PercolateAction.INSTANCE, TransportPercolateAction.class),
-                new ActionHandler<>(MultiPercolateAction.INSTANCE, TransportMultiPercolateAction.class));
-    }
-
-    @Override
-    public List<Class<? extends RestHandler>> getRestHandlers() {
-        return Arrays.asList(RestPercolateAction.class, RestMultiPercolateAction.class);
     }
 
     @Override

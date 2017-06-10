@@ -122,11 +122,6 @@ public class FakeStringFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean customBoost() {
-        return true;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         String value;
         if (context.externalValueSet()) {

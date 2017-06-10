@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -28,6 +29,10 @@ import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanNearQuery;
+import org.apache.lucene.search.spans.SpanOrQuery;
+import org.apache.lucene.search.spans.SpanQuery;
+import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +49,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleQueryParserTests extends ESTestCase {
     private static class MockSimpleQueryParser extends SimpleQueryParser {
-        public MockSimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Settings settings) {
+        MockSimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Settings settings) {
             super(analyzer, weights, flags, settings, null);
         }
 
@@ -103,11 +108,57 @@ public class SimpleQueryParserTests extends ESTestCase {
                             BooleanClause.Occur.SHOULD))
                         .add(new BooleanClause(new PrefixQuery(new Term("field1", "foobar")),
                             BooleanClause.Occur.SHOULD))
-                        .setDisableCoord(true)
                         .build(), defaultOp)
                     .build(), defaultOp)
                 .add(new BooleanClause(new SynonymQuery(new Term("field1", "last"),
                     new Term("field1", "last")), defaultOp))
+                .build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+    }
+
+    public void testAnalyzerWithGraph() {
+        SimpleQueryParser.Settings settings = new SimpleQueryParser.Settings();
+        settings.analyzeWildcard(true);
+        Map<String, Float> weights = new HashMap<>();
+        weights.put("field1", 1.0f);
+        SimpleQueryParser parser = new MockSimpleQueryParser(new MockSynonymAnalyzer(), weights, -1, settings);
+
+        for (Operator op : Operator.values()) {
+            BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
+            parser.setDefaultOperator(defaultOp);
+
+            // non-phrase won't detect multi-word synonym because of whitespace splitting
+            Query query = parser.parse("guinea pig");
+
+            Query expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanClause(new TermQuery(new Term("field1", "guinea")), defaultOp))
+                .add(new BooleanClause(new TermQuery(new Term("field1", "pig")), defaultOp))
+                .build();
+            assertThat(query, equalTo(expectedQuery));
+
+            // phrase will pick it up
+            query = parser.parse("\"guinea pig\"");
+            SpanTermQuery span1 = new SpanTermQuery(new Term("field1", "guinea"));
+            SpanTermQuery span2 = new SpanTermQuery(new Term("field1", "pig"));
+            expectedQuery = new SpanOrQuery(
+                new SpanNearQuery(new SpanQuery[] { span1, span2 }, 0, true),
+                new SpanTermQuery(new Term("field1", "cavy")));
+
+            assertThat(query, equalTo(expectedQuery));
+
+            // phrase with slop
+            query = parser.parse("big \"tiny guinea pig\"~2");
+
+            expectedQuery = new BooleanQuery.Builder()
+                .add(new TermQuery(new Term("field1", "big")), defaultOp)
+                .add(new SpanNearQuery(new SpanQuery[] {
+                    new SpanTermQuery(new Term("field1", "tiny")),
+                    new SpanOrQuery(
+                        new SpanNearQuery(new SpanQuery[] { span1, span2 }, 0, true),
+                        new SpanTermQuery(new Term("field1", "cavy"))
+                    )
+                }, 2, true), defaultOp)
                 .build();
             assertThat(query, equalTo(expectedQuery));
         }

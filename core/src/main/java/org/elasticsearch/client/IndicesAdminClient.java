@@ -50,6 +50,9 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRespon
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequest;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
@@ -437,7 +440,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     void forceMerge(ForceMergeRequest request, ActionListener<ForceMergeResponse> listener);
 
     /**
-     * Explicitly force mergee one or more indices into a the number of segments.
+     * Explicitly force merge one or more indices into a the number of segments.
      */
     ForceMergeRequestBuilder prepareForceMerge(String... indices);
 
@@ -817,5 +820,4 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Swaps the index pointed to by an alias given all provided conditions are satisfied
      */
     void rolloverIndex(RolloverRequest request, ActionListener<RolloverResponse> listener);
-
 }

@@ -21,20 +21,15 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -83,6 +78,19 @@ public class MultiSearchRequestTests extends ESTestCase {
         assertThat(request.requests().get(6).searchType(), equalTo(SearchType.DFS_QUERY_THEN_FETCH));
         assertThat(request.requests().get(7).indices(), is(Strings.EMPTY_ARRAY));
         assertThat(request.requests().get(7).types().length, equalTo(0));
+    }
+
+    public void testSimpleAddWithCarriageReturn() throws Exception {
+        final String requestContent = "{\"index\":\"test\", \"ignore_unavailable\" : true, \"expand_wildcards\" : \"open,closed\"}}\r\n" +
+            "{\"query\" : {\"match_all\" :{}}}\r\n";
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(requestContent), XContentType.JSON).build();
+        MultiSearchRequest request = RestMultiSearchAction.parseRequest(restRequest, true);
+        assertThat(request.requests().size(), equalTo(1));
+        assertThat(request.requests().get(0).indices()[0], equalTo("test"));
+        assertThat(request.requests().get(0).indicesOptions(),
+            equalTo(IndicesOptions.fromOptions(true, true, true, true, IndicesOptions.strictExpandOpenAndForbidClosed())));
+        assertThat(request.requests().get(0).types().length, equalTo(0));
     }
 
     public void testSimpleAdd2() throws Exception {
@@ -144,11 +152,6 @@ public class MultiSearchRequestTests extends ESTestCase {
                     new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))
         });
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
         assertEquals("{\"responses\":["
                         + "{"
                         + "\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}],"
@@ -159,7 +162,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                         + "\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"},\"status\":500"
                         + "}"
                         + "]}",
-                builder.string());
+                Strings.toString(response));
     }
 
     public void testMaxConcurrentSearchRequests() {
@@ -171,8 +174,9 @@ public class MultiSearchRequestTests extends ESTestCase {
 
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
-        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data)).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true, new SearchRequestParsers(null, null, null), ParseFieldMatcher.EMPTY);
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(data), XContentType.JSON).build();
+        return RestMultiSearchAction.parseRequest(restRequest, true);
     }
 
     @Override

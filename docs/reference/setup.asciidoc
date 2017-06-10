@@ -46,6 +46,8 @@ include::setup/configuration.asciidoc[]
 
 include::setup/important-settings.asciidoc[]
 
+include::setup/secure-settings.asciidoc[]
+
 include::setup/bootstrap-checks.asciidoc[]
 
 include::setup/sysconfig.asciidoc[]

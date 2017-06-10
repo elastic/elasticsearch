@@ -39,7 +39,7 @@ abstract class CustomDocValuesField implements IndexableField {
 
     private final String name;
 
-    public CustomDocValuesField(String  name) {
+    CustomDocValuesField(String  name) {
         this.name = name;
     }
 
@@ -51,11 +51,6 @@ abstract class CustomDocValuesField implements IndexableField {
     @Override
     public IndexableFieldType fieldType() {
         return TYPE;
-    }
-
-    @Override
-    public float boost() {
-        return 1f;
     }
 
     @Override

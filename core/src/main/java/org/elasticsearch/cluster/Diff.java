@@ -19,22 +19,15 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
+import org.elasticsearch.common.io.stream.Writeable;
 
 /**
  * Represents difference between states of cluster state parts
  */
-public interface Diff<T> {
+public interface Diff<T> extends Writeable {
 
     /**
      * Applies difference to the specified part and returns the resulted part
      */
     T apply(T part);
-
-    /**
-     * Writes the differences into the output stream
-     */
-    void writeTo(StreamOutput out) throws IOException;
 }

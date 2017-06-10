@@ -59,7 +59,7 @@ import static java.util.Collections.unmodifiableList;
  * returned instance will contain full context.
  * <p>
  * To avoid messages with redundant context, {@link #withSource} should be added sparingly. A
- * good rule of thumb is to assume a ethod's caller has already specified enough context to
+ * good rule of thumb is to assume a method's caller has already specified enough context to
  * identify that method. When calling a method that's defined in a different context, call that
  * method with an errors object that includes its context.
  *

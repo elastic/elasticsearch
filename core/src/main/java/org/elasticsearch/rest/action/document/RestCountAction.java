@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -45,7 +44,6 @@ import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHead
 import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 public class RestCountAction extends BaseRestHandler {
-    @Inject
     public RestCountAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_count", this);
@@ -54,6 +52,11 @@ public class RestCountAction extends BaseRestHandler {
         controller.registerHandler(GET, "/{index}/_count", this);
         controller.registerHandler(POST, "/{index}/{type}/_count", this);
         controller.registerHandler(GET, "/{index}/{type}/_count", this);
+    }
+
+    @Override
+    public String getName() {
+        return "count_action";
     }
 
     @Override
@@ -69,7 +72,7 @@ public class RestCountAction extends BaseRestHandler {
                     searchSourceBuilder.query(queryBuilder);
                 }
             } else {
-                searchSourceBuilder.query(RestActions.getQueryContent(parser, parseFieldMatcher));
+                searchSourceBuilder.query(RestActions.getQueryContent(parser));
             }
         });
         countRequest.routing(request.param("routing"));
@@ -93,7 +96,7 @@ public class RestCountAction extends BaseRestHandler {
                 if (terminateAfter != DEFAULT_TERMINATE_AFTER) {
                     builder.field("terminated_early", response.isTerminatedEarly());
                 }
-                builder.field("count", response.getHits().totalHits());
+                builder.field("count", response.getHits().getTotalHits());
                 buildBroadcastShardsHeader(builder, request, response.getTotalShards(), response.getSuccessfulShards(),
                         response.getFailedShards(), response.getShardFailures());
 

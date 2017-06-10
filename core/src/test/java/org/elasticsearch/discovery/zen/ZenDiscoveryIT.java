@@ -56,11 +56,13 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -131,10 +133,10 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
 
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, master);
-        final ArrayList<ClusterState> statesFound = new ArrayList<>();
+        final AtomicInteger numUpdates = new AtomicInteger();
         final CountDownLatch nodesStopped = new CountDownLatch(1);
         clusterService.addStateApplier(event -> {
-            statesFound.add(event.state());
+            numUpdates.incrementAndGet();
             try {
                 // block until both nodes have stopped to accumulate node failures
                 nodesStopped.await();
@@ -148,7 +150,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         nodesStopped.countDown();
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get(); // wait for all to be processed
-        assertThat(statesFound, Matchers.hasSize(2));
+        assertThat(numUpdates.get(), either(equalTo(1)).or(equalTo(2))); // due to batching, both nodes can be handled in same CS update
     }
 
     public void testNodeRejectsClusterStateWithWrongMasterNode() throws Exception {
@@ -246,7 +248,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         }
     }
 
-    public void testDiscoveryStats() throws IOException {
+    public void testDiscoveryStats() throws Exception {
         String expectedStatsJsonResponse = "{\n" +
                 "  \"discovery\" : {\n" +
                 "    \"cluster_state_queue\" : {\n" +
@@ -258,6 +260,10 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
                 "}";
 
         internalCluster().startNode();
+        ensureGreen(); // ensures that all events are processed (in particular state recovery fully completed)
+        assertBusy(() ->
+            assertThat(internalCluster().clusterService(internalCluster().getMasterName()).getMasterService().numberOfPendingTasks(),
+                equalTo(0))); // see https://github.com/elastic/elasticsearch/issues/24388
 
         logger.info("--> request node discovery stats");
         NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setDiscovery(true).get();

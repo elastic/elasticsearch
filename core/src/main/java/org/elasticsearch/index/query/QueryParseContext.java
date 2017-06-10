@@ -20,34 +20,23 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class QueryParseContext implements ParseFieldMatcherSupplier {
+public class QueryParseContext {
 
     private static final ParseField CACHE = new ParseField("_cache").withAllDeprecated("Elasticsearch makes its own caching decisions");
     private static final ParseField CACHE_KEY = new ParseField("_cache_key").withAllDeprecated("Filters are always used as cache keys");
 
     private final XContentParser parser;
-    private final ParseFieldMatcher parseFieldMatcher;
-    private final String defaultScriptLanguage;
 
-    public QueryParseContext(XContentParser parser, ParseFieldMatcher parseFieldMatcher) {
-        this(Script.DEFAULT_SCRIPT_LANG, parser, parseFieldMatcher);
-    }
-
-    public QueryParseContext(String defaultScriptLanguage, XContentParser parser, ParseFieldMatcher parseFieldMatcher) {
+    public QueryParseContext(XContentParser parser) {
         this.parser = Objects.requireNonNull(parser, "parser cannot be null");
-        this.parseFieldMatcher = Objects.requireNonNull(parseFieldMatcher, "parse field matcher cannot be null");
-        this.defaultScriptLanguage = defaultScriptLanguage;
     }
 
     public XContentParser parser() {
@@ -123,18 +112,5 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
                     "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]");
         }
         return result;
-    }
-
-    @Override
-    public ParseFieldMatcher getParseFieldMatcher() {
-        return parseFieldMatcher;
-    }
-
-    /**
-     * Returns the default scripting language, that should be used if scripts don't specify the script language
-     * explicitly.
-     */
-    public String getDefaultScriptLanguage() {
-        return defaultScriptLanguage;
     }
 }

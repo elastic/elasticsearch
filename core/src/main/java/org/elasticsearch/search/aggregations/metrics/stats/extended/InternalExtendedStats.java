@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalExtendedStats extends InternalStats implements ExtendedStats {
     enum Metrics {
@@ -88,6 +89,10 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
             return getStdDeviationBound(Bounds.LOWER);
         }
         return super.value(name);
+    }
+
+    public double getSigma() {
+        return this.sigma;
     }
 
     @Override
@@ -164,26 +169,52 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     }
 
     @Override
-    protected XContentBuilder otherStatsToXCotent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(Fields.SUM_OF_SQRS, count != 0 ? sumOfSqrs : null);
-        builder.field(Fields.VARIANCE, count != 0 ? getVariance() : null);
-        builder.field(Fields.STD_DEVIATION, count != 0 ? getStdDeviation() : null);
-        builder.startObject(Fields.STD_DEVIATION_BOUNDS)
-                .field(Fields.UPPER, count != 0 ? getStdDeviationBound(Bounds.UPPER) : null)
-                .field(Fields.LOWER, count != 0 ? getStdDeviationBound(Bounds.LOWER) : null)
-                .endObject();
-
-        if (count != 0 && format != DocValueFormat.RAW) {
-            builder.field(Fields.SUM_OF_SQRS_AS_STRING, format.format(sumOfSqrs));
-            builder.field(Fields.VARIANCE_AS_STRING, format.format(getVariance()));
-            builder.field(Fields.STD_DEVIATION_AS_STRING, getStdDeviationAsString());
-
-            builder.startObject(Fields.STD_DEVIATION_BOUNDS_AS_STRING)
-                    .field(Fields.UPPER, getStdDeviationBoundAsString(Bounds.UPPER))
-                    .field(Fields.LOWER, getStdDeviationBoundAsString(Bounds.LOWER))
-                    .endObject();
-
+    protected XContentBuilder otherStatsToXContent(XContentBuilder builder, Params params) throws IOException {
+        if (count != 0) {
+            builder.field(Fields.SUM_OF_SQRS, sumOfSqrs);
+            builder.field(Fields.VARIANCE, getVariance());
+            builder.field(Fields.STD_DEVIATION, getStdDeviation());
+            builder.startObject(Fields.STD_DEVIATION_BOUNDS);
+            {
+                builder.field(Fields.UPPER, getStdDeviationBound(Bounds.UPPER));
+                builder.field(Fields.LOWER, getStdDeviationBound(Bounds.LOWER));
+            }
+            builder.endObject();
+            if (format != DocValueFormat.RAW) {
+                builder.field(Fields.SUM_OF_SQRS_AS_STRING, format.format(sumOfSqrs));
+                builder.field(Fields.VARIANCE_AS_STRING, format.format(getVariance()));
+                builder.field(Fields.STD_DEVIATION_AS_STRING, getStdDeviationAsString());
+                builder.startObject(Fields.STD_DEVIATION_BOUNDS_AS_STRING);
+                {
+                    builder.field(Fields.UPPER, getStdDeviationBoundAsString(Bounds.UPPER));
+                    builder.field(Fields.LOWER, getStdDeviationBoundAsString(Bounds.LOWER));
+                }
+                builder.endObject();
+            }
+        } else {
+            builder.nullField(Fields.SUM_OF_SQRS);
+            builder.nullField(Fields.VARIANCE);
+            builder.nullField(Fields.STD_DEVIATION);
+            builder.startObject(Fields.STD_DEVIATION_BOUNDS);
+            {
+                builder.nullField(Fields.UPPER);
+                builder.nullField(Fields.LOWER);
+            }
+            builder.endObject();
         }
         return builder;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(super.doHashCode(), sumOfSqrs, sigma);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalExtendedStats other = (InternalExtendedStats) obj;
+        return super.doEquals(obj) &&
+            Double.compare(sumOfSqrs, other.sumOfSqrs) == 0 &&
+            Double.compare(sigma, other.sigma) == 0;
     }
 }

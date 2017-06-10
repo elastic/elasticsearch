@@ -9,36 +9,9 @@ analyzer uses probabilistic knowledge to find the optimal word segmentation
 for Simplified Chinese text. The text is first broken into sentences, then
 each sentence is segmented into words.
 
+:plugin_name: analysis-smartcn
+include::install_remove.asciidoc[]
 
-[[analysis-smartcn-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install analysis-smartcn
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/analysis-smartcn/analysis-smartcn-{version}.zip.
-
-[[analysis-smartcn-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove analysis-smartcn
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
 
 [[analysis-smartcn-tokenizer]]
 [float]

@@ -27,7 +27,9 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
@@ -51,7 +53,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     private final IncludeExclude.StringFilter includeExclude;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-            Terms.Order order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
+            BucketOrder order, DocValueFormat format, BucketCountThresholds bucketCountThresholds,
             IncludeExclude.StringFilter includeExclude, SearchContext context,
             Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
@@ -78,27 +80,29 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0;
-                values.setDocument(doc);
-                final int valuesCount = values.count();
+                if (values.advanceExact(doc)) {
+                    final int valuesCount = values.docValueCount();
 
-                // SortedBinaryDocValues don't guarantee uniqueness so we need to take care of dups
-                previous.clear();
-                for (int i = 0; i < valuesCount; ++i) {
-                    final BytesRef bytes = values.valueAt(i);
-                    if (includeExclude != null && !includeExclude.accept(bytes)) {
-                        continue;
+                    // SortedBinaryDocValues don't guarantee uniqueness so we
+                    // need to take care of dups
+                    previous.clear();
+                    for (int i = 0; i < valuesCount; ++i) {
+                        final BytesRef bytes = values.nextValue();
+                        if (includeExclude != null && !includeExclude.accept(bytes)) {
+                            continue;
+                        }
+                        if (previous.get().equals(bytes)) {
+                            continue;
+                        }
+                        long bucketOrdinal = bucketOrds.add(bytes);
+                        if (bucketOrdinal < 0) { // already seen
+                            bucketOrdinal = -1 - bucketOrdinal;
+                            collectExistingBucket(sub, doc, bucketOrdinal);
+                        } else {
+                            collectBucket(sub, doc, bucketOrdinal);
+                        }
+                        previous.copyBytes(bytes);
                     }
-                    if (previous.get().equals(bytes)) {
-                        continue;
-                    }
-                    long bucketOrdinal = bucketOrds.add(bytes);
-                    if (bucketOrdinal < 0) { // already seen
-                        bucketOrdinal = - 1 - bucketOrdinal;
-                        collectExistingBucket(sub, doc, bucketOrdinal);
-                    } else {
-                        collectBucket(sub, doc, bucketOrdinal);
-                    }
-                    previous.copyBytes(bytes);
                 }
             }
         };
@@ -108,18 +112,19 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         assert owningBucketOrdinal == 0;
 
-        if (bucketCountThresholds.getMinDocCount() == 0 && (order != InternalOrder.COUNT_DESC || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
+        if (bucketCountThresholds.getMinDocCount() == 0 && (InternalOrder.isCountDesc(order) == false || bucketOrds.size() < bucketCountThresholds.getRequiredSize())) {
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
                 final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
                 // brute force
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    values.setDocument(docId);
-                    final int valueCount = values.count();
-                    for (int i = 0; i < valueCount; ++i) {
-                        final BytesRef term = values.valueAt(i);
-                        if (includeExclude == null || includeExclude.accept(term)) {
-                            bucketOrds.add(term);
+                    if (values.advanceExact(docId)) {
+                        final int valueCount = values.docValueCount();
+                        for (int i = 0; i < valueCount; ++i) {
+                            final BytesRef term = values.nextValue();
+                            if (includeExclude == null || includeExclude.accept(term)) {
+                                bucketOrds.add(term);
+                            }
                         }
                     }
                 }
@@ -148,7 +153,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         final StringTerms.Bucket[] list = new StringTerms.Bucket[ordered.size()];
         long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final StringTerms.Bucket bucket = (StringTerms.Bucket) ordered.pop();
+            final StringTerms.Bucket bucket = ordered.pop();
             survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
             otherDocCount -= bucket.docCount;
@@ -158,7 +163,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
         // Now build the aggs
         for (int i = 0; i < list.length; i++) {
-          final StringTerms.Bucket bucket = (StringTerms.Bucket)list[i];
+          final StringTerms.Bucket bucket = list[i];
           bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
           bucket.aggregations = bucketAggregations(bucket.bucketOrd);
           bucket.docCountError = 0;

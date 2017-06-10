@@ -28,12 +28,14 @@ import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Client that executes actions on the local node.
@@ -41,13 +43,19 @@ import java.util.Map;
 public class NodeClient extends AbstractClient {
 
     private Map<GenericAction, TransportAction> actions;
+    /**
+     * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
+     * {@link #executeLocally(GenericAction, ActionRequest, TaskListener)}.
+     */
+    private Supplier<String> localNodeId;
 
     public NodeClient(Settings settings, ThreadPool threadPool) {
         super(settings, threadPool);
     }
 
-    public void initialize(Map<GenericAction, TransportAction> actions) {
+    public void initialize(Map<GenericAction, TransportAction> actions, Supplier<String> localNodeId) {
         this.actions = actions;
+        this.localNodeId = localNodeId;
     }
 
     @Override
@@ -83,6 +91,14 @@ public class NodeClient extends AbstractClient {
                 Response extends ActionResponse
             > Task executeLocally(GenericAction<Request, Response> action, Request request, TaskListener<Response> listener) {
         return transportAction(action).execute(request, listener);
+    }
+
+    /**
+     * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
+     * {@link #executeLocally(GenericAction, ActionRequest, TaskListener)}.
+     */
+    public String getLocalNodeId() {
+        return localNodeId.get();
     }
 
     /**

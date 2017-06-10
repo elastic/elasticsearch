@@ -31,6 +31,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.BreakerSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -153,8 +155,11 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         // execute a search that loads field data (sorting on the "test" field)
         // again, this time it should trip the breaker
         SearchRequestBuilder searchRequest = client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC);
-        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR,
-                containsString("Data too large, data for [test] would be larger than limit of [100/100b]"));
+
+        String errMsg = "Data too large, data for [test] would be";
+        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
+        errMsg = "which is larger than the limit of [100/100b]";
+        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
 
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
         int breaks = 0;
@@ -174,7 +179,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
         // Create an index where the mappings have a field data filter
         assertAcked(prepareCreate("ramtest").setSource("{\"mappings\": {\"type\": {\"properties\": {\"test\": " +
-                "{\"type\": \"text\",\"fielddata\": true,\"fielddata_frequency_filter\": {\"max\": 10000}}}}}}"));
+                "{\"type\": \"text\",\"fielddata\": true,\"fielddata_frequency_filter\": {\"max\": 10000}}}}}}", XContentType.JSON));
 
         ensureGreen("ramtest");
 
@@ -201,9 +206,12 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
 
         // execute a search that loads field data (sorting on the "test" field)
         // again, this time it should trip the breaker
-        assertFailures(client.prepareSearch("ramtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC),
-                RestStatus.INTERNAL_SERVER_ERROR,
-                containsString("Data too large, data for [test] would be larger than limit of [100/100b]"));
+        SearchRequestBuilder searchRequest = client.prepareSearch("ramtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC);
+
+        String errMsg = "Data too large, data for [test] would be";
+        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
+        errMsg = "which is larger than the limit of [100/100b]";
+        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
 
         NodesStatsResponse stats = client.admin().cluster().prepareNodesStats().setBreaker(true).get();
         int breaks = 0;
@@ -247,14 +255,20 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC).get();
             fail("should have thrown an exception");
         } catch (Exception e) {
-            String errMsg = "[fielddata] Data too large, data for [test] would be larger than limit of [10/10b]";
-            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException",
-                e.toString(), containsString(errMsg));
+            String errMsg = "CircuitBreakingException[[fielddata] Data too large, data for [test] would be";
+            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException", e.toString(), containsString(errMsg));
+            errMsg = "which is larger than the limit of [10/10b]]";
+            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException", e.toString(), containsString(errMsg));
         }
 
-        assertFailures(client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC),
-                RestStatus.INTERNAL_SERVER_ERROR,
-                containsString("Data too large, data for [test] would be larger than limit of [10/10b]"));
+        // execute a search that loads field data (sorting on the "test" field)
+        // again, this time it should trip the breaker
+        SearchRequestBuilder searchRequest = client.prepareSearch("cb-test").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC);
+
+        String errMsg = "Data too large, data for [test] would be";
+        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
+        errMsg = "which is larger than the limit of [10/10b]";
+        assertFailures(searchRequest, RestStatus.INTERNAL_SERVER_ERROR, containsString(errMsg));
 
         reset();
 
@@ -318,9 +332,8 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             fail("aggregation should have tripped the breaker");
         } catch (Exception e) {
             String errMsg = "CircuitBreakingException[[request] Data too large";
-            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException",
-                e.toString(), containsString(errMsg));
-            errMsg = "would be larger than limit of [10/10b]]";
+            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException", e.toString(), containsString(errMsg));
+            errMsg = "which is larger than the limit of [10/10b]]";
             assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException", e.toString(), containsString(errMsg));
         }
     }
@@ -356,9 +369,11 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             assertTrue("there should be shard failures", resp.getFailedShards() > 0);
             fail("aggregation should have tripped the breaker");
         } catch (Exception e) {
-            String errMsg = "CircuitBreakingException[[request] " +
-                    "Data too large, data for [<agg [my_terms]>] would be larger than limit of [100/100b]]";
-            assertThat("Exception: " + e.toString() + " should contain a CircuitBreakingException",
+            String errMsg = "CircuitBreakingException[[request] Data too large, data for [<agg [my_terms]>] would be";
+            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException",
+                    e.toString(), containsString(errMsg));
+            errMsg = "which is larger than the limit of [100/100b]]";
+            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException",
                     e.toString(), containsString(errMsg));
         }
     }
@@ -467,7 +482,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numRequests; i++) {
             IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i));
-            indexRequest.source("field", "value", "num", i);
+            indexRequest.source(Requests.INDEX_CONTENT_TYPE, "field", "value", "num", i);
             bulkRequest.add(indexRequest);
         }
 

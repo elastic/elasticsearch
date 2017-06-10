@@ -28,8 +28,6 @@ import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,8 +44,7 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
     public static final String NAME = "allocate_stale_primary";
     public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
-    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> STALE_PRIMARY_PARSER = BasePrimaryAllocationCommand
-            .createAllocatePrimaryParser(NAME);
+    private static final ObjectParser<Builder, Void> STALE_PRIMARY_PARSER = BasePrimaryAllocationCommand.createAllocatePrimaryParser(NAME);
 
     /**
      * Creates a new {@link AllocateStalePrimaryAllocationCommand}
@@ -81,7 +78,7 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
 
         @Override
         public Builder parse(XContentParser parser) throws IOException {
-            return STALE_PRIMARY_PARSER.parse(parser, this, () -> ParseFieldMatcher.STRICT);
+            return STALE_PRIMARY_PARSER.parse(parser, this, null);
         }
 
         @Override

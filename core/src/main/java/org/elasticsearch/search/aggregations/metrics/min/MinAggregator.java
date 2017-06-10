@@ -81,10 +81,12 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
                     mins = bigArrays.grow(mins, bucket + 1);
                     mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
                 }
-                final double value = values.get(doc);
-                double min = mins.get(bucket);
-                min = Math.min(min, value);
-                mins.set(bucket, min);
+                if (values.advanceExact(doc)) {
+                    final double value = values.doubleValue();
+                    double min = mins.get(bucket);
+                    min = Math.min(min, value);
+                    mins.set(bucket, min);
+                }
             }
 
         };

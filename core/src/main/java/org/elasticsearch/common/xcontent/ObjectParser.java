@@ -20,7 +20,6 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
@@ -121,7 +120,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     /**
      * Parses a Value from the given {@link XContentParser}
      * @param parser the parser to build a value from
-     * @param context must at least provide a {@link ParseFieldMatcher}
+     * @param context context needed for parsing
      * @return a new value instance drawn from the provided value supplier on {@link #ObjectParser(String, Supplier)}
      * @throws IOException if an IOException occurs.
      */
@@ -228,41 +227,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }, field, ValueType.OBJECT_OR_BOOLEAN);
     }
 
-    /**
-     * Declares named objects in the style of highlighting's field element. These are usually named inside and object like this:
-     * <pre><code>
-     * {
-     *   "highlight": {
-     *     "fields": {        &lt;------ this one
-     *       "title": {},
-     *       "body": {},
-     *       "category": {}
-     *     }
-     *   }
-     * }
-     * </code></pre>
-     * but, when order is important, some may be written this way:
-     * <pre><code>
-     * {
-     *   "highlight": {
-     *     "fields": [        &lt;------ this one
-     *       {"title": {}},
-     *       {"body": {}},
-     *       {"category": {}}
-     *     ]
-     *   }
-     * }
-     * </code></pre>
-     * This is because json doesn't enforce ordering. Elasticsearch reads it in the order sent but tools that generate json are free to put
-     * object members in an unordered Map, jumbling them. Thus, if you care about order you can send the object in the second way.
-     *
-     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke this.
-     *
-     * @param consumer sets the values once they have been parsed
-     * @param namedObjectParser parses each named object
-     * @param orderedModeCallback called when the named object is parsed using the "ordered" mode (the array of objects)
-     * @param field the field to parse
-     */
+    @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             Consumer<Value> orderedModeCallback, ParseField field) {
         // This creates and parses the named object
@@ -312,26 +277,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }, field, ValueType.OBJECT_ARRAY);
     }
 
-    /**
-     * Declares named objects in the style of aggregations. These are named inside and object like this:
-     * <pre><code>
-     * {
-     *   "aggregations": {
-     *     "name_1": { "aggregation_type": {} },
-     *     "name_2": { "aggregation_type": {} },
-     *     "name_3": { "aggregation_type": {} }
-     *     }
-     *   }
-     * }
-     * </code></pre>
-     * Unlike the other version of this method, "ordered" mode (arrays of objects) is not supported.
-     *
-     * See NamedObjectHolder in ObjectParserTests for examples of how to invoke this.
-     *
-     * @param consumer sets the values once they have been parsed
-     * @param namedObjectParser parses each named object
-     * @param field the field to parse
-     */
+    @Override
     public <T> void declareNamedObjects(BiConsumer<Value, List<T>> consumer, NamedObjectParser<T, Context> namedObjectParser,
             ParseField field) {
         Consumer<Value> orderedModeCallback = (v) -> {
@@ -449,10 +395,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         FLOAT(VALUE_NUMBER, VALUE_STRING),
         FLOAT_OR_NULL(VALUE_NUMBER, VALUE_STRING, VALUE_NULL),
         DOUBLE(VALUE_NUMBER, VALUE_STRING),
+        DOUBLE_OR_NULL(VALUE_NUMBER, VALUE_STRING, VALUE_NULL),
         LONG(VALUE_NUMBER, VALUE_STRING),
         LONG_OR_NULL(VALUE_NUMBER, VALUE_STRING, VALUE_NULL),
         INT(VALUE_NUMBER, VALUE_STRING),
-        BOOLEAN(VALUE_BOOLEAN),
+        BOOLEAN(VALUE_BOOLEAN, VALUE_STRING),
         STRING_ARRAY(START_ARRAY, VALUE_STRING),
         FLOAT_ARRAY(START_ARRAY, VALUE_NUMBER, VALUE_STRING),
         DOUBLE_ARRAY(START_ARRAY, VALUE_NUMBER, VALUE_STRING),
@@ -463,8 +410,10 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         OBJECT_ARRAY(START_OBJECT, START_ARRAY),
         OBJECT_OR_BOOLEAN(START_OBJECT, VALUE_BOOLEAN),
         OBJECT_OR_STRING(START_OBJECT, VALUE_STRING),
+        OBJECT_ARRAY_BOOLEAN_OR_STRING(START_OBJECT, START_ARRAY, VALUE_BOOLEAN, VALUE_STRING),
         OBJECT_ARRAY_OR_STRING(START_OBJECT, START_ARRAY, VALUE_STRING),
-        VALUE(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING);
+        VALUE(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING),
+        VALUE_OBJECT_ARRAY(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING, START_OBJECT, START_ARRAY);
 
         private final EnumSet<XContentParser.Token> tokens;
 

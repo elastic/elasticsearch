@@ -41,9 +41,12 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.action.support.master.TransportMasterNodeActionUtils;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.action.shard.ShardStateAction.ShardEntry;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -52,6 +55,7 @@ import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.MetaDataUpdateSettingsService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
@@ -61,6 +65,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -112,23 +117,22 @@ public class ClusterStateChanges extends AbstractComponent {
     private final TransportClusterRerouteAction transportClusterRerouteAction;
     private final TransportCreateIndexAction transportCreateIndexAction;
 
-    public ClusterStateChanges(NamedXContentRegistry xContentRegistry) {
+    public ClusterStateChanges(NamedXContentRegistry xContentRegistry, ThreadPool threadPool) {
         super(Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build());
 
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         allocationService = new AllocationService(settings, new AllocationDeciders(settings,
-            new HashSet<>(Arrays.asList(new SameShardAllocationDecider(settings),
+            new HashSet<>(Arrays.asList(new SameShardAllocationDecider(settings, clusterSettings),
                 new ReplicaAfterPrimaryActiveAllocationDecider(settings),
                 new RandomAllocationDeciderTests.RandomAllocationDecider(getRandom())))),
             new TestGatewayAllocator(), new BalancedShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE);
         shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null, logger);
         shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, logger);
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Environment environment = new Environment(settings);
-        ThreadPool threadPool = null; // it's not used
         Transport transport = null; // it's not used
 
         // mocks
@@ -137,8 +141,7 @@ public class ClusterStateChanges extends AbstractComponent {
         // MetaDataCreateIndexService creates indices using its IndicesService instance to check mappings -> fake it here
         try {
             @SuppressWarnings("unchecked") final List<IndexEventListener> listeners = anyList();
-            @SuppressWarnings("unchecked") final Consumer<ShardId> globalCheckpointSyncer = any(Consumer.class);
-            when(indicesService.createIndex(any(IndexMetaData.class), listeners, globalCheckpointSyncer))
+            when(indicesService.createIndex(any(IndexMetaData.class), listeners))
                 .then(invocationOnMock -> {
                     IndexService indexService = mock(IndexService.class);
                     IndexMetaData indexMetaData = (IndexMetaData)invocationOnMock.getArguments()[0];
@@ -147,6 +150,7 @@ public class ClusterStateChanges extends AbstractComponent {
                     when(indexService.mapperService()).thenReturn(mapperService);
                     when(mapperService.docMappers(anyBoolean())).thenReturn(Collections.emptyList());
                     when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
+                    when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
                     return indexService;
             });
         } catch (IOException e) {
@@ -155,8 +159,10 @@ public class ClusterStateChanges extends AbstractComponent {
 
         // services
         TransportService transportService = new TransportService(settings, transport, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, clusterSettings);
-        MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(settings, xContentRegistry, null, null) {
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), clusterSettings);
+        MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(settings, xContentRegistry, null, null,
+            null) {
             // metaData upgrader should do nothing
             @Override
             public IndexMetaData upgradeIndexMetaData(IndexMetaData indexMetaData, Version minimumIndexCompatibilityVersion) {
@@ -167,7 +173,7 @@ public class ClusterStateChanges extends AbstractComponent {
             metaDataIndexUpgradeService, indicesService);
         MetaDataDeleteIndexService deleteIndexService = new MetaDataDeleteIndexService(settings, clusterService, allocationService);
         MetaDataUpdateSettingsService metaDataUpdateSettingsService = new MetaDataUpdateSettingsService(settings, clusterService,
-            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService);
+            allocationService, IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, indicesService, threadPool);
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(settings, clusterService, indicesService,
             allocationService, new AliasValidator(settings), environment,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, threadPool, xContentRegistry);
@@ -215,23 +221,29 @@ public class ClusterStateChanges extends AbstractComponent {
     }
 
     public ClusterState applyFailedShards(ClusterState clusterState, List<FailedShard> failedShards) {
-        List<ShardStateAction.ShardEntry> entries = failedShards.stream().map(failedShard ->
-            new ShardStateAction.ShardEntry(failedShard.getRoutingEntry().shardId(), failedShard.getRoutingEntry().allocationId().getId(),
+        List<ShardEntry> entries = failedShards.stream().map(failedShard ->
+            new ShardEntry(failedShard.getRoutingEntry().shardId(), failedShard.getRoutingEntry().allocationId().getId(),
                 0L, failedShard.getMessage(), failedShard.getFailure()))
             .collect(Collectors.toList());
-        try {
-            return shardFailedClusterStateTaskExecutor.execute(clusterState, entries).resultingState;
-        } catch (Exception e) {
-            throw ExceptionsHelper.convertToRuntime(e);
-        }
+        return runTasks(shardFailedClusterStateTaskExecutor, clusterState, entries);
     }
 
     public ClusterState applyStartedShards(ClusterState clusterState, List<ShardRouting> startedShards) {
-        List<ShardStateAction.ShardEntry> entries = startedShards.stream().map(startedShard ->
-            new ShardStateAction.ShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), 0L, "shard started", null))
+        List<ShardEntry> entries = startedShards.stream().map(startedShard ->
+            new ShardEntry(startedShard.shardId(), startedShard.allocationId().getId(), 0L, "shard started", null))
             .collect(Collectors.toList());
+        return runTasks(shardStartedClusterStateTaskExecutor, clusterState, entries);
+    }
+
+    private <T> ClusterState runTasks(ClusterStateTaskExecutor<T> executor, ClusterState clusterState, List<T> entries) {
         try {
-            return shardStartedClusterStateTaskExecutor.execute(clusterState, entries).resultingState;
+            ClusterTasksResult<T> result = executor.execute(clusterState, entries);
+            for (ClusterStateTaskExecutor.TaskResult taskResult : result.executionResults.values()) {
+                if (taskResult.isSuccess() == false) {
+                    throw taskResult.getFailure();
+                }
+            }
+            return result.resultingState;
         } catch (Exception e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }

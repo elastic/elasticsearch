@@ -33,7 +33,7 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
     @SuppressForbidden(reason = "manipulates system properties for testing")
     public void testPathHome() throws Exception {
         final String pathHome = System.getProperty("es.path.home");
-        final String value = randomAsciiOfLength(16);
+        final String value = randomAlphaOfLength(16);
         System.setProperty("es.path.home", value);
 
         runTest(
@@ -41,21 +41,20 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 true,
                 output -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
-                    Map<String, String> settings = esSettings.getAsMap();
-                    settings.keySet().forEach(System.out::println);
+                    Map<String, String> settings = esSettings.settings().getAsMap();
                     assertThat(settings.size(), equalTo(2));
                     assertThat(settings, hasEntry("path.home", value));
                     assertThat(settings, hasKey("path.logs")); // added by env initialization
                 });
 
         System.clearProperty("es.path.home");
-        final String commandLineValue = randomAsciiOfLength(16);
+        final String commandLineValue = randomAlphaOfLength(16);
         runTest(
                 ExitCodes.OK,
                 true,
                 output -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
-                    Map<String, String> settings = esSettings.getAsMap();
+                    Map<String, String> settings = esSettings.settings().getAsMap();
                     assertThat(settings.size(), equalTo(2));
                     assertThat(settings, hasEntry("path.home", commandLineValue));
                     assertThat(settings, hasKey("path.logs")); // added by env initialization

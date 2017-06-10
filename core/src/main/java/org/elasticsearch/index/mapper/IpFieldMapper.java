@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -28,11 +27,11 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PointValues;
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -49,13 +47,9 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.AbstractList;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 
 /** A {@link FieldMapper} for ip addresses. */
@@ -119,7 +113,7 @@ public class IpFieldMapper extends FieldMapper {
                     builder.nullValue(InetAddresses.forString(propNode.toString()));
                     iterator.remove();
                 } else if (propName.equals("ignore_malformed")) {
-                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue("ignore_malformed", propNode, parserContext));
+                    builder.ignoreMalformed(TypeParsers.nodeBooleanValue(name, "ignore_malformed", propNode, parserContext));
                     iterator.remove();
                 } else if (TypeParsers.parseMultiField(builder, name, parserContext, propName, propNode)) {
                     iterator.remove();
@@ -131,7 +125,7 @@ public class IpFieldMapper extends FieldMapper {
 
     public static final class IpFieldType extends MappedFieldType {
 
-        IpFieldType() {
+        public IpFieldType() {
             super();
             setTokenized(false);
             setHasDocValues(true);
@@ -238,21 +232,29 @@ public class IpFieldMapper extends FieldMapper {
                 InetAddressPoint.decode(min), InetAddressPoint.decode(max));
         }
 
-        private static class IpScriptDocValues extends AbstractList<String> implements ScriptDocValues<String> {
+        public static final class IpScriptDocValues extends ScriptDocValues<String> {
 
-            private final RandomAccessOrds values;
+            private final SortedSetDocValues in;
+            private long[] ords = new long[0];
+            private int count;
 
-            IpScriptDocValues(RandomAccessOrds values) {
-                this.values = values;
+            public IpScriptDocValues(SortedSetDocValues in) {
+                this.in = in;
             }
 
             @Override
-            public void setNextDocId(int docId) {
-                values.setDocument(docId);
+            public void setNextDocId(int docId) throws IOException {
+                count = 0;
+                if (in.advanceExact(docId)) {
+                    for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
+                        ords = ArrayUtil.grow(ords, count + 1);
+                        ords[count++] = ord;
+                    }
+                }
             }
 
             public String getValue() {
-                if (isEmpty()) {
+                if (count == 0) {
                     return null;
                 } else {
                     return get(0);
@@ -260,21 +262,20 @@ public class IpFieldMapper extends FieldMapper {
             }
 
             @Override
-            public List<String> getValues() {
-                return Collections.unmodifiableList(this);
-            }
-
-            @Override
             public String get(int index) {
-                BytesRef encoded = values.lookupOrd(values.ordAt(0));
-                InetAddress address = InetAddressPoint.decode(
-                        Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length));
-                return InetAddresses.toAddrString(address);
+                try {
+                    BytesRef encoded = in.lookupOrd(ords[index]);
+                    InetAddress address = InetAddressPoint.decode(
+                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length));
+                    return InetAddresses.toAddrString(address);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             }
 
             @Override
             public int size() {
-                return values.cardinality();
+                return count;
             }
         }
 

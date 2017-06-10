@@ -139,7 +139,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
 
         // serialize with old version
         outStream = new BytesStreamOutput();
-        outStream.setVersion(Version.CURRENT.minimumCompatibilityVersion());
+        outStream.setVersion(Version.CURRENT.minimumIndexCompatibilityVersion());
         diffs.writeTo(outStream);
         inStream = outStream.bytes().streamInput();
         inStream = new NamedWriteableAwareStreamInput(inStream, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));

@@ -51,7 +51,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         int numIndexExpressions = randomIntBetween(1, 9);
         List<String> indexExpressions = new ArrayList<>(numIndexExpressions);
         for (int i = 0; i < numIndexExpressions; i++) {
-            indexExpressions.add(randomAsciiOfLength(10));
+            indexExpressions.add(randomAlphaOfLength(10));
         }
         List<String> result = expressionResolver.resolve(context, indexExpressions);
         assertThat(result.size(), equalTo(indexExpressions.size()));

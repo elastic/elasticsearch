@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -209,7 +210,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     public static IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             builder.patterns(in.readList(StreamInput::readString));
         } else {
             builder.patterns(Collections.singletonList(in.readString()));
@@ -244,7 +245,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeInt(order);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             out.writeStringList(patterns);
         } else {
             out.writeString(patterns.size() > 0 ? patterns.get(0) : "");

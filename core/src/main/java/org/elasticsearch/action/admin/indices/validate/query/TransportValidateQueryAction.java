@@ -89,8 +89,14 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
 
     @Override
     protected GroupShardsIterator shards(ClusterState clusterState, ValidateQueryRequest request, String[] concreteIndices) {
-        // Hard-code routing to limit request to a single shard, but still, randomize it...
-        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, Integer.toString(Randomness.get().nextInt(1000)), request.indices());
+        final String routing;
+        if (request.allShards()) {
+            routing = null;
+        } else {
+            // Random routing to limit request to a single shard
+            routing = Integer.toString(Randomness.get().nextInt(1000));
+        }
+        Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(clusterState, routing, request.indices());
         return clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, "_local");
     }
 
@@ -124,12 +130,13 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
             } else {
                 ShardValidateQueryResponse validateQueryResponse = (ShardValidateQueryResponse) shardResponse;
                 valid = valid && validateQueryResponse.isValid();
-                if (request.explain() || request.rewrite()) {
+                if (request.explain() || request.rewrite() || request.allShards()) {
                     if (queryExplanations == null) {
                         queryExplanations = new ArrayList<>();
                     }
                     queryExplanations.add(new QueryExplanation(
                             validateQueryResponse.getIndex(),
+                            request.allShards() ? validateQueryResponse.getShardId().getId() : QueryExplanation.RANDOM_SHARD,
                             validateQueryResponse.isValid(),
                             validateQueryResponse.getExplanation(),
                             validateQueryResponse.getError()

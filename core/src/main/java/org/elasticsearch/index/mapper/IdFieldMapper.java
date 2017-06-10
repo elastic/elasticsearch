@@ -22,26 +22,18 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RegexpQuery;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.search.TermInSetQuery;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
-import java.util.Collection;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -60,16 +52,21 @@ public class IdFieldMapper extends MetadataFieldMapper {
         public static final String NAME = IdFieldMapper.NAME;
 
         public static final MappedFieldType FIELD_TYPE = new IdFieldType();
+        public static final MappedFieldType NESTED_FIELD_TYPE;
 
         static {
             FIELD_TYPE.setTokenized(false);
-            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
-            FIELD_TYPE.setStored(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
+            FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
             FIELD_TYPE.setName(NAME);
             FIELD_TYPE.freeze();
+
+            NESTED_FIELD_TYPE = FIELD_TYPE.clone();
+            NESTED_FIELD_TYPE.setStored(false);
+            NESTED_FIELD_TYPE.freeze();
         }
     }
 
@@ -81,14 +78,14 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
+            final IndexSettings indexSettings = context.mapperService().getIndexSettings();
             return new IdFieldMapper(indexSettings, fieldType);
         }
     }
 
     static final class IdFieldType extends TermBasedFieldType {
 
-        public IdFieldType() {
+        IdFieldType() {
         }
 
         protected IdFieldType(IdFieldType ref) {
@@ -113,32 +110,66 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            final BytesRef[] uids = Uid.createUidsForTypesAndId(context.queryTypes(), value);
-            return new TermsQuery(UidFieldMapper.NAME, uids);
+            return termsQuery(Arrays.asList(value), context);
         }
 
         @Override
-        public Query termsQuery(List values, @Nullable QueryShardContext context) {
-            return new TermsQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
+        public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
+            if (indexOptions() != IndexOptions.NONE) {
+                // 6.x index, _id is indexed
+                return super.termsQuery(values, context);
+            }
+            // 5.x index, _uid is indexed
+            return new TermInSetQuery(UidFieldMapper.NAME, Uid.createUidsForTypesAndIds(context.queryTypes(), values));
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder() {
+            if (indexOptions() == IndexOptions.NONE) {
+                throw new IllegalArgumentException("Fielddata access on the _uid field is disallowed");
+            }
+            return new PagedBytesIndexFieldData.Builder(
+                    TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
+                    TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
+                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
         }
     }
 
-    private IdFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing != null ? existing : Defaults.FIELD_TYPE, indexSettings);
+    static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
+        MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
+        if (indexSettings.isSingleType()) {
+            defaultFieldType.setIndexOptions(IndexOptions.DOCS);
+            defaultFieldType.setStored(true);
+        } else {
+            defaultFieldType.setIndexOptions(IndexOptions.NONE);
+            defaultFieldType.setStored(false);
+        }
+        return defaultFieldType;
     }
 
-    private IdFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
+    private IdFieldMapper(IndexSettings indexSettings, MappedFieldType existing) {
+        this(existing == null ? defaultFieldType(indexSettings) : existing, indexSettings);
+    }
+
+    private IdFieldMapper(MappedFieldType fieldType, IndexSettings indexSettings) {
+        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings.getSettings());
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {}
+    public void preParse(ParseContext context) throws IOException {
+        super.parse(context);
+    }
 
     @Override
     public void postParse(ParseContext context) throws IOException {}
 
     @Override
-    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {}
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+            Field id = new Field(NAME, context.sourceToParse().id(), fieldType);
+            fields.add(id);
+        }
+    }
 
     @Override
     protected String contentType() {

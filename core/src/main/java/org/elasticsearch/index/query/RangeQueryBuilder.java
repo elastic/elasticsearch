@@ -112,7 +112,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (formatString != null) {
             format = Joda.forPattern(formatString);
         }
-        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_2_0)) {
             String relationString = in.readOptionalString();
             if (relationString != null) {
                 relation = ShapeRelation.getRelationByName(relationString);
@@ -133,7 +133,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
             formatString = this.format.format();
         }
         out.writeOptionalString(formatString);
-        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_2_0)) {
             String relationString = null;
             if (this.relation != null) {
                 relationString = this.relation.getRelationName();
@@ -469,12 +469,12 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         case DISJOINT:
             return new MatchNoneQueryBuilder();
         case WITHIN:
-            if (from != null || to != null) {
+            if (from != null || to != null || format != null || timeZone != null) {
                 RangeQueryBuilder newRangeQuery = new RangeQueryBuilder(fieldName);
                 newRangeQuery.from(null);
                 newRangeQuery.to(null);
-                newRangeQuery.format = format;
-                newRangeQuery.timeZone = timeZone;
+                newRangeQuery.format = null;
+                newRangeQuery.timeZone = null;
                 return newRangeQuery;
             } else {
                 return this;
@@ -495,9 +495,9 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
                 query = ((DateFieldMapper.DateFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,
                         timeZone, getForceDateParser(), context);
-            } else if (mapper instanceof RangeFieldMapper.RangeFieldType && mapper.typeName() == RangeFieldMapper.RangeType.DATE.name) {
+            } else if (mapper instanceof RangeFieldMapper.RangeFieldType) {
                 DateMathParser forcedDateParser = null;
-                if (this.format != null) {
+                if (mapper.typeName() == RangeFieldMapper.RangeType.DATE.name && this.format != null) {
                     forcedDateParser = new DateMathParser(this.format);
                 }
                 query = ((RangeFieldMapper.RangeFieldType) mapper).rangeQuery(from, to, includeLower, includeUpper,

@@ -36,7 +36,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     public BulkShardRequest() {
     }
 
-    BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
+    public BulkShardRequest(ShardId shardId, RefreshPolicy refreshPolicy, BulkItemRequest[] items) {
         super(shardId);
         this.items = items;
         setRefreshPolicy(refreshPolicy);
@@ -85,8 +85,14 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     @Override
     public String toString() {
         // This is included in error messages so we'll try to make it somewhat user friendly.
-        StringBuilder b = new StringBuilder("BulkShardRequest to [");
-        b.append(index).append("] containing [").append(items.length).append("] requests");
+        StringBuilder b = new StringBuilder("BulkShardRequest [");
+        b.append(shardId).append("] containing [");
+        if (items.length > 1) {
+          b.append(items.length).append("] requests");
+        } else {
+            b.append(items[0].request()).append("]");
+        }
+
         switch (getRefreshPolicy()) {
         case IMMEDIATE:
             b.append(" and a refresh");

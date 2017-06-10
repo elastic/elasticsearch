@@ -44,6 +44,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,6 +54,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 
 /**
  * Service responsible for submitting update index settings requests
@@ -65,12 +68,14 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
+    private final ThreadPool threadPool;
 
     @Inject
     public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService,
-                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService) {
+                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService, ThreadPool threadPool) {
         super(settings);
         this.clusterService = clusterService;
+        this.threadPool = threadPool;
         this.clusterService.addListener(this);
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
@@ -161,10 +166,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         indexScopedSettings.validate(normalizedSettings);
         // never allow to change the number of shards
         for (Map.Entry<String, String> entry : normalizedSettings.getAsMap().entrySet()) {
-            if (entry.getKey().equals(IndexMetaData.SETTING_NUMBER_OF_SHARDS)) {
-                listener.onFailure(new IllegalArgumentException("can't change the number of shards for an index"));
-                return;
-            }
             Setting setting = indexScopedSettings.get(entry.getKey());
             assert setting != null; // we already validated the normalized settings
             settingsForClosedIndices.put(entry.getKey(), entry.getValue());
@@ -180,7 +181,8 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
         final boolean preserveExisting = request.isPreserveExisting();
 
         clusterService.submitStateUpdateTask("update-settings",
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
+                    wrapPreservingContext(listener, threadPool.getThreadContext())) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -208,13 +210,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     }
                 }
 
-                if (closeIndices.size() > 0 && closedSettings.get(IndexMetaData.SETTING_NUMBER_OF_REPLICAS) != null) {
-                    throw new IllegalArgumentException(String.format(Locale.ROOT,
-                            "Can't update [%s] on closed indices %s - can leave index in an unopenable state", IndexMetaData.SETTING_NUMBER_OF_REPLICAS,
-                            closeIndices
-                    ));
-                }
-                if (!skippedSettigns.getAsMap().isEmpty() && !openIndices.isEmpty()) {
+                if (!skippedSettigns.isEmpty() && !openIndices.isEmpty()) {
                     throw new IllegalArgumentException(String.format(Locale.ROOT,
                             "Can't update non dynamic settings [%s] for open indices %s",
                             skippedSettigns.getAsMap().keySet(),
@@ -234,6 +230,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_BLOCK, IndexMetaData.INDEX_READ_ONLY_SETTING, openSettings);
+                maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK, IndexMetaData.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_METADATA_BLOCK, IndexMetaData.INDEX_BLOCKS_METADATA_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_WRITE_BLOCK, IndexMetaData.INDEX_BLOCKS_WRITE_SETTING, openSettings);
                 maybeUpdateClusterBlock(actualIndices, blocks, IndexMetaData.INDEX_READ_BLOCK, IndexMetaData.INDEX_BLOCKS_READ_SETTING, openSettings);
@@ -280,7 +277,11 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     for (Index index : closeIndices) {
                         final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
                         final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
+                        // Verifies that the current index settings can be updated with the updated dynamic settings.
                         indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
+                        // Now check that we can create the index with the updated settings (dynamic and non-dynamic).
+                        // This step is mandatory since we allow to update non-dynamic settings on closed indices.
+                        indicesService.verifyIndexMetadata(updatedMetaData, updatedMetaData);
                     }
                 } catch (IOException ex) {
                     throw ExceptionsHelper.convertToElastic(ex);
@@ -308,9 +309,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
 
     public void upgradeIndexSettings(final UpgradeSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-
-
-        clusterService.submitStateUpdateTask("update-index-compatibility-versions", new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+        clusterService.submitStateUpdateTask("update-index-compatibility-versions",
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
+                wrapPreservingContext(listener, threadPool.getThreadContext())) {
 
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
@@ -328,7 +329,6 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                             // No reason to pollute the settings, we didn't really upgrade anything
                             metaDataBuilder.put(IndexMetaData.builder(indexMetaData)
                                             .settings(Settings.builder().put(indexMetaData.getSettings())
-                                                            .put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, entry.getValue().v2())
                                                             .put(IndexMetaData.SETTING_VERSION_UPGRADED, entry.getValue().v1())
                                             )
                             );

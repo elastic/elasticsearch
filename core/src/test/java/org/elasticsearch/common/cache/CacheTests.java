@@ -257,6 +257,28 @@ public class CacheTests extends ESTestCase {
         }
     }
 
+    public void testSimpleExpireAfterAccess() {
+        AtomicLong now = new AtomicLong();
+        Cache<Integer, String> cache = new Cache<Integer, String>() {
+            @Override
+            protected long now() {
+                return now.get();
+            }
+        };
+        cache.setExpireAfterAccessNanos(1);
+        now.set(0);
+        for (int i = 0; i < numberOfEntries; i++) {
+            cache.put(i, Integer.toString(i));
+        }
+        for (int i = 0; i < numberOfEntries; i++) {
+            assertEquals(cache.get(i), Integer.toString(i));
+        }
+        now.set(2);
+        for(int i = 0; i < numberOfEntries; i++) {
+            assertNull(cache.get(i));
+        }
+    }
+
     public void testExpirationAfterWrite() {
         AtomicLong now = new AtomicLong();
         Cache<Integer, String> cache = new Cache<Integer, String>() {
@@ -416,7 +438,7 @@ public class CacheTests extends ESTestCase {
             private String value;
             private long weight;
 
-            public Value(String value, long weight) {
+            Value(String value, long weight) {
                 this.value = value;
                 this.weight = weight;
             }
@@ -552,7 +574,7 @@ public class CacheTests extends ESTestCase {
         class Key {
             private final int key;
 
-            public Key(int key) {
+            Key(int key) {
                 this.key = key;
             }
 
@@ -712,7 +734,7 @@ public class CacheTests extends ESTestCase {
 
         CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
 
-        final String key = randomAsciiOfLengthBetween(2, 32);
+        final String key = randomAlphaOfLengthBetween(2, 32);
         for (int i = 0; i < numberOfThreads; i++) {
             Thread thread = new Thread(() -> {
                 try {

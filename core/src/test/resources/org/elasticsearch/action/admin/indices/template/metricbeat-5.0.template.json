@@ -1,9 +1,6 @@
 {
   "mappings": {
     "_default_": {
-      "_all": {
-        "norms": false
-      },
       "_meta": {
         "version": "5.0.0-beta1"
       },

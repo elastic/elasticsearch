@@ -250,7 +250,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     }
 
     /**
-     * Returns the version of the node with the yougest version in the cluster
+     * Returns the version of the node with the youngest version in the cluster
      *
      * @return the oldest version in the cluster
      */

@@ -15,11 +15,19 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
 REM check in case a user was using this mechanism
 if "%ES_CLASSPATH%" == "" (
-set ES_CLASSPATH=!ES_HOME!/lib/elasticsearch-${project.version}.jar;!ES_HOME!/lib/*
+set ES_CLASSPATH=!ES_HOME!/lib/*
 ) else (
 ECHO Error: Don't modify the classpath with ES_CLASSPATH, Best is to add 1>&2
 ECHO additional elements via the plugin mechanism, or if code must really be 1>&2
 ECHO added to the main classpath, add jars to lib\, unsupported 1>&2
 EXIT /B 1
 )
+
+%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.JavaVersionChecker"
+
+IF ERRORLEVEL 1 (
+    ECHO Elasticsearch requires at least Java 8 but your Java version from %JAVA% does not meet this requirement
+    EXIT /B 1
+)
+
 set ES_PARAMS=-Delasticsearch -Des.path.home="%ES_HOME%"

@@ -75,9 +75,9 @@ public class TestGatewayAllocator extends GatewayAllocator {
                     routing -> currentNodes.get(routing.currentNodeId()),
                     routing ->
                         new NodeGatewayStartedShards(
-                            currentNodes.get(routing.currentNodeId()), -1, routing.allocationId().getId(), routing.primary())));
+                            currentNodes.get(routing.currentNodeId()), routing.allocationId().getId(), routing.primary())));
 
-            return new AsyncShardFetch.FetchResult<>(shardId, foundShards, Collections.emptySet(), ignoreNodes);
+            return new AsyncShardFetch.FetchResult<>(shardId, foundShards, ignoreNodes);
         }
     };
 
@@ -86,8 +86,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
         protected AsyncShardFetch.FetchResult<NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // for now, just pretend no node has data
             final ShardId shardId = shard.shardId();
-            return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), Collections.emptySet(),
-                allocation.getIgnoreNodes(shardId));
+            return new AsyncShardFetch.FetchResult<>(shardId, Collections.emptyMap(), allocation.getIgnoreNodes(shardId));
         }
 
         @Override
@@ -97,7 +96,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
     };
 
     public TestGatewayAllocator() {
-        super(Settings.EMPTY, null, null);
+        super(Settings.EMPTY);
     }
 
     @Override

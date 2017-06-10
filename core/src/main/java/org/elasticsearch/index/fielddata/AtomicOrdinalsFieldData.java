@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
 
 /**
  * Specialization of {@link AtomicFieldData} for data that is indexed with
@@ -30,6 +30,6 @@ public interface AtomicOrdinalsFieldData extends AtomicFieldData {
     /**
      * Return the ordinals values for the current atomic reader.
      */
-    RandomAccessOrds getOrdinalsValues();
+    SortedSetDocValues getOrdinalsValues();
 
 }

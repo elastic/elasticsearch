@@ -20,9 +20,12 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -35,6 +38,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -52,7 +56,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
-import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -134,20 +137,10 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         logger.info("--> move shard from node_1 to node_3, and wait for relocation to finish");
 
         if (randomBoolean()) { // sometimes add cluster-state delay to trigger observers in IndicesStore.ShardActiveRequestHandler
-            SingleNodeDisruption disruption = new BlockClusterStateProcessing(node_3, random());
-            internalCluster().setDisruptionScheme(disruption);
-            MockTransportService transportServiceNode3 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_3);
-            CountDownLatch beginRelocationLatch = new CountDownLatch(1);
-            CountDownLatch endRelocationLatch = new CountDownLatch(1);
-            transportServiceNode3.addTracer(new ReclocationStartEndTracer(logger, beginRelocationLatch, endRelocationLatch));
-            internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
-            // wait for relocation to start
-            beginRelocationLatch.await();
-            disruption.startDisrupting();
-            // wait for relocation to finish
-            endRelocationLatch.await();
+            BlockClusterStateProcessing disruption = relocateAndBlockCompletion(logger, "test", 0, node_1, node_3);
             // wait a little so that cluster state observer is registered
             sleep(50);
+            logger.info("--> stopping disruption");
             disruption.stopDisrupting();
         } else {
             internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("test", 0, node_1, node_3)).get();
@@ -164,6 +157,56 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(Files.exists(shardDirectory(node_3, index, 0)), equalTo(true));
         assertThat(Files.exists(indexDirectory(node_3, index)), equalTo(true));
 
+    }
+
+    /**
+     * relocate a shard and block cluster state processing on the relocation target node to activate the shard
+     */
+    public static BlockClusterStateProcessing relocateAndBlockCompletion(Logger logger, String index, int shard, String nodeFrom,
+                                                                         String nodeTo) throws InterruptedException {
+        BlockClusterStateProcessing disruption = new BlockClusterStateProcessing(nodeTo, random());
+        internalCluster().setDisruptionScheme(disruption);
+        MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeTo);
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class, nodeTo);
+        CountDownLatch beginRelocationLatch = new CountDownLatch(1);
+        CountDownLatch receivedShardExistsRequestLatch = new CountDownLatch(1);
+        // use a tracer on the target node to track relocation start and end
+        transportService.addTracer(new MockTransportService.Tracer() {
+            @Override
+            public void receivedRequest(long requestId, String action) {
+                if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
+                    logger.info("received: {}, relocation starts", action);
+                    beginRelocationLatch.countDown();
+                } else if (action.equals(IndicesStore.ACTION_SHARD_EXISTS)) {
+                    // Whenever a node deletes a shard because it was relocated somewhere else, it first
+                    // checks if enough other copies are started somewhere else. The node sends a ShardActiveRequest
+                    // to the other nodes that should have a copy according to cluster state.
+                    receivedShardExistsRequestLatch.countDown();
+                    logger.info("received: {}, relocation done", action);
+                } else if (action.equals(PeerRecoveryTargetService.Actions.WAIT_CLUSTERSTATE)) {
+                    logger.info("received: {}, waiting on cluster state", action);
+                    // ensure that relocation target node is on the same cluster state as relocation source before proceeding with
+                    // this request. If the target does not have the relocating cluster state exposed through ClusterService.state(),
+                    // then waitForClusterState will have to register a ClusterObserver with the ClusterService, which can cause
+                    // a race with the BlockClusterStateProcessing block that is added below.
+                    try {
+                        assertBusy(() -> assertTrue(
+                            clusterService.state().routingTable().index(index).shard(shard).primaryShard().relocating()));
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        });
+        internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(index, shard, nodeFrom, nodeTo)).get();
+        logger.info("--> waiting for relocation to start");
+        beginRelocationLatch.await();
+        logger.info("--> starting disruption");
+        disruption.startDisrupting();
+        logger.info("--> waiting for relocation to finish");
+        receivedShardExistsRequestLatch.await();
+        logger.info("--> relocation completed (but cluster state processing block still in place)");
+        return disruption;
     }
 
     /* Test that shard is deleted in case ShardActiveRequest after relocation and next incoming cluster state is an index delete. */
@@ -395,26 +438,35 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // disable relocations when we do this, to make sure the shards are not relocated from node2
         // due to rebalancing, and delete its content
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)).get();
-        internalCluster().getInstance(ClusterService.class, nonMasterNode).submitStateUpdateTask("test", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
+
+        ClusterApplierService clusterApplierService = internalCluster().getInstance(ClusterService.class, nonMasterNode).getClusterApplierService();
+        ClusterState currentState = clusterApplierService.state();
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
+        for (int j = 0; j < numShards; j++) {
+            indexRoutingTableBuilder.addIndexShard(
+                new IndexShardRoutingTable.Builder(new ShardId(index, j))
+                    .addShard(TestShardRouting.newShardRouting("test", j, masterId, true, ShardRoutingState.STARTED))
+                    .build()
+            );
+        }
+        ClusterState newState = ClusterState.builder(currentState)
+            .incrementVersion()
+            .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
+            .build();
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterApplierService.onNewClusterState("test", () -> newState, new ClusterStateTaskListener() {
             @Override
-            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
-                IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
-                for (int i = 0; i < numShards; i++) {
-                    indexRoutingTableBuilder.addIndexShard(
-                            new IndexShardRoutingTable.Builder(new ShardId(index, i))
-                                    .addShard(TestShardRouting.newShardRouting("test", i, masterId, true, ShardRoutingState.STARTED))
-                                    .build()
-                    );
-                }
-                return newState(ClusterState.builder(currentState)
-                        .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
-                        .build());
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
             }
 
             @Override
             public void onFailure(String source, Exception e) {
+                latch.countDown();
+                fail("Excepted proper response " + ExceptionsHelper.detailedMessage(e));
             }
         });
+        latch.await();
         waitNoPendingTasksOnAll();
         logger.info("Checking if shards aren't removed");
         for (int shard : node2Shards) {
@@ -444,41 +496,5 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     private boolean waitForIndexDeletion(final String server, final Index index) throws InterruptedException {
         awaitBusy(() -> !Files.exists(indexDirectory(server, index)));
         return Files.exists(indexDirectory(server, index));
-    }
-
-    /**
-     * This Tracer can be used to signal start and end of a recovery.
-     * This is used to test the following:
-     * Whenever a node deletes a shard because it was relocated somewhere else, it first
-     * checks if enough other copies are started somewhere else. The node sends a ShardActiveRequest
-     * to the other nodes that should have a copy according to cluster state.
-     * The nodes that receive this request check if the shard is in state STARTED in which case they
-     * respond with "true". If they have the shard in POST_RECOVERY they register a cluster state
-     * observer that checks at each update if the shard has moved to STARTED.
-     * To test that this mechanism actually works, this can be triggered by blocking the cluster
-     * state processing when a recover starts and only unblocking it shortly after the node receives
-     * the ShardActiveRequest.
-     */
-    public static class ReclocationStartEndTracer extends MockTransportService.Tracer {
-        private final Logger logger;
-        private final CountDownLatch beginRelocationLatch;
-        private final CountDownLatch receivedShardExistsRequestLatch;
-
-        public ReclocationStartEndTracer(Logger logger, CountDownLatch beginRelocationLatch, CountDownLatch receivedShardExistsRequestLatch) {
-            this.logger = logger;
-            this.beginRelocationLatch = beginRelocationLatch;
-            this.receivedShardExistsRequestLatch = receivedShardExistsRequestLatch;
-        }
-
-        @Override
-        public void receivedRequest(long requestId, String action) {
-            if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
-                logger.info("received: {}, relocation starts", action);
-                beginRelocationLatch.countDown();
-            } else if (action.equals(IndicesStore.ACTION_SHARD_EXISTS)) {
-                receivedShardExistsRequestLatch.countDown();
-                logger.info("received: {}, relocation done", action);
-            }
-        }
     }
 }

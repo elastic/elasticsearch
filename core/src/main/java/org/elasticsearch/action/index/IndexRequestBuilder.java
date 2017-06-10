@@ -83,8 +83,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the source.
      */
-    public IndexRequestBuilder setSource(BytesReference source) {
-        request.source(source);
+    public IndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -112,10 +112,10 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the document source to index.
      * <p>
      * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
-     * or using the {@link #setSource(byte[])}.
+     * or using the {@link #setSource(byte[], XContentType)}.
      */
-    public IndexRequestBuilder setSource(String source) {
-        request.source(source);
+    public IndexRequestBuilder setSource(String source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -130,8 +130,8 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     /**
      * Sets the document to index in bytes form.
      */
-    public IndexRequestBuilder setSource(byte[] source) {
-        request.source(source);
+    public IndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -142,9 +142,10 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param source The source to index
      * @param offset The offset in the byte array
      * @param length The length of the data
+     * @param xContentType The type/format of the source
      */
-    public IndexRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.source(source, offset, length);
+    public IndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
+        request.source(source, offset, length, xContentType);
         return this;
     }
 
@@ -162,10 +163,15 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
     }
 
     /**
-     * The content type that will be used to generate a document from user provided objects (like Map).
+     * Constructs a simple document with a field name and value pairs.
+     * <p>
+     * <b>Note: the number of objects passed as varargs to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
      */
-    public IndexRequestBuilder setContentType(XContentType contentType) {
-        request.contentType(contentType);
+    public IndexRequestBuilder setSource(XContentType xContentType, Object... source) {
+        request.source(xContentType, source);
         return this;
     }
 

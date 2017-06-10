@@ -3,7 +3,7 @@
 
 The search API allows one to execute a search query and get back search hits
 that match the query. It can be executed across one or more indices and
-across one or more types. The query can provided using the <<java-query-dsl,query Java API>>.
+across one or more types. The query can be provided using the <<java-query-dsl,query Java API>>.
 The body of the search request is built using the `SearchSourceBuilder`. Here is an example:
 
 [source,java]
@@ -161,11 +161,9 @@ For example, if you have a file named `config/scripts/template_gender.mustache` 
 [source,js]
 --------------------------------------------------
 {
-    "template" : {
-        "query" : {
-            "match" : {
-                "gender" : "{{param_gender}}"
-            }
+    "query" : {
+        "match" : {
+            "gender" : "{{param_gender}}"
         }
     }
 }
@@ -200,11 +198,9 @@ client.admin().cluster().preparePutStoredScript()
     .setId("template_gender")
     .setSource(new BytesArray(
         "{\n" +
-        "    \"template\" : {\n" +
-        "        \"query\" : {\n" +
-        "            \"match\" : {\n" +
-        "                \"gender\" : \"{{param_gender}}\"\n" +
-        "            }\n" +
+        "    \"query\" : {\n" +
+        "        \"match\" : {\n" +
+        "            \"gender\" : \"{{param_gender}}\"\n" +
         "        }\n" +
         "    }\n" +
         "}")).get();

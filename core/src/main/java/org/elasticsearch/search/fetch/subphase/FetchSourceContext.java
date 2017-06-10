@@ -96,9 +96,9 @@ public class FetchSourceContext implements Writeable, ToXContent {
 
         String source = request.param("_source");
         if (source != null) {
-            if (Booleans.isExplicitTrue(source)) {
+            if (Booleans.isTrue(source)) {
                 fetchSource = true;
-            } else if (Booleans.isExplicitFalse(source)) {
+            } else if (Booleans.isFalse(source)) {
                 fetchSource = false;
             } else {
                 source_includes = Strings.splitStringByCommaToArray(source);

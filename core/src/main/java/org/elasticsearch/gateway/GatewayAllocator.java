@@ -43,7 +43,7 @@ import java.util.concurrent.ConcurrentMap;
 
 public class GatewayAllocator extends AbstractComponent {
 
-    private RoutingService routingService;
+    private final RoutingService routingService;
 
     private final PrimaryShardAllocator primaryShardAllocator;
     private final ReplicaShardAllocator replicaShardAllocator;
@@ -52,14 +52,12 @@ public class GatewayAllocator extends AbstractComponent {
     private final ConcurrentMap<ShardId, AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData>> asyncFetchStore = ConcurrentCollections.newConcurrentMap();
 
     @Inject
-    public GatewayAllocator(Settings settings, final TransportNodesListGatewayStartedShards startedAction, final TransportNodesListShardStoreMetaData storeAction) {
+    public GatewayAllocator(Settings settings, ClusterService clusterService, RoutingService routingService,
+                            TransportNodesListGatewayStartedShards startedAction, TransportNodesListShardStoreMetaData storeAction) {
         super(settings);
+        this.routingService = routingService;
         this.primaryShardAllocator = new InternalPrimaryShardAllocator(settings, startedAction);
         this.replicaShardAllocator = new InternalReplicaShardAllocator(settings, storeAction);
-    }
-
-    public void setReallocation(final ClusterService clusterService, final RoutingService routingService) {
-        this.routingService = routingService;
         clusterService.addStateApplier(event -> {
             boolean cleanCache = false;
             DiscoveryNode localNode = event.state().nodes().getLocalNode();
@@ -77,6 +75,14 @@ public class GatewayAllocator extends AbstractComponent {
                 asyncFetchStore.clear();
             }
         });
+    }
+
+    // for tests
+    protected GatewayAllocator(Settings settings) {
+        super(settings);
+        this.routingService = null;
+        this.primaryShardAllocator = null;
+        this.replicaShardAllocator = null;
     }
 
     public int getNumberOfInFlightFetch() {
@@ -134,7 +140,7 @@ public class GatewayAllocator extends AbstractComponent {
 
     class InternalAsyncFetch<T extends BaseNodeResponse> extends AsyncShardFetch<T> {
 
-        public InternalAsyncFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
+        InternalAsyncFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
             super(logger, type, shardId, action);
         }
 
@@ -149,7 +155,7 @@ public class GatewayAllocator extends AbstractComponent {
 
         private final TransportNodesListGatewayStartedShards startedAction;
 
-        public InternalPrimaryShardAllocator(Settings settings, TransportNodesListGatewayStartedShards startedAction) {
+        InternalPrimaryShardAllocator(Settings settings, TransportNodesListGatewayStartedShards startedAction) {
             super(settings);
             this.startedAction = startedAction;
         }
@@ -172,7 +178,7 @@ public class GatewayAllocator extends AbstractComponent {
 
         private final TransportNodesListShardStoreMetaData storeAction;
 
-        public InternalReplicaShardAllocator(Settings settings, TransportNodesListShardStoreMetaData storeAction) {
+        InternalReplicaShardAllocator(Settings settings, TransportNodesListShardStoreMetaData storeAction) {
             super(settings);
             this.storeAction = storeAction;
         }

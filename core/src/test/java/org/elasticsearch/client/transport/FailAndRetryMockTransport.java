@@ -26,6 +26,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +49,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -96,7 +96,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                     } else if (ClusterStateAction.NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
                         ClusterState clusterState = getMockClusterState(node);
-                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState));
+                        transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState, 0L));
                     } else {
                         throw new UnsupportedOperationException("Mock transport does not understand action " + action);
                     }
@@ -182,7 +182,9 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     }
 
     @Override
-    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+    public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile,
+                              CheckedBiConsumer<Connection, ConnectionProfile, IOException> connectionValidator)
+        throws ConnectTransportException {
 
     }
 

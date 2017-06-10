@@ -32,7 +32,6 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
@@ -87,21 +86,18 @@ public final class AllTermQuery extends Query {
         if (rewritten != this) {
             return rewritten;
         }
-        boolean fieldExists = false;
         boolean hasPayloads = false;
         for (LeafReaderContext context : reader.leaves()) {
             final Terms terms = context.reader().terms(term.field());
             if (terms != null) {
-                fieldExists = true;
                 if (terms.hasPayloads()) {
                     hasPayloads = true;
                     break;
                 }
             }
         }
-        if (fieldExists == false) {
-            return new MatchNoDocsQuery();
-        }
+        // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
+        // which rewrites query with an empty reader.
         if (hasPayloads == false) {
             return new TermQuery(term);
         }
@@ -109,26 +105,16 @@ public final class AllTermQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
         if (needsScores == false) {
-            return new TermQuery(term).createWeight(searcher, needsScores);
+            return new TermQuery(term).createWeight(searcher, needsScores, boost);
         }
         final TermContext termStates = TermContext.build(searcher.getTopReaderContext(), term);
         final CollectionStatistics collectionStats = searcher.collectionStatistics(term.field());
         final TermStatistics termStats = searcher.termStatistics(term, termStates);
         final Similarity similarity = searcher.getSimilarity(needsScores);
-        final SimWeight stats = similarity.computeWeight(collectionStats, termStats);
+        final SimWeight stats = similarity.computeWeight(boost, collectionStats, termStats);
         return new Weight(this) {
-
-            @Override
-            public float getValueForNormalization() throws IOException {
-                return stats.getValueForNormalization();
-            }
-
-            @Override
-            public void normalize(float norm, float topLevelBoost) {
-                stats.normalize(norm, topLevelBoost);
-            }
 
             @Override
             public void extractTerms(Set<Term> terms) {

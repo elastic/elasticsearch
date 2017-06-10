@@ -150,7 +150,7 @@ discovery.zen.ping.unicast.hosts:
    - 192.168.1.11 <1>
    - seeds.mydomain.com <2>
 --------------------------------------------------
-<1> The port will default to 9300 if not specified.
+<1> The port will default to `transport.profiles.default.port` and fallback to `transport.tcp.port` if not specified.
 <2> A hostname that resolves to multiple IP addresses will try all resolved addresses.
 
 [float]

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -158,19 +157,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         flags = in.readInt();
         analyzer = in.readOptionalString();
         defaultOperator = Operator.readFromStream(in);
-        if (in.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_1)) {
             in.readBoolean(); // lowercase_expanded_terms
         }
         settings.lenient(in.readBoolean());
-        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             this.lenientSet = in.readBoolean();
         }
         settings.analyzeWildcard(in.readBoolean());
-        if (in.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_1_1)) {
             in.readString(); // locale
         }
         minimumShouldMatch = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             settings.quoteFieldSuffix(in.readOptionalString());
             useAllFields = in.readOptionalBoolean();
         }
@@ -187,19 +186,19 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         out.writeInt(flags);
         out.writeOptionalString(analyzer);
         defaultOperator.writeTo(out);
-        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_1)) {
             out.writeBoolean(true); // lowercase_expanded_terms
         }
         out.writeBoolean(settings.lenient());
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeBoolean(lenientSet);
         }
         out.writeBoolean(settings.analyzeWildcard());
-        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_1)) {
             out.writeString(Locale.ROOT.toLanguageTag()); // locale
         }
         out.writeOptionalString(minimumShouldMatch);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeOptionalString(settings.quoteFieldSuffix());
             out.writeOptionalBoolean(useAllFields);
         }
@@ -412,15 +411,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
         SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, newSettings, context);
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
-
         Query query = sqp.parse(queryText);
-        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
-        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
-        // and multiple variations of the same word in the query (synonyms for instance).
-        if (minimumShouldMatch != null && query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
-            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
-        }
-        return query;
+        return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
     }
 
     private static String resolveIndexName(String fieldName, QueryShardContext context) {

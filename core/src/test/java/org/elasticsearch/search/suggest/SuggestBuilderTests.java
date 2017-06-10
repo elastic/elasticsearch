@@ -19,15 +19,14 @@
 
 package org.elasticsearch.search.suggest;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTests;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
@@ -46,7 +45,7 @@ public class SuggestBuilderTests extends ESTestCase {
 
     private static final int NUMBER_OF_RUNS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
-    private static Suggesters suggesters;
+    private static NamedXContentRegistry xContentRegistry;
 
     /**
      * Setup for the whole base test class.
@@ -55,13 +54,13 @@ public class SuggestBuilderTests extends ESTestCase {
     public static void init() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        suggesters = searchModule.getSuggesters();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() {
         namedWriteableRegistry = null;
-        suggesters = null;
+        xContentRegistry = null;
     }
 
     /**
@@ -76,8 +75,7 @@ public class SuggestBuilderTests extends ESTestCase {
             }
             suggestBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             XContentParser parser = createParser(xContentBuilder);
-            QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
-            SuggestBuilder secondSuggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
+            SuggestBuilder secondSuggestBuilder = SuggestBuilder.fromXContent(parser);
             assertNotSame(suggestBuilder, secondSuggestBuilder);
             assertEquals(suggestBuilder, secondSuggestBuilder);
             assertEquals(suggestBuilder.hashCode(), secondSuggestBuilder.hashCode());
@@ -131,9 +129,9 @@ public class SuggestBuilderTests extends ESTestCase {
             mutation.addSuggestion(suggestionBuilder.getKey(), suggestionBuilder.getValue());
         }
         if (randomBoolean()) {
-            mutation.setGlobalText(randomAsciiOfLengthBetween(5, 60));
+            mutation.setGlobalText(randomAlphaOfLengthBetween(5, 60));
         } else {
-            mutation.addSuggestion(randomAsciiOfLength(10), PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
+            mutation.addSuggestion(randomAlphaOfLength(10), PhraseSuggestionBuilderTests.randomPhraseSuggestionBuilder());
         }
         return mutation;
     }
@@ -141,11 +139,11 @@ public class SuggestBuilderTests extends ESTestCase {
     public static SuggestBuilder randomSuggestBuilder() {
         SuggestBuilder builder = new SuggestBuilder();
         if (randomBoolean()) {
-            builder.setGlobalText(randomAsciiOfLengthBetween(1, 20));
+            builder.setGlobalText(randomAlphaOfLengthBetween(1, 20));
         }
         final int numSuggestions = randomIntBetween(1, 5);
         for (int i = 0; i < numSuggestions; i++) {
-            builder.addSuggestion(randomAsciiOfLengthBetween(5, 10), randomSuggestionBuilder());
+            builder.addSuggestion(randomAlphaOfLengthBetween(5, 10), randomSuggestionBuilder());
         }
         return builder;
     }
@@ -159,4 +157,8 @@ public class SuggestBuilderTests extends ESTestCase {
         }
     }
 
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
+    }
 }

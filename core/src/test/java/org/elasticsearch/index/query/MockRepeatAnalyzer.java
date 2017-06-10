@@ -35,7 +35,7 @@ public class MockRepeatAnalyzer extends Analyzer {
         PositionIncrementAttribute posIncAtt = addAttribute(PositionIncrementAttribute.class);
         String repeat;
 
-        public MockRepeatFilter(TokenStream input) {
+        MockRepeatFilter(TokenStream input) {
             super(input);
         }
 

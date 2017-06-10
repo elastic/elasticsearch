@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -43,13 +42,16 @@ import static org.elasticsearch.rest.RestStatus.OK;
  * Rest api for checking if a type exists.
  */
 public class RestTypesExistsAction extends BaseRestHandler {
-
-    @Inject
     public RestTypesExistsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerWithDeprecatedHandler(
                 HEAD, "/{index}/_mapping/{type}", this,
                 HEAD, "/{index}/{type}", deprecationLogger);
+    }
+
+    @Override
+    public String getName() {
+        return "types_exists_action";
     }
 
     @Override

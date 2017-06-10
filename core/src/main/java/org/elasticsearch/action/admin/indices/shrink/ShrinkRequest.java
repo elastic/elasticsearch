@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -40,14 +39,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ShrinkRequest extends AcknowledgedRequest<ShrinkRequest> implements IndicesRequest {
 
-    public static final ObjectParser<ShrinkRequest, ParseFieldMatcherSupplier> PARSER =
-        new ObjectParser<>("shrink_request", null);
+    public static final ObjectParser<ShrinkRequest, Void> PARSER = new ObjectParser<>("shrink_request", null);
     static {
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-                request.getShrinkIndexRequest().settings(parser.map()),
+        PARSER.declareField((parser, request, context) -> request.getShrinkIndexRequest().settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-                request.getShrinkIndexRequest().aliases(parser.map()),
+        PARSER.declareField((parser, request, context) -> request.getShrinkIndexRequest().aliases(parser.map()),
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
     }
 
@@ -69,6 +65,9 @@ public class ShrinkRequest extends AcknowledgedRequest<ShrinkRequest> implements
         }
         if (shrinkIndexRequest == null) {
             validationException = addValidationError("shrink index request is missing", validationException);
+        }
+        if (shrinkIndexRequest.settings().getByPrefix("index.sort.").isEmpty() == false) {
+            validationException = addValidationError("can't override index sort when shrinking index", validationException);
         }
         return validationException;
     }

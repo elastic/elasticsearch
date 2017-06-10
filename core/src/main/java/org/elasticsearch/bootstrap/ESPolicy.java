@@ -31,6 +31,7 @@ import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -48,9 +49,9 @@ final class ESPolicy extends Policy {
     final PermissionCollection dynamic;
     final Map<String,Policy> plugins;
 
-    public ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults) {
+    ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults) {
         this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), JarHell.parseClassPath());
-        this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), new URL[0]);
+        this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptySet());
         if (filterBadDefaults) {
             this.system = new SystemPolicy(Policy.getPolicy());
         } else {
@@ -150,7 +151,7 @@ final class ESPolicy extends Policy {
          * @param preImplies           a test that is applied to a desired permission before checking if the bad default permission that
          *                             this instance wraps implies the desired permission
          */
-        public BadDefaultPermission(final Permission badDefaultPermission, final Predicate<Permission> preImplies) {
+        BadDefaultPermission(final Permission badDefaultPermission, final Predicate<Permission> preImplies) {
             super(badDefaultPermission.getName());
             this.badDefaultPermission = badDefaultPermission;
             this.preImplies = preImplies;

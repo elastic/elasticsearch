@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -53,14 +54,14 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
 
     @Override
     protected void taskOperation(RethrottleRequest request, BulkByScrollTask task, ActionListener<TaskInfo> listener) {
-        rethrottle(clusterService.localNode().getId(), client, task, request.getRequestsPerSecond(), listener);
+        rethrottle(logger, clusterService.localNode().getId(), client, task, request.getRequestsPerSecond(), listener);
     }
 
-    static void rethrottle(String localNodeId, Client client, BulkByScrollTask task, float newRequestsPerSecond,
+    static void rethrottle(Logger logger, String localNodeId, Client client, BulkByScrollTask task, float newRequestsPerSecond,
             ActionListener<TaskInfo> listener) {
         int runningSubTasks = task.runningSliceSubTasks();
         if (runningSubTasks == 0) {
-            // Nothing to do, all sub tasks are done
+            logger.debug("rethrottling local task [{}] to [{}] requests per second", task.getId(), newRequestsPerSecond);
             task.rethrottle(newRequestsPerSecond);
             listener.onResponse(task.taskInfo(localNodeId, true));
             return;
@@ -68,6 +69,7 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         RethrottleRequest subRequest = new RethrottleRequest();
         subRequest.setRequestsPerSecond(newRequestsPerSecond / runningSubTasks);
         subRequest.setParentTaskId(new TaskId(localNodeId, task.getId()));
+        logger.debug("rethrottling children of task [{}] to [{}] requests per second", task.getId(), subRequest.getRequestsPerSecond());
         client.execute(RethrottleAction.INSTANCE, subRequest, ActionListener.wrap(r -> {
             r.rethrowFailures("Rethrottle");
             listener.onResponse(task.getInfoGivenSliceInfo(localNodeId, r.getTasks()));
@@ -85,8 +87,4 @@ public class TransportRethrottleAction extends TransportTasksAction<BulkByScroll
         return new ListTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
 }

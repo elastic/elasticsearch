@@ -1,12 +1,17 @@
 #!/bin/bash
 
-# This file contains some utilities to test the elasticsearch scripts,
-# the .deb/.rpm packages and the SysV/Systemd scripts.
+# This file contains some utilities to test the elasticsearch
+# tar distribution.
 
 # WARNING: This testing file must be executed as root and can
-# dramatically change your system. It removes the 'elasticsearch'
-# user/group and also many directories. Do not execute this file
-# unless you know exactly what you are doing.
+# dramatically change your system. It should only be executed
+# in a throw-away VM like those made by the Vagrantfile at
+# the root of the Elasticsearch source code. This should
+# cause the script to fail if it is executed any other way:
+[ -f /etc/is_vagrant_vm ] || {
+  >&2 echo "must be run on a vagrant VM"
+  exit 1
+}
 
 # Licensed to Elasticsearch under one or more contributor
 # license agreements. See the NOTICE file distributed with

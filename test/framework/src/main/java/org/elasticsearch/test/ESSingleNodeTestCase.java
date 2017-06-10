@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
@@ -114,9 +115,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertAcked(client().admin().indices().prepareDelete("*").get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
-                metaData.persistentSettings().getAsMap().size(), equalTo(0));
+                metaData.persistentSettings().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(),
-                metaData.transientSettings().getAsMap().size(), equalTo(0));
+                metaData.transientSettings().size(), equalTo(0));
         if (resetNodeAfterTest()) {
             assert NODE != null;
             stopNode();
@@ -171,8 +172,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
             .put("node.name", "node_s_0")
-            .put("script.inline", "true")
-            .put("script.stored", "true")
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000)
             .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)

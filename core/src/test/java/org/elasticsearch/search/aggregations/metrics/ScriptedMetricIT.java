@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
@@ -31,6 +32,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
@@ -204,7 +206,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         numDocs = randomIntBetween(10, 100);
         for (int i = 0; i < numDocs; i++) {
             builders.add(client().prepareIndex("idx", "type", "" + i).setSource(
-                    jsonBuilder().startObject().field("value", randomAsciiOfLengthBetween(5, 15))
+                    jsonBuilder().startObject().field("value", randomAlphaOfLengthBetween(5, 15))
                             .field("l_value", i).endObject()));
         }
         indexRandom(true, builders);
@@ -228,24 +230,24 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         // the id of the stored script is used in test method while the source of the stored script
         // must match a predefined script from CustomScriptPlugin.pluginScripts() method
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("initScript_stored")
-                .setSource(new BytesArray("{\"script\":\"vars.multiplier = 3\"}")));
+                .setContent(new BytesArray("{\"script\":\"vars.multiplier = 3\"}"), XContentType.JSON));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("mapScript_stored")
-                .setSource(new BytesArray("{\"script\":\"_agg.add(vars.multiplier)\"}")));
+                .setContent(new BytesArray("{\"script\":\"_agg.add(vars.multiplier)\"}"), XContentType.JSON));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("combineScript_stored")
-                .setSource(new BytesArray("{\"script\":\"sum agg values as a new aggregation\"}")));
+                .setContent(new BytesArray("{\"script\":\"sum agg values as a new aggregation\"}"), XContentType.JSON));
 
         assertAcked(client().admin().cluster().preparePutStoredScript()
-                .setScriptLang(CustomScriptPlugin.NAME)
+                .setLang(CustomScriptPlugin.NAME)
                 .setId("reduceScript_stored")
-                .setSource(new BytesArray("{\"script\":\"sum aggs of agg values as a new aggregation\"}")));
+                .setContent(new BytesArray("{\"script\":\"sum aggs of agg values as a new aggregation\"}"), XContentType.JSON));
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -599,10 +601,9 @@ public class ScriptedMetricIT extends ESIntegTestCase {
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(Number.class));
         assertThat(((Number) object).longValue(), equalTo(numDocs * 3));
-        assertThat((ScriptedMetric) global.getProperty("scripted"), sameInstance(scriptedMetricAggregation));
-        assertThat((List) global.getProperty("scripted.value"), sameInstance((List) aggregationList));
-        assertThat((List) scriptedMetricAggregation.getProperty("value"), sameInstance((List) aggregationList));
-
+        assertThat(((InternalAggregation)global).getProperty("scripted"), sameInstance(scriptedMetricAggregation));
+        assertThat((List) ((InternalAggregation)global).getProperty("scripted.value"), sameInstance((List) aggregationList));
+        assertThat((List) ((InternalAggregation)scriptedMetricAggregation).getProperty("value"), sameInstance((List) aggregationList));
     }
 
     public void testMapCombineReduceWithParams() {
@@ -795,44 +796,6 @@ public class ScriptedMetricIT extends ESIntegTestCase {
                                     new Script(ScriptType.STORED, CustomScriptPlugin.NAME, "combineScript_stored", Collections.emptyMap()))
                                 .reduceScript(
                                     new Script(ScriptType.STORED, CustomScriptPlugin.NAME, "reduceScript_stored", Collections.emptyMap())))
-                .get();
-        assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits(), equalTo(numDocs));
-
-        Aggregation aggregation = response.getAggregations().get("scripted");
-        assertThat(aggregation, notNullValue());
-        assertThat(aggregation, instanceOf(ScriptedMetric.class));
-        ScriptedMetric scriptedMetricAggregation = (ScriptedMetric) aggregation;
-        assertThat(scriptedMetricAggregation.getName(), equalTo("scripted"));
-        assertThat(scriptedMetricAggregation.aggregation(), notNullValue());
-        assertThat(scriptedMetricAggregation.aggregation(), instanceOf(ArrayList.class));
-        List<?> aggregationList = (List<?>) scriptedMetricAggregation.aggregation();
-        assertThat(aggregationList.size(), equalTo(1));
-        Object object = aggregationList.get(0);
-        assertThat(object, notNullValue());
-        assertThat(object, instanceOf(Number.class));
-        assertThat(((Number) object).longValue(), equalTo(numDocs * 3));
-    }
-
-    public void testInitMapCombineReduceWithParamsFile() {
-        Map<String, Object> varsMap = new HashMap<>();
-        varsMap.put("multiplier", 1);
-        Map<String, Object> params = new HashMap<>();
-        params.put("_agg", new ArrayList<>());
-        params.put("vars", varsMap);
-
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        scriptedMetric("scripted")
-                                .params(params)
-                                .initScript(new Script(ScriptType.FILE, CustomScriptPlugin.NAME, "init_script", Collections.emptyMap()))
-                                .mapScript(new Script(ScriptType.FILE, CustomScriptPlugin.NAME, "map_script", Collections.emptyMap()))
-                                .combineScript(
-                                    new Script(ScriptType.FILE, CustomScriptPlugin.NAME, "combine_script", Collections.emptyMap()))
-                                .reduceScript(
-                                    new Script(ScriptType.FILE, CustomScriptPlugin.NAME, "reduce_script", Collections.emptyMap())))
                 .get();
         assertSearchResponse(response);
         assertThat(response.getHits().getTotalHits(), equalTo(numDocs));

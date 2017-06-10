@@ -21,6 +21,7 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +38,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 /**
  * Tests failure capturing and abort-on-failure behavior of reindex.
  */
+@TestLogging("_root:DEBUG")
 public class ReindexFailureTests extends ReindexTestCase {
     public void testFailuresCauseAbortDefault() throws Exception {
         /*
@@ -56,7 +58,7 @@ public class ReindexFailureTests extends ReindexTestCase {
          */
         copy.source().setSize(1);
 
-        BulkIndexByScrollResponse response = copy.get();
+        BulkByScrollResponse response = copy.get();
         assertThat(response, matcher()
                 .batches(1)
                 .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
@@ -76,7 +78,7 @@ public class ReindexFailureTests extends ReindexTestCase {
         // CREATE will cause the conflict to prevent the write.
         copy.destination().setOpType(CREATE);
 
-        BulkIndexByScrollResponse response = copy.get();
+        BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().batches(1).versionConflicts(1).failures(1).created(99));
         for (Failure failure: response.getBulkFailures()) {
             assertThat(failure.getMessage(), containsString("VersionConflictEngineException[[test]["));
@@ -98,7 +100,7 @@ public class ReindexFailureTests extends ReindexTestCase {
             indexDocs(100);
             ReindexRequestBuilder copy = reindex().source("source").destination("dest");
             copy.source().setSize(10);
-            Future<BulkIndexByScrollResponse> response = copy.execute();
+            Future<BulkByScrollResponse> response = copy.execute();
             client().admin().indices().prepareDelete("source").get();
 
             try {
@@ -106,7 +108,7 @@ public class ReindexFailureTests extends ReindexTestCase {
                 logger.info("Didn't trigger a reindex failure on the {} attempt", attempt);
                 attempt++;
             } catch (ExecutionException e) {
-                logger.info("Triggered a reindex failure on the {} attempt", attempt);
+                logger.info("Triggered a reindex failure on the {} attempt: {}", attempt, e.getMessage());
                 assertThat(e.getMessage(),
                         either(containsString("all shards failed"))
                         .or(containsString("No search context found"))

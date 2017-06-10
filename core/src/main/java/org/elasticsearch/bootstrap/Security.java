@@ -20,7 +20,6 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.SecureSM;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
@@ -45,11 +44,11 @@ import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.URIParameter;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -84,12 +83,6 @@ import java.util.Map;
  * behalf (no package protections are yet in place, this would need some
  * cleanups to the scripting apis). But still it can provide some defense for users
  * that enable dynamic scripting without being fully aware of the consequences.
- * <br>
- * <h1>Disabling Security</h1>
- * SecurityManager can be disabled completely with this setting:
- * <pre>
- * es.security.manager.enabled = false
- * </pre>
  * <br>
  * <h1>Debugging Security</h1>
  * A good place to start when there is a problem is to turn on security debugging:
@@ -133,19 +126,23 @@ final class Security {
     @SuppressForbidden(reason = "proper use of URL")
     static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
         Map<String,Policy> map = new HashMap<>();
-        // collect up lists of plugins and modules
-        List<Path> pluginsAndModules = new ArrayList<>();
+        // collect up set of plugins and modules by listing directories.
+        Set<Path> pluginsAndModules = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
-                    pluginsAndModules.add(plugin);
+                    if (pluginsAndModules.add(plugin) == false) {
+                        throw new IllegalStateException("duplicate plugin: " + plugin);
+                    }
                 }
             }
         }
         if (Files.exists(environment.modulesFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.modulesFile())) {
-                for (Path plugin : stream) {
-                    pluginsAndModules.add(plugin);
+                for (Path module : stream) {
+                    if (pluginsAndModules.add(module) == false) {
+                        throw new IllegalStateException("duplicate module: " + module);
+                    }
                 }
             }
         }
@@ -155,15 +152,18 @@ final class Security {
             if (Files.exists(policyFile)) {
                 // first get a list of URLs for the plugins' jars:
                 // we resolve symlinks so map is keyed on the normalize codebase name
-                List<URL> codebases = new ArrayList<>();
+                Set<URL> codebases = new LinkedHashSet<>(); // order is already lost, but some filesystems have it
                 try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
                     for (Path jar : jarStream) {
-                        codebases.add(jar.toRealPath().toUri().toURL());
+                        URL url = jar.toRealPath().toUri().toURL();
+                        if (codebases.add(url) == false) {
+                            throw new IllegalStateException("duplicate module/plugin: " + url);
+                        }
                     }
                 }
 
                 // parse the plugin's policy file into a set of permissions
-                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases.toArray(new URL[codebases.size()]));
+                Policy policy = readPolicy(policyFile.toUri().toURL(), codebases);
 
                 // consult this policy for each of the plugin's jars:
                 for (URL url : codebases) {
@@ -181,24 +181,33 @@ final class Security {
     /**
      * Reads and returns the specified {@code policyFile}.
      * <p>
-     * Resources (e.g. jar files and directories) listed in {@code codebases} location
-     * will be provided to the policy file via a system property of the short name:
-     * e.g. <code>${codebase.joda-convert-1.2.jar}</code> would map to full URL.
+     * Jar files listed in {@code codebases} location will be provided to the policy file via
+     * a system property of the short name: e.g. <code>${codebase.joda-convert-1.2.jar}</code>
+     * would map to full URL.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Policy readPolicy(URL policyFile, URL codebases[]) {
+    static Policy readPolicy(URL policyFile, Set<URL> codebases) {
         try {
             try {
                 // set codebase properties
                 for (URL url : codebases) {
                     String shortName = PathUtils.get(url.toURI()).getFileName().toString();
-                    System.setProperty("codebase." + shortName, url.toString());
+                    if (shortName.endsWith(".jar") == false) {
+                        continue; // tests :(
+                    }
+                    String previous = System.setProperty("codebase." + shortName, url.toString());
+                    if (previous != null) {
+                        throw new IllegalStateException("codebase property already set: " + shortName + "->" + previous);
+                    }
                 }
                 return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
             } finally {
                 // clear codebase properties
                 for (URL url : codebases) {
                     String shortName = PathUtils.get(url.toURI()).getFileName().toString();
+                    if (shortName.endsWith(".jar") == false) {
+                        continue; // tests :(
+                    }
                     System.clearProperty("codebase." + shortName);
                 }
             }
@@ -247,7 +256,6 @@ final class Security {
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
         addPath(policy, Environment.PATH_CONF_SETTING.getKey(), environment.configFile(), "read,readlink");
-        addPath(policy, Environment.PATH_SCRIPTS_SETTING.getKey(), environment.scriptsFile(), "read,readlink");
         // read-write dirs
         addPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
         addPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete");
@@ -257,6 +265,26 @@ final class Security {
         for (Path path : environment.dataFiles()) {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
         }
+        /*
+         * If path.data and default.path.data are set, we need read access to the paths in default.path.data to check for the existence of
+         * index directories there that could have arisen from a bug in the handling of simultaneous configuration of path.data and
+         * default.path.data that was introduced in Elasticsearch 5.3.0.
+         *
+         * If path.data is not set then default.path.data would take precedence in setting the data paths for the environment and
+         * permissions would have been granted above.
+         *
+         * If path.data is not set and default.path.data is not set, then we would fallback to the default data directory under
+         * Elasticsearch home and again permissions would have been granted above.
+         *
+         * If path.data is set and default.path.data is not set, there is nothing to do here.
+         */
+        if (Environment.PATH_DATA_SETTING.exists(environment.settings())
+                && Environment.DEFAULT_PATH_DATA_SETTING.exists(environment.settings())) {
+            for (final String path : Environment.DEFAULT_PATH_DATA_SETTING.get(environment.settings())) {
+                // write permissions are not needed here, we are not going to be writing to any paths here
+                addPath(policy, Environment.DEFAULT_PATH_DATA_SETTING.getKey(), getPath(path), "read,readlink");
+            }
+        }
         for (Path path : environment.repoFiles()) {
             addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
         }
@@ -264,6 +292,11 @@ final class Security {
             // we just need permission to remove the file if its elsewhere.
             policy.add(new FilePermission(environment.pidFile().toString(), "delete"));
         }
+    }
+
+    @SuppressForbidden(reason = "read path that is not configured in environment")
+    private static Path getPath(final String path) {
+        return PathUtils.get(path);
     }
 
     /**
@@ -282,7 +315,7 @@ final class Security {
      * Add dynamic {@link SocketPermission} based on HTTP settings.
      *
      * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
-     * @param settings the {@link Settings} instance to read the HTTP settingsfrom
+     * @param settings the {@link Settings} instance to read the HTTP settings from
      */
     private static void addSocketPermissionForHttp(final Permissions policy, final Settings settings) {
         // http is simple
@@ -363,7 +396,7 @@ final class Security {
      * @param policy current policy to add permissions to
      * @param configurationName the configuration name associated with the path (for error messages only)
      * @param path the path itself
-     * @param permissions set of filepermissions to grant to the path
+     * @param permissions set of file permissions to grant to the path
      */
     static void addPath(Permissions policy, String configurationName, Path path, String permissions) {
         // paths may not exist yet, this also checks accessibility
@@ -383,7 +416,7 @@ final class Security {
      * @param policy current policy to add permissions to
      * @param configurationName the configuration name associated with the path (for error messages only)
      * @param path the path itself
-     * @param permissions set of filepermissions to grant to the path
+     * @param permissions set of file permissions to grant to the path
      */
     static void addPathIfExists(Permissions policy, String configurationName, Path path, String permissions) {
         if (Files.isDirectory(path)) {

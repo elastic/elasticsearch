@@ -31,7 +31,8 @@ public class IndicesOptionsTests extends ESTestCase {
     public void testSerialization() throws Exception {
         int iterations = randomIntBetween(5, 20);
         for (int i = 0; i < iterations; i++) {
-            IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+            IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+                randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
 
             BytesStreamOutput output = new BytesStreamOutput();
             Version outputVersion = randomVersion(random());
@@ -49,6 +50,12 @@ public class IndicesOptionsTests extends ESTestCase {
 
             assertThat(indicesOptions2.forbidClosedIndices(), equalTo(indicesOptions.forbidClosedIndices()));
             assertThat(indicesOptions2.allowAliasesToMultipleIndices(), equalTo(indicesOptions.allowAliasesToMultipleIndices()));
+
+            if (output.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
+                assertEquals(indicesOptions2.ignoreAliases(), indicesOptions.ignoreAliases());
+            } else {
+                assertFalse(indicesOptions2.ignoreAliases());
+            }
         }
     }
 
@@ -61,9 +68,11 @@ public class IndicesOptionsTests extends ESTestCase {
             boolean expandToClosedIndices = randomBoolean();
             boolean allowAliasesToMultipleIndices = randomBoolean();
             boolean forbidClosedIndices = randomBoolean();
+            boolean ignoreAliases = randomBoolean();
+
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(
                     ignoreUnavailable, allowNoIndices,expandToOpenIndices, expandToClosedIndices,
-                    allowAliasesToMultipleIndices, forbidClosedIndices
+                    allowAliasesToMultipleIndices, forbidClosedIndices, ignoreAliases
             );
 
             assertThat(indicesOptions.ignoreUnavailable(), equalTo(ignoreUnavailable));
@@ -73,6 +82,7 @@ public class IndicesOptionsTests extends ESTestCase {
             assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
             assertThat(indicesOptions.allowAliasesToMultipleIndices(), equalTo(allowAliasesToMultipleIndices));
             assertThat(indicesOptions.forbidClosedIndices(), equalTo(forbidClosedIndices));
+            assertEquals(ignoreAliases, indicesOptions.ignoreAliases());
         }
     }
 }

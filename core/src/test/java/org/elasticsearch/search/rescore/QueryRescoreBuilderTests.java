@@ -23,7 +23,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
@@ -119,7 +118,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
 
 
             XContentParser parser = createParser(shuffled);
-            QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
+            QueryParseContext context = new QueryParseContext(parser);
             parser.nextToken();
             RescoreBuilder<?> secondRescoreBuilder = RescoreBuilder.parseFromXContent(context);
             assertNotSame(rescoreBuilder, secondRescoreBuilder);
@@ -136,7 +135,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         final long nowInMillis = randomNonNegativeLong();
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
                 null, null, () -> nowInMillis) {
@@ -252,7 +251,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      */
     private QueryParseContext createContext(String rescoreElement) throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, rescoreElement);
-        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser);
         // move to first token, this is where the internal fromXContent
         assertTrue(parser.nextToken() == XContentParser.Token.START_OBJECT);
         return context;
@@ -304,7 +303,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      */
     public static QueryRescorerBuilder randomRescoreBuilder() {
         QueryBuilder queryBuilder = new MatchAllQueryBuilder().boost(randomFloat())
-                .queryName(randomAsciiOfLength(20));
+                .queryName(randomAlphaOfLength(20));
         org.elasticsearch.search.rescore.QueryRescorerBuilder rescorer = new
                 org.elasticsearch.search.rescore.QueryRescorerBuilder(queryBuilder);
         if (randomBoolean()) {

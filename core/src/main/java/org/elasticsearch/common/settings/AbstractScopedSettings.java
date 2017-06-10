@@ -35,8 +35,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -57,7 +55,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     private final Setting.Property scope;
     private static final Pattern KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])*[-\\w]+$");
     private static final Pattern GROUP_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+$");
-    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+(?:[*][.])+[-\\w]+$");
+    private static final Pattern AFFIX_KEY_PATTERN = Pattern.compile("^(?:[-\\w]+[.])+[*](?:[.][-\\w]+)+$");
 
     protected AbstractScopedSettings(Settings settings, Set<Setting<?>> settingsSet, Setting.Property scope) {
         super(settings);
@@ -113,7 +111,8 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         return GROUP_KEY_PATTERN.matcher(key).matches();
     }
 
-    private static boolean isValidAffixKey(String key) {
+    // pkg private for tests
+    static boolean isValidAffixKey(String key) {
         return AFFIX_KEY_PATTERN.matcher(key).matches();
     }
 
@@ -195,6 +194,19 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
     }
 
+    /**
+     * Adds a settings consumer for affix settings. Affix settings have a namespace associated to it that needs to be available to the
+     * consumer in order to be processed correctly.
+     */
+    public synchronized <T> void addAffixUpdateConsumer(Setting.AffixSetting<T> setting,  BiConsumer<String, T> consumer,
+                                                        BiConsumer<String, T> validator) {
+        final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
+        if (setting != registeredSetting) {
+            throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
+        }
+        addSettingsUpdater(setting.newAffixUpdater(consumer, logger, validator));
+    }
+
     synchronized void addSettingsUpdater(SettingUpdater<?> updater) {
         this.settingUpdaters.add(updater);
     }
@@ -239,7 +251,7 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public final void validate(Settings settings) {
         List<RuntimeException> exceptions = new ArrayList<>();
-        for (String key : settings.getAsMap().keySet()) { // settings iterate in deterministic fashion
+        for (String key : settings.keySet()) { // settings iterate in deterministic fashion
             try {
                 validate(key, settings);
             } catch (RuntimeException ex) {
@@ -265,7 +277,12 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 }
             }
             CollectionUtil.timSort(scoredKeys, (a,b) -> b.v1().compareTo(a.v1()));
-            String msg = "unknown setting [" + key + "]";
+            String msgPrefix = "unknown setting";
+            SecureSettings secureSettings = settings.getSecureSettings();
+            if (secureSettings != null && settings.getSecureSettings().getSettingNames().contains(key)) {
+                msgPrefix = "unknown secure setting";
+            }
+            String msg = msgPrefix + " [" + key + "]";
             List<String> keys = scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
             if (keys.isEmpty() == false) {
                 msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]": "any of " + keys.toString()) + "?";
@@ -363,9 +380,17 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
     /**
      * Returns <code>true</code> if the setting for the given key is dynamically updateable. Otherwise <code>false</code>.
      */
-    public boolean hasDynamicSetting(String key) {
+    public boolean isDynamicSetting(String key) {
         final Setting<?> setting = get(key);
         return setting != null && setting.isDynamic();
+    }
+
+    /**
+     * Returns <code>true</code> if the setting for the given key is final. Otherwise <code>false</code>.
+     */
+    public boolean isFinalSetting(String key) {
+        final Setting<?> setting = get(key);
+        return setting != null && setting.isFinal();
     }
 
     /**
@@ -446,11 +471,14 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         boolean changed = false;
         final Set<String> toRemove = new HashSet<>();
         Settings.Builder settingsBuilder = Settings.builder();
-        final Predicate<String> canUpdate = (key) -> (onlyDynamic == false && get(key) != null) || hasDynamicSetting(key);
-        final Predicate<String> canRemove = (key) ->( // we can delete if
-            onlyDynamic && hasDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
-            || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
-            || (onlyDynamic == false && get(key) != null)); // if it's not dynamic AND we have a key
+        final Predicate<String> canUpdate = (key) -> (
+            isFinalSetting(key) == false && // it's not a final setting
+                ((onlyDynamic == false && get(key) != null) || isDynamicSetting(key)));
+        final Predicate<String> canRemove = (key) ->(// we can delete if
+            isFinalSetting(key) == false && // it's not a final setting
+                (onlyDynamic && isDynamicSetting(key)  // it's a dynamicSetting and we only do dynamic settings
+                || get(key) == null && key.startsWith(ARCHIVED_SETTINGS_PREFIX) // the setting is not registered AND it's been archived
+                || (onlyDynamic == false && get(key) != null))); // if it's not dynamic AND we have a key
         for (Map.Entry<String, String> entry : toApply.getAsMap().entrySet()) {
             if (entry.getValue() == null && (canRemove.test(entry.getKey()) || entry.getKey().endsWith("*"))) {
                 // this either accepts null values that suffice the canUpdate test OR wildcard expressions (key ends with *)
@@ -463,7 +491,11 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
                 updates.put(entry.getKey(), entry.getValue());
                 changed = true;
             } else {
-                throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
+                if (isFinalSetting(entry.getKey())) {
+                    throw new IllegalArgumentException("final " + type + " setting [" + entry.getKey() + "], not updateable");
+                } else {
+                    throw new IllegalArgumentException(type + " setting [" + entry.getKey() + "], not dynamically updateable");
+                }
             }
         }
         changed |= applyDeletes(toRemove, target, canRemove);

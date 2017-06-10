@@ -20,12 +20,10 @@
 package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene50.Lucene50Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
-import org.apache.lucene.codecs.lucene53.Lucene53Codec;
-import org.apache.lucene.codecs.lucene54.Lucene54Codec;
 import org.apache.lucene.codecs.lucene62.Lucene62Codec;
+import org.apache.lucene.codecs.lucene70.Lucene70Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -55,10 +53,8 @@ public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Lucene62Codec.class));
-        assertThat(codecService.codec("Lucene54"), instanceOf(Lucene54Codec.class));
-        assertThat(codecService.codec("Lucene53"), instanceOf(Lucene53Codec.class));
-        assertThat(codecService.codec("Lucene50"), instanceOf(Lucene50Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Lucene70Codec.class));
+        assertThat(codecService.codec("Lucene62"), instanceOf(Lucene62Codec.class));
     }
 
     public void testDefault() throws Exception {

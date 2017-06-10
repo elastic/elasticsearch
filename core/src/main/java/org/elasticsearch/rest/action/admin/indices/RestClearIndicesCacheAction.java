@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -44,8 +43,6 @@ import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestClearIndicesCacheAction extends BaseRestHandler {
-
-    @Inject
     public RestClearIndicesCacheAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/_cache/clear", this);
@@ -53,6 +50,11 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
 
         controller.registerHandler(GET, "/_cache/clear", this);
         controller.registerHandler(GET, "/{index}/_cache/clear", this);
+    }
+
+    @Override
+    public String getName() {
+        return "clear_indices_cache_action";
     }
 
     @Override
@@ -84,7 +86,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
             if (Fields.QUERY.match(entry.getKey())) {
                 clearIndicesCacheRequest.queryCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.queryCache()));
             }
-            if (Fields.REQUEST_CACHE.match(entry.getKey())) {
+            if (Fields.REQUEST.match(entry.getKey())) {
                 clearIndicesCacheRequest.requestCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.requestCache()));
             }
             if (Fields.FIELD_DATA.match(entry.getKey())) {
@@ -103,7 +105,7 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
 
     public static class Fields {
         public static final ParseField QUERY = new ParseField("query", "filter", "filter_cache");
-        public static final ParseField REQUEST_CACHE = new ParseField("request_cache");
+        public static final ParseField REQUEST = new ParseField("request", "request_cache");
         public static final ParseField FIELD_DATA = new ParseField("field_data", "fielddata");
         public static final ParseField RECYCLER = new ParseField("recycler");
         public static final ParseField FIELDS = new ParseField("fields");

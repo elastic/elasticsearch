@@ -21,7 +21,6 @@ package org.elasticsearch.indices.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.LetterTokenizer;
-import org.apache.lucene.analysis.core.LowerCaseTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
@@ -33,30 +32,29 @@ import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.index.analysis.CustomNormalizerProvider;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
-import java.util.Locale;
-
 public enum PreBuiltTokenizers {
 
-    STANDARD(CachingStrategy.LUCENE) {
+    STANDARD(CachingStrategy.ONE) {
         @Override
         protected Tokenizer create(Version version) {
             return new StandardTokenizer();
         }
     },
 
-    CLASSIC(CachingStrategy.LUCENE) {
+    CLASSIC(CachingStrategy.ONE) {
         @Override
         protected Tokenizer create(Version version) {
             return new ClassicTokenizer();
         }
     },
 
-    UAX_URL_EMAIL(CachingStrategy.LUCENE) {
+    UAX_URL_EMAIL(CachingStrategy.ONE) {
         @Override
         protected Tokenizer create(Version version) {
             return new UAX29URLEmailTokenizer();
@@ -77,39 +75,28 @@ public enum PreBuiltTokenizers {
         }
     },
 
-    LETTER(CachingStrategy.LUCENE) {
+    LETTER(CachingStrategy.ONE) {
         @Override
         protected Tokenizer create(Version version) {
             return new LetterTokenizer();
         }
     },
 
-    LOWERCASE(CachingStrategy.LUCENE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new LowerCaseTokenizer();
-        }
-        @Override
-        protected TokenFilterFactory getMultiTermComponent(Version version) {
-            return PreBuiltTokenFilters.LOWERCASE.getTokenFilterFactory(version);
-        }
-    },
-
-    WHITESPACE(CachingStrategy.LUCENE) {
+    WHITESPACE(CachingStrategy.ONE) {
         @Override
         protected Tokenizer create(Version version) {
             return new WhitespaceTokenizer();
         }
     },
 
-    NGRAM(CachingStrategy.LUCENE) {
+    NGRAM(CachingStrategy.ONE) {
         @Override
         protected Tokenizer create(Version version) {
             return new NGramTokenizer();
         }
     },
 
-    EDGE_NGRAM(CachingStrategy.LUCENE) {
+    EDGE_NGRAM(CachingStrategy.ONE) {
         @Override
         protected Tokenizer create(Version version) {
             return new EdgeNGramTokenizer(EdgeNGramTokenizer.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenizer.DEFAULT_MAX_GRAM_SIZE);
@@ -139,64 +126,49 @@ public enum PreBuiltTokenizers {
     }
 
     protected final PreBuiltCacheFactory.PreBuiltCache<TokenizerFactory> cache;
-
+    private final CachingStrategy cachingStrategy;
 
     PreBuiltTokenizers(CachingStrategy cachingStrategy) {
+        this.cachingStrategy = cachingStrategy;
         cache = PreBuiltCacheFactory.getCache(cachingStrategy);
+    }
+
+    public CachingStrategy getCachingStrategy() {
+        return cachingStrategy;
     }
 
     private interface MultiTermAwareTokenizerFactory extends TokenizerFactory, MultiTermAwareComponent {}
 
-    public synchronized TokenizerFactory getTokenizerFactory(final Version version) {
-        TokenizerFactory tokenizerFactory = cache.get(version);
-        if (tokenizerFactory == null) {
-            final String finalName = name().toLowerCase(Locale.ROOT);
-            if (getMultiTermComponent(version) != null) {
-                tokenizerFactory = new MultiTermAwareTokenizerFactory() {
-                    @Override
-                    public String name() {
-                        return finalName;
-                    }
-
-                    @Override
-                    public Tokenizer create() {
-                        return PreBuiltTokenizers.this.create(version);
-                    }
-
-                    @Override
-                    public Object getMultiTermComponent() {
-                        return PreBuiltTokenizers.this.getMultiTermComponent(version);
-                    }
-                };
-            } else {
-                tokenizerFactory = new TokenizerFactory() {
-                    @Override
-                    public String name() {
-                        return finalName;
-                    }
-
-                    @Override
-                    public Tokenizer create() {
-                        return PreBuiltTokenizers.this.create(version);
-                    }
-                };
-            }
-            cache.put(version, tokenizerFactory);
-        }
-
-        return tokenizerFactory;
-    }
-
     /**
-     * Get a pre built Tokenizer by its name or fallback to the default one
-     * @param name Tokenizer name
-     * @param defaultTokenizer default Tokenizer if name not found
+     * Old style resolution for {@link TokenizerFactory}. Exists entirely to keep
+     * {@link CustomNormalizerProvider#build(java.util.Map, java.util.Map)} working during the migration.
      */
-    public static PreBuiltTokenizers getOrDefault(String name, PreBuiltTokenizers defaultTokenizer) {
-        try {
-            return valueOf(name.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException e) {
-            return defaultTokenizer;
+    public synchronized TokenizerFactory getTokenizerFactory(final Version version) {
+            TokenizerFactory tokenizerFactory = cache.get(version);
+            if (tokenizerFactory == null) {
+                if (getMultiTermComponent(version) != null) {
+                    tokenizerFactory = new MultiTermAwareTokenizerFactory() {
+                        @Override
+                        public Tokenizer create() {
+                            return PreBuiltTokenizers.this.create(version);
+                        }
+    
+                        @Override
+                        public Object getMultiTermComponent() {
+                            return PreBuiltTokenizers.this.getMultiTermComponent(version);
+                        }
+                    };
+                } else {
+                    tokenizerFactory = new TokenizerFactory() {
+                        @Override
+                        public Tokenizer create() {
+                            return PreBuiltTokenizers.this.create(version);
+                        }
+                    };
+                }
+                cache.put(version, tokenizerFactory);
+            }
+    
+            return tokenizerFactory;
         }
-    }
 }

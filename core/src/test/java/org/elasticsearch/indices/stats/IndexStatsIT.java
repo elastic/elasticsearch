@@ -40,6 +40,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
@@ -382,7 +383,8 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testSimpleStats() throws Exception {
-        createIndex("test1", "test2");
+        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
+        createIndex("test2");
         ensureGreen();
 
         client().prepareIndex("test1", "type1", Integer.toString(1)).setSource("field", "value").execute().actionGet();
@@ -511,7 +513,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testMergeStats() {
-        createIndex("test1");
+        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
 
         ensureGreen();
 
@@ -547,7 +549,8 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testSegmentsStats() {
-        assertAcked(prepareCreate("test1", 2, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
+        assertAcked(prepareCreate("test1")
+                .setSettings(SETTING_NUMBER_OF_REPLICAS, between(0, 1), "index.mapping.single_type", false));
         ensureGreen();
 
         NumShards test1 = getNumShards("test1");
@@ -572,7 +575,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testAllFlags() throws Exception {
         // rely on 1 replica for this tests
-        createIndex("test1");
+        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
         createIndex("test2");
 
         ensureGreen();
@@ -694,7 +697,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testMultiIndex() throws Exception {
-        createIndex("test1");
+        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
         createIndex("test2");
 
         ensureGreen();
@@ -734,13 +737,14 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testFieldDataFieldsParam() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test1")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping("type", "bar", "type=text,fielddata=true",
                         "baz", "type=text,fielddata=true").get());
 
         ensureGreen();
 
-        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
-        client().prepareIndex("test1", "baz", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
+        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", XContentType.JSON).get();
+        client().prepareIndex("test1", "baz", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", XContentType.JSON).get();
         refresh();
 
         client().prepareSearch("_all").addSort("bar", SortOrder.ASC).addSort("baz", SortOrder.ASC).execute().actionGet();
@@ -781,13 +785,14 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testCompletionFieldsParam() throws Exception {
         assertAcked(prepareCreate("test1")
+                .setSettings("index.mapping.single_type", false)
                 .addMapping(
                         "bar",
-                        "{ \"properties\": { \"bar\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}},\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}"));
+                        "{ \"properties\": { \"bar\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}},\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}", XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
-        client().prepareIndex("test1", "baz", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
+        client().prepareIndex("test1", "bar", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", XContentType.JSON).get();
+        client().prepareIndex("test1", "baz", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}", XContentType.JSON).get();
         refresh();
 
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
@@ -1125,7 +1130,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                     final IndexResponse response =
                         client()
                             .prepareIndex("test", "type", id)
-                            .setSource("{}")
+                            .setSource("{}", XContentType.JSON)
                             .get();
                     assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
                 }

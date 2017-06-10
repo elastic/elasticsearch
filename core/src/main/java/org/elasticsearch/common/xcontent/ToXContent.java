@@ -26,6 +26,8 @@ import java.util.Map;
 
 /**
  * An interface allowing to transfer an object to "XContent" using an {@link XContentBuilder}.
+ * The output may or may not be a value object. Objects implementing {@link ToXContentObject} output a valid value
+ * but those that don't may or may not require emitting a startObject and an endObject.
  */
 public interface ToXContent {
 
@@ -126,4 +128,8 @@ public interface ToXContent {
     }
 
     XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
+
+    default boolean isFragment() {
+        return true;
+    }
 }

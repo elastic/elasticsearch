@@ -21,24 +21,27 @@ package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.lucene.index.RandomAccessOrds;
+
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
+import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
+import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
 public class MissingValuesTests extends ESTestCase {
 
-    public void testMissingBytes() {
+    public void testMissingBytes() throws IOException {
         final int numDocs = TestUtil.nextInt(random(), 1, 100);
         final BytesRef[][] values = new BytesRef[numDocs][];
         for (int i = 0; i < numDocs; ++i) {
@@ -50,40 +53,43 @@ public class MissingValuesTests extends ESTestCase {
         }
         SortedBinaryDocValues asBinaryValues = new SortedBinaryDocValues() {
 
-            int i = -1;
+            int doc = -1;
+            int i;
 
             @Override
-            public BytesRef valueAt(int index) {
-                return values[i][index];
+            public BytesRef nextValue() {
+                return values[doc][i++];
             }
 
             @Override
-            public void setDocument(int docId) {
-                i = docId;
+            public boolean advanceExact(int docId) {
+                doc = docId;
+                i = 0;
+                return values[doc].length > 0;
             }
 
             @Override
-            public int count() {
-                return values[i].length;
+            public int docValueCount() {
+                return values[doc].length;
             }
         };
         final BytesRef missing = new BytesRef(RandomStrings.randomAsciiOfLength(random(), 2));
         SortedBinaryDocValues withMissingReplaced = MissingValues.replaceMissing(asBinaryValues, missing);
         for (int i = 0; i < numDocs; ++i) {
-            withMissingReplaced.setDocument(i);
+            assertTrue(withMissingReplaced.advanceExact(i));
             if (values[i].length > 0) {
-                assertEquals(values[i].length, withMissingReplaced.count());
+                assertEquals(values[i].length, withMissingReplaced.docValueCount());
                 for (int j = 0; j < values[i].length; ++j) {
-                    assertEquals(values[i][j], withMissingReplaced.valueAt(j));
+                    assertEquals(values[i][j], withMissingReplaced.nextValue());
                 }
             } else {
-                assertEquals(1, withMissingReplaced.count());
-                assertEquals(missing, withMissingReplaced.valueAt(0));
+                assertEquals(1, withMissingReplaced.docValueCount());
+                assertEquals(missing, withMissingReplaced.nextValue());
             }
         }
     }
 
-    public void testMissingOrds() {
+    public void testMissingOrds() throws IOException {
         final int numDocs = TestUtil.nextInt(random(), 1, 100);
         final int numOrds = TestUtil.nextInt(random(), 1, 10);
 
@@ -105,13 +111,16 @@ public class MissingValuesTests extends ESTestCase {
                 ords[i][j] = TestUtil.nextInt(random(), ords[i][j], maxOrd - 1);
             }
         }
-        RandomAccessOrds asRandomAccessOrds = new AbstractRandomAccessOrds() {
+        SortedSetDocValues asRandomAccessOrds = new AbstractSortedSetDocValues() {
 
-            int i = -1;
+            int doc = -1;
+            int i;
 
             @Override
-            public void doSetDocument(int docID) {
-                i = docID;
+            public boolean advanceExact(int docID) {
+                doc = docID;
+                i = 0;
+                return ords[doc].length > 0;
             }
 
             @Override
@@ -125,13 +134,12 @@ public class MissingValuesTests extends ESTestCase {
             }
 
             @Override
-            public long ordAt(int index) {
-                return ords[i][index];
-            }
-
-            @Override
-            public int cardinality() {
-                return ords[i].length;
+            public long nextOrd() {
+                if (i < ords[doc].length) {
+                    return ords[doc][i++];
+                } else {
+                    return NO_MORE_ORDS;
+                }
             }
         };
 
@@ -139,28 +147,29 @@ public class MissingValuesTests extends ESTestCase {
         final BytesRef missingMissing = new BytesRef(RandomStrings.randomAsciiOfLength(random(), 5));
 
         for (BytesRef missing : Arrays.asList(existingMissing, missingMissing)) {
-            RandomAccessOrds withMissingReplaced = MissingValues.replaceMissing(asRandomAccessOrds, missing);
+            SortedSetDocValues withMissingReplaced = MissingValues.replaceMissing(asRandomAccessOrds, missing);
             if (valueSet.contains(missing)) {
                 assertEquals(values.length, withMissingReplaced.getValueCount());
             } else {
                 assertEquals(values.length + 1, withMissingReplaced.getValueCount());
             }
             for (int i = 0; i < numDocs; ++i) {
-                withMissingReplaced.setDocument(i);
+                assertTrue(withMissingReplaced.advanceExact(i));
                 if (ords[i].length > 0) {
-                    assertEquals(ords[i].length, withMissingReplaced.cardinality());
-                    for (int j = 0; j < ords[i].length; ++j) {
-                        assertEquals(values[ords[i][j]], withMissingReplaced.lookupOrd(withMissingReplaced.ordAt(j)));
+                    for (int ord : ords[i]) {
+                        assertEquals(values[ord],
+                                withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
                     }
+                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
                 } else {
-                    assertEquals(1, withMissingReplaced.cardinality());
-                    assertEquals(missing, withMissingReplaced.lookupOrd(withMissingReplaced.ordAt(0)));
+                    assertEquals(missing, withMissingReplaced.lookupOrd(withMissingReplaced.nextOrd()));
+                    assertEquals(SortedSetDocValues.NO_MORE_ORDS, withMissingReplaced.nextOrd());
                 }
             }
         }
     }
 
-    public void testMissingLongs() {
+    public void testMissingLongs() throws IOException {
         final int numDocs = TestUtil.nextInt(random(), 1, 100);
         final int[][] values = new int[numDocs][];
         for (int i = 0; i < numDocs; ++i) {
@@ -170,42 +179,45 @@ public class MissingValuesTests extends ESTestCase {
             }
             Arrays.sort(values[i]);
         }
-        SortedNumericDocValues asNumericValues = new SortedNumericDocValues() {
+        SortedNumericDocValues asNumericValues = new AbstractSortedNumericDocValues() {
 
-            int i = -1;
+            int doc = -1;
+            int i;
 
             @Override
-            public long valueAt(int index) {
-                return values[i][index];
+            public long nextValue() {
+                return values[doc][i++];
             }
 
             @Override
-            public void setDocument(int docId) {
-                i = docId;
+            public boolean advanceExact(int docId) {
+                doc = docId;
+                i = 0;
+                return values[doc].length > 0;
             }
 
             @Override
-            public int count() {
-                return values[i].length;
+            public int docValueCount() {
+                return values[doc].length;
             }
         };
         final long missing = randomInt();
         SortedNumericDocValues withMissingReplaced = MissingValues.replaceMissing(asNumericValues, missing);
         for (int i = 0; i < numDocs; ++i) {
-            withMissingReplaced.setDocument(i);
+            assertTrue(withMissingReplaced.advanceExact(i));
             if (values[i].length > 0) {
-                assertEquals(values[i].length, withMissingReplaced.count());
+                assertEquals(values[i].length, withMissingReplaced.docValueCount());
                 for (int j = 0; j < values[i].length; ++j) {
-                    assertEquals(values[i][j], withMissingReplaced.valueAt(j));
+                    assertEquals(values[i][j], withMissingReplaced.nextValue());
                 }
             } else {
-                assertEquals(1, withMissingReplaced.count());
-                assertEquals(missing, withMissingReplaced.valueAt(0));
+                assertEquals(1, withMissingReplaced.docValueCount());
+                assertEquals(missing, withMissingReplaced.nextValue());
             }
         }
     }
 
-    public void testMissingDoubles() {
+    public void testMissingDoubles() throws IOException {
         final int numDocs = TestUtil.nextInt(random(), 1, 100);
         final double[][] values = new double[numDocs][];
         for (int i = 0; i < numDocs; ++i) {
@@ -217,40 +229,43 @@ public class MissingValuesTests extends ESTestCase {
         }
         SortedNumericDoubleValues asNumericValues = new SortedNumericDoubleValues() {
 
-            int i = -1;
+            int doc = -1;
+            int i;
 
             @Override
-            public double valueAt(int index) {
-                return values[i][index];
+            public double nextValue() {
+                return values[doc][i++];
             }
 
             @Override
-            public void setDocument(int docId) {
-                i = docId;
+            public boolean advanceExact(int docId) {
+                doc = docId;
+                i = 0;
+                return true;
             }
 
             @Override
-            public int count() {
-                return values[i].length;
+            public int docValueCount() {
+                return values[doc].length;
             }
         };
         final long missing = randomInt();
         SortedNumericDoubleValues withMissingReplaced = MissingValues.replaceMissing(asNumericValues, missing);
         for (int i = 0; i < numDocs; ++i) {
-            withMissingReplaced.setDocument(i);
+            assertTrue(withMissingReplaced.advanceExact(i));
             if (values[i].length > 0) {
-                assertEquals(values[i].length, withMissingReplaced.count());
+                assertEquals(values[i].length, withMissingReplaced.docValueCount());
                 for (int j = 0; j < values[i].length; ++j) {
-                    assertEquals(values[i][j], withMissingReplaced.valueAt(j), 0);
+                    assertEquals(values[i][j], withMissingReplaced.nextValue(), 0);
                 }
             } else {
-                assertEquals(1, withMissingReplaced.count());
-                assertEquals(missing, withMissingReplaced.valueAt(0), 0);
+                assertEquals(1, withMissingReplaced.docValueCount());
+                assertEquals(missing, withMissingReplaced.nextValue(), 0);
             }
         }
     }
 
-    public void testMissingGeoPoints() {
+    public void testMissingGeoPoints() throws IOException {
         final int numDocs = TestUtil.nextInt(random(), 1, 100);
         final GeoPoint[][] values = new GeoPoint[numDocs][];
         for (int i = 0; i < numDocs; ++i) {
@@ -261,35 +276,38 @@ public class MissingValuesTests extends ESTestCase {
         }
         MultiGeoPointValues asGeoValues = new MultiGeoPointValues() {
 
-            int i = -1;
+            int doc = -1;
+            int i;
 
             @Override
-            public GeoPoint valueAt(int index) {
-                return values[i][index];
+            public GeoPoint nextValue() {
+                return values[doc][i++];
             }
 
             @Override
-            public void setDocument(int docId) {
-                i = docId;
+            public boolean advanceExact(int docId) {
+                doc = docId;
+                i = 0;
+                return values[doc].length > 0;
             }
 
             @Override
-            public int count() {
-                return values[i].length;
+            public int docValueCount() {
+                return values[doc].length;
             }
         };
         final GeoPoint missing = new GeoPoint(randomDouble() * 90, randomDouble() * 180);
         MultiGeoPointValues withMissingReplaced = MissingValues.replaceMissing(asGeoValues, missing);
         for (int i = 0; i < numDocs; ++i) {
-            withMissingReplaced.setDocument(i);
+            assertTrue(withMissingReplaced.advanceExact(i));
             if (values[i].length > 0) {
-                assertEquals(values[i].length, withMissingReplaced.count());
+                assertEquals(values[i].length, withMissingReplaced.docValueCount());
                 for (int j = 0; j < values[i].length; ++j) {
-                    assertEquals(values[i][j], withMissingReplaced.valueAt(j));
+                    assertEquals(values[i][j], withMissingReplaced.nextValue());
                 }
             } else {
-                assertEquals(1, withMissingReplaced.count());
-                assertEquals(missing, withMissingReplaced.valueAt(0));
+                assertEquals(1, withMissingReplaced.docValueCount());
+                assertEquals(missing, withMissingReplaced.nextValue());
             }
         }
     }

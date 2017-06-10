@@ -19,14 +19,11 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -41,8 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAllocationExplainRequest> {
 
-    private static ObjectParser<ClusterAllocationExplainRequest, ParseFieldMatcherSupplier> PARSER = new ObjectParser(
-            "cluster/allocation/explain");
+    private static ObjectParser<ClusterAllocationExplainRequest, Void> PARSER = new ObjectParser<>("cluster/allocation/explain");
     static {
         PARSER.declareString(ClusterAllocationExplainRequest::setIndex, new ParseField("index"));
         PARSER.declareInt(ClusterAllocationExplainRequest::setShard, new ParseField("shard"));
@@ -225,12 +221,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     }
 
     public static ClusterAllocationExplainRequest parse(XContentParser parser) throws IOException {
-        ClusterAllocationExplainRequest req = PARSER.parse(parser, new ClusterAllocationExplainRequest(), () -> ParseFieldMatcher.STRICT);
-        Exception e = req.validate();
-        if (e != null) {
-            throw new ElasticsearchParseException("'index', 'shard', and 'primary' must be specified in allocation explain request", e);
-        }
-        return req;
+        return PARSER.parse(parser, new ClusterAllocationExplainRequest(), null);
     }
 
     @Override
@@ -258,8 +249,8 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     }
 
     private void checkVersion(Version version) {
-        if (version.before(Version.V_5_2_0_UNRELEASED)) {
-            throw new IllegalArgumentException("cannot explain shards in a mixed-cluster with pre-" + Version.V_5_2_0_UNRELEASED +
+        if (version.before(Version.V_5_2_0)) {
+            throw new IllegalArgumentException("cannot explain shards in a mixed-cluster with pre-" + Version.V_5_2_0 +
                                                " nodes, node version [" + version + "]");
         }
     }

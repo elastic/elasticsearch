@@ -30,6 +30,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.EnumSet;
+
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 
@@ -68,11 +71,22 @@ public class FilterAllocationDecider extends AllocationDecider {
     private static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
     private static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
     public static final Setting<Settings> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
+
+    /**
+     * The set of {@link RecoverySource.Type} values for which the
+     * {@link IndexMetaData#INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING} should apply.
+     * Note that we do not include the {@link RecoverySource.Type#SNAPSHOT} type here
+     * because if the snapshot is restored to a different cluster that does not contain
+     * the initial recovery node id, or to the same cluster where the initial recovery node
+     * id has been decommissioned, then the primary shards will never be allocated.
+     */
+    static EnumSet<RecoverySource.Type> INITIAL_RECOVERY_TYPES =
+        EnumSet.of(RecoverySource.Type.EMPTY_STORE, RecoverySource.Type.LOCAL_SHARDS);
 
     private volatile DiscoveryNodeFilters clusterRequireFilters;
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
@@ -97,7 +111,7 @@ public class FilterAllocationDecider extends AllocationDecider {
             IndexMetaData indexMd = allocation.metaData().getIndexSafe(shardRouting.index());
             DiscoveryNodeFilters initialRecoveryFilters = indexMd.getInitialRecoveryFilters();
             if (initialRecoveryFilters != null  &&
-                RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) &&
+                INITIAL_RECOVERY_TYPES.contains(shardRouting.recoverySource().getType()) &&
                 initialRecoveryFilters.match(node.node()) == false) {
                 String explanation = (shardRouting.recoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS) ?
                     "initial allocation of the shrunken index is only allowed on nodes [%s] that hold a copy of every shard in the index" :

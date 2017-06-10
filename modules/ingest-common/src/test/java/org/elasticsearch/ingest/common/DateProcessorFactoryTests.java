@@ -37,10 +37,10 @@ public class DateProcessorFactoryTests extends ESTestCase {
     public void testBuildDefaults() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         DateProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getField(), equalTo(sourceField));
@@ -53,7 +53,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
     public void testMatchFieldIsMandatory() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String targetField = randomAsciiOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("target_field", targetField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
 
@@ -68,8 +68,8 @@ public class DateProcessorFactoryTests extends ESTestCase {
     public void testMatchFormatsIsMandatory() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
-        String targetField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("target_field", targetField);
 
@@ -84,7 +84,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
     public void testParseLocale() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
         Locale locale = randomLocale(random());
@@ -97,7 +97,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
     public void testParseInvalidLocale() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
         config.put("locale", "invalid_locale");
@@ -112,7 +112,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
     public void testParseTimezone() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", Collections.singletonList("dd/MM/yyyyy"));
 
@@ -125,7 +125,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
     public void testParseInvalidTimezone() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("match_formats", Collections.singletonList("dd/MM/yyyyy"));
         config.put("timezone", "invalid_timezone");
@@ -140,7 +140,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
     public void testParseMatchFormats() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));
 
@@ -151,7 +151,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
     public void testParseMatchFormatsFailure() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("formats", "dd/MM/yyyy");
 
@@ -166,8 +166,8 @@ public class DateProcessorFactoryTests extends ESTestCase {
     public void testParseTargetField() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        String sourceField = randomAsciiOfLengthBetween(1, 10);
-        String targetField = randomAsciiOfLengthBetween(1, 10);
+        String sourceField = randomAlphaOfLengthBetween(1, 10);
+        String targetField = randomAlphaOfLengthBetween(1, 10);
         config.put("field", sourceField);
         config.put("target_field", targetField);
         config.put("formats", Arrays.asList("dd/MM/yyyy", "dd-MM-yyyy"));

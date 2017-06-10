@@ -94,7 +94,8 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
     @Override
     protected ScoreFunction doToFunction(QueryShardContext context) {
         try {
-            SearchScript searchScript = context.getSearchScript(script, ScriptContext.Standard.SEARCH);
+            SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.CONTEXT);
+            SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
             return new ScriptScoreFunction(script, searchScript);
         } catch (Exception e) {
             throw new QueryShardException(context, "script_score: the script could not be loaded", e);
@@ -112,7 +113,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
                 currentFieldName = parser.currentName();
             } else {
                 if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
-                    script = Script.parse(parser, parseContext.getDefaultScriptLanguage());
+                    script = Script.parse(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }

@@ -20,11 +20,12 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
+import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
+import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
@@ -56,25 +57,29 @@ public enum MissingValues {
             private int count;
 
             @Override
-            public BytesRef valueAt(int index) {
-                if (count > 0) {
-                    return values.valueAt(index);
-                } else if (index == 0) {
-                    return missing;
+            public boolean advanceExact(int doc) throws IOException {
+                if (values.advanceExact(doc)) {
+                    count = values.docValueCount();
                 } else {
-                    throw new IndexOutOfBoundsException();
+                    count = 0;
                 }
+                // always return true because we want to return a value even if
+                // the document does not have a value
+                return true;
             }
 
             @Override
-            public void setDocument(int docId) {
-                values.setDocument(docId);
-                count = values.count();
-            }
-
-            @Override
-            public int count() {
+            public int docValueCount() {
                 return count == 0 ? 1 : count;
+            }
+
+            @Override
+            public BytesRef nextValue() throws IOException {
+                if (count > 0) {
+                    return values.nextValue();
+                } else {
+                    return missing;
+                }
             }
         };
     }
@@ -109,30 +114,34 @@ public enum MissingValues {
     }
 
     static SortedNumericDocValues replaceMissing(final SortedNumericDocValues values, final long missing) {
-        return new SortedNumericDocValues() {
+        return new AbstractSortedNumericDocValues() {
 
             private int count;
 
             @Override
-            public void setDocument(int doc) {
-                values.setDocument(doc);
-                count = values.count();
-            }
-
-            @Override
-            public long valueAt(int index) {
+            public long nextValue() throws IOException {
                 if (count > 0) {
-                    return values.valueAt(index);
-                } else if (index == 0) {
-                    return missing;
+                    return values.nextValue();
                 } else {
-                    throw new IndexOutOfBoundsException();
+                    return missing;
                 }
             }
 
             @Override
-            public int count() {
+            public int docValueCount() {
                 return count == 0 ? 1 : count;
+            }
+
+            @Override
+            public boolean advanceExact(int doc) throws IOException {
+                if (values.advanceExact(doc)) {
+                    count = values.docValueCount();
+                } else {
+                    count = 0;
+                }
+                // always return true because we want to return a value even if
+                // the document does not have a value
+                return true;
             }
 
         };
@@ -144,24 +153,28 @@ public enum MissingValues {
             private int count;
 
             @Override
-            public void setDocument(int doc) {
-                values.setDocument(doc);
-                count = values.count();
+            public boolean advanceExact(int doc) throws IOException {
+                if (values.advanceExact(doc)) {
+                    count = values.docValueCount();
+                } else {
+                    count = 0;
+                }
+                // always return true because we want to return a value even if
+                // the document does not have a value
+                return true;
             }
 
             @Override
-            public double valueAt(int index) {
+            public double nextValue() throws IOException {
                 if (count > 0) {
-                    return values.valueAt(index);
-                } else if (index == 0) {
-                    return missing;
+                    return values.nextValue();
                 } else {
-                    throw new IndexOutOfBoundsException();
+                    return missing;
                 }
             }
 
             @Override
-            public int count() {
+            public int docValueCount() {
                 return count == 0 ? 1 : count;
             }
 
@@ -177,20 +190,22 @@ public enum MissingValues {
             }
 
             @Override
-            public RandomAccessOrds ordinalsValues(LeafReaderContext context) {
-                RandomAccessOrds values = valuesSource.ordinalsValues(context);
+            public SortedSetDocValues ordinalsValues(LeafReaderContext context) throws IOException {
+                SortedSetDocValues values = valuesSource.ordinalsValues(context);
                 return replaceMissing(values, missing);
             }
 
             @Override
-            public RandomAccessOrds globalOrdinalsValues(LeafReaderContext context) {
-                RandomAccessOrds values = valuesSource.globalOrdinalsValues(context);
+            public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context)
+                    throws IOException {
+                SortedSetDocValues values = valuesSource.globalOrdinalsValues(context);
                 return replaceMissing(values, missing);
             }
         };
     }
 
-    static RandomAccessOrds replaceMissing(final RandomAccessOrds values, final BytesRef missing) {
+    static SortedSetDocValues replaceMissing(final SortedSetDocValues values,
+            final BytesRef missing) throws IOException {
         final long missingOrd = values.lookupTerm(missing);
         if (missingOrd >= 0) {
             // The value already exists
@@ -201,19 +216,15 @@ public enum MissingValues {
         }
     }
 
-    static RandomAccessOrds replaceMissingOrd(final RandomAccessOrds values, final long missingOrd) {
-        return new AbstractRandomAccessOrds() {
+    static SortedSetDocValues replaceMissingOrd(final SortedSetDocValues values,
+            final long missingOrd) {
+        return new AbstractSortedSetDocValues() {
 
-            private int cardinality = 0;
-
-            @Override
-            public void doSetDocument(int docID) {
-                values.setDocument(docID);
-                cardinality = values.cardinality();
-            }
+            private boolean hasOrds;
+            private long nextMissingOrd;
 
             @Override
-            public BytesRef lookupOrd(long ord) {
+            public BytesRef lookupOrd(long ord) throws IOException {
                 return values.lookupOrd(ord);
             }
 
@@ -223,36 +234,39 @@ public enum MissingValues {
             }
 
             @Override
-            public long ordAt(int index) {
-                if (cardinality > 0) {
-                    return values.ordAt(index);
-                } else if (index == 0) {
-                    return missingOrd;
+            public long nextOrd() throws IOException {
+                if (hasOrds) {
+                    return values.nextOrd();
                 } else {
-                    throw new IndexOutOfBoundsException();
+                    // we want to return the next missing ord but set this to
+                    // NO_MORE_ORDS so on the next call we indicate there are no
+                    // more values
+                    long ordToReturn = nextMissingOrd;
+                    nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
+                    return ordToReturn;
                 }
             }
 
             @Override
-            public int cardinality() {
-                return cardinality == 0 ? 1 : cardinality;
+            public boolean advanceExact(int doc) throws IOException {
+                hasOrds = values.advanceExact(doc);
+                nextMissingOrd = missingOrd;
+                // always return true because we want to return a value even if
+                // the document does not have a value
+                return true;
             }
         };
     }
 
-    static RandomAccessOrds insertOrd(final RandomAccessOrds values, final long insertedOrd, final BytesRef missingValue) {
-        return new AbstractRandomAccessOrds() {
+    static SortedSetDocValues insertOrd(final SortedSetDocValues values, final long insertedOrd,
+            final BytesRef missingValue) {
+        return new AbstractSortedSetDocValues() {
 
-            private int cardinality = 0;
-
-            @Override
-            public void doSetDocument(int docID) {
-                values.setDocument(docID);
-                cardinality = values.cardinality();
-            }
+            private boolean hasOrds;
+            private long nextMissingOrd;
 
             @Override
-            public BytesRef lookupOrd(long ord) {
+            public BytesRef lookupOrd(long ord) throws IOException {
                 if (ord < insertedOrd) {
                     return values.lookupOrd(ord);
                 } else if (ord > insertedOrd) {
@@ -268,24 +282,31 @@ public enum MissingValues {
             }
 
             @Override
-            public long ordAt(int index) {
-                if (cardinality > 0) {
-                    final long ord = values.ordAt(index);
+            public long nextOrd() throws IOException {
+                if (hasOrds) {
+                    final long ord = values.nextOrd();
                     if (ord < insertedOrd) {
                         return ord;
                     } else {
                         return ord + 1;
                     }
-                } else if (index == 0) {
-                    return insertedOrd;
                 } else {
-                    throw new IndexOutOfBoundsException();
+                    // we want to return the next missing ord but set this to
+                    // NO_MORE_ORDS so on the next call we indicate there are no
+                    // more values
+                    long ordToReturn = nextMissingOrd;
+                    nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
+                    return ordToReturn;
                 }
             }
 
             @Override
-            public int cardinality() {
-                return cardinality == 0 ? 1 : cardinality;
+            public boolean advanceExact(int doc) throws IOException {
+                hasOrds = values.advanceExact(doc);
+                nextMissingOrd = insertedOrd;
+                // always return true because we want to return a value even if
+                // the document does not have a value
+                return true;
             }
         };
     }
@@ -312,25 +333,29 @@ public enum MissingValues {
             private int count;
 
             @Override
-            public GeoPoint valueAt(int index) {
-                if (count > 0) {
-                    return values.valueAt(index);
-                } else if (index == 0) {
-                    return missing;
+            public boolean advanceExact(int doc) throws IOException {
+                if (values.advanceExact(doc)) {
+                    count = values.docValueCount();
                 } else {
-                    throw new IndexOutOfBoundsException();
+                    count = 0;
                 }
+                // always return true because we want to return a value even if
+                // the document does not have a value
+                return true;
             }
 
             @Override
-            public void setDocument(int docId) {
-                values.setDocument(docId);
-                count = values.count();
-            }
-
-            @Override
-            public int count() {
+            public int docValueCount() {
                 return count == 0 ? 1 : count;
+            }
+
+            @Override
+            public GeoPoint nextValue() throws IOException {
+                if (count > 0) {
+                    return values.nextValue();
+                } else {
+                    return missing;
+                }
             }
         };
     }

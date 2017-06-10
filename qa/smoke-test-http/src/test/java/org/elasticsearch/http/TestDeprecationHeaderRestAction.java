@@ -19,7 +19,6 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -69,12 +68,16 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
     public static final String DEPRECATED_ENDPOINT = "[/_test_cluster/deprecated_settings] exists for deprecated tests";
     public static final String DEPRECATED_USAGE = "[deprecated_settings] usage is deprecated. use [settings] instead";
 
-    @Inject
     public TestDeprecationHeaderRestAction(Settings settings, RestController controller) {
         super(settings);
 
         controller.registerAsDeprecatedHandler(RestRequest.Method.GET, "/_test_cluster/deprecated_settings", this,
                                                DEPRECATED_ENDPOINT, deprecationLogger);
+    }
+
+    @Override
+    public String getName() {
+        return "test_deprecation_header_action";
     }
 
     @SuppressWarnings("unchecked") // List<String> casts

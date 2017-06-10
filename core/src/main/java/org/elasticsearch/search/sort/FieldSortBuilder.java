@@ -279,9 +279,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                     && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
                 throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
             }
-            IndexFieldData.XFieldComparatorSource fieldComparatorSource = fieldData
-                    .comparatorSource(missing, localSortMode, nested);
-            SortField field = new SortField(fieldType.name(), fieldComparatorSource, reverse);
+            SortField field = fieldData.sortField(missing, localSortMode, nested, reverse);
             return new SortFieldAndFormat(field, fieldType.docValueFormat(null, null));
         }
     }

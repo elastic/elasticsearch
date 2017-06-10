@@ -55,7 +55,7 @@ public abstract class AggregatorBase extends Aggregator {
     private DeferringBucketCollector recordingWrapper;
     private final List<PipelineAggregator> pipelineAggregators;
     private final CircuitBreakerService breakerService;
-    private boolean failed = false;
+    private long requestBytesUsed;
 
     /**
      * Constructs a new Aggregator.
@@ -105,16 +105,31 @@ public abstract class AggregatorBase extends Aggregator {
                 return false; // unreachable
             }
         };
+        addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
+    }
+    
+    /**
+     * Increment the number of bytes that have been allocated to service this request
+     * and potentially trigger a {@link CircuitBreakingException}. The number of bytes
+     * allocated is automatically decremented with the circuit breaker service on 
+     * closure of this aggregator.
+     * For performance reasons subclasses should not call this millions of times
+     * each with small increments and instead batch up into larger allocations.
+     * 
+     * @param bytesAllocated the number of additional bytes allocated
+     * @return the cumulative size in bytes allocated by this aggregator to service this request
+     */
+    protected long addRequestCircuitBreakerBytes(long bytesAllocated) {
         try {
             this.breakerService
                     .getBreaker(CircuitBreaker.REQUEST)
-                    .addEstimateBytesAndMaybeBreak(DEFAULT_WEIGHT, "<agg [" + name + "]>");
+                    .addEstimateBytesAndMaybeBreak(bytesAllocated, "<agg [" + name + "]>");
+            this.requestBytesUsed += bytesAllocated;
+            return requestBytesUsed;
         } catch (CircuitBreakingException cbe) {
-            this.failed = true;
             throw cbe;
-        }
+        }        
     }
-
     /**
      * Most aggregators don't need scores, make sure to extend this method if
      * your aggregator needs them.
@@ -186,7 +201,7 @@ public abstract class AggregatorBase extends Aggregator {
     }
 
     /**
-     * This method should be overidden by subclasses that want to defer calculation
+     * This method should be overridden by subclasses that want to defer calculation
      * of a child aggregation until a first pass is complete and a set of buckets has
      * been pruned.
      * Deferring collection will require the recording of all doc/bucketIds from the first
@@ -265,9 +280,7 @@ public abstract class AggregatorBase extends Aggregator {
         try {
             doClose();
         } finally {
-            if (!this.failed) {
-                this.breakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(-DEFAULT_WEIGHT);
-            }
+            this.breakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(-this.requestBytesUsed);
         }
     }
 

@@ -28,7 +28,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,7 +38,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
@@ -72,9 +71,8 @@ public class ReplicationResponse extends ActionResponse {
         this.shardInfo = shardInfo;
     }
 
-    public static class ShardInfo implements Streamable, ToXContent {
+    public static class ShardInfo implements Streamable, ToXContentObject {
 
-        private static final String _SHARDS = "_shards";
         private static final String TOTAL = "total";
         private static final String SUCCESSFUL = "successful";
         private static final String FAILED = "failed";
@@ -135,25 +133,6 @@ public class ReplicationResponse extends ActionResponse {
         }
 
         @Override
-        public boolean equals(Object that) {
-            if (this == that) {
-                return true;
-            }
-            if (that == null || getClass() != that.getClass()) {
-                return false;
-            }
-            ShardInfo other = (ShardInfo) that;
-            return Objects.equals(total, other.total) &&
-                    Objects.equals(successful, other.successful) &&
-                    Arrays.equals(failures, other.failures);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(total, successful, failures);
-        }
-
-        @Override
         public void readFrom(StreamInput in) throws IOException {
             total = in.readVInt();
             successful = in.readVInt();
@@ -178,7 +157,7 @@ public class ReplicationResponse extends ActionResponse {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(_SHARDS);
+            builder.startObject();
             builder.field(TOTAL, total);
             builder.field(SUCCESSFUL, successful);
             builder.field(FAILED, getFailed());
@@ -194,18 +173,12 @@ public class ReplicationResponse extends ActionResponse {
         }
 
         public static ShardInfo fromXContent(XContentParser parser) throws IOException {
-            XContentParser.Token token = parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-
-            String currentFieldName = parser.currentName();
-            if (_SHARDS.equals(currentFieldName) == false) {
-                throwUnknownField(currentFieldName, parser.getTokenLocation());
-            }
-            token = parser.nextToken();
+            XContentParser.Token token = parser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
 
             int total = 0, successful = 0;
             List<Failure> failuresList = null;
+            String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -250,7 +223,7 @@ public class ReplicationResponse extends ActionResponse {
             return shardInfo;
         }
 
-        public static class Failure implements ShardOperationFailedException, ToXContent {
+        public static class Failure implements ShardOperationFailedException, ToXContentObject {
 
             private static final String _INDEX = "_index";
             private static final String _SHARD = "_shard";
@@ -334,27 +307,6 @@ public class ReplicationResponse extends ActionResponse {
             }
 
             @Override
-            public boolean equals(Object that) {
-                if (this == that) {
-                    return true;
-                }
-                if (that == null || getClass() != that.getClass()) {
-                    return false;
-                }
-                Failure failure = (Failure) that;
-                return Objects.equals(primary, failure.primary) &&
-                        Objects.equals(shardId, failure.shardId) &&
-                        Objects.equals(nodeId, failure.nodeId) &&
-                        Objects.equals(cause, failure.cause) &&
-                        Objects.equals(status, failure.status);
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(shardId, nodeId, cause, status, primary);
-            }
-
-            @Override
             public void readFrom(StreamInput in) throws IOException {
                 shardId = ShardId.readShardId(in);
                 nodeId = in.readOptionalString();
@@ -380,7 +332,7 @@ public class ReplicationResponse extends ActionResponse {
                 builder.field(_NODE, nodeId);
                 builder.field(REASON);
                 builder.startObject();
-                ElasticsearchException.toXContent(builder, params, cause);
+                ElasticsearchException.generateThrowableXContent(builder, params, cause);
                 builder.endObject();
                 builder.field(STATUS, status);
                 builder.field(PRIMARY, primary);

@@ -38,6 +38,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.search.collapse.CollapseContext;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -62,7 +63,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -124,7 +125,9 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
      */
     public abstract void preProcess(boolean rewrite);
 
-    public abstract Query searchFilter(String[] types);
+    /** Automatically apply all required filters to the given query such as
+     *  alias filters, types filters, etc. */
+    public abstract Query buildFilteredQuery(Query query);
 
     public abstract long id();
 
@@ -237,9 +240,20 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract boolean trackScores();
 
+    public abstract SearchContext trackTotalHits(boolean trackTotalHits);
+
+    /**
+     * Indicates if the total hit count for the query should be tracked. Defaults to <tt>true</tt>
+     */
+    public abstract boolean trackTotalHits();
+
     public abstract SearchContext searchAfter(FieldDoc searchAfter);
 
     public abstract FieldDoc searchAfter();
+
+    public abstract SearchContext collapse(CollapseContext collapse);
+
+    public abstract CollapseContext collapse();
 
     public abstract SearchContext parsedPostFilter(ParsedQuery postFilter);
 
@@ -329,7 +343,7 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
      */
     public void addReleasable(Releasable releasable, Lifetime lifetime) {
         if (clearables == null) {
-            clearables = new HashMap<>();
+            clearables = new EnumMap<>(Lifetime.class);
         }
         List<Releasable> releasables = clearables.get(lifetime);
         if (releasables == null) {

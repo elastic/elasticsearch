@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -44,23 +43,19 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implements IndicesRequest {
 
-    public static final ObjectParser<RolloverRequest, ParseFieldMatcherSupplier> PARSER =
-        new ObjectParser<>("conditions", null);
+    public static final ObjectParser<RolloverRequest, Void> PARSER = new ObjectParser<>("conditions", null);
     static {
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-                Condition.PARSER.parse(parser, request.conditions, parseFieldMatcherSupplier),
+        PARSER.declareField((parser, request, context) -> Condition.PARSER.parse(parser, request.conditions, null),
             new ParseField("conditions"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-                request.createIndexRequest.settings(parser.map()),
+        PARSER.declareField((parser, request, context) -> request.createIndexRequest.settings(parser.map()),
             new ParseField("settings"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) -> {
+        PARSER.declareField((parser, request, context) -> {
             for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
                 request.createIndexRequest.mapping(mappingsEntry.getKey(),
                     (Map<String, Object>) mappingsEntry.getValue());
             }
         }, new ParseField("mappings"), ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, parseFieldMatcherSupplier) ->
-                request.createIndexRequest.aliases(parser.map()),
+        PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
             new ParseField("aliases"), ObjectParser.ValueType.OBJECT);
     }
 

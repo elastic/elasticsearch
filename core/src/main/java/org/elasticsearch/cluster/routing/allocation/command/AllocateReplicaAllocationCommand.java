@@ -28,8 +28,6 @@ import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,8 +44,7 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
     public static final String NAME = "allocate_replica";
     public static final ParseField COMMAND_NAME_FIELD = new ParseField(NAME);
 
-    private static final ObjectParser<AllocateReplicaAllocationCommand.Builder, ParseFieldMatcherSupplier> REPLICA_PARSER =
-            createAllocateParser(NAME);
+    private static final ObjectParser<AllocateReplicaAllocationCommand.Builder, Void> REPLICA_PARSER = createAllocateParser(NAME);
 
     /**
      * Creates a new {@link AllocateReplicaAllocationCommand}
@@ -80,7 +77,7 @@ public class AllocateReplicaAllocationCommand extends AbstractAllocateAllocation
 
         @Override
         public Builder parse(XContentParser parser) throws IOException {
-            return REPLICA_PARSER.parse(parser, this, () -> ParseFieldMatcher.STRICT);
+            return REPLICA_PARSER.parse(parser, this, null);
         }
 
         @Override

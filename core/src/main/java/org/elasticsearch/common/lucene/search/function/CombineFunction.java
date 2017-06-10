@@ -143,15 +143,11 @@ public enum CombineFunction implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(this.ordinal());
+        out.writeEnum(this);
     }
 
     public static CombineFunction readFromStream(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown CombineFunction ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
+        return in.readEnum(CombineFunction.class);
     }
 
     public static CombineFunction fromString(String combineFunction) {

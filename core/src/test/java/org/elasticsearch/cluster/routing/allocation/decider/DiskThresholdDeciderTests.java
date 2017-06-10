@@ -92,9 +92,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -187,7 +188,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -217,7 +218,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -279,9 +280,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -414,7 +416,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -444,7 +446,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
                         makeDecider(diskSettings))));
 
         strategy = new AllocationService(Settings.builder()
@@ -535,7 +537,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(
+                            Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                        ),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -605,7 +609,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
-                        new SameShardAllocationDecider(Settings.EMPTY),
+                        new SameShardAllocationDecider(
+                            Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                        ),
                         makeDecider(diskSettings))));
 
         ClusterInfoService cis = new ClusterInfoService() {
@@ -710,7 +716,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
         DiskThresholdDecider decider = makeDecider(diskSettings);
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
-                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(Settings.EMPTY), decider)));
+                new HashSet<>(Arrays.asList(new SameShardAllocationDecider(
+                    Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ), decider)));
 
         ClusterInfoService cis = new ClusterInfoService() {
             @Override
@@ -913,7 +921,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             }
         };
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new HashSet<>(Arrays.asList(
-                new SameShardAllocationDecider(Settings.EMPTY), diskThresholdDecider
+                new SameShardAllocationDecider(
+                    Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ),
+                diskThresholdDecider
         )));
         AllocationService strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
@@ -1011,7 +1022,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         };
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new HashSet<>(Arrays.asList(
-                new SameShardAllocationDecider(Settings.EMPTY), diskThresholdDecider
+                new SameShardAllocationDecider(
+                    Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                ),
+                diskThresholdDecider
         )));
 
         AllocationService strategy = new AllocationService(Settings.builder()

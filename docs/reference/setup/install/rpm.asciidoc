@@ -48,7 +48,7 @@ ifeval::["{release-state}"=="released"]
 --------------------------------------------------
 [elasticsearch-{major-version}]
 name=Elasticsearch repository for {major-version} packages
-baseurl=https://artifacts.elastic.co/packages/{major-version}-prerelease/yum
+baseurl=https://artifacts.elastic.co/packages/{major-version}/yum
 gpgcheck=1
 gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
 enabled=1
@@ -64,7 +64,7 @@ ifeval::["{release-state}"=="prerelease"]
 --------------------------------------------------
 [elasticsearch-{major-version}]
 name=Elasticsearch repository for {major-version} packages
-baseurl=https://artifacts.elastic.co/packages/{major-version}/yum
+baseurl=https://artifacts.elastic.co/packages/{major-version}-prerelease/yum
 gpgcheck=1
 gpgkey=https://artifacts.elastic.co/GPG-KEY-elasticsearch
 enabled=1
@@ -99,7 +99,7 @@ endif::[]
 
 ifeval::["{release-state}"!="unreleased"]
 
-The RPM for Elastisearch v{version} can be downloaded from the website and installed as follows:
+The RPM for Elasticsearch v{version} can be downloaded from the website and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
@@ -212,11 +212,6 @@ locations for an RPM-based system:
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.
  d| Not configured
   | path.repo
-
-| script
-  | Location of script files.
-  | /etc/elasticsearch/scripts
-  | path.scripts
 
 |=======================================================================
 

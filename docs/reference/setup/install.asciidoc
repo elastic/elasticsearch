@@ -29,7 +29,7 @@ Elasticsearch website or from our RPM repository.
 
 `docker`::
 
-An image is available for running Elasticsearch as a Docker container. It ships with https://www.elastic.co/guide/en/x-pack/current/index.html[X-Pack] pre-installed and may be downloaded from the Elastic Docker Registry.
+An image is available for running Elasticsearch as a Docker container. It ships with {xpack}/index.html[X-Pack] pre-installed and may be downloaded from the Elastic Docker Registry.
 +
 <<docker>>
 
@@ -43,6 +43,7 @@ large deployments:
 [horizontal]
 Puppet:: https://github.com/elastic/puppet-elasticsearch[puppet-elasticsearch]
 Chef::   https://github.com/elastic/cookbook-elasticsearch[cookbook-elasticsearch]
+Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch]
 
 
 include::install/zip-targz.asciidoc[]

@@ -1,0 +1,344 @@
+setup:
+    - do:
+        indices.create:
+            index: test
+            body:
+                mappings:
+                    test:
+                        properties:
+                            boolean:
+                                type: boolean
+                            date:
+                                type: date
+                            geo_point:
+                                type: geo_point
+                            ip:
+                                type: ip
+                            keyword:
+                                type: keyword
+                            long:
+                                type: long
+                            integer:
+                                type: integer
+                            short:
+                                type: short
+                            byte:
+                                type: byte
+                            double:
+                                type: double
+                            float:
+                                type: float
+                            half_float:
+                                type: half_float
+                            scaled_float:
+                                type: scaled_float
+                                scaling_factor: 100
+                            token_count:
+                                type: token_count
+                                analyzer: standard
+
+    - do:
+        index:
+            index: test
+            type: test
+            id: 1
+            body:
+                boolean: true
+                date: 2017-01-01T12:11:12
+                geo_point: 41.12,-71.34
+                ip: 192.168.0.1
+                keyword: not split at all
+                long: 12348732141234
+                integer: 134134566
+                short: 1324
+                byte: 12
+                double: 3.14159265358979
+                float: 3.141592654
+                half_float: 3.140625
+                scaled_float: 3.14
+                token_count: count all these words please
+
+    - do:
+        indices.refresh: {}
+
+---
+"boolean":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['boolean'].get(0)"
+    - match: { hits.hits.0.fields.field.0: true }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['boolean'].value"
+    - match: { hits.hits.0.fields.field.0: true }
+
+---
+"date":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc.date.get(0)"
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc.date.value"
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+---
+"geo_point":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['geo_point'].get(0)"
+    - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['geo_point'].value"
+    - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+    - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+---
+"ip":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['ip'].get(0)"
+    - match: { hits.hits.0.fields.field.0: "192.168.0.1" }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['ip'].value"
+    - match: { hits.hits.0.fields.field.0: "192.168.0.1" }
+
+---
+"keyword":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['keyword'].get(0)"
+    - match: { hits.hits.0.fields.field.0: "not split at all" }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['keyword'].value"
+    - match: { hits.hits.0.fields.field.0: "not split at all" }
+
+---
+"long":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['long'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 12348732141234 }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['long'].value"
+    - match: { hits.hits.0.fields.field.0: 12348732141234 }
+
+---
+"integer":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['integer'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 134134566 }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['integer'].value"
+    - match: { hits.hits.0.fields.field.0: 134134566 }
+
+---
+"short":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['short'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 1324 }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['short'].value"
+    - match: { hits.hits.0.fields.field.0: 1324 }
+
+---
+"byte":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['byte'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 12 }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['byte'].value"
+    - match: { hits.hits.0.fields.field.0: 12 }
+
+---
+"double":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['double'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['double'].value"
+    - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+
+---
+"float":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['float'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 3.1415927410125732 } # this ends up as a double
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['float'].value"
+    - match: { hits.hits.0.fields.field.0: 3.1415927410125732 } # this ends up as a double
+
+---
+"half_float":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['half_float'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 3.140625 }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['half_float'].value"
+    - match: { hits.hits.0.fields.field.0: 3.140625 }
+
+---
+"scaled_float":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['scaled_float'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 3.14 }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['scaled_float'].value"
+    - match: { hits.hits.0.fields.field.0: 3.14 }
+
+---
+"token_count":
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['token_count'].get(0)"
+    - match: { hits.hits.0.fields.field.0: 5 }
+
+    - do:
+        search:
+            body:
+                script_fields:
+                    field:
+                        script:
+                            source: "doc['token_count'].value"
+    - match: { hits.hits.0.fields.field.0: 5 }

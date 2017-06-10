@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -58,7 +57,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -91,7 +89,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         RoutingNode localRoutingNode = state.getRoutingNodes().node(state.getNodes().getLocalNodeId());
         if (localRoutingNode != null) {
             if (enableRandomFailures == false) {
-                assertThat("failed shard cache should be empty", failedShardsCache.values(), empty());
+                // initializing a shard should succeed when enableRandomFailures is disabled
+                // active shards can be failed if state persistence was disabled in an earlier CS update
+                if (failedShardsCache.values().stream().anyMatch(ShardRouting::initializing)) {
+                    fail("failed shard cache should not contain initializing shard routing: " + failedShardsCache.values());
+                }
             }
             // check that all shards in local routing nodes have been allocated
             for (ShardRouting shardRouting : localRoutingNode) {
@@ -100,41 +102,50 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
                 MockIndexShard shard = indicesService.getShardOrNull(shardRouting.shardId());
                 ShardRouting failedShard = failedShardsCache.get(shardRouting.shardId());
-                if (enableRandomFailures) {
-                    if (shard == null && failedShard == null) {
-                        fail("Shard with id " + shardRouting + " expected but missing in indicesService and failedShardsCache");
+
+                if (state.blocks().disableStatePersistence()) {
+                    if (shard != null) {
+                        fail("Shard with id " + shardRouting + " should be removed from indicesService due to disabled state persistence");
                     }
+                } else {
                     if (failedShard != null && failedShard.isSameAllocation(shardRouting) == false) {
                         fail("Shard cache has not been properly cleaned for " + failedShard);
                     }
-                } else {
-                    if (shard == null) {
-                        fail("Shard with id " + shardRouting + " expected but missing in indicesService");
+                    if (shard == null && failedShard == null) {
+                        // shard must either be there or there must be a failure
+                        fail("Shard with id " + shardRouting + " expected but missing in indicesService and failedShardsCache");
                     }
-                }
-
-                if (shard != null) {
-                    AllocatedIndex<? extends Shard> indexService = indicesService.indexService(index);
-                    assertTrue("Index " + index + " expected but missing in indicesService", indexService != null);
-
-                    // index metadata has been updated
-                    assertThat(indexService.getIndexSettings().getIndexMetaData(), equalTo(indexMetaData));
-                    // shard has been created
-                    if (enableRandomFailures == false || failedShard == null) {
-                        assertTrue("Shard with id " + shardRouting + " expected but missing in indexService", shard != null);
-                        // shard has latest shard routing
-                        assertThat(shard.routingEntry(), equalTo(shardRouting));
+                    if (enableRandomFailures == false) {
+                        if (shard == null && shardRouting.initializing() && failedShard == shardRouting) {
+                            // initializing a shard should succeed when enableRandomFailures is disabled
+                            fail("Shard with id " + shardRouting + " expected but missing in indicesService " + failedShard);
+                        }
                     }
 
-                    if (shard.routingEntry().primary() && shard.routingEntry().active()) {
-                        IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shard.shardId());
-                        Set<String> activeIds = shardRoutingTable.activeShards().stream()
-                            .map(r -> r.allocationId().getId()).collect(Collectors.toSet());
-                        Set<String> initializingIds = shardRoutingTable.getAllInitializingShards().stream()
-                            .map(r -> r.allocationId().getId()).collect(Collectors.toSet());
-                        assertThat(shard.routingEntry() + " isn't updated with active aIDs", shard.activeAllocationIds, equalTo(activeIds));
-                        assertThat(shard.routingEntry() + " isn't updated with init aIDs", shard.initializingAllocationIds,
-                            equalTo(initializingIds));
+                    if (shard != null) {
+                        AllocatedIndex<? extends Shard> indexService = indicesService.indexService(index);
+                        assertTrue("Index " + index + " expected but missing in indicesService", indexService != null);
+
+                        // index metadata has been updated
+                        assertThat(indexService.getIndexSettings().getIndexMetaData(), equalTo(indexMetaData));
+                        // shard has been created
+                        if (enableRandomFailures == false || failedShard == null) {
+                            assertTrue("Shard with id " + shardRouting + " expected but missing in indexService", shard != null);
+                            // shard has latest shard routing
+                            assertThat(shard.routingEntry(), equalTo(shardRouting));
+                        }
+
+                        if (shard.routingEntry().primary() && shard.routingEntry().active()) {
+                            IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shard.shardId());
+                            Set<String> activeIds = shardRoutingTable.activeShards().stream()
+                                .map(r -> r.allocationId().getId()).collect(Collectors.toSet());
+                            Set<String> initializingIds = shardRoutingTable.getAllInitializingShards().stream()
+                                .map(r -> r.allocationId().getId()).collect(Collectors.toSet());
+                            assertThat(shard.routingEntry() + " isn't updated with active aIDs", shard.activeAllocationIds,
+                                equalTo(activeIds));
+                            assertThat(shard.routingEntry() + " isn't updated with init aIDs", shard.initializingAllocationIds,
+                                equalTo(initializingIds));
+                        }
                     }
                 }
             }
@@ -142,6 +153,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         // all other shards / indices have been cleaned up
         for (AllocatedIndex<? extends Shard> indexService : indicesService) {
+            if (state.blocks().disableStatePersistence()) {
+                fail("Index service " + indexService.index() + " should be removed from indicesService due to disabled state persistence");
+            }
+
             assertTrue(state.metaData().getIndexSafe(indexService.index()) != null);
 
             boolean shardsFound = false;
@@ -158,13 +173,9 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             }
 
             if (shardsFound == false) {
-                if (enableRandomFailures) {
-                    // check if we have shards of that index in failedShardsCache
-                    // if yes, we might not have cleaned the index as failedShardsCache can be populated by another thread
-                    assertFalse(failedShardsCache.keySet().stream().noneMatch(shardId -> shardId.getIndex().equals(indexService.index())));
-                } else {
-                    fail("index service for index " + indexService.index() + " has no shards");
-                }
+                // check if we have shards of that index in failedShardsCache
+                // if yes, we might not have cleaned the index as failedShardsCache can be populated by another thread
+                assertFalse(failedShardsCache.keySet().stream().noneMatch(shardId -> shardId.getIndex().equals(indexService.index())));
             }
 
         }
@@ -178,9 +189,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
         @Override
         public synchronized MockIndexService createIndex(
-            IndexMetaData indexMetaData,
-            List<IndexEventListener> buildInIndexListener,
-            Consumer<ShardId> globalCheckPointSyncer) throws IOException {
+                IndexMetaData indexMetaData,
+                List<IndexEventListener> buildInIndexListener) throws IOException {
             MockIndexService indexService = new MockIndexService(new IndexSettings(indexMetaData, Settings.EMPTY));
             indices = newMapBuilder(indices).put(indexMetaData.getIndexUUID(), indexService).immutableMap();
             return indexService;
@@ -216,7 +226,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                                           PeerRecoveryTargetService recoveryTargetService,
                                           PeerRecoveryTargetService.RecoveryListener recoveryListener,
                                           RepositoriesService repositoriesService,
-                                          Callback<IndexShard.ShardFailure> onShardFailure) throws IOException {
+                                          Consumer<IndexShard.ShardFailure> onShardFailure) throws IOException {
             failRandomly();
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
             MockIndexShard indexShard = indexService.createShard(shardRouting);
@@ -350,6 +360,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                     shardRouting.active());
             }
             this.shardRouting = shardRouting;
+        }
+
+        @Override
+        public void updatePrimaryTerm(long primaryTerm) {
+            term = primaryTerm;
         }
 
         @Override

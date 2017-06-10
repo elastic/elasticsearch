@@ -25,7 +25,6 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.FullHttpRequest;
-
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.pipelining.HttpPipelinedRequest;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -65,11 +64,16 @@ class Netty4HttpRequestHandler extends SimpleChannelInboundHandler<Object> {
                         Unpooled.copiedBuffer(request.content()),
                         request.headers(),
                         request.trailingHeaders());
-
         final Netty4HttpRequest httpRequest = new Netty4HttpRequest(serverTransport.xContentRegistry, copy, ctx.channel());
-        serverTransport.dispatchRequest(
-            httpRequest,
-            new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext));
+        final Netty4HttpChannel channel =
+                new Netty4HttpChannel(serverTransport, httpRequest, pipelinedRequest, detailedErrorsEnabled, threadContext);
+
+        if (request.decoderResult().isSuccess()) {
+            serverTransport.dispatchRequest(httpRequest, channel);
+        } else {
+            assert request.decoderResult().isFailure();
+            serverTransport.dispatchBadRequest(httpRequest, channel, request.decoderResult().cause());
+        }
     }
 
     @Override

@@ -39,7 +39,6 @@ import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getValue;
 import static org.elasticsearch.repositories.azure.AzureRepository.Repository;
 
 public class AzureBlobStore extends AbstractComponent implements BlobStore {
@@ -55,11 +54,11 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
                           AzureStorageService client) throws URISyntaxException, StorageException {
         super(settings);
         this.client = client;
-        this.container = getValue(metadata.settings(), settings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);
+        this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.repositoryName = metadata.name();
-        this.accountName = getValue(metadata.settings(), settings, Repository.ACCOUNT_SETTING, Storage.ACCOUNT_SETTING);
+        this.accountName = Repository.ACCOUNT_SETTING.get(metadata.settings());
 
-        String modeStr = getValue(metadata.settings(), settings, Repository.LOCATION_MODE_SETTING, Storage.LOCATION_MODE_SETTING);
+        String modeStr = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         if (Strings.hasLength(modeStr)) {
             this.locMode = LocationMode.valueOf(modeStr.toUpperCase(Locale.ROOT));
         } else {
@@ -74,6 +73,13 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
 
     public String container() {
         return container;
+    }
+
+    /**
+     * Gets the configured {@link LocationMode} for the Azure storage requests.
+     */
+    public LocationMode getLocationMode() {
+        return locMode;
     }
 
     @Override
@@ -98,16 +104,6 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
     public boolean doesContainerExist(String container)
     {
         return this.client.doesContainerExist(this.accountName, this.locMode, container);
-    }
-
-    public void removeContainer(String container) throws URISyntaxException, StorageException
-    {
-        this.client.removeContainer(this.accountName, this.locMode, container);
-    }
-
-    public void createContainer(String container) throws URISyntaxException, StorageException
-    {
-        this.client.createContainer(this.accountName, this.locMode, container);
     }
 
     public void deleteFiles(String container, String path) throws URISyntaxException, StorageException

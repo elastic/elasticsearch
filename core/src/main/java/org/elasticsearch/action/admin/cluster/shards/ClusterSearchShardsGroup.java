@@ -38,7 +38,7 @@ public class ClusterSearchShardsGroup implements Streamable, ToXContent {
 
     }
 
-    ClusterSearchShardsGroup(ShardId shardId, ShardRouting[] shards) {
+    public ClusterSearchShardsGroup(ShardId shardId, ShardRouting[] shards) {
         this.shardId = shardId;
         this.shards = shards;
     }

@@ -1,12 +1,4 @@
 [horizontal]
-`ES_USER`::
-
-  The user to run as, defaults to `elasticsearch`.
-
-`ES_GROUP`::
-
-  The group to run as, defaults to `elasticsearch`.
-
 `JAVA_HOME`::
 
   Set a custom Java path to be used.

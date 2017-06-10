@@ -19,23 +19,42 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopDocsCollector;
+import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.apache.lucene.search.join.ParentChildrenBlockJoinQuery;
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.search.join.ToParentBlockJoinQuery;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
+import org.elasticsearch.index.search.NestedHelper;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.search.fetch.subphase.InnerHitsContext.intersect;
 
 public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder> {
     public static final String NAME = "nested";
@@ -84,7 +103,15 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         out.writeString(path);
         out.writeVInt(scoreMode.ordinal());
         out.writeNamedWriteable(query);
-        out.writeOptionalWriteable(innerHitBuilder);
+        if (out.getVersion().before(Version.V_5_5_0)) {
+            final boolean hasInnerHit = innerHitBuilder != null;
+            out.writeBoolean(hasInnerHit);
+            if (hasInnerHit) {
+                innerHitBuilder.writeToNestedBWC(out, query, path);
+            }
+        } else {
+            out.writeOptionalWriteable(innerHitBuilder);
+        }
         out.writeBoolean(ignoreUnmapped);
     }
 
@@ -103,8 +130,8 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         return innerHitBuilder;
     }
 
-    public NestedQueryBuilder innerHit(InnerHitBuilder innerHit, boolean ignoreUnmapped) {
-        this.innerHitBuilder = new InnerHitBuilder(innerHit, path, query, ignoreUnmapped);
+    public NestedQueryBuilder innerHit(InnerHitBuilder innerHitBuilder) {
+        this.innerHitBuilder = innerHitBuilder;
         return this;
     }
 
@@ -142,7 +169,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         builder.field(PATH_FIELD.getPreferredName(), path);
         builder.field(IGNORE_UNMAPPED_FIELD.getPreferredName(), ignoreUnmapped);
         if (scoreMode != null) {
-            builder.field(SCORE_MODE_FIELD.getPreferredName(), HasChildQueryBuilder.scoreModeAsString(scoreMode));
+            builder.field(SCORE_MODE_FIELD.getPreferredName(), scoreModeAsString(scoreMode));
         }
         printBoostAndQueryName(builder);
         if (innerHitBuilder != null) {
@@ -181,7 +208,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
                     ignoreUnmapped = parser.booleanValue();
                 } else if (SCORE_MODE_FIELD.match(currentFieldName)) {
-                    scoreMode = HasChildQueryBuilder.parseScoreMode(parser.text());
+                    scoreMode = parseScoreMode(parser.text());
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
@@ -189,14 +216,35 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 }
             }
         }
-        NestedQueryBuilder queryBuilder =  new NestedQueryBuilder(path, query, scoreMode)
-                .ignoreUnmapped(ignoreUnmapped)
-                .queryName(queryName)
-                .boost(boost);
-        if (innerHitBuilder != null) {
-            queryBuilder.innerHit(innerHitBuilder, ignoreUnmapped);
-        }
+        NestedQueryBuilder queryBuilder =  new NestedQueryBuilder(path, query, scoreMode, innerHitBuilder)
+            .ignoreUnmapped(ignoreUnmapped)
+            .queryName(queryName)
+            .boost(boost);
         return queryBuilder;
+    }
+
+    public static ScoreMode parseScoreMode(String scoreModeString) {
+        if ("none".equals(scoreModeString)) {
+            return ScoreMode.None;
+        } else if ("min".equals(scoreModeString)) {
+            return ScoreMode.Min;
+        } else if ("max".equals(scoreModeString)) {
+            return ScoreMode.Max;
+        } else if ("avg".equals(scoreModeString)) {
+            return ScoreMode.Avg;
+        } else if ("sum".equals(scoreModeString)) {
+            return ScoreMode.Total;
+        }
+        throw new IllegalArgumentException("No score mode for child query [" + scoreModeString + "] found");
+    }
+
+    public static String scoreModeAsString(ScoreMode scoreMode) {
+        if (scoreMode == ScoreMode.Total) {
+            // Lucene uses 'total' but 'sum' is more consistent with other elasticsearch APIs
+            return "sum";
+        } else {
+            return scoreMode.name().toLowerCase(Locale.ROOT);
+        }
     }
 
     @Override
@@ -232,38 +280,139 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
             throw new IllegalStateException("[" + NAME + "] nested object under path [" + path + "] is not of nested type");
         }
         final BitSetProducer parentFilter;
-        final Query childFilter;
-        final Query innerQuery;
+        Query innerQuery;
         ObjectMapper objectMapper = context.nestedScope().getObjectMapper();
         if (objectMapper == null) {
             parentFilter = context.bitsetFilter(Queries.newNonNestedFilter());
         } else {
             parentFilter = context.bitsetFilter(objectMapper.nestedTypeFilter());
         }
-        childFilter = nestedObjectMapper.nestedTypeFilter();
+
         try {
             context.nestedScope().nextLevel(nestedObjectMapper);
             innerQuery = this.query.toQuery(context);
         } finally {
             context.nestedScope().previousLevel();
         }
-        return new ToParentBlockJoinQuery(Queries.filtered(innerQuery, childFilter), parentFilter, scoreMode);
+
+        // ToParentBlockJoinQuery requires that the inner query only matches documents
+        // in its child space
+        if (new NestedHelper(context.getMapperService()).mightMatchNonNestedDocs(innerQuery, path)) {
+            innerQuery = Queries.filtered(innerQuery, nestedObjectMapper.nestedTypeFilter());
+        }
+
+        return new ESToParentBlockJoinQuery(innerQuery, parentFilter, scoreMode,
+                objectMapper == null ? null : objectMapper.fullPath());
     }
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
         if (rewrittenQuery != query) {
-            InnerHitBuilder rewrittenInnerHit = InnerHitBuilder.rewrite(innerHitBuilder, rewrittenQuery);
-            return new NestedQueryBuilder(path, rewrittenQuery, scoreMode, rewrittenInnerHit);
+            NestedQueryBuilder nestedQuery = new NestedQueryBuilder(path, rewrittenQuery, scoreMode, innerHitBuilder);
+            nestedQuery.ignoreUnmapped(ignoreUnmapped);
+            return nestedQuery;
         }
         return this;
     }
 
     @Override
-    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+    public void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         if (innerHitBuilder != null) {
-            innerHitBuilder.inlineInnerHits(innerHits);
+            Map<String, InnerHitContextBuilder> children = new HashMap<>();
+            InnerHitContextBuilder.extractInnerHits(query, children);
+            InnerHitContextBuilder innerHitContextBuilder = new NestedInnerHitContextBuilder(path, query, innerHitBuilder, children);
+            String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : path;
+            innerHits.put(name, innerHitContextBuilder);
+        }
+    }
+
+    static class NestedInnerHitContextBuilder extends InnerHitContextBuilder {
+        private final String path;
+
+        NestedInnerHitContextBuilder(String path, QueryBuilder query, InnerHitBuilder innerHitBuilder,
+                                     Map<String, InnerHitContextBuilder> children) {
+            super(query, innerHitBuilder, children);
+            this.path = path;
+        }
+
+        @Override
+        public void build(SearchContext parentSearchContext,
+                          InnerHitsContext innerHitsContext) throws IOException {
+            QueryShardContext queryShardContext = parentSearchContext.getQueryShardContext();
+            ObjectMapper nestedObjectMapper = queryShardContext.getObjectMapper(path);
+            if (nestedObjectMapper == null) {
+                if (innerHitBuilder.isIgnoreUnmapped() == false) {
+                    throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + path + "]");
+                } else {
+                    return;
+                }
+            }
+            String name =  innerHitBuilder.getName() != null ? innerHitBuilder.getName() : nestedObjectMapper.fullPath();
+            ObjectMapper parentObjectMapper = queryShardContext.nestedScope().nextLevel(nestedObjectMapper);
+            NestedInnerHitSubContext nestedInnerHits = new NestedInnerHitSubContext(
+                name, parentSearchContext, parentObjectMapper, nestedObjectMapper
+            );
+            setupInnerHitsContext(queryShardContext, nestedInnerHits);
+            queryShardContext.nestedScope().previousLevel();
+            innerHitsContext.addInnerHitDefinition(nestedInnerHits);
+        }
+    }
+
+    static final class NestedInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
+
+        private final ObjectMapper parentObjectMapper;
+        private final ObjectMapper childObjectMapper;
+
+        NestedInnerHitSubContext(String name, SearchContext context, ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper) {
+            super(name, context);
+            this.parentObjectMapper = parentObjectMapper;
+            this.childObjectMapper = childObjectMapper;
+        }
+
+        @Override
+        public TopDocs[] topDocs(SearchHit[] hits) throws IOException {
+            Weight innerHitQueryWeight = createInnerHitQueryWeight();
+            TopDocs[] result = new TopDocs[hits.length];
+            for (int i = 0; i < hits.length; i++) {
+                SearchHit hit = hits[i];
+                Query rawParentFilter;
+                if (parentObjectMapper == null) {
+                    rawParentFilter = Queries.newNonNestedFilter();
+                } else {
+                    rawParentFilter = parentObjectMapper.nestedTypeFilter();
+                }
+
+                int parentDocId = hit.docId();
+                final int readerIndex = ReaderUtil.subIndex(parentDocId, searcher().getIndexReader().leaves());
+                // With nested inner hits the nested docs are always in the same segement, so need to use the other segments
+                LeafReaderContext ctx = searcher().getIndexReader().leaves().get(readerIndex);
+
+                Query childFilter = childObjectMapper.nestedTypeFilter();
+                BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
+                Query q = new ParentChildrenBlockJoinQuery(parentFilter, childFilter, parentDocId);
+                Weight weight = context.searcher().createNormalizedWeight(q, false);
+                if (size() == 0) {
+                    TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
+                    intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
+                    result[i] = new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+                } else {
+                    int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
+                    TopDocsCollector<?> topDocsCollector;
+                    if (sort() != null) {
+                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, true, trackScores(), trackScores());
+                    } else {
+                        topDocsCollector = TopScoreDocCollector.create(topN);
+                    }
+                    try {
+                        intersect(weight, innerHitQueryWeight, topDocsCollector, ctx);
+                    } finally {
+                        clearReleasables(Lifetime.COLLECTION);
+                    }
+                    result[i] = topDocsCollector.topDocs(from(), size());
+                }
+            }
+            return result;
         }
     }
 }

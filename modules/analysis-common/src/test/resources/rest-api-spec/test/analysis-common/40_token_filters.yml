@@ -1,0 +1,212 @@
+## Smoke tests for token filters included in the analysis-common module
+
+"asciifolding":
+    - do:
+        indices.analyze:
+          body:
+            text:      Musée d'Orsay
+            tokenizer: keyword
+            filter:    [asciifolding]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: Musee d'Orsay }
+
+    - do:
+        indices.analyze:
+          body:
+            text:      Musée d'Orsay
+            tokenizer: keyword
+            filter:
+              - type: asciifolding
+                preserve_original: true
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: Musee d'Orsay }
+    - match:  { tokens.1.token: Musée d'Orsay }
+
+---
+"lowercase":
+    - do:
+        indices.analyze:
+          body:
+            text:      Foo Bar!
+            tokenizer: keyword
+            filter:    [lowercase]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo bar! }
+
+---
+"porterstem":
+    - do:
+        indices.analyze:
+          body:
+            text:      This is troubled
+            tokenizer: standard
+            filter:    [porter_stem]
+    - length: { tokens: 3 }
+    - match:  { tokens.2.token: troubl }
+    - match:  { tokens.2.position: 2 }
+
+---
+"keywordmarker":
+    - do:
+        indices.analyze:
+          body:
+            text:      This is troubled
+            tokenizer: standard
+            filter:
+              - type: keyword_marker
+                keywords: troubled
+              - type: porter_stem
+    - length: { tokens: 3 }
+    - match:  { tokens.2.token: troubled }
+    - match:  { tokens.2.position: 2 }
+
+---
+"snowball":
+    - do:
+        indices.analyze:
+          body:
+            text:      This is troubled
+            tokenizer: standard
+            filter:    [snowball]
+    - length: { tokens: 3 }
+    - match:  { tokens.2.token: troubl }
+    - match:  { tokens.2.position: 2 }
+
+    - do:
+        indices.analyze:
+          body:
+            explain:   true
+            text:      This is troubled
+            tokenizer: standard
+            filter:    [snowball]
+    - length: { detail.tokenfilters.0.tokens: 3 }
+    - match:  { detail.tokenfilters.0.tokens.2.token: troubl }
+    - match:  { detail.tokenfilters.0.tokens.2.position: 2 }
+    - is_true: detail.tokenfilters.0.tokens.2.bytes
+    - match: { detail.tokenfilters.0.tokens.2.positionLength: 1 }
+    - match: { detail.tokenfilters.0.tokens.2.keyword: false }
+
+---
+"trim":
+    - do:
+        indices.analyze:
+          body:
+            text:      Foo Bar !
+            tokenizer: keyword
+            filter:    [trim]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: Foo Bar !  }
+
+---
+"word_delimiter":
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:    [word_delimiter]
+    - length: { tokens: 6 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu }
+    - match:  { tokens.2.token: "1" }
+    - match:  { tokens.3.token: ck }
+    - match:  { tokens.4.token: brown }
+    - match:  { tokens.5.token: fox }
+
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:
+              - type: word_delimiter
+                split_on_numerics: false
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu1ck }
+    - match:  { tokens.2.token: brown }
+    - match:  { tokens.3.token: fox }
+
+---
+"word_delimiter_graph":
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:    [word_delimiter_graph]
+    - length: { tokens: 6 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu }
+    - match:  { tokens.2.token: "1" }
+    - match:  { tokens.3.token: ck }
+    - match:  { tokens.4.token: brown }
+    - match:  { tokens.5.token: fox }
+
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:
+              - type: word_delimiter_graph
+                split_on_numerics: false
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu1ck }
+    - match:  { tokens.2.token: brown }
+    - match:  { tokens.3.token: fox }
+
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            explain:   true
+            tokenizer: standard
+            filter:    [word_delimiter_graph]
+    - match:  { detail.custom_analyzer: true }
+    - match:  { detail.tokenizer.name: standard }
+    - length: { detail.tokenizer.tokens: 4 }
+    - match:  { detail.tokenizer.tokens.0.token: the }
+    - match:  { detail.tokenizer.tokens.0.start_offset: 0 }
+    - match:  { detail.tokenizer.tokens.0.end_offset: 3 }
+    - match:  { detail.tokenizer.tokens.0.position: 0 }
+    - match:  { detail.tokenizer.tokens.1.token: qu1ck }
+    - match:  { detail.tokenizer.tokens.1.start_offset: 4 }
+    - match:  { detail.tokenizer.tokens.1.end_offset: 9 }
+    - match:  { detail.tokenizer.tokens.1.position: 1 }
+    - match:  { detail.tokenizer.tokens.2.token: brown }
+    - match:  { detail.tokenizer.tokens.2.start_offset: 10 }
+    - match:  { detail.tokenizer.tokens.2.end_offset: 15 }
+    - match:  { detail.tokenizer.tokens.2.position: 2 }
+    - match:  { detail.tokenizer.tokens.3.token: fox }
+    - match:  { detail.tokenizer.tokens.3.start_offset: 16 }
+    - match:  { detail.tokenizer.tokens.3.end_offset: 19 }
+    - match:  { detail.tokenizer.tokens.3.position: 3 }
+    - length: { detail.tokenfilters: 1 }
+    - match:  { detail.tokenfilters.0.name: word_delimiter_graph }
+    - length: { detail.tokenfilters.0.tokens: 6 }
+    - match:  { detail.tokenfilters.0.tokens.0.token: the }
+    - match:  { detail.tokenfilters.0.tokens.0.start_offset: 0 }
+    - match:  { detail.tokenfilters.0.tokens.0.end_offset: 3 }
+    - match:  { detail.tokenfilters.0.tokens.0.position: 0 }
+    - match:  { detail.tokenfilters.0.tokens.1.token: qu }
+    - match:  { detail.tokenfilters.0.tokens.1.start_offset: 4 }
+    - match:  { detail.tokenfilters.0.tokens.1.end_offset: 6 }
+    - match:  { detail.tokenfilters.0.tokens.1.position: 1 }
+    - match:  { detail.tokenfilters.0.tokens.2.token: "1" }
+    - match:  { detail.tokenfilters.0.tokens.2.start_offset: 6 }
+    - match:  { detail.tokenfilters.0.tokens.2.end_offset: 7 }
+    - match:  { detail.tokenfilters.0.tokens.2.position: 2 }
+    - match:  { detail.tokenfilters.0.tokens.3.token: ck }
+    - match:  { detail.tokenfilters.0.tokens.3.start_offset: 7 }
+    - match:  { detail.tokenfilters.0.tokens.3.end_offset: 9 }
+    - match:  { detail.tokenfilters.0.tokens.3.position: 3 }
+    - match:  { detail.tokenfilters.0.tokens.4.token: brown }
+    - match:  { detail.tokenfilters.0.tokens.4.start_offset: 10 }
+    - match:  { detail.tokenfilters.0.tokens.4.end_offset: 15 }
+    - match:  { detail.tokenfilters.0.tokens.4.position: 4 }
+    - match:  { detail.tokenfilters.0.tokens.5.token: fox }
+    - match:  { detail.tokenfilters.0.tokens.5.start_offset: 16 }
+    - match:  { detail.tokenfilters.0.tokens.5.end_offset: 19 }
+    - match:  { detail.tokenfilters.0.tokens.5.position: 5 }

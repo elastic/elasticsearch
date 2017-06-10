@@ -37,10 +37,13 @@ public class EvilJNANativesTests extends ESTestCase {
         if (Constants.LINUX) {
             final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/limits"));
             if (!lines.isEmpty()) {
-                for (String line : lines) {
+                for (final String line : lines) {
                     if (line != null && line.startsWith("Max processes")) {
                         final String[] fields = line.split("\\s+");
-                        final long limit = "unlimited".equals(fields[2]) ? JNACLibrary.RLIM_INFINITY : Long.parseLong(fields[2]);
+                        final long limit =
+                                "unlimited".equals(fields[2])
+                                        ? JNACLibrary.RLIM_INFINITY
+                                        : Long.parseLong(fields[2]);
                         assertThat(JNANatives.MAX_NUMBER_OF_THREADS, equalTo(limit));
                         return;
                     }
@@ -56,18 +59,22 @@ public class EvilJNANativesTests extends ESTestCase {
         if (Constants.LINUX) {
             final List<String> lines = Files.readAllLines(PathUtils.get("/proc/self/limits"));
             if (!lines.isEmpty()) {
-                for (String line : lines) {
+                for (final String line : lines) {
                     if (line != null && line.startsWith("Max address space")) {
                         final String[] fields = line.split("\\s+");
                         final String limit = fields[3];
-                        assertEquals(JNANatives.rlimitToString(JNANatives.MAX_SIZE_VIRTUAL_MEMORY), limit);
+                        assertThat(
+                                JNANatives.rlimitToString(JNANatives.MAX_SIZE_VIRTUAL_MEMORY),
+                                equalTo(limit));
                         return;
                     }
                 }
             }
             fail("should have read max size virtual memory from /proc/self/limits");
         } else if (Constants.MAC_OS_X) {
-            assertThat(JNANatives.MAX_SIZE_VIRTUAL_MEMORY, anyOf(equalTo(Long.MIN_VALUE), greaterThanOrEqualTo(0L)));
+            assertThat(
+                    JNANatives.MAX_SIZE_VIRTUAL_MEMORY,
+                    anyOf(equalTo(Long.MIN_VALUE), greaterThanOrEqualTo(0L)));
         } else {
             assertThat(JNANatives.MAX_SIZE_VIRTUAL_MEMORY, equalTo(Long.MIN_VALUE));
         }

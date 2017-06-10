@@ -26,44 +26,42 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchRequestParsers;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Collections;
-
-import static org.elasticsearch.script.ScriptContext.Standard.SEARCH;
 
 public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
 
-    private static final String TEMPLATE_LANG = MustacheScriptEngineService.NAME;
+    private static final String TEMPLATE_LANG = MustacheScriptEngine.NAME;
 
     private final ScriptService scriptService;
     private final TransportSearchAction searchAction;
-    private final SearchRequestParsers searchRequestParsers;
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportSearchTemplateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver resolver,
                                          ScriptService scriptService,
-                                         TransportSearchAction searchAction, SearchRequestParsers searchRequestParsers,
+                                         TransportSearchAction searchAction,
                                          NamedXContentRegistry xContentRegistry) {
         super(settings, SearchTemplateAction.NAME, threadPool, transportService, actionFilters, resolver, SearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.searchAction = searchAction;
-        this.searchRequestParsers = searchRequestParsers;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -71,29 +69,8 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
     protected void doExecute(SearchTemplateRequest request, ActionListener<SearchTemplateResponse> listener) {
         final SearchTemplateResponse response = new SearchTemplateResponse();
         try {
-            Script script = new Script(request.getScriptType(), TEMPLATE_LANG, request.getScript(),
-                request.getScriptParams() == null ? Collections.emptyMap() : request.getScriptParams());
-            ExecutableScript executable = scriptService.executable(script, SEARCH);
-
-            BytesReference source = (BytesReference) executable.run();
-            response.setSource(source);
-
-            if (request.isSimulate()) {
-                listener.onResponse(response);
-                return;
-            }
-
-            // Executes the search
-            SearchRequest searchRequest = request.getRequest();
-
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(xContentRegistry, source)) {
-                SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
-                builder.parseXContent(new QueryParseContext(parser, parseFieldMatcher),
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
-                builder.explain(request.isExplain());
-                builder.profile(request.isProfile());
-                searchRequest.source(builder);
-
+            SearchRequest searchRequest = convert(request, response, scriptService, xContentRegistry);
+            if (searchRequest != null) {
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
                     @Override
                     public void onResponse(SearchResponse searchResponse) {
@@ -110,9 +87,34 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
                         listener.onFailure(t);
                     }
                 });
+            } else {
+                listener.onResponse(response);
             }
-        } catch (Exception t) {
-            listener.onFailure(t);
+        } catch (IOException e) {
+            listener.onFailure(e);
         }
+    }
+
+    static SearchRequest convert(SearchTemplateRequest searchTemplateRequest, SearchTemplateResponse response, ScriptService scriptService,
+                                 NamedXContentRegistry xContentRegistry) throws IOException {
+        Script script = new Script(searchTemplateRequest.getScriptType(), TEMPLATE_LANG, searchTemplateRequest.getScript(),
+                searchTemplateRequest.getScriptParams() == null ? Collections.emptyMap() : searchTemplateRequest.getScriptParams());
+        TemplateScript compiledScript = scriptService.compile(script, TemplateScript.CONTEXT).newInstance(script.getParams());
+        String source = compiledScript.execute();
+        response.setSource(new BytesArray(source));
+
+        SearchRequest searchRequest = searchTemplateRequest.getRequest();
+        if (searchTemplateRequest.isSimulate()) {
+            return null;
+        }
+
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContentRegistry, source)) {
+            SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
+            builder.parseXContent(new QueryParseContext(parser));
+            builder.explain(searchTemplateRequest.isExplain());
+            builder.profile(searchTemplateRequest.isProfile());
+            searchRequest.source(builder);
+        }
+        return searchRequest;
     }
 }

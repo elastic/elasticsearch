@@ -21,8 +21,6 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,7 +46,7 @@ public class AllocationId implements ToXContent, Writeable {
     private static final String ID_KEY = "id";
     private static final String RELOCATION_ID_KEY = "relocation_id";
 
-    private static final ObjectParser<AllocationId.Builder, ParseFieldMatcherSupplier> ALLOCATION_ID_PARSER = new ObjectParser<>(
+    private static final ObjectParser<AllocationId.Builder, Void> ALLOCATION_ID_PARSER = new ObjectParser<>(
             "allocationId");
 
     static {
@@ -203,6 +201,6 @@ public class AllocationId implements ToXContent, Writeable {
     }
 
     public static AllocationId fromXContent(XContentParser parser) throws IOException {
-        return ALLOCATION_ID_PARSER.parse(parser, new AllocationId.Builder(), () -> ParseFieldMatcher.STRICT).build();
+        return ALLOCATION_ID_PARSER.parse(parser, new AllocationId.Builder(), null).build();
     }
 }

@@ -37,7 +37,6 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.codec.http.QueryStringDecoder;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 

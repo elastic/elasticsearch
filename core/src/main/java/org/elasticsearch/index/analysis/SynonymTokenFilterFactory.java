@@ -61,8 +61,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
         }
 
-        this.ignoreCase = settings.getAsBoolean("ignore_case", false);
-        boolean expand = settings.getAsBoolean("expand", true);
+        this.ignoreCase =
+            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false, deprecationLogger);
+        boolean expand =
+            settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "expand", true, deprecationLogger);
 
         String tokenizerName = settings.get("tokenizer", "whitespace");
         AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =

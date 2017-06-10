@@ -38,7 +38,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
     public void testParseInlineTemplate() throws Exception {
         String source = "{" +
-                "    'inline' : {\n" +
+                "    'source' : {\n" +
                 "    'query': {\n" +
                 "      'terms': {\n" +
                 "        'status': [\n" +
@@ -59,7 +59,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
     public void testParseInlineTemplateWithParams() throws Exception {
         String source = "{" +
-                "    'inline' : {" +
+                "    'source' : {" +
                 "      'query': { 'match' : { '{{my_field}}' : '{{my_value}}' } }," +
                 "      'size' : '{{my_size}}'" +
                 "    }," +
@@ -80,7 +80,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     }
 
     public void testParseInlineTemplateAsString() throws Exception {
-        String source = "{'inline' : '{\\\"query\\\":{\\\"bool\\\":{\\\"must\\\":{\\\"match\\\":{\\\"foo\\\":\\\"{{text}}\\\"}}}}}'}";
+        String source = "{'source' : '{\\\"query\\\":{\\\"bool\\\":{\\\"must\\\":{\\\"match\\\":{\\\"foo\\\":\\\"{{text}}\\\"}}}}}'}";
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"bool\":{\"must\":{\"match\":{\"foo\":\"{{text}}\"}}}}}"));
@@ -90,7 +90,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testParseInlineTemplateAsStringWithParams() throws Exception {
-        String source = "{'inline' : '{\\\"query\\\":{\\\"match\\\":{\\\"{{field}}\\\":\\\"{{value}}\\\"}}}', " +
+        String source = "{'source' : '{\\\"query\\\":{\\\"match\\\":{\\\"{{field}}\\\":\\\"{{value}}\\\"}}}', " +
                 "'params': {'status': ['pending', 'published']}}";
 
         SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
@@ -99,26 +99,6 @@ public class SearchTemplateRequestTests extends ESTestCase {
         assertThat(request.getScriptParams().size(), equalTo(1));
         assertThat(request.getScriptParams(), hasKey("status"));
         assertThat((List<String>) request.getScriptParams().get("status"), hasItems("pending", "published"));
-    }
-
-    public void testParseFileTemplate() throws Exception {
-        String source = "{'file' : 'fileTemplate'}";
-
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
-        assertThat(request.getScript(), equalTo("fileTemplate"));
-        assertThat(request.getScriptType(), equalTo(ScriptType.FILE));
-        assertThat(request.getScriptParams(), nullValue());
-    }
-
-    public void testParseFileTemplateWithParams() throws Exception {
-        String source = "{'file' : 'template_foo', 'params' : {'foo': 'bar', 'size': 500}}";
-
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
-        assertThat(request.getScript(), equalTo("template_foo"));
-        assertThat(request.getScriptType(), equalTo(ScriptType.FILE));
-        assertThat(request.getScriptParams().size(), equalTo(2));
-        assertThat(request.getScriptParams(), hasEntry("foo", "bar"));
-        assertThat(request.getScriptParams(), hasEntry("size", 500));
     }
 
     public void testParseStoredTemplate() throws Exception {

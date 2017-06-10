@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -205,5 +206,12 @@ public class DisMaxQueryBuilder extends AbstractQueryBuilder<DisMaxQueryBuilder>
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
+        for (QueryBuilder query : queries) {
+            InnerHitContextBuilder.extractInnerHits(query, innerHits);
+        }
     }
 }

@@ -380,11 +380,10 @@ public class NodeEnvironmentTests extends ESTestCase {
         assertThat("index paths uses the regular template",
                 env.indexPaths(index), equalTo(stringsToPaths(dataPaths, "nodes/0/indices/" + index.getUUID())));
 
-        IndexSettings s3 = new IndexSettings(s2.getIndexMetaData(),
-                Settings.builder().put(NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey(), false).build());
+        IndexSettings s3 = new IndexSettings(s2.getIndexMetaData(), Settings.builder().build());
 
         assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
-        assertThat(env.resolveCustomLocation(s3, sid), equalTo(PathUtils.get("/tmp/foo/" + index.getUUID() + "/0")));
+        assertThat(env.resolveCustomLocation(s3, sid), equalTo(PathUtils.get("/tmp/foo/0/" + index.getUUID() + "/0")));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),

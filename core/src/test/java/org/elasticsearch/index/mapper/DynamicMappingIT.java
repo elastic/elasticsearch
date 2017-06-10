@@ -71,7 +71,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testMappingsPropagatedToMasterNodeImmediately() throws IOException {
-        createIndex("index");
+        assertAcked(prepareCreate("index").setSettings("index.mapping.single_type", false));
 
         // works when the type has been dynamically created
         client().prepareIndex("index", "type", "1").setSource("foo", 3).get();

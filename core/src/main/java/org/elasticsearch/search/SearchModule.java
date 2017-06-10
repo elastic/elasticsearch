@@ -43,8 +43,6 @@ import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
 import org.elasticsearch.index.query.GeoPolygonQueryBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.HasChildQueryBuilder;
-import org.elasticsearch.index.query.HasParentQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -54,7 +52,6 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
-import org.elasticsearch.index.query.ParentIdQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -93,13 +90,14 @@ import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtensionSpec;
+import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.children.InternalChildren;
+import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
@@ -133,6 +131,7 @@ import org.elasticsearch.search.aggregations.bucket.sampler.UnmappedSampler;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantLongTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantTextAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
@@ -230,7 +229,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
-import org.elasticsearch.search.fetch.subphase.highlight.PostingsHighlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -238,16 +237,14 @@ import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.suggest.Suggester;
-import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.completion.CompletionSuggester;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
 import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
-import org.elasticsearch.search.suggest.term.TermSuggester;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -267,28 +264,21 @@ public class SearchModule {
 
     private final boolean transportClient;
     private final Map<String, Highlighter> highlighters;
-    private final Map<String, Suggester<?>> suggesters;
-    private final ParseFieldRegistry<Aggregator.Parser> aggregationParserRegistry = new ParseFieldRegistry<>("aggregation");
-    private final ParseFieldRegistry<PipelineAggregator.Parser> pipelineAggregationParserRegistry = new ParseFieldRegistry<>(
-            "pipline_aggregation");
-    private final AggregatorParsers aggregatorParsers = new AggregatorParsers(aggregationParserRegistry, pipelineAggregationParserRegistry);
     private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry = new ParseFieldRegistry<>(
             "significance_heuristic");
     private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
             "moving_avg_model");
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
-    private final SearchExtRegistry searchExtParserRegistry = new SearchExtRegistry();
 
     private final Settings settings;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
-    private final SearchRequestParsers searchRequestParsers;
 
     public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
         this.settings = settings;
         this.transportClient = transportClient;
-        suggesters = setupSuggesters(plugins);
+        registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
         registerQueryParsers(plugins);
@@ -302,7 +292,6 @@ public class SearchModule {
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
         registerShapes();
-        searchRequestParsers = new SearchRequestParsers(aggregatorParsers, getSuggesters(), searchExtParserRegistry);
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -311,14 +300,6 @@ public class SearchModule {
 
     public List<NamedXContentRegistry.Entry> getNamedXContents() {
         return namedXContents;
-    }
-
-    public Suggesters getSuggesters() {
-        return new Suggesters(suggesters);
-    }
-
-    public SearchRequestParsers getSearchRequestParsers() {
-        return searchRequestParsers;
     }
 
     /**
@@ -340,13 +321,6 @@ public class SearchModule {
      */
     public ParseFieldRegistry<MovAvgModel.AbstractModelParser> getMovingAverageModelParserRegistry() {
         return movingAverageModelParserRegistry;
-    }
-
-    /**
-     * Parsers for {@link AggregationBuilder}s and {@link PipelineAggregationBuilder}s.
-     */
-    public AggregatorParsers getAggregatorParsers() {
-        return aggregatorParsers;
     }
 
     private void registerAggregations(List<SearchPlugin> plugins) {
@@ -382,6 +356,8 @@ public class SearchModule {
                 FilterAggregationBuilder::parse).addResultReader(InternalFilter::new));
         registerAggregation(new AggregationSpec(FiltersAggregationBuilder.NAME, FiltersAggregationBuilder::new,
                 FiltersAggregationBuilder::parse).addResultReader(InternalFilters::new));
+        registerAggregation(new AggregationSpec(AdjacencyMatrixAggregationBuilder.NAME, AdjacencyMatrixAggregationBuilder::new,
+                AdjacencyMatrixAggregationBuilder.getParser()).addResultReader(InternalAdjacencyMatrix::new));
         registerAggregation(new AggregationSpec(SamplerAggregationBuilder.NAME, SamplerAggregationBuilder::new,
                 SamplerAggregationBuilder::parse)
                     .addResultReader(InternalSampler.NAME, InternalSampler::new)
@@ -400,6 +376,8 @@ public class SearchModule {
                     .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)
                     .addResultReader(SignificantLongTerms.NAME, SignificantLongTerms::new)
                     .addResultReader(UnmappedSignificantTerms.NAME, UnmappedSignificantTerms::new));
+        registerAggregation(new AggregationSpec(SignificantTextAggregationBuilder.NAME, SignificantTextAggregationBuilder::new,
+                SignificantTextAggregationBuilder.getParser(significanceHeuristicParserRegistry)));
         registerAggregation(new AggregationSpec(RangeAggregationBuilder.NAME, RangeAggregationBuilder::new,
                 RangeAggregationBuilder::parse).addResultReader(InternalRange::new));
         registerAggregation(new AggregationSpec(DateRangeAggregationBuilder.NAME, DateRangeAggregationBuilder::new,
@@ -426,15 +404,15 @@ public class SearchModule {
                 GeoCentroidAggregationBuilder::parse).addResultReader(InternalGeoCentroid::new));
         registerAggregation(new AggregationSpec(ScriptedMetricAggregationBuilder.NAME, ScriptedMetricAggregationBuilder::new,
                 ScriptedMetricAggregationBuilder::parse).addResultReader(InternalScriptedMetric::new));
-        registerAggregation(new AggregationSpec(ChildrenAggregationBuilder.NAME, ChildrenAggregationBuilder::new,
-                ChildrenAggregationBuilder::parse).addResultReader(InternalChildren::new));
-
         registerFromPlugin(plugins, SearchPlugin::getAggregations, this::registerAggregation);
     }
 
     private void registerAggregation(AggregationSpec spec) {
         if (false == transportClient) {
-            aggregationParserRegistry.register(spec.getParser(), spec.getName());
+            namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
+                AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
+                return spec.getParser().parse(context.name, context.queryParseContext);
+            }));
         }
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
@@ -528,7 +506,10 @@ public class SearchModule {
 
     private void registerPipelineAggregation(PipelineAggregationSpec spec) {
         if (false == transportClient) {
-            pipelineAggregationParserRegistry.register(spec.getParser(), spec.getName());
+            namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
+                AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
+                return spec.getParser().parse(context.name, context.queryParseContext);
+            }));
         }
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
@@ -571,31 +552,28 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(SmoothingModel.class, StupidBackoff.NAME, StupidBackoff::new));
     }
 
-    private Map<String, Suggester<?>> setupSuggesters(List<SearchPlugin> plugins) {
+    private void registerSuggesters(List<SearchPlugin> plugins) {
         registerSmoothingModels(namedWriteables);
 
-        // Suggester<?> is weird - it is both a Parser and a reader....
-        NamedRegistry<Suggester<?>> suggesters = new NamedRegistry<Suggester<?>>("suggester") {
-            @Override
-            public void register(String name, Suggester<?> t) {
-                super.register(name, t);
-                namedWriteables.add(new NamedWriteableRegistry.Entry(SuggestionBuilder.class, name, t));
-            }
-        };
-        suggesters.register("phrase", PhraseSuggester.INSTANCE);
-        suggesters.register("term", TermSuggester.INSTANCE);
-        suggesters.register("completion", CompletionSuggester.INSTANCE);
+        registerSuggester(new SuggesterSpec<>("term", TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent));
+        registerSuggester(new SuggesterSpec<>("phrase", PhraseSuggestionBuilder::new, PhraseSuggestionBuilder::fromXContent));
+        registerSuggester(new SuggesterSpec<>("completion", CompletionSuggestionBuilder::new, CompletionSuggestionBuilder::fromXContent));
 
-        suggesters.extractAndRegister(plugins, SearchPlugin::getSuggesters);
-        return unmodifiableMap(suggesters.getRegistry());
+        registerFromPlugin(plugins, SearchPlugin::getSuggesters, this::registerSuggester);
+    }
+
+    private void registerSuggester(SuggesterSpec<?> suggester) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(
+                SuggestionBuilder.class, suggester.getName().getPreferredName(), suggester.getReader()));
+        namedXContents.add(new NamedXContentRegistry.Entry(SuggestionBuilder.class, suggester.getName(),
+                suggester.getParser()));
     }
 
     private Map<String, Highlighter> setupHighlighters(Settings settings, List<SearchPlugin> plugins) {
         NamedRegistry<Highlighter> highlighters = new NamedRegistry<>("highlighter");
         highlighters.register("fvh",  new FastVectorHighlighter(settings));
         highlighters.register("plain", new PlainHighlighter());
-        highlighters.register("postings", new PostingsHighlighter());
-
+        highlighters.register("unified", new UnifiedHighlighter());
         highlighters.extractAndRegister(plugins, SearchPlugin::getHighlighters);
 
         return unmodifiableMap(highlighters.getRegistry());
@@ -699,7 +677,7 @@ public class SearchModule {
     }
 
     private void registerSearchExt(SearchExtSpec<?> spec) {
-        searchExtParserRegistry.register(spec.getParser(), spec.getName());
+        namedXContents.add(new NamedXContentRegistry.Entry(SearchExtBuilder.class, spec.getName(), spec.getParser()));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SearchExtBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
@@ -718,8 +696,6 @@ public class SearchModule {
                 MatchPhrasePrefixQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MultiMatchQueryBuilder.NAME, MultiMatchQueryBuilder::new, MultiMatchQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(NestedQueryBuilder.NAME, NestedQueryBuilder::new, NestedQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(HasChildQueryBuilder.NAME, HasChildQueryBuilder::new, HasChildQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(HasParentQueryBuilder.NAME, HasParentQueryBuilder::new, HasParentQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(DisMaxQueryBuilder.NAME, DisMaxQueryBuilder::new, DisMaxQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(IdsQueryBuilder.NAME, IdsQueryBuilder::new, IdsQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new, MatchAllQueryBuilder::fromXContent));
@@ -764,7 +740,6 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(GeoPolygonQueryBuilder.NAME, GeoPolygonQueryBuilder::new, GeoPolygonQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(ExistsQueryBuilder.NAME, ExistsQueryBuilder::new, ExistsQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchNoneQueryBuilder.NAME, MatchNoneQueryBuilder::new, MatchNoneQueryBuilder::fromXContent));
-        registerQuery(new QuerySpec<>(ParentIdQueryBuilder.NAME, ParentIdQueryBuilder::new, ParentIdQueryBuilder::fromXContent));
 
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
@@ -781,9 +756,5 @@ public class SearchModule {
 
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
-    }
-
-    public SearchExtRegistry getSearchExtRegistry() {
-        return searchExtParserRegistry;
     }
 }

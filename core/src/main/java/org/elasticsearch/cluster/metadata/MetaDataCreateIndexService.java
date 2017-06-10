@@ -66,7 +66,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -93,6 +92,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
@@ -115,6 +115,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
     private final NamedXContentRegistry xContentRegistry;
+    private final ThreadPool threadPool;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
@@ -130,6 +131,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -220,7 +222,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         request.settings(updatedSettingsBuilder.build());
 
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request,
+                    wrapPreservingContext(listener, threadPool.getThreadContext())) {
+
                     @Override
                     protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                         return new ClusterStateUpdateResponse(acknowledged);
@@ -263,11 +267,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             for (IndexTemplateMetaData template : templates) {
                                 templateNames.add(template.getName());
                                 for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
+                                    String mappingString = cursor.value.string();
                                     if (mappings.containsKey(cursor.key)) {
                                         XContentHelper.mergeDefaults(mappings.get(cursor.key),
-                                                MapperService.parseMapping(xContentRegistry, cursor.value.string()));
+                                                MapperService.parseMapping(xContentRegistry, mappingString));
                                     } else {
-                                        mappings.put(cursor.key, MapperService.parseMapping(xContentRegistry, cursor.value.string()));
+                                        mappings.put(cursor.key,
+                                            MapperService.parseMapping(xContentRegistry, mappingString));
                                     }
                                 }
                                 // handle custom
@@ -357,7 +363,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                                                    (tmpImd.getNumberOfReplicas() + 1) + "]");
                             }
                             // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                            final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList(), shardId -> {});
+                            final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList());
                             createdIndex = indexService.index();
                             // now add the mappings
                             MapperService mapperService = indexService.mapperService();
@@ -368,9 +374,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 throw e;
                             }
 
+                            if (request.shrinkFrom() == null) {
+                                // now that the mapping is merged we can validate the index sort.
+                                // we cannot validate for index shrinking since the mapping is empty
+                                // at this point. The validation will take place later in the process
+                                // (when all shards are copied in a single place).
+                                indexService.getIndexSortSupplier().get();
+                            }
+
                             // the context is only used for validation so it's fine to pass fake values for the shard id and the current
                             // timestamp
                             final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
+
                             for (Alias alias : request.aliases()) {
                                 if (Strings.hasLength(alias.filter())) {
                                     aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
@@ -427,10 +442,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                     .put(indexMetaData, false)
                                     .build();
 
-                            String maybeShadowIndicator = IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) ? "s" : "";
-                            logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}{}], mappings {}",
+                            logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}",
                                     request.index(), request.cause(), templateNames, indexMetaData.getNumberOfShards(),
-                                    indexMetaData.getNumberOfReplicas(), maybeShadowIndicator, mappings.keySet());
+                                    indexMetaData.getNumberOfReplicas(), mappings.keySet());
 
                             ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                             if (!request.blocks().isEmpty()) {
@@ -545,6 +559,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             throw new IllegalArgumentException("mappings are not allowed when shrinking indices" +
                 ", all mappings are copied from the source index");
         }
+
         if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             // this method applies all necessary checks ie. if the target shards are less than the source shards
             // of if the source shards are divisible by the number of target shards
@@ -575,20 +590,24 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
     static void prepareShrinkIndexSettings(ClusterState currentState, Set<String> mappingKeys, Settings.Builder indexSettingsBuilder, Index shrinkFromIndex, String shrinkIntoName) {
         final IndexMetaData sourceMetaData = currentState.metaData().index(shrinkFromIndex.getName());
+
         final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, shrinkFromIndex.getName(),
             mappingKeys, shrinkIntoName, indexSettingsBuilder.build());
-        final Predicate<String> analysisSimilarityPredicate = (s) -> s.startsWith("index.similarity.")
-            || s.startsWith("index.analysis.");
+        final Predicate<String> sourceSettingsPredicate = (s) -> s.startsWith("index.similarity.")
+            || s.startsWith("index.analysis.") || s.startsWith("index.sort.");
         indexSettingsBuilder
             // we use "i.r.a.initial_recovery" rather than "i.r.a.require|include" since we want the replica to allocate right away
             // once we are allocated.
-            .put("index.routing.allocation.initial_recovery._id",
+            .put(IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getKey() + "_id",
                 Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()))
             // we only try once and then give up with a shrink index
             .put("index.allocation.max_retries", 1)
-            // now copy all similarity / analysis settings - this overrides all settings from the user unless they
+            // now copy all similarity / analysis / sort settings - this overrides all settings from the user unless they
             // wanna add extra settings
-            .put(sourceMetaData.getSettings().filter(analysisSimilarityPredicate))
+            .put(IndexMetaData.SETTING_VERSION_CREATED, sourceMetaData.getCreationVersion())
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, sourceMetaData.getUpgradedVersion())
+            .put(sourceMetaData.getSettings().filter(sourceSettingsPredicate))
+            .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());
     }

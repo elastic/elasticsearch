@@ -27,7 +27,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
@@ -65,6 +64,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
@@ -84,8 +84,8 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.node.NodeService;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
@@ -130,8 +130,10 @@ import java.util.stream.Stream;
 
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
 import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.elasticsearch.discovery.DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.discovery.zen.ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.awaitBusy;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -589,14 +591,18 @@ public final class InternalTestCluster extends TestCluster {
             .put("node.name", name)
             .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), seed);
 
-        if (autoManageMinMasterNodes) {
+        final boolean usingSingleNodeDiscovery = DiscoveryModule.DISCOVERY_TYPE_SETTING.get(finalSettings.build()).equals("single-node");
+        if (!usingSingleNodeDiscovery && autoManageMinMasterNodes) {
             assert finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null :
                 "min master nodes may not be set when auto managed";
+            assert finalSettings.get(INITIAL_STATE_TIMEOUT_SETTING.getKey()) == null :
+                "automatically managing min master nodes require nodes to complete a join cycle" +
+                    " when starting";
             finalSettings
                 // don't wait too long not to slow down tests
                 .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), "5s")
                 .put(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), defaultMinMasterNodes);
-        } else if (finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null) {
+        } else if (!usingSingleNodeDiscovery && finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null) {
             throw new IllegalArgumentException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured");
         }
         MockNode node = new MockNode(finalSettings.build(), plugins);
@@ -1052,21 +1058,38 @@ public final class InternalTestCluster extends TestCluster {
         logger.debug("Cluster is consistent again - nodes: [{}] nextNodeId: [{}] numSharedNodes: [{}]", nodes.keySet(), nextNodeId.get(), newSize);
     }
 
-    /** ensure a cluster is form with {@link #nodes}.size() nodes. */
-    private void validateClusterFormed() {
+    /** ensure a cluster is formed with all published nodes. */
+    public synchronized void validateClusterFormed() {
         String name = randomFrom(random, getNodeNames());
         validateClusterFormed(name);
     }
 
-    /** ensure a cluster is form with {@link #nodes}.size() nodes, but do so by using the client of the specified node */
-    private void validateClusterFormed(String viaNode) {
-        final int size = nodes.size();
-        logger.trace("validating cluster formed via [{}], expecting [{}]", viaNode, size);
+    /** ensure a cluster is formed with all published nodes, but do so by using the client of the specified node */
+    public synchronized void validateClusterFormed(String viaNode) {
+        Set<DiscoveryNode> expectedNodes = new HashSet<>();
+        for (NodeAndClient nodeAndClient : nodes.values()) {
+            expectedNodes.add(getInstanceFromNode(ClusterService.class, nodeAndClient.node()).localNode());
+        }
+        logger.trace("validating cluster formed via [{}], expecting {}", viaNode, expectedNodes);
         final Client client = client(viaNode);
-        ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size)).get();
-        if (response.isTimedOut()) {
-            logger.warn("failed to wait for a cluster of size [{}], got [{}]", size, response);
-            throw new IllegalStateException("cluster failed to reach the expected size of [" + size + "]");
+        try {
+            if (awaitBusy(() -> {
+                DiscoveryNodes discoveryNodes = client.admin().cluster().prepareState().get().getState().nodes();
+                if (discoveryNodes.getSize() != expectedNodes.size()) {
+                    return false;
+                }
+                for (DiscoveryNode expectedNode : expectedNodes) {
+                    if (discoveryNodes.nodeExists(expectedNode) == false) {
+                        return false;
+                    }
+                }
+                return true;
+            }, 30, TimeUnit.SECONDS) == false) {
+                throw new IllegalStateException("cluster failed to form with expected nodes " + expectedNodes + " and actual nodes " +
+                    client.admin().cluster().prepareState().get().getState().nodes());
+            }
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
         }
     }
 
@@ -1128,13 +1151,8 @@ public final class InternalTestCluster extends TestCluster {
                                     .map(task -> task.taskInfo(localNode.getId(), true))
                                     .collect(Collectors.toList());
                             ListTasksResponse response = new ListTasksResponse(taskInfos, Collections.emptyList(), Collections.emptyList());
-                            XContentBuilder builder = null;
                             try {
-                                builder = XContentFactory.jsonBuilder()
-                                        .prettyPrint()
-                                        .startObject()
-                                        .value(response)
-                                        .endObject();
+                                XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint().value(response);
                                 throw new AssertionError("expected index shard counter on shard " + indexShard.shardId() + " on node " +
                                         nodeAndClient.name + " to be 0 but was " + activeOperationsCount + ". Current replication tasks on node:\n" +
                                         builder.string());
@@ -1834,7 +1852,7 @@ public final class InternalTestCluster extends TestCluster {
     private static final class MasterNodePredicate implements Predicate<NodeAndClient> {
         private final String masterNodeName;
 
-        public MasterNodePredicate(String masterNodeName) {
+        MasterNodePredicate(String masterNodeName) {
             this.masterNodeName = masterNodeName;
         }
 
@@ -1925,8 +1943,7 @@ public final class InternalTestCluster extends TestCluster {
     private static final class NodeNamePredicate implements Predicate<Settings> {
         private final HashSet<String> nodeNames;
 
-
-        public NodeNamePredicate(HashSet<String> nodeNames) {
+        NodeNamePredicate(HashSet<String> nodeNames) {
             this.nodeNames = nodeNames;
         }
 

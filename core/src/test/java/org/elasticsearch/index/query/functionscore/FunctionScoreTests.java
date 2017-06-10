@@ -37,6 +37,7 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
@@ -98,16 +99,17 @@ public class FunctionScoreTests extends ESTestCase {
                 public SortedBinaryDocValues getBytesValues() {
                     return new SortedBinaryDocValues() {
                         @Override
-                        public void setDocument(int docId) {
+                        public boolean advanceExact(int docId) {
+                            return true;
                         }
 
                         @Override
-                        public int count() {
+                        public int docValueCount() {
                             return 1;
                         }
 
                         @Override
-                        public BytesRef valueAt(int index) {
+                        public BytesRef nextValue() {
                             return new BytesRef("0");
                         }
                     };
@@ -135,8 +137,7 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public IndexFieldData.XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode,
-                IndexFieldData.XFieldComparatorSource.Nested nested) {
+        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
@@ -178,17 +179,18 @@ public class FunctionScoreTests extends ESTestCase {
                 public SortedNumericDoubleValues getDoubleValues() {
                     return new SortedNumericDoubleValues() {
                         @Override
-                        public void setDocument(int doc) {
+                        public boolean advanceExact(int docId) {
+                            return true;
                         }
 
                         @Override
-                        public double valueAt(int index) {
+                        public int docValueCount() {
                             return 1;
                         }
 
                         @Override
-                        public int count() {
-                            return 1;
+                        public double nextValue() {
+                            return 1d;
                         }
                     };
                 }
@@ -225,8 +227,7 @@ public class FunctionScoreTests extends ESTestCase {
         }
 
         @Override
-        public XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode,
-                XFieldComparatorSource.Nested nested) {
+        public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested, boolean reverse) {
             throw new UnsupportedOperationException(UNSUPPORTED);
         }
 
@@ -615,7 +616,7 @@ public class FunctionScoreTests extends ESTestCase {
 
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, null, null, null, Float.POSITIVE_INFINITY);
         for (boolean needsScores : new boolean[] {true, false}) {
-            Weight weight = searcher.createWeight(fsq, needsScores);
+            Weight weight = searcher.createWeight(fsq, needsScores, 1f);
             Scorer scorer = weight.scorer(reader.leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
         }
@@ -623,7 +624,7 @@ public class FunctionScoreTests extends ESTestCase {
         FiltersFunctionScoreQuery ffsq = new FiltersFunctionScoreQuery(query, ScoreMode.SUM, new FilterFunction[0], Float.POSITIVE_INFINITY,
                 null, CombineFunction.MULTIPLY);
         for (boolean needsScores : new boolean[] {true, false}) {
-            Weight weight = searcher.createWeight(ffsq, needsScores);
+            Weight weight = searcher.createWeight(ffsq, needsScores, 1f);
             Scorer scorer = weight.scorer(reader.leaves().get(0));
             assertNotNull(scorer.twoPhaseIterator());
         }
@@ -749,6 +750,33 @@ public class FunctionScoreTests extends ESTestCase {
         searchResult = localSearcher.search(query, 1);
         explanation = localSearcher.explain(query, searchResult.scoreDocs[0].doc);
         assertThat(searchResult.scoreDocs[0].score, equalTo(explanation.getValue()));
+    }
+
+    public void testWeightFactorNeedsScore() {
+        for (boolean needsScore : new boolean[] {true, false}) {
+            WeightFactorFunction function = new WeightFactorFunction(10.0f, new ScoreFunction(CombineFunction.REPLACE) {
+                @Override
+                public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+                    return null;
+                }
+
+                @Override
+                public boolean needsScores() {
+                    return needsScore;
+                }
+
+                @Override
+                protected boolean doEquals(ScoreFunction other) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+            });
+            assertEquals(needsScore, function.needsScores());
+        }
     }
 
     private static class DummyScoreFunction extends ScoreFunction {

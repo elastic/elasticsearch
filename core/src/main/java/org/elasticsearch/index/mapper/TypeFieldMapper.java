@@ -26,30 +26,33 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
-import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 
 public class TypeFieldMapper extends MetadataFieldMapper {
 
@@ -88,29 +91,12 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     static final class TypeFieldType extends StringFieldType {
-        private boolean fielddata;
 
-        public TypeFieldType() {
-            this.fielddata = false;
+        TypeFieldType() {
         }
 
         protected TypeFieldType(TypeFieldType ref) {
             super(ref);
-            this.fielddata = ref.fielddata;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (super.equals(o) == false) {
-                return false;
-            }
-            TypeFieldType that = (TypeFieldType) o;
-            return fielddata == that.fielddata;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), fielddata);
         }
 
         @Override
@@ -123,56 +109,83 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             return CONTENT_TYPE;
         }
 
-        public boolean fielddata() {
-            return fielddata;
-        }
-
-        public void setFielddata(boolean fielddata) {
-            checkIfFrozen();
-            this.fielddata = fielddata;
-        }
-
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             if (hasDocValues()) {
                 return new DocValuesIndexFieldData.Builder();
+            } else {
+                // means the index has a single type and the type field is implicit
+                Function<MapperService, String> typeFunction = mapperService -> {
+                    Collection<String> types = mapperService.types();
+                    if (types.size() > 1) {
+                        throw new AssertionError();
+                    }
+                    // If we reach here, there is necessarily one type since we were able to find a `_type` field
+                    String type = types.iterator().next();
+                    return type;
+                };
+                return new ConstantIndexFieldData.Builder(typeFunction);
             }
-            assert indexOptions() != IndexOptions.NONE;
-            if (fielddata) {
-                return new PagedBytesIndexFieldData.Builder(TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-                    TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE);
-            }
-            return super.fielddataBuilder();
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
-            if (indexOptions() == IndexOptions.NONE) {
-                throw new AssertionError();
+        public FieldStats<?> stats(IndexReader reader) throws IOException {
+            if (reader.maxDoc() == 0) {
+                return null;
             }
-            return new TypesQuery(indexedValueForSearch(value));
+            return new FieldStats.Text(reader.maxDoc(), reader.numDocs(), reader.maxDoc(), reader.maxDoc(),
+                    isSearchable(), isAggregatable());
         }
 
         @Override
-        public void checkCompatibility(MappedFieldType other,
-                                       List<String> conflicts, boolean strict) {
-            super.checkCompatibility(other, conflicts, strict);
-            TypeFieldType otherType = (TypeFieldType) other;
-            if (strict) {
-                if (fielddata() != otherType.fielddata()) {
-                    conflicts.add("mapper [" + name() + "] is used by multiple types. Set update_all_types to true to update [fielddata] "
-                        + "across all types.");
+        public boolean isSearchable() {
+            return true;
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            return termsQuery(Arrays.asList(value), context);
+        }
+
+        @Override
+        public Query termsQuery(List<?> values, QueryShardContext context) {
+            if (context.getIndexSettings().isSingleType()) {
+                Collection<String> indexTypes = context.getMapperService().types();
+                if (indexTypes.isEmpty()) {
+                    return new MatchNoDocsQuery("No types");
                 }
+                assert indexTypes.size() == 1;
+                BytesRef indexType = indexedValueForSearch(indexTypes.iterator().next());
+                if (values.stream()
+                        .map(this::indexedValueForSearch)
+                        .anyMatch(indexType::equals)) {
+                    if (context.getMapperService().hasNested()) {
+                        // type filters are expected not to match nested docs
+                        return Queries.newNonNestedFilter();
+                    } else {
+                        return new MatchAllDocsQuery();
+                    }
+                } else {
+                    return new MatchNoDocsQuery("Type list does not contain the index type");
+                }
+            } else {
+                if (indexOptions() == IndexOptions.NONE) {
+                    throw new AssertionError();
+                }
+                final BytesRef[] types = values.stream()
+                        .map(this::indexedValueForSearch)
+                        .toArray(size -> new BytesRef[size]);
+                return new TypesQuery(types);
             }
         }
+
     }
 
     /**
      * Specialization for a disjunction over many _type
      */
     public static class TypesQuery extends Query {
-        // Same threshold as TermsQuery
+        // Same threshold as TermInSetQuery
         private static final int BOOLEAN_REWRITE_TERM_COUNT_THRESHOLD = 16;
 
         private final BytesRef[] types;
@@ -220,7 +233,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
                 }
                 return new ConstantScoreQuery(bq.build());
             }
-            return new TermsQuery(CONTENT_TYPE, types);
+            return new TermInSetQuery(CONTENT_TYPE, types);
         }
 
         @Override
@@ -261,7 +274,13 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
     private static MappedFieldType defaultFieldType(Settings indexSettings) {
         MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        defaultFieldType.setHasDocValues(true);
+        if (MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING.get(indexSettings)) {
+            defaultFieldType.setIndexOptions(IndexOptions.NONE);
+            defaultFieldType.setHasDocValues(false);
+        } else {
+            defaultFieldType.setIndexOptions(IndexOptions.DOCS);
+            defaultFieldType.setHasDocValues(true);
+        }
         return defaultFieldType;
     }
 

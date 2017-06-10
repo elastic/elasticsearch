@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -35,12 +35,10 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.AbstractSearchScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.NativeScriptFactory;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.lookup.LeafFieldsLookup;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -51,8 +49,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
+import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -93,8 +93,8 @@ public class SearchCancellationIT extends ESIntegTestCase {
             plugins.addAll(pluginsService.filterPlugins(ScriptedBlockPlugin.class));
         }
         for (ScriptedBlockPlugin plugin : plugins) {
-            plugin.scriptedBlockFactory.reset();
-            plugin.scriptedBlockFactory.enableBlock();
+            plugin.reset();
+            plugin.enableBlock();
         }
         return plugins;
     }
@@ -104,7 +104,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         assertBusy(() -> {
             int numberOfBlockedPlugins = 0;
             for (ScriptedBlockPlugin plugin : plugins) {
-                numberOfBlockedPlugins += plugin.scriptedBlockFactory.hits.get();
+                numberOfBlockedPlugins += plugin.hits.get();
             }
             logger.info("The plugin blocked on {} out of {} shards", numberOfBlockedPlugins, numberOfShards);
             assertThat(numberOfBlockedPlugins, greaterThan(0));
@@ -113,7 +113,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
 
     private void disableBlocks(List<ScriptedBlockPlugin> plugins) throws Exception {
         for (ScriptedBlockPlugin plugin : plugins) {
-            plugin.scriptedBlockFactory.disableBlock();
+            plugin.disableBlock();
         }
     }
 
@@ -128,7 +128,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         assertThat(cancelTasksResponse.getTasks().get(0).getTaskId(), equalTo(searchTask.getTaskId()));
     }
 
-    private SearchResponse ensureSearchWasCancelled(ListenableActionFuture<SearchResponse> searchResponse) {
+    private SearchResponse ensureSearchWasCancelled(ActionFuture<SearchResponse> searchResponse) {
         try {
             SearchResponse response = searchResponse.actionGet();
             logger.info("Search response {}", response);
@@ -146,9 +146,9 @@ public class SearchCancellationIT extends ESIntegTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ListenableActionFuture<SearchResponse> searchResponse = client().prepareSearch("test").setQuery(
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test").setQuery(
             scriptQuery(new Script(
-                ScriptType.INLINE, "native", NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, Collections.emptyMap())))
+                ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -164,9 +164,9 @@ public class SearchCancellationIT extends ESIntegTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ListenableActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .addScriptField("test_field",
-                new Script(ScriptType.INLINE, "native", NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, Collections.emptyMap())
+                new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())
             ).execute();
 
         awaitForBlock(plugins);
@@ -182,12 +182,12 @@ public class SearchCancellationIT extends ESIntegTestCase {
         indexTestData();
 
         logger.info("Executing search");
-        ListenableActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .setScroll(TimeValue.timeValueSeconds(10))
             .setSize(5)
             .setQuery(
                 scriptQuery(new Script(
-                    ScriptType.INLINE, "native", NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, Collections.emptyMap())))
+                    ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -217,20 +217,20 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .setSize(2)
             .setQuery(
                 scriptQuery(new Script(
-                    ScriptType.INLINE, "native", NativeTestScriptedBlockFactory.TEST_NATIVE_BLOCK_SCRIPT, Collections.emptyMap())))
+                    ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
             .get();
 
         assertNotNull(searchResponse.getScrollId());
 
         // Enable block so the second request would block
         for (ScriptedBlockPlugin plugin : plugins) {
-            plugin.scriptedBlockFactory.reset();
-            plugin.scriptedBlockFactory.enableBlock();
+            plugin.reset();
+            plugin.enableBlock();
         }
 
         String scrollId = searchResponse.getScrollId();
         logger.info("Executing scroll with id {}", scrollId);
-        ListenableActionFuture<SearchResponse> scrollResponse = client().prepareSearchScroll(searchResponse.getScrollId())
+        ActionFuture<SearchResponse> scrollResponse = client().prepareSearchScroll(searchResponse.getScrollId())
             .setScroll(keepAlive).execute();
 
         awaitForBlock(plugins);
@@ -247,29 +247,12 @@ public class SearchCancellationIT extends ESIntegTestCase {
     }
 
 
-    public static class ScriptedBlockPlugin extends Plugin implements ScriptPlugin {
-        private NativeTestScriptedBlockFactory scriptedBlockFactory;
-
-        public ScriptedBlockPlugin() {
-            scriptedBlockFactory = new NativeTestScriptedBlockFactory();
-        }
-
-        @Override
-        public List<NativeScriptFactory> getNativeScripts() {
-            return Collections.singletonList(scriptedBlockFactory);
-        }
-    }
-
-    private static class NativeTestScriptedBlockFactory implements NativeScriptFactory {
-
-        public static final String TEST_NATIVE_BLOCK_SCRIPT = "native_test_search_block_script";
+    public static class ScriptedBlockPlugin extends MockScriptPlugin {
+        static final String SCRIPT_NAME = "search_block";
 
         private final AtomicInteger hits = new AtomicInteger();
 
         private final AtomicBoolean shouldBlock = new AtomicBoolean(true);
-
-        public NativeTestScriptedBlockFactory() {
-        }
 
         public void reset() {
             hits.set(0);
@@ -284,24 +267,10 @@ public class SearchCancellationIT extends ESIntegTestCase {
         }
 
         @Override
-        public ExecutableScript newScript(Map<String, Object> params) {
-            return new NativeTestScriptedBlock();
-        }
-
-        @Override
-        public boolean needsScores() {
-            return false;
-        }
-
-        @Override
-        public String getName() {
-            return TEST_NATIVE_BLOCK_SCRIPT;
-        }
-
-        public class NativeTestScriptedBlock extends AbstractSearchScript {
-            @Override
-            public Object run() {
-                Loggers.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", doc().get("_uid"));
+        public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            return Collections.singletonMap(SCRIPT_NAME, params -> {
+                LeafFieldsLookup fieldsLookup = (LeafFieldsLookup) params.get("_fields");
+                Loggers.getLogger(SearchCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_uid"));
                 hits.incrementAndGet();
                 try {
                     awaitBusy(() -> shouldBlock.get() == false);
@@ -309,8 +278,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
                     throw new RuntimeException(e);
                 }
                 return true;
-            }
+            });
         }
     }
-
 }

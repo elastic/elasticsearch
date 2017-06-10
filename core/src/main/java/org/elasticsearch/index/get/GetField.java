@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.get;
 
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -36,6 +34,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
 
 public class GetField implements Streamable, ToXContent, Iterable<Object> {
 
@@ -119,21 +118,7 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
         List<Object> values = new ArrayList<>();
         while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            Object value;
-            if (token == XContentParser.Token.VALUE_STRING) {
-                //binary values will be parsed back and returned as base64 strings when reading from json and yaml
-                value = parser.text();
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                value = parser.numberValue();
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                value = parser.booleanValue();
-            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
-                value = new BytesArray(parser.binaryValue());
-            } else {
-                throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: unsupported token found [" + token + "]");
-            }
-            values.add(value);
+            values.add(parseStoredFieldsValue(parser));
         }
         return new GetField(fieldName, values);
     }

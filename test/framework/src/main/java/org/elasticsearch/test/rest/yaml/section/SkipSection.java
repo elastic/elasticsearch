@@ -52,12 +52,15 @@ public class SkipSection {
     }
 
     public static SkipSection parse(XContentParser parser) throws IOException {
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("Expected [" + XContentParser.Token.START_OBJECT +
+                    ", found [" + parser.currentToken() + "], the skip section is not properly indented");
+        }
         String currentFieldName = null;
         XContentParser.Token token;
         String version = null;
         String reason = null;
         List<String> features = new ArrayList<>();
-
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -90,7 +93,6 @@ public class SkipSection {
         if (Strings.hasLength(version) && !Strings.hasLength(reason)) {
             throw new ParsingException(parser.getTokenLocation(), "reason is mandatory within skip version section");
         }
-
         return new SkipSection(version, features, reason);
     }
 

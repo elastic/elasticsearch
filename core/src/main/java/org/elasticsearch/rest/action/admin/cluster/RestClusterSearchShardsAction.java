@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -37,14 +36,17 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestClusterSearchShardsAction extends BaseRestHandler {
-
-    @Inject
     public RestClusterSearchShardsAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_search_shards", this);
         controller.registerHandler(POST, "/_search_shards", this);
         controller.registerHandler(GET, "/{index}/_search_shards", this);
         controller.registerHandler(POST, "/{index}/_search_shards", this);
+    }
+
+    @Override
+    public String getName() {
+        return "cluster_search_shards_action";
     }
 
     @Override

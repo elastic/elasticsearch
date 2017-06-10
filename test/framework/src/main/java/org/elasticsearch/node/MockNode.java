@@ -22,23 +22,21 @@ package org.elasticsearch.node;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.discovery.zen.UnicastHostsProvider;
-import org.elasticsearch.discovery.zen.ZenPing;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.test.discovery.MockZenPing;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -46,6 +44,7 @@ import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
+import java.util.function.Function;
 
 /**
  * A node for testing which allows:
@@ -90,15 +89,17 @@ public class MockNode extends Node {
 
     @Override
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                                   TransportInterceptor interceptor, ClusterSettings clusterSettings) {
+                                                   TransportInterceptor interceptor,
+                                                   Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+                                                   ClusterSettings clusterSettings) {
         // we use the MockTransportService.TestPlugin class as a marker to create a network
         // module with this MockNetworkService. NetworkService is such an integral part of the systme
         // we don't allow to plug it in from plugins or anything. this is a test-only override and
         // can't be done in a production env.
         if (getPluginsService().filterPlugins(MockTransportService.TestPlugin.class).isEmpty()) {
-            return super.newTransportService(settings, transport, threadPool, interceptor, clusterSettings);
+            return super.newTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings);
         } else {
-            return new MockTransportService(settings, transport, threadPool, interceptor, clusterSettings);
+            return new MockTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings);
         }
     }
 

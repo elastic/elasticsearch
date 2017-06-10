@@ -27,6 +27,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -90,48 +91,48 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         final Client client = internalCluster().smartClient();
         SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
-        String firstNodeId = searchResponse.getHits().getAt(0).shard().nodeId();
+        String firstNodeId = searchResponse.getHits().getAt(0).getShard().getNodeId();
         searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
-        String secondNodeId = searchResponse.getHits().getAt(0).shard().nodeId();
+        String secondNodeId = searchResponse.getHits().getAt(0).getShard().getNodeId();
 
         assertThat(firstNodeId, not(equalTo(secondNodeId)));
     }
 
     public void testSimplePreference() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}").get();
+        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
     }
 
     public void testReplicaPreference() throws Exception {
-        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 0}").get();
+        client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 0}", XContentType.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test", "type1").setSource("field1", "value1").execute().actionGet();
@@ -145,13 +146,13 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         }
 
         SearchResponse resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
-        assertThat(resp.getHits().totalHits(), equalTo(1L));
+        assertThat(resp.getHits().getTotalHits(), equalTo(1L));
 
-        client().admin().indices().prepareUpdateSettings("test").setSettings("{\"number_of_replicas\": 1}").get();
+        client().admin().indices().prepareUpdateSettings("test").setSettings("{\"number_of_replicas\": 1}", XContentType.JSON).get();
         ensureGreen("test");
 
         resp = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
-        assertThat(resp.getHits().totalHits(), equalTo(1L));
+        assertThat(resp.getHits().getTotalHits(), equalTo(1L));
     }
 
     public void testThatSpecifyingNonExistingNodesReturnsUsefulError() throws Exception {
@@ -220,7 +221,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         for (int i = 0; i < 2; i++) {
             SearchResponse searchResponse = request.execute().actionGet();
             assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
-            hitNodes.add(searchResponse.getHits().getAt(0).shard().nodeId());
+            hitNodes.add(searchResponse.getHits().getAt(0).getShard().getNodeId());
         }
         assertThat(hitNodes.size(), greaterThan(1));
     }

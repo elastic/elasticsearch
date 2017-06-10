@@ -24,10 +24,12 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
+import io.netty.util.NettyRuntime;
 import io.netty.util.internal.logging.InternalLogger;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
@@ -36,6 +38,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 public class Netty4Utils {
@@ -53,6 +57,41 @@ public class Netty4Utils {
 
     public static void setup() {
 
+    }
+
+    private static AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();
+
+    /**
+     * Set the number of available processors that Netty uses for sizing various resources (e.g., thread pools).
+     *
+     * @param availableProcessors the number of available processors
+     * @throws IllegalStateException if available processors was set previously and the specified value does not match the already-set value
+     */
+    public static void setAvailableProcessors(final int availableProcessors) {
+        // we set this to false in tests to avoid tests that randomly set processors from stepping on each other
+        final boolean set = Booleans.parseBoolean(System.getProperty("es.set.netty.runtime.available.processors", "true"));
+        if (!set) {
+            return;
+        }
+
+        /*
+         * This can be invoked twice, once from Netty4Transport and another time from Netty4HttpServerTransport; however,
+         * Netty4Runtime#availableProcessors forbids settings the number of processors twice so we prevent double invocation here.
+         */
+        if (isAvailableProcessorsSet.compareAndSet(false, true)) {
+            NettyRuntime.setAvailableProcessors(availableProcessors);
+        } else if (availableProcessors != NettyRuntime.availableProcessors()) {
+            /*
+             * We have previously set the available processors yet either we are trying to set it to a different value now or there is a bug
+             * in Netty and our previous value did not take, bail.
+             */
+            final String message = String.format(
+                    Locale.ROOT,
+                    "available processors value [%d] did not match current value [%d]",
+                    availableProcessors,
+                    NettyRuntime.availableProcessors());
+            throw new IllegalStateException(message);
+        }
     }
 
     /**

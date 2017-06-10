@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -40,7 +39,6 @@ import java.io.IOException;
 
 public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, MissingAggregationBuilder> {
     public static final String NAME = "missing";
-    public static final Type TYPE = new Type(NAME);
 
     private static final ObjectParser<MissingAggregationBuilder, QueryParseContext> PARSER;
     static {
@@ -53,14 +51,14 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     public MissingAggregationBuilder(String name, ValueType targetValueType) {
-        super(name, TYPE, ValuesSourceType.ANY, targetValueType);
+        super(name, ValuesSourceType.ANY, targetValueType);
     }
 
     /**
      * Read from a stream.
      */
     public MissingAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE, ValuesSourceType.ANY);
+        super(in, ValuesSourceType.ANY);
     }
 
     @Override
@@ -76,7 +74,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(SearchContext context,
             ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        return new MissingAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
+        return new MissingAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
@@ -95,7 +93,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

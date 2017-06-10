@@ -25,14 +25,15 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationTestScriptsPlugin;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesMethod;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -209,7 +210,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
         PercentileRanks values = global.getAggregations().get("percentile_ranks");
         assertThat(values, notNullValue());
         assertThat(values.getName(), equalTo("percentile_ranks"));
-        assertThat(global.getProperty("percentile_ranks"), sameInstance(values));
+        assertThat(((InternalAggregation)global).getProperty("percentile_ranks"), sameInstance(values));
 
     }
 
@@ -484,7 +485,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
                                 .subAggregation(
                                         percentileRanks("percentile_ranks").field("value").method(PercentilesMethod.HDR)
                                 .numberOfSignificantValueDigits(sigDigits).values(99))
-                                .order(Order.aggregation("percentile_ranks", "99", asc))).execute().actionGet();
+                                .order(BucketOrder.aggregation("percentile_ranks", "99", asc))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -505,7 +506,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
     @Override
     public void testOrderByEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(terms("terms").field("value").order(Terms.Order.compound(Terms.Order.aggregation("filter>ranks.99", true)))
+                .addAggregation(terms("terms").field("value").order(BucketOrder.compound(BucketOrder.aggregation("filter>ranks.99", true)))
                         .subAggregation(filter("filter", termQuery("value", 100))
                                 .subAggregation(percentileRanks("ranks").method(PercentilesMethod.HDR).values(99).field("value"))))
                 .get();
@@ -514,7 +515,7 @@ public class HDRPercentileRanksIT extends AbstractNumericTestCase {
 
         Terms terms = searchResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
-        List<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets, notNullValue());
         assertThat(buckets.size(), equalTo(10));
 

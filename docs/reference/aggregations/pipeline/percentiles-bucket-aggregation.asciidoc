@@ -18,6 +18,7 @@ A `percentiles_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`sum_bucket` Parameters
 |===
@@ -30,7 +31,7 @@ A `percentiles_bucket` aggregation looks like this in isolation:
 |`percents` |The list of percentiles to calculate |Optional | `[ 1, 5, 25, 50, 75, 95, 99 ]`
 |===
 
-The following snippet calculates the sum of all the total monthly `sales` buckets:
+The following snippet calculates the percentiles for the total monthly `sales` buckets:
 
 [source,js]
 --------------------------------------------------

@@ -36,19 +36,21 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -57,10 +59,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.function.LongConsumer;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -72,7 +74,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private static final AtomicLong idGenerator = new AtomicLong();
 
-    private final String RECOVERY_PREFIX = "recovery.";
+    private static final String RECOVERY_PREFIX = "recovery.";
 
     private final ShardId shardId;
     private final long recoveryId;
@@ -81,7 +83,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final String tempFilePrefix;
     private final Store store;
     private final PeerRecoveryTargetService.RecoveryListener listener;
-    private final Callback<Long> ensureClusterStateVersionCallback;
+    private final LongConsumer ensureClusterStateVersionCallback;
 
     private final AtomicBoolean finished = new AtomicBoolean();
 
@@ -97,17 +99,19 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
     /**
-     * creates a new recovery target object that represents a recovery to the provided indexShard
+     * Creates a new recovery target object that represents a recovery to the provided shard.
      *
-     * @param indexShard local shard where we want to recover to
-     * @param sourceNode source node of the recovery where we recover from
-     * @param listener called when recovery is completed / failed
+     * @param indexShard                        local shard where we want to recover to
+     * @param sourceNode                        source node of the recovery where we recover from
+     * @param listener                          called when recovery is completed/failed
      * @param ensureClusterStateVersionCallback callback to ensure that the current node is at least on a cluster state with the provided
-     *                                          version. Necessary for primary relocation so that new primary knows about all other ongoing
-     *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler}).
+     *                                          version; necessary for primary relocation so that new primary knows about all other ongoing
+     *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler})
      */
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
-                          Callback<Long> ensureClusterStateVersionCallback) {
+    public RecoveryTarget(final IndexShard indexShard,
+                   final DiscoveryNode sourceNode,
+                   final PeerRecoveryTargetService.RecoveryListener listener,
+                   final LongConsumer ensureClusterStateVersionCallback) {
         super("recovery_status");
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
@@ -125,10 +129,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     /**
-     * returns a fresh RecoveryTarget to retry recovery from the same source node onto the same IndexShard and using the same listener
+     * Returns a fresh recovery target to retry recovery from the same source node onto the same shard and using the same listener.
+     *
+     * @return a copy of this recovery target
      */
     public RecoveryTarget retryCopy() {
-        return new RecoveryTarget(this.indexShard, this.sourceNode, this.listener, this.ensureClusterStateVersionCallback);
+        return new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
     }
 
     public long recoveryId() {
@@ -152,7 +158,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         return indexShard.recoveryState();
     }
 
-    public CancellableThreads CancellableThreads() {
+    public CancellableThreads cancellableThreads() {
         return cancellableThreads;
     }
 
@@ -220,7 +226,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * unless this object is in use (in which case it will be cleaned once all ongoing users call
      * {@link #decRef()}
      * <p>
-     * if {@link #CancellableThreads()} was used, the threads will be interrupted.
+     * if {@link #cancellableThreads()} was used, the threads will be interrupted.
      */
     public void cancel(String reason) {
         if (finished.compareAndSet(false, true)) {
@@ -355,9 +361,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /*** Implementation of {@link RecoveryTargetHandler } */
 
     @Override
-    public void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
+    public void prepareForTranslogOperations(int totalTranslogOps) throws IOException {
         state().getTranslog().totalOperations(totalTranslogOps);
-        indexShard().skipTranslogRecovery(maxUnsafeAutoIdTimestamp);
+        indexShard().skipTranslogRecovery();
     }
 
     @Override
@@ -368,22 +374,36 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public String getTargetAllocationId() {
-        return indexShard().routingEntry().allocationId().getId();
-    }
-
-    @Override
     public void ensureClusterStateVersion(long clusterStateVersion) {
-        ensureClusterStateVersionCallback.handle(clusterStateVersion);
+        ensureClusterStateVersionCallback.accept(clusterStateVersion);
     }
 
     @Override
-    public void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer
-            .BatchOperationException {
+    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws MapperException, IOException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
-        indexShard().performBatchRecovery(operations);
+        if (indexShard().state() != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, indexShard().state());
+        }
+        // first convert all translog operations to engine operations to check for mapping updates
+        List<Engine.Operation> engineOps = operations.stream().map(
+            op -> {
+                Engine.Operation engineOp = indexShard().convertToEngineOp(op, Engine.Operation.Origin.PEER_RECOVERY);
+                if (engineOp instanceof Engine.Index && ((Engine.Index) engineOp).parsedDoc().dynamicMappingsUpdate() != null) {
+                    throw new MapperException("mapping updates are not allowed (type: [" + engineOp.type() + "], id: [" +
+                        ((Engine.Index) engineOp).id() + "])");
+                }
+                return engineOp;
+            }
+        ).collect(Collectors.toList());
+        // actually apply engine operations
+        for (Engine.Operation engineOp : engineOps) {
+            indexShard().applyOperation(engineOp);
+            translog.incrementRecoveredOperations();
+        }
+        indexShard().sync();
+        return indexShard().getLocalCheckpoint();
     }
 
     @Override
@@ -473,5 +493,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             IndexOutput remove = removeOpenIndexOutputs(name);
             assert remove == null || remove == indexOutput; // remove maybe null if we got finished
         }
+    }
+
+    Path translogLocation() {
+        return indexShard().shardPath().resolveTranslog();
     }
 }

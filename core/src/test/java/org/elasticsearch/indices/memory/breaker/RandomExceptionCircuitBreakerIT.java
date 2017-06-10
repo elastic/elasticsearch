@@ -35,12 +35,12 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.basic.SearchWithRandomExceptionsIT;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.engine.MockEngineSupport;
@@ -126,7 +126,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         logger.info("creating index: [test] using settings: [{}]", settings.build().getAsMap());
         CreateIndexResponse response = client().admin().indices().prepareCreate("test")
                 .setSettings(settings)
-                .addMapping("type", mapping).execute().actionGet();
+                .addMapping("type", mapping, XContentType.JSON).execute().actionGet();
         final int numDocs;
         if (response.isShardsAcked() == false) {
             /* some seeds just won't let you create the index at all and we enter a ping-pong mode
@@ -296,6 +296,11 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return new RandomExceptionDirectoryReaderWrapper(in, settings);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
         }
     }
 }

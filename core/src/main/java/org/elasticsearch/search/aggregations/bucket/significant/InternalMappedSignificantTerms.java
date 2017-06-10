@@ -21,13 +21,16 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -73,7 +76,12 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    protected List<B> getBucketsInternal() {
+    public Iterator<SignificantTerms.Bucket> iterator() {
+        return buckets.stream().map(bucket -> (SignificantTerms.Bucket) bucket).collect(Collectors.toList()).iterator();
+    }
+
+    @Override
+    public List<B> getBuckets() {
         return buckets;
     }
 
@@ -98,5 +106,38 @@ public abstract class InternalMappedSignificantTerms<
     @Override
     protected SignificanceHeuristic getSignificanceHeuristic() {
         return significanceHeuristic;
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalMappedSignificantTerms<?, ?> that = (InternalMappedSignificantTerms<?, ?>) obj;
+        return super.doEquals(obj)
+                && Objects.equals(format, that.format)
+                && subsetSize == that.subsetSize
+                && supersetSize == that.supersetSize
+                && Objects.equals(significanceHeuristic, that.significanceHeuristic)
+                && Objects.equals(buckets, that.buckets)
+                && Objects.equals(bucketMap, that.bucketMap);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(super.doHashCode(), format, subsetSize, supersetSize, significanceHeuristic, buckets, bucketMap);
+    }
+
+    @Override
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(CommonFields.DOC_COUNT.getPreferredName(), subsetSize);
+        builder.field(BG_COUNT, supersetSize);
+        builder.startArray(CommonFields.BUCKETS.getPreferredName());
+        for (Bucket bucket : buckets) {
+            //There is a condition (presumably when only one shard has a bucket?) where reduce is not called
+            // and I end up with buckets that contravene the user's min_doc_count criteria in my reducer
+            if (bucket.subsetDf >= minDocCount) {
+                bucket.toXContent(builder, params);
+            }
+        }
+        builder.endArray();
+        return builder;
     }
 }

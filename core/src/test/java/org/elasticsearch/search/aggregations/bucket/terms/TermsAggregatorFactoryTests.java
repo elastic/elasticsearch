@@ -21,10 +21,11 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class TermsAggregatorFactoryTests extends ESSingleNodeTestCase {
+public class TermsAggregatorFactoryTests extends ESTestCase {
     public void testSubAggCollectMode() throws Exception {
         assertThat(TermsAggregatorFactory.subAggCollectionMode(Integer.MAX_VALUE, -1),
             equalTo(Aggregator.SubAggCollectionMode.DEPTH_FIRST));

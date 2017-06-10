@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.painless.api.Augmentation;
 
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -33,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -63,32 +65,39 @@ public final class Definition {
                       "java.util.stream.txt",
                       "joda.time.txt"));
 
-    private static final Definition INSTANCE = new Definition();
+    /**
+     * Whitelist that is "built in" to Painless and required by all scripts.
+     */
+    public static final Definition BUILTINS = new Definition();
 
     /** Some native types as constants: */
-    public static final Type VOID_TYPE = getType("void");
-    public static final Type BOOLEAN_TYPE = getType("boolean");
-    public static final Type BOOLEAN_OBJ_TYPE = getType("Boolean");
-    public static final Type BYTE_TYPE = getType("byte");
-    public static final Type BYTE_OBJ_TYPE = getType("Byte");
-    public static final Type SHORT_TYPE = getType("short");
-    public static final Type SHORT_OBJ_TYPE = getType("Short");
-    public static final Type INT_TYPE = getType("int");
-    public static final Type INT_OBJ_TYPE = getType("Integer");
-    public static final Type LONG_TYPE = getType("long");
-    public static final Type LONG_OBJ_TYPE = getType("Long");
-    public static final Type FLOAT_TYPE = getType("float");
-    public static final Type FLOAT_OBJ_TYPE = getType("Float");
-    public static final Type DOUBLE_TYPE = getType("double");
-    public static final Type DOUBLE_OBJ_TYPE = getType("Double");
-    public static final Type CHAR_TYPE = getType("char");
-    public static final Type CHAR_OBJ_TYPE = getType("Character");
-    public static final Type OBJECT_TYPE = getType("Object");
-    public static final Type DEF_TYPE = getType("def");
-    public static final Type STRING_TYPE = getType("String");
-    public static final Type EXCEPTION_TYPE = getType("Exception");
-    public static final Type PATTERN_TYPE = getType("Pattern");
-    public static final Type MATCHER_TYPE = getType("Matcher");
+    public static final Type VOID_TYPE = BUILTINS.getType("void");
+    public static final Type BOOLEAN_TYPE = BUILTINS.getType("boolean");
+    public static final Type BOOLEAN_OBJ_TYPE = BUILTINS.getType("Boolean");
+    public static final Type BYTE_TYPE = BUILTINS.getType("byte");
+    public static final Type BYTE_OBJ_TYPE = BUILTINS.getType("Byte");
+    public static final Type SHORT_TYPE = BUILTINS.getType("short");
+    public static final Type SHORT_OBJ_TYPE = BUILTINS.getType("Short");
+    public static final Type INT_TYPE = BUILTINS.getType("int");
+    public static final Type INT_OBJ_TYPE = BUILTINS.getType("Integer");
+    public static final Type LONG_TYPE = BUILTINS.getType("long");
+    public static final Type LONG_OBJ_TYPE = BUILTINS.getType("Long");
+    public static final Type FLOAT_TYPE = BUILTINS.getType("float");
+    public static final Type FLOAT_OBJ_TYPE = BUILTINS.getType("Float");
+    public static final Type DOUBLE_TYPE = BUILTINS.getType("double");
+    public static final Type DOUBLE_OBJ_TYPE = BUILTINS.getType("Double");
+    public static final Type CHAR_TYPE = BUILTINS.getType("char");
+    public static final Type CHAR_OBJ_TYPE = BUILTINS.getType("Character");
+    public static final Type OBJECT_TYPE = BUILTINS.getType("Object");
+    public static final Type DEF_TYPE = BUILTINS.getType("def");
+    public static final Type NUMBER_TYPE = BUILTINS.getType("Number");
+    public static final Type STRING_TYPE = BUILTINS.getType("String");
+    public static final Type EXCEPTION_TYPE = BUILTINS.getType("Exception");
+    public static final Type PATTERN_TYPE = BUILTINS.getType("Pattern");
+    public static final Type MATCHER_TYPE = BUILTINS.getType("Matcher");
+    public static final Type ITERATOR_TYPE = BUILTINS.getType("Iterator");
+    public static final Type ARRAY_LIST_TYPE = BUILTINS.getType("ArrayList");
+    public static final Type HASH_MAP_TYPE = BUILTINS.getType("HashMap");
 
     public enum Sort {
         VOID(       void.class      , Void.class      , null          , 0 , true  , false , false , false ),
@@ -432,23 +441,23 @@ public final class Definition {
         public final Type from;
         public final Type to;
         public final boolean explicit;
-        public final boolean unboxFrom;
-        public final boolean unboxTo;
-        public final boolean boxFrom;
-        public final boolean boxTo;
+        public final Type unboxFrom;
+        public final Type unboxTo;
+        public final Type boxFrom;
+        public final Type boxTo;
 
         public Cast(final Type from, final Type to, final boolean explicit) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;
-            this.unboxFrom = false;
-            this.unboxTo = false;
-            this.boxFrom = false;
-            this.boxTo = false;
+            this.unboxFrom = null;
+            this.unboxTo = null;
+            this.boxFrom = null;
+            this.boxTo = null;
         }
 
         public Cast(final Type from, final Type to, final boolean explicit,
-                    final boolean unboxFrom, final boolean unboxTo, final boolean boxFrom, final boolean boxTo) {
+                    final Type unboxFrom, final Type unboxTo, final Type boxFrom, final Type boxTo) {
             this.from = from;
             this.to = to;
             this.explicit = explicit;
@@ -461,46 +470,46 @@ public final class Definition {
     }
 
     public static final class RuntimeClass {
+        private final Struct struct;
         public final Map<MethodKey, Method> methods;
         public final Map<String, MethodHandle> getters;
         public final Map<String, MethodHandle> setters;
 
-        private RuntimeClass(final Map<MethodKey, Method> methods,
+        private RuntimeClass(final Struct struct, final Map<MethodKey, Method> methods,
                              final Map<String, MethodHandle> getters, final Map<String, MethodHandle> setters) {
+            this.struct = struct;
             this.methods = Collections.unmodifiableMap(methods);
             this.getters = Collections.unmodifiableMap(getters);
             this.setters = Collections.unmodifiableMap(setters);
         }
-    }
 
-    /** Returns whether or not a non-array type exists. */
-    public static boolean isSimpleType(final String name) {
-        return INSTANCE.structsMap.containsKey(name);
-    }
-
-    /** Returns whether or not a type exists without an exception. */
-    public static boolean isType(final String name) {
-        try {
-            INSTANCE.getTypeInternal(name);
-
-            return true;
-        } catch (IllegalArgumentException exception) {
-            return false;
+        public Struct getStruct() {
+            return struct;
         }
     }
 
+    /** Returns whether or not a non-array type exists. */
+    public boolean isSimpleType(final String name) {
+        return BUILTINS.structsMap.containsKey(name);
+    }
+
     /** Gets the type given by its name */
-    public static Type getType(final String name) {
-        return INSTANCE.getTypeInternal(name);
+    public Type getType(final String name) {
+        return BUILTINS.getTypeInternal(name);
     }
 
     /** Creates an array type from the given Struct. */
-    public static Type getType(final Struct struct, final int dimensions) {
-        return INSTANCE.getTypeInternal(struct, dimensions);
+    public Type getType(final Struct struct, final int dimensions) {
+        return BUILTINS.getTypeInternal(struct, dimensions);
     }
 
-    public static RuntimeClass getRuntimeClass(Class<?> clazz) {
-        return INSTANCE.runtimeMap.get(clazz);
+    public RuntimeClass getRuntimeClass(Class<?> clazz) {
+        return BUILTINS.runtimeMap.get(clazz);
+    }
+
+    /** Collection of all simple types. Used by {@code PainlessDocGenerator} to generate an API reference. */
+    static Collection<Type> allSimpleTypes() {
+        return BUILTINS.simpleTypesMap.values();
     }
 
     // INTERNAL IMPLEMENTATION:
@@ -566,11 +575,11 @@ public final class Definition {
                         }
                         if (line.startsWith("class ")) {
                             String elements[] = line.split("\u0020");
-                            assert elements[2].equals("->");
+                            assert elements[2].equals("->") : "Invalid struct definition [" + String.join(" ", elements) +"]";
                             if (elements.length == 7) {
                                 hierarchy.put(elements[1], Arrays.asList(elements[5].split(",")));
                             } else {
-                                assert elements.length == 5;
+                                assert elements.length == 5 : "Invalid struct definition [" + String.join(" ", elements) + "]";
                             }
                             String className = elements[1];
                             String javaPeer = elements[3];
@@ -612,7 +621,7 @@ public final class Definition {
                     }
                 }
             } catch (Exception e) {
-                throw new RuntimeException("syntax error in " + file + ", line: " + currentLine, e);
+                throw new RuntimeException("error in " + file + ", line: " + currentLine, e);
             }
         }
         return hierarchy;
@@ -1047,7 +1056,7 @@ public final class Definition {
             }
         }
 
-        runtimeMap.put(struct.clazz, new RuntimeClass(methods, getters, setters));
+        runtimeMap.put(struct.clazz, new RuntimeClass(struct, methods, getters, setters));
     }
 
     /** computes the functional interface method for a class, or returns null */

@@ -19,30 +19,27 @@
 
 package org.elasticsearch.painless;
 
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.search.lookup.LeafDocLookup;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-
-import static java.util.Collections.emptyMap;
+import java.util.function.DoubleSupplier;
+import java.util.function.Function;
 
 /**
- * ScriptImpl can be used as either an {@link ExecutableScript} or a {@link LeafSearchScript}
+ * ScriptImpl can be used as either an {@link ExecutableScript} or a {@link SearchScript}
  * to run a previously compiled Painless script.
  */
-final class ScriptImpl implements ExecutableScript, LeafSearchScript {
+final class ScriptImpl extends SearchScript {
 
     /**
-     * The Painless Executable script that can be run.
+     * The Painless script that can be run.
      */
-    private final Executable executable;
+    private final GenericElasticsearchScript script;
 
     /**
      * A map that can be used to access input parameters at run-time.
@@ -50,20 +47,14 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
     private final Map<String, Object> variables;
 
     /**
-     * The lookup is used to access search field values at run-time.
+     * Looks up the {@code _score} from {@link #scorer} if {@code _score} is used, otherwise returns {@code 0.0}.
      */
-    private final LeafSearchLookup lookup;
+    private final DoubleSupplier scoreLookup;
 
     /**
-     * the 'doc' object accessed by the script, if available.
+     * Looks up the {@code ctx} from the {@link #variables} if {@code ctx} is used, otherwise return {@code null}.
      */
-    private final LeafDocLookup doc;
-
-    /**
-     * Current scorer being used
-     * @see #setScorer(Scorer)
-     */
-    private Scorer scorer;
+    private final Function<Map<String, Object>, Map<?, ?>> ctxLookup;
 
     /**
      * Current _value for aggregation
@@ -73,171 +64,54 @@ final class ScriptImpl implements ExecutableScript, LeafSearchScript {
 
     /**
      * Creates a ScriptImpl for the a previously compiled Painless script.
-     * @param executable The previously compiled Painless script.
+     * @param script The previously compiled Painless script.
      * @param vars The initial variables to run the script with.
      * @param lookup The lookup to allow search fields to be available if this is run as a search script.
      */
-    ScriptImpl(final Executable executable, final Map<String, Object> vars, final LeafSearchLookup lookup) {
-        this.executable = executable;
-        this.lookup = lookup;
+    ScriptImpl(GenericElasticsearchScript script, Map<String, Object> vars, SearchLookup lookup, LeafReaderContext leafContext) {
+        super(null, lookup, leafContext);
+        this.script = script;
         this.variables = new HashMap<>();
 
         if (vars != null) {
             variables.putAll(vars);
         }
-
-        if (lookup != null) {
-            variables.putAll(lookup.asMap());
-            doc = lookup.doc();
-        } else {
-            doc = null;
+        LeafSearchLookup leafLookup = getLeafLookup();
+        if (leafLookup != null) {
+            variables.putAll(leafLookup.asMap());
         }
+
+        scoreLookup = script.needs_score() ? this::getScore : () -> 0.0;
+        ctxLookup = script.needsCtx() ? variables -> (Map<?, ?>) variables.get("ctx") : variables -> null;
     }
 
-    /**
-     * Set a variable for the script to be run against.
-     * @param name The variable name.
-     * @param value The variable value.
-     */
+    @Override
+    public Map<String, Object> getParams() {
+        return variables;
+    }
+
     @Override
     public void setNextVar(final String name, final Object value) {
         variables.put(name, value);
     }
 
-    /**
-     * Set the next aggregation value.
-     * @param value Per-document value, typically a String, Long, or Double.
-     */
     @Override
     public void setNextAggregationValue(Object value) {
         this.aggregationValue = value;
     }
 
-    /**
-     * Run the script.
-     * @return The script result.
-     */
     @Override
     public Object run() {
-        try {
-            return executable.execute(variables, scorer, doc, aggregationValue);
-        // Note that it is safe to catch any of the following errors since Painless is stateless.
-        } catch (Debug.PainlessExplainError e) {
-            throw convertToScriptException(e, e.getHeaders());
-        } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
-            throw convertToScriptException(e, emptyMap());
-        }
+        return script.execute(variables, scoreLookup.getAsDouble(), getDoc(), aggregationValue, ctxLookup.apply(variables));
     }
 
-    /**
-     * Adds stack trace and other useful information to exceptions thrown
-     * from a Painless script.
-     * @param t The throwable to build an exception around.
-     * @return The generated ScriptException.
-     */
-    private ScriptException convertToScriptException(Throwable t, Map<String, List<String>> headers) {
-        // create a script stack: this is just the script portion
-        List<String> scriptStack = new ArrayList<>();
-        for (StackTraceElement element : t.getStackTrace()) {
-            if (WriterConstants.CLASS_NAME.equals(element.getClassName())) {
-                // found the script portion
-                int offset = element.getLineNumber();
-                if (offset == -1) {
-                    scriptStack.add("<<< unknown portion of script >>>");
-                } else {
-                    offset--; // offset is 1 based, line numbers must be!
-                    int startOffset = executable.getPreviousStatement(offset);
-                    if (startOffset == -1) {
-                        assert false; // should never happen unless we hit exc in ctor prologue...
-                        startOffset = 0;
-                    }
-                    int endOffset = executable.getNextStatement(startOffset);
-                    if (endOffset == -1) {
-                        endOffset = executable.getSource().length();
-                    }
-                    // TODO: if this is still too long, truncate and use ellipses
-                    String snippet = executable.getSource().substring(startOffset, endOffset);
-                    scriptStack.add(snippet);
-                    StringBuilder pointer = new StringBuilder();
-                    for (int i = startOffset; i < offset; i++) {
-                        pointer.append(' ');
-                    }
-                    pointer.append("^---- HERE");
-                    scriptStack.add(pointer.toString());
-                }
-                break;
-            // but filter our own internal stacks (e.g. indy bootstrap)
-            } else if (!shouldFilter(element)) {
-                scriptStack.add(element.toString());
-            }
-        }
-        // build a name for the script:
-        final String name;
-        if (PainlessScriptEngineService.INLINE_NAME.equals(executable.getName())) {
-            name = executable.getSource();
-        } else {
-            name = executable.getName();
-        }
-        ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngineService.NAME);
-        for (Map.Entry<String, List<String>> header : headers.entrySet()) {
-            scriptException.addHeader(header.getKey(), header.getValue());
-        }
-        return scriptException;
-    }
-
-    /** returns true for methods that are part of the runtime */
-    private static boolean shouldFilter(StackTraceElement element) {
-        return element.getClassName().startsWith("org.elasticsearch.painless.") ||
-               element.getClassName().startsWith("java.lang.invoke.") ||
-               element.getClassName().startsWith("sun.invoke.");
-    }
-
-    /**
-     * Run the script.
-     * @return The script result as a double.
-     */
     @Override
     public double runAsDouble() {
         return ((Number)run()).doubleValue();
     }
 
-    /**
-     * Run the script.
-     * @return The script result as a long.
-     */
     @Override
     public long runAsLong() {
         return ((Number)run()).longValue();
-    }
-
-    /**
-     * Sets the scorer to be accessible within a script.
-     * @param scorer The scorer used for a search.
-     */
-    @Override
-    public void setScorer(final Scorer scorer) {
-        this.scorer = scorer;
-    }
-
-    /**
-     * Sets the current document.
-     * @param doc The current document.
-     */
-    @Override
-    public void setDocument(final int doc) {
-        if (lookup != null) {
-            lookup.setDocument(doc);
-        }
-    }
-
-    /**
-     * Sets the current source.
-     * @param source The current source.
-     */
-    @Override
-    public void setSource(final Map<String, Object> source) {
-        if (lookup != null) {
-            lookup.source().setSource(source);
-        }
     }
 }

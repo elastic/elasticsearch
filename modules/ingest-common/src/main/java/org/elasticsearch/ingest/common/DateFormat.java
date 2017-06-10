@@ -22,6 +22,7 @@ package org.elasticsearch.ingest.common;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.Locale;
@@ -37,7 +38,7 @@ enum DateFormat {
     Unix {
         @Override
         Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return (date) -> new DateTime((long)(Float.parseFloat(date) * 1000), timezone);
+            return (date) -> new DateTime((long)(Double.parseDouble(date) * 1000), timezone);
         }
     },
     UnixMs {
@@ -65,9 +66,8 @@ enum DateFormat {
     Joda {
         @Override
         Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
-            return DateTimeFormat.forPattern(format)
-                .withDefaultYear((new DateTime(DateTimeZone.UTC)).getYear())
-                .withZone(timezone).withLocale(locale)::parseDateTime;
+            DateTimeFormatter parser = DateTimeFormat.forPattern(format).withZone(timezone).withLocale(locale);
+            return text -> parser.withDefaultYear((new DateTime(DateTimeZone.UTC)).getYear()).parseDateTime(text);
         }
     };
 

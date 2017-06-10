@@ -129,7 +129,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             RecoveryTarget resetRecovery = collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
             final long resetRecoveryId = resetRecovery.recoveryId();
             assertNotSame(recoveryTarget, resetRecovery);
-            assertNotSame(recoveryTarget.CancellableThreads(), resetRecovery.CancellableThreads());
+            assertNotSame(recoveryTarget.cancellableThreads(), resetRecovery.cancellableThreads());
             assertSame(indexShard, resetRecovery.indexShard());
             assertSame(store, resetRecovery.store());
             assertEquals(referencesToStore, resetRecovery.store().refCount());

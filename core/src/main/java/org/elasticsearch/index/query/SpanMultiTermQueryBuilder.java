@@ -35,7 +35,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Query that allows wraping a {@link MultiTermQueryBuilder} (one of wildcard, fuzzy, prefix, term, range or regexp query)
+ * Query that allows wrapping a {@link MultiTermQueryBuilder} (one of wildcard, fuzzy, prefix, term, range or regexp query)
  * as a {@link SpanQueryBuilder} so it can be nested.
  */
 public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTermQueryBuilder>

@@ -32,16 +32,14 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.oio.OioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.channel.socket.oio.OioServerSocketChannel;
-import io.netty.channel.socket.oio.OioSocketChannel;
 import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,6 +51,7 @@ import org.elasticsearch.common.network.NetworkService.TcpSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -75,8 +74,10 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
@@ -98,37 +99,21 @@ public class Netty4Transport extends TcpTransport<Channel> {
     public static final Setting<Integer> WORKER_COUNT =
         new Setting<>("transport.netty.worker_count",
             (s) -> Integer.toString(EsExecutors.numberOfProcessors(s) * 2),
-            (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope, Property.Shared);
+            (s) -> Setting.parseInt(s, 1, "transport.netty.worker_count"), Property.NodeScope);
 
     public static final Setting<ByteSizeValue> NETTY_MAX_CUMULATION_BUFFER_CAPACITY =
-        Setting.byteSizeSetting(
-                "transport.netty.max_cumulation_buffer_capacity",
-                new ByteSizeValue(-1),
-                Property.NodeScope,
-                Property.Shared);
+        Setting.byteSizeSetting("transport.netty.max_cumulation_buffer_capacity", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<Integer> NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS =
-        Setting.intSetting("transport.netty.max_composite_buffer_components", -1, -1, Property.NodeScope, Property.Shared);
+        Setting.intSetting("transport.netty.max_composite_buffer_components", -1, -1, Property.NodeScope);
 
-    // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_SIZE = Setting.byteSizeSetting(
-            "transport.netty.receive_predictor_size",
-            settings -> {
-                long defaultReceiverPredictor = 512 * 1024;
-                if (JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes() > 0) {
-                    // we can guess a better default...
-                    long l = (long) ((0.3 * JvmInfo.jvmInfo().getMem().getDirectMemoryMax().getBytes()) / WORKER_COUNT.get(settings));
-                    defaultReceiverPredictor = Math.min(defaultReceiverPredictor, Math.max(l, 64 * 1024));
-                }
-                return new ByteSizeValue(defaultReceiverPredictor).toString();
-            },
-            Property.NodeScope,
-            Property.Shared);
+            "transport.netty.receive_predictor_size", new ByteSizeValue(64, ByteSizeUnit.KB), Property.NodeScope);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MIN =
-        byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope, Property.Shared);
+        byteSizeSetting("transport.netty.receive_predictor_min", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
     public static final Setting<ByteSizeValue> NETTY_RECEIVE_PREDICTOR_MAX =
-        byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope, Property.Shared);
+        byteSizeSetting("transport.netty.receive_predictor_max", NETTY_RECEIVE_PREDICTOR_SIZE, Property.NodeScope);
     public static final Setting<Integer> NETTY_BOSS_COUNT =
-        intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope, Property.Shared);
+        intSetting("transport.netty.boss_count", 1, 1, Property.NodeScope);
 
 
     protected final ByteSizeValue maxCumulationBufferCapacity;
@@ -145,6 +130,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("netty", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+        Netty4Utils.setAvailableProcessors(EsExecutors.PROCESSORS_SETTING.get(settings));
         this.workerCount = WORKER_COUNT.get(settings);
         this.maxCumulationBufferCapacity = NETTY_MAX_CUMULATION_BUFFER_CAPACITY.get(settings);
         this.maxCompositeBufferComponents = NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
@@ -193,13 +179,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
     private Bootstrap createBootstrap() {
         final Bootstrap bootstrap = new Bootstrap();
-        if (TCP_BLOCKING_CLIENT.get(settings)) {
-            bootstrap.group(new OioEventLoopGroup(1, daemonThreadFactory(settings, TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX)));
-            bootstrap.channel(OioSocketChannel.class);
-        } else {
-            bootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)));
-            bootstrap.channel(NioSocketChannel.class);
-        }
+        bootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)));
+        bootstrap.channel(NioSocketChannel.class);
 
         bootstrap.handler(getClientChannelInitializer());
 
@@ -282,13 +263,8 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         final ServerBootstrap serverBootstrap = new ServerBootstrap();
 
-        if (TCP_BLOCKING_SERVER.get(settings)) {
-            serverBootstrap.group(new OioEventLoopGroup(workerCount, workerFactory));
-            serverBootstrap.channel(OioServerSocketChannel.class);
-        } else {
-            serverBootstrap.group(new NioEventLoopGroup(workerCount, workerFactory));
-            serverBootstrap.channel(NioServerSocketChannel.class);
-        }
+        serverBootstrap.group(new NioEventLoopGroup(workerCount, workerFactory));
+        serverBootstrap.channel(NioServerSocketChannel.class);
 
         serverBootstrap.childHandler(getServerChannelInitializer(name, settings));
 
@@ -340,7 +316,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     @Override
     protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) {
         final Channel[] channels = new Channel[profile.getNumConnections()];
-        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile);
+        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile, transportServiceAdapter::onConnectionClosed);
         boolean success = false;
         try {
             final TimeValue connectTimeout;
@@ -417,9 +393,20 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected void sendMessage(Channel channel, BytesReference reference, Runnable sendListener) {
+    protected void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener) {
         final ChannelFuture future = channel.writeAndFlush(Netty4Utils.toByteBuf(reference));
-        future.addListener(f -> sendListener.run());
+        future.addListener(f -> {
+            if (f.isSuccess()) {
+                listener.onResponse(channel);
+            } else {
+                Throwable cause = f.cause();
+                // If the Throwable is an Error something has gone very wrong and Netty4MessageChannelHandler is
+                // going to cause that to bubble up and kill the process.
+                if (cause instanceof Exception) {
+                    listener.onFailure((Exception) cause);
+                }
+            }
+        });
     }
 
     @Override

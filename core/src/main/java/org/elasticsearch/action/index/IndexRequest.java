@@ -22,9 +22,11 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -35,17 +37,20 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -54,10 +59,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
  *
  * The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
- * {@link #source(byte[])} to be set.
+ * {@link #source(byte[], XContentType)} to be set.
  *
- * The source (content to index) can be set in its bytes form using ({@link #source(byte[])}),
- * its string form ({@link #source(String)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
+ * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
+ * its string form ({@link #source(String, XContentType)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
  * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
  *
  * If the {@link #id(String)} is not set, it will be automatically generated.
@@ -66,7 +71,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Requests#indexRequest(String)
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest> {
+public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
+
+    /**
+     * Max length of the source document to include into toString()
+     *
+     * @see ReplicationRequest#createTask(long, java.lang.String, java.lang.String, org.elasticsearch.tasks.TaskId)
+     */
+    static final int MAX_SOURCE_LENGTH_IN_TOSTRING = 2048;
 
     private String type;
     private String id;
@@ -82,7 +94,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
-    private XContentType contentType = Requests.INDEX_CONTENT_TYPE;
+    private XContentType contentType;
 
     private String pipeline;
 
@@ -102,7 +114,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Constructs a new index request against the specific index. The {@link #type(String)}
-     * {@link #source(byte[])} must be set.
+     * {@link #source(byte[], XContentType)} must be set.
      */
     public IndexRequest(String index) {
         this.index = index;
@@ -110,7 +122,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Constructs a new index request against the specific index and type. The
-     * {@link #source(byte[])} must be set.
+     * {@link #source(byte[], XContentType)} must be set.
      */
     public IndexRequest(String index, String type) {
         this.index = index;
@@ -139,7 +151,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (source == null) {
             validationException = addValidationError("source is missing", validationException);
         }
-
+        if (contentType == null) {
+            validationException = addValidationError("content type is missing", validationException);
+        }
         final long resolvedVersion = resolveVersionDefaults();
         if (opType() == OpType.CREATE) {
             if (versionType != VersionType.INTERNAL) {
@@ -178,18 +192,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * The content type that will be used when generating a document from user provided objects like Maps.
+     * The content type. This will be used when generating a document from user provided objects like Maps and when parsing the
+     * source at index time
      */
     public XContentType getContentType() {
         return contentType;
-    }
-
-    /**
-     * Sets the content type that will be used when generating a document from user provided objects (like Map).
-     */
-    public IndexRequest contentType(XContentType contentType) {
-        this.contentType = contentType;
-        return this;
     }
 
     /**
@@ -283,16 +290,16 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public Map<String, Object> sourceAsMap() {
-        return XContentHelper.convertToMap(source, false).v2();
+        return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
     /**
-     * Index the Map as a {@link org.elasticsearch.client.Requests#INDEX_CONTENT_TYPE}.
+     * Index the Map in {@link Requests#INDEX_CONTENT_TYPE} format
      *
      * @param source The map to index
      */
     public IndexRequest source(Map source) throws ElasticsearchGenerationException {
-        return source(source, contentType);
+        return source(source, Requests.INDEX_CONTENT_TYPE);
     }
 
     /**
@@ -314,23 +321,21 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the document source to index.
      *
      * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
-     * or using the {@link #source(byte[])}.
+     * or using the {@link #source(byte[], XContentType)}.
      */
-    public IndexRequest source(String source) {
-        this.source = new BytesArray(source.getBytes(StandardCharsets.UTF_8));
-        return this;
+    public IndexRequest source(String source, XContentType xContentType) {
+        return source(new BytesArray(source), xContentType);
     }
 
     /**
      * Sets the content source to index.
      */
     public IndexRequest source(XContentBuilder sourceBuilder) {
-        source = sourceBuilder.bytes();
-        return this;
+        return source(sourceBuilder.bytes(), sourceBuilder.contentType());
     }
 
     /**
-     * Sets the content source to index.
+     * Sets the content source to index using the default content type ({@link Requests#INDEX_CONTENT_TYPE})
      * <p>
      * <b>Note: the number of objects passed to this method must be an even
      * number. Also the first argument in each pair (the field name) must have a
@@ -338,6 +343,18 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * </p>
      */
     public IndexRequest source(Object... source) {
+        return source(Requests.INDEX_CONTENT_TYPE, source);
+    }
+
+    /**
+     * Sets the content source to index.
+     * <p>
+     * <b>Note: the number of objects passed to this method as varargs must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
+     */
+    public IndexRequest source(XContentType xContentType, Object... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
         }
@@ -345,7 +362,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             throw new IllegalArgumentException("you are using the removed method for source with bytes and unsafe flag, the unsafe flag was removed, please just use source(BytesReference)");
         }
         try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+            XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
             builder.startObject();
             for (int i = 0; i < source.length; i++) {
                 builder.field(source[i++].toString(), source[i]);
@@ -360,16 +377,17 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the document to index in bytes form.
      */
-    public IndexRequest source(BytesReference source) {
-        this.source = source;
+    public IndexRequest source(BytesReference source, XContentType xContentType) {
+        this.source = Objects.requireNonNull(source);
+        this.contentType = Objects.requireNonNull(xContentType);
         return this;
     }
 
     /**
      * Sets the document to index in bytes form.
      */
-    public IndexRequest source(byte[] source) {
-        return source(source, 0, source.length);
+    public IndexRequest source(byte[] source, XContentType xContentType) {
+        return source(source, 0, source.length, xContentType);
     }
 
     /**
@@ -380,9 +398,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * @param offset The offset in the byte array
      * @param length The length of the data
      */
-    public IndexRequest source(byte[] source, int offset, int length) {
-        this.source = new BytesArray(source, offset, length);
-        return this;
+    public IndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
+        return source(new BytesArray(source, offset, length), xContentType);
     }
 
     /**
@@ -467,7 +484,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
 
-    public void process(@Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
+    public void process(@Nullable MappingMetaData mappingMd, String concreteIndex) {
         if (mappingMd != null) {
             // might as well check for routing here
             if (mappingMd.routing().required() && routing == null) {
@@ -475,17 +492,21 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
 
             if (parent != null && !mappingMd.hasParentField()) {
-                throw new IllegalArgumentException("Can't specify parent if no parent field has been configured");
+                throw new IllegalArgumentException("can't specify parent if no parent field has been configured");
             }
         } else {
             if (parent != null) {
-                throw new IllegalArgumentException("Can't specify parent if no parent field has been configured");
+                throw new IllegalArgumentException("can't specify parent if no parent field has been configured");
             }
         }
 
-        // generate id if not already provided and id generation is allowed
-        if (allowIdGeneration && id == null) {
-            assert autoGeneratedTimestamp == -1;
+        if ("".equals(id)) {
+            throw new IllegalArgumentException("if _id is specified it must not be empty");
+        }
+
+        // generate id if not already provided
+        if (id == null) {
+            assert autoGeneratedTimestamp == -1 : "timestamp has already been generated!";
             autoGeneratedTimestamp = Math.max(0, System.currentTimeMillis()); // extra paranoia
             id(UUIDs.base64UUID());
         }
@@ -503,7 +524,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         id = in.readOptionalString();
         routing = in.readOptionalString();
         parent = in.readOptionalString();
-        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
             in.readOptionalString(); // timestamp
             in.readOptionalWriteable(TimeValue::new); // ttl
         }
@@ -514,6 +535,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         pipeline = in.readOptionalString();
         isRetry = in.readBoolean();
         autoGeneratedTimestamp = in.readLong();
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
+            contentType = in.readOptionalWriteable(XContentType::readFrom);
+        } else {
+            contentType = XContentFactory.xContentType(source);
+        }
     }
 
     @Override
@@ -523,7 +549,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
             // Serialize a fake timestamp. 5.x expect this value to be set by the #process method so we can't use null.
             // On the other hand, indices created on 5.x do not index the timestamp field.  Therefore passing a 0 (or any value) for
             // the transport layer OK as it will be ignored.
@@ -533,7 +559,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeBytesReference(source);
         out.writeByte(opType.getId());
         // ES versions below 5.1.2 don't know about resolveVersionDefaults but resolve the version eagerly (which messes with validation).
-        if (out.getVersion().before(Version.V_5_1_2_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_1_2)) {
             out.writeLong(resolveVersionDefaults());
         } else {
             out.writeLong(version);
@@ -542,13 +568,21 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(pipeline);
         out.writeBoolean(isRetry);
         out.writeLong(autoGeneratedTimestamp);
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
+            out.writeOptionalWriteable(contentType);
+        }
     }
 
     @Override
     public String toString() {
         String sSource = "_na_";
         try {
-            sSource = XContentHelper.convertToJson(source, false);
+            if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
+                sSource = "n/a, actual length: [" + new ByteSizeValue(source.length()).toString() + "], max length: " +
+                    new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
+            } else {
+                sSource = XContentHelper.convertToJson(source, false);
+            }
         } catch (Exception e) {
             // ignore
         }
@@ -575,4 +609,35 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public long getAutoGeneratedTimestamp() {
         return autoGeneratedTimestamp;
     }
+
+    /**
+     * Override this method from ReplicationAction, this is where we are storing our state in the request object (which we really shouldn't
+     * do). Once the transport client goes away we can move away from making this available, but in the meantime this is dangerous to set or
+     * use because the IndexRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
+     */
+    @Override
+    public long primaryTerm() {
+        throw new UnsupportedOperationException("primary term should never be set on IndexRequest");
+    }
+
+    /**
+     * Override this method from ReplicationAction, this is where we are storing our state in the request object (which we really shouldn't
+     * do). Once the transport client goes away we can move away from making this available, but in the meantime this is dangerous to set or
+     * use because the IndexRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
+     */
+    @Override
+    public void primaryTerm(long term) {
+        throw new UnsupportedOperationException("primary term should never be set on IndexRequest");
+    }
+
+    /**
+     * Override this method from ReplicationAction, this is where we are storing our state in the request object (which we really shouldn't
+     * do). Once the transport client goes away we can move away from making this available, but in the meantime this is dangerous to set or
+     * use because the IndexRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
+     */
+    @Override
+    public IndexRequest setShardId(ShardId shardId) {
+        throw new UnsupportedOperationException("shard id should never be set on IndexRequest");
+    }
+
 }

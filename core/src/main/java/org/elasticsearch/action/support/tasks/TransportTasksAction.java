@@ -135,14 +135,14 @@ public abstract class TransportTasksAction<
                     }
                     List<TaskResponse> results = new ArrayList<>();
                     List<TaskOperationFailure> exceptions = new ArrayList<>();
-                    for (AtomicArray.Entry<Tuple<TaskResponse, Exception>> response : responses.asList()) {
-                        if (response.value.v1() == null) {
-                            assert response.value.v2() != null;
+                    for (Tuple<TaskResponse, Exception> response : responses.asList()) {
+                        if (response.v1() == null) {
+                            assert response.v2() != null;
                             exceptions.add(new TaskOperationFailure(clusterService.localNode().getId(), tasks.get(taskIndex).getId(),
-                                    response.value.v2()));
+                                    response.v2()));
                         } else {
-                            assert response.value.v2() == null;
-                            results.add(response.value.v1());
+                            assert response.v2() == null;
+                            results.add(response.v1());
                         }
                     }
                     listener.onResponse(new NodeTasksResponse(clusterService.localNode().getId(), results, exceptions));
@@ -226,8 +226,6 @@ public abstract class TransportTasksAction<
         return false;
     }
 
-    protected abstract boolean accumulateExceptions();
-
     private class AsyncAction {
 
         private final TasksRequest request;
@@ -278,7 +276,6 @@ public abstract class TransportTasksAction<
                         } else {
                             NodeTaskRequest nodeRequest = new NodeTaskRequest(request);
                             nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                            taskManager.registerChildTask(task, node.getId());
                             transportService.sendRequest(node, transportNodeAction, nodeRequest, builder.build(),
                                 new TransportResponseHandler<NodeTasksResponse>() {
                                     @Override
@@ -322,9 +319,9 @@ public abstract class TransportTasksAction<
                     (org.apache.logging.log4j.util.Supplier<?>)
                         () -> new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
             }
-            if (accumulateExceptions()) {
-                responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
-            }
+
+            responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
+
             if (counter.incrementAndGet() == responses.length()) {
                 finishHim();
             }
@@ -403,10 +400,10 @@ public abstract class TransportTasksAction<
         protected List<TaskOperationFailure> exceptions;
         protected List<TaskResponse> results;
 
-        public NodeTasksResponse() {
+        NodeTasksResponse() {
         }
 
-        public NodeTasksResponse(String nodeId,
+        NodeTasksResponse(String nodeId,
                                  List<TaskResponse> results,
                                  List<TaskOperationFailure> exceptions) {
             this.nodeId = nodeId;

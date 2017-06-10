@@ -34,7 +34,7 @@ public class TrimProcessorFactoryTests extends ESTestCase {
         TrimProcessor.Factory factory = new TrimProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         TrimProcessor uppercaseProcessor = (TrimProcessor)factory.create(null, processorTag, config);
         assertThat(uppercaseProcessor.getTag(), equalTo(processorTag));
         assertThat(uppercaseProcessor.getField(), equalTo("field1"));
@@ -46,7 +46,7 @@ public class TrimProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("ignore_missing", true);
-        String processorTag = randomAsciiOfLength(10);
+        String processorTag = randomAlphaOfLength(10);
         TrimProcessor uppercaseProcessor = (TrimProcessor)factory.create(null, processorTag, config);
         assertThat(uppercaseProcessor.getTag(), equalTo(processorTag));
         assertThat(uppercaseProcessor.getField(), equalTo("field1"));

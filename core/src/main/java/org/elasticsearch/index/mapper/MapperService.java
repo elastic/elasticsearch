@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -33,11 +34,14 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -93,12 +97,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.Dynamic, Property.IndexScope);
+    public static final Setting<Boolean> INDEX_MAPPING_SINGLE_TYPE_SETTING;
+    static {
+        Function<Settings, String> defValue = settings -> {
+            boolean singleType = true;
+            if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null) {
+                singleType = Version.indexCreated(settings).onOrAfter(Version.V_6_0_0_alpha1);
+            }
+            return Boolean.valueOf(singleType).toString();
+        };
+        INDEX_MAPPING_SINGLE_TYPE_SETTING = Setting.boolSetting("index.mapping.single_type", defValue, Property.IndexScope, Property.Final);
+    }
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
-    @Deprecated
-    public static final String PERCOLATOR_LEGACY_TYPE_NAME = ".percolator";
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -112,7 +125,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile Map<String, DocumentMapper> mappers = emptyMap();
 
     private volatile FieldTypeLookup fieldTypes;
-    private volatile Map<String, ObjectMapper> fullPathObjectMappers = new HashMap<>();
+    private volatile Map<String, ObjectMapper> fullPathObjectMappers = emptyMap();
     private boolean hasNested = false; // updated dynamically to true when a nested object is added
     private boolean allEnabled = false; // updated dynamically to true when _all is enabled
 
@@ -188,8 +201,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.documentParser;
     }
 
+    /**
+     * Parses the mappings (formatted as JSON) into a map
+     */
     public static Map<String, Object> parseMapping(NamedXContentRegistry xContentRegistry, String mappingSource) throws Exception {
-        try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(xContentRegistry, mappingSource)) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry, mappingSource)) {
             return parser.map();
         }
     }
@@ -317,7 +333,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     && mappers.containsKey(type) == false;
 
             try {
-                DocumentMapper documentMapper = documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
+                DocumentMapper documentMapper =
+                    documentParser.parse(type, entry.getValue(), applyDefault ? defaultMappingSourceOrLastStored : null);
                 documentMappers.add(documentMapper);
             } catch (Exception e) {
                 throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
@@ -384,6 +401,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers);
             checkFieldUniqueness(newMapper.type(), objectMappers, fieldMappers, fullPathObjectMappers, fieldTypes);
             checkObjectsCompatibility(objectMappers, updateAllTypes, fullPathObjectMappers);
+            checkPartitionedIndexConstraints(newMapper);
 
             // update lookup data-structures
             // this will in particular make sure that the merged fields are compatible with other types
@@ -391,6 +409,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             for (ObjectMapper objectMapper : objectMappers) {
                 if (fullPathObjectMappers == this.fullPathObjectMappers) {
+                    // first time through the loops
                     fullPathObjectMappers = new HashMap<>(this.fullPathObjectMappers);
                 }
                 fullPathObjectMappers.put(objectMapper.fullPath(), objectMapper);
@@ -411,6 +430,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             if (oldMapper == null && newMapper.parentFieldMapper().active()) {
                 if (parentTypes == this.parentTypes) {
+                    // first time through the loop
                     parentTypes = new HashSet<>(this.parentTypes);
                 }
                 parentTypes.add(mapper.parentFieldMapper().type());
@@ -433,6 +453,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             checkNestedFieldsLimit(fullPathObjectMappers);
             checkDepthLimit(fullPathObjectMappers.keySet());
         }
+        checkIndexSortCompatibility(indexSettings.getIndexSortConfig(), hasNested);
 
         for (Map.Entry<String, DocumentMapper> entry : mappers.entrySet()) {
             if (entry.getKey().equals(DEFAULT_MAPPING)) {
@@ -450,11 +471,27 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
 
+        if (indexSettings.isSingleType()) {
+            Set<String> actualTypes = new HashSet<>(mappers.keySet());
+            actualTypes.remove(DEFAULT_MAPPING);
+            if (actualTypes.size() > 1) {
+                throw new IllegalArgumentException(
+                        "Rejecting mapping update to [" + index().getName() + "] as the final mapping would have more than 1 type: " + actualTypes);
+            }
+        }
+
         // make structures immutable
         mappers = Collections.unmodifiableMap(mappers);
         results = Collections.unmodifiableMap(results);
-        parentTypes = Collections.unmodifiableSet(parentTypes);
-        fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+
+        // only need to immutably rewrap these if the previous reference was changed.
+        // if not then they are already implicitly immutable.
+        if (fullPathObjectMappers != this.fullPathObjectMappers) {
+            fullPathObjectMappers = Collections.unmodifiableMap(fullPathObjectMappers);
+        }
+        if (parentTypes != this.parentTypes) {
+            parentTypes = Collections.unmodifiableSet(parentTypes);
+        }
 
         // commit the change
         if (defaultMappingSource != null) {
@@ -486,12 +523,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private boolean typeNameStartsWithIllegalDot(DocumentMapper mapper) {
-        boolean legacyIndex = getIndexSettings().getIndexVersionCreated().before(Version.V_5_0_0_alpha1);
-        if (legacyIndex) {
-            return mapper.type().startsWith(".") && !PERCOLATOR_LEGACY_TYPE_NAME.equals(mapper.type());
-        } else {
-            return mapper.type().startsWith(".");
-        }
+        return mapper.type().startsWith(".");
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {
@@ -598,6 +630,26 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
+    private void checkPartitionedIndexConstraints(DocumentMapper newMapper) {
+        if (indexSettings.getIndexMetaData().isRoutingPartitionedIndex()) {
+            if (newMapper.parentFieldMapper().active()) {
+                throw new IllegalArgumentException("mapping type name [" + newMapper.type() + "] cannot have a "
+                        + "_parent field for the partitioned index [" + indexSettings.getIndex().getName() + "]");
+            }
+
+            if (!newMapper.routingFieldMapper().required()) {
+                throw new IllegalArgumentException("mapping type [" + newMapper.type() + "] must have routing "
+                        + "required for partitioned index [" + indexSettings.getIndex().getName() + "]");
+            }
+        }
+    }
+
+    private void checkIndexSortCompatibility(IndexSortConfig sortConfig, boolean hasNested) {
+        if (sortConfig.hasIndexSort() && hasNested) {
+            throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
+        }
+    }
+
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
         return documentParser.parse(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
     }
@@ -688,8 +740,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
             // There is no need to synchronize writes here. In the case of concurrent access, we could just
             // compute some mappers several times, which is not a big deal
-            Map<String, MappedFieldType> newUnmappedFieldTypes = new HashMap<>();
-            newUnmappedFieldTypes.putAll(unmappedFieldTypes);
+            Map<String, MappedFieldType> newUnmappedFieldTypes = new HashMap<>(unmappedFieldTypes);
             newUnmappedFieldTypes.put(type, fieldType);
             unmappedFieldTypes = unmodifiableMap(newUnmappedFieldTypes);
         }
@@ -753,4 +804,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
+    /** Return a term that uniquely identifies the document, or {@code null} if the type is not allowed. */
+    public Term createUidTerm(String type, String id) {
+        if (hasMapping(type) == false) {
+            return null;
+        }
+        if (indexSettings.isSingleType()) {
+            return new Term(IdFieldMapper.NAME, id);
+        } else {
+            return new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id));
+        }
+    }
 }

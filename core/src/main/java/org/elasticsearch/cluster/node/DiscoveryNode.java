@@ -34,7 +34,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -191,18 +190,24 @@ public class DiscoveryNode implements Writeable, ToXContent {
     /** Creates a DiscoveryNode representing the local node. */
     public static DiscoveryNode createLocal(Settings settings, TransportAddress publishAddress, String nodeId) {
         Map<String, String> attributes = new HashMap<>(Node.NODE_ATTRIBUTES.get(settings).getAsMap());
-        Set<DiscoveryNode.Role> roles = new HashSet<>();
+        Set<Role> roles = getRolesFromSettings(settings);
+
+        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress, attributes, roles, Version.CURRENT);
+    }
+
+    /** extract node roles from the given settings */
+    public static Set<Role> getRolesFromSettings(Settings settings) {
+        Set<Role> roles = EnumSet.noneOf(Role.class);
         if (Node.NODE_INGEST_SETTING.get(settings)) {
-            roles.add(DiscoveryNode.Role.INGEST);
+            roles.add(Role.INGEST);
         }
         if (Node.NODE_MASTER_SETTING.get(settings)) {
-            roles.add(DiscoveryNode.Role.MASTER);
+            roles.add(Role.MASTER);
         }
         if (Node.NODE_DATA_SETTING.get(settings)) {
-            roles.add(DiscoveryNode.Role.DATA);
+            roles.add(Role.DATA);
         }
-
-        return new DiscoveryNode(Node.NODE_NAME_SETTING.get(settings), nodeId, publishAddress,attributes, roles, Version.CURRENT);
+        return roles;
     }
 
     /**
@@ -216,7 +221,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         this.ephemeralId = in.readString().intern();
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
-        if (in.getVersion().onOrAfter(Version.V_5_0_3_UNRELEASED)) {
+        if (in.getVersion().after(Version.V_5_0_2)) {
             this.address = new TransportAddress(in);
         } else {
             // we need to do this to preserve the host information during pinging and joining of a master. Since the version of the
@@ -232,11 +237,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         int rolesSize = in.readVInt();
         this.roles = EnumSet.noneOf(Role.class);
         for (int i = 0; i < rolesSize; i++) {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= Role.values().length) {
-                throw new IOException("Unknown Role ordinal [" + ordinal + "]");
-            }
-            this.roles.add(Role.values()[ordinal]);
+            this.roles.add(in.readEnum(Role.class));
         }
         this.version = Version.readVersion(in);
     }
@@ -256,7 +257,7 @@ public class DiscoveryNode implements Writeable, ToXContent {
         }
         out.writeVInt(roles.size());
         for (Role role : roles) {
-            out.writeVInt(role.ordinal());
+            out.writeEnum(role);
         }
         Version.writeVersion(version, out);
     }

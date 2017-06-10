@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.transport.netty4;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
@@ -46,8 +45,6 @@ import org.elasticsearch.transport.TransportSettings;
 import java.io.IOException;
 import java.util.Collections;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -79,10 +76,8 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         serviceB.start();
         serviceB.acceptIncomingRequests();
 
-        DiscoveryNode nodeA =
-            new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode nodeB =
-            new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode nodeA = serviceA.getLocalDiscoNode();
+        DiscoveryNode nodeB = serviceB.getLocalDiscoNode();
 
         serviceA.connectToNode(nodeB);
         serviceB.connectToNode(nodeA);

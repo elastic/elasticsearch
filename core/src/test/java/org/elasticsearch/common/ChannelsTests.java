@@ -165,7 +165,7 @@ public class ChannelsTests extends ESTestCase {
 
         FileChannel delegate;
 
-        public MockFileChannel(FileChannel delegate) {
+        MockFileChannel(FileChannel delegate) {
             this.delegate = delegate;
         }
 

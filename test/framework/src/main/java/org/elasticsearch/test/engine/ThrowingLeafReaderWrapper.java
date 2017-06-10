@@ -147,7 +147,7 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
     static class ThrowingTermsEnum extends FilterTermsEnum {
         private final Thrower thrower;
 
-        public ThrowingTermsEnum(TermsEnum in, Thrower thrower) {
+        ThrowingTermsEnum(TermsEnum in, Thrower thrower) {
             super(in);
             this.thrower = thrower;
 
@@ -194,5 +194,16 @@ public class ThrowingLeafReaderWrapper extends FilterLeafReader {
     public NumericDocValues getNormValues(String field) throws IOException {
         thrower.maybeThrow(Flags.Norms);
         return super.getNormValues(field);
+    }
+
+
+    @Override
+    public CacheHelper getCoreCacheHelper() {
+        return in.getCoreCacheHelper();
+    }
+
+    @Override
+    public CacheHelper getReaderCacheHelper() {
+        return in.getReaderCacheHelper();
     }
 }

@@ -331,14 +331,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent {
             } else if (writtenBy == null) {
                 throw new ElasticsearchParseException("missing or invalid written_by [" + writtenByStr + "]");
             } else if (checksum == null) {
-                if (physicalName.startsWith("segments_")
-                        && writtenBy.onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION) == false) {
-                    // its possible the checksum is null for segments_N files that belong to a shard with no data,
-                    // so we will assign it _na_ for now and try to get the checksum from the file itself later
-                    checksum = UNKNOWN_CHECKSUM;
-                } else {
-                    throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
-                }
+                throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
             }
             return new FileInfo(name, new StoreFileMetaData(physicalName, length, checksum, writtenBy, metaHash), partSize);
         }

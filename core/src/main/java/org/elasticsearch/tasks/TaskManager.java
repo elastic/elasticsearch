@@ -35,18 +35,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -83,7 +79,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
      * <p>
      * Returns the task manager tracked task or null if the task doesn't support the task manager
      */
-    public Task register(String type, String action, TransportRequest request) {
+    public Task register(String type, String action, TaskAwareRequest request) {
         Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask());
         if (task == null) {
             return null;
@@ -125,15 +121,18 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
     /**
      * Cancels a task
      * <p>
-     * Returns a set of nodes with child tasks where this task should be cancelled if cancellation was successful, null otherwise.
+     * Returns true if cancellation was started successful, null otherwise.
+     *
+     * After starting cancellation on the parent task, the task manager tries to cancel all children tasks
+     * of the current task. Once cancellation of the children tasks is done, the listener is triggered.
      */
-    public Set<String> cancel(CancellableTask task, String reason, Consumer<Set<String>> listener) {
+    public boolean cancel(CancellableTask task, String reason, Runnable listener) {
         CancellableTaskHolder holder = cancellableTasks.get(task.getId());
         if (holder != null) {
             logger.trace("cancelling task with id {}", task.getId());
             return holder.cancel(reason, listener);
         }
-        return null;
+        return false;
     }
 
     /**
@@ -344,17 +343,6 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
         }
     }
 
-    public void registerChildTask(Task task, String node) {
-        if (task == null || task instanceof CancellableTask == false) {
-            // We don't have a cancellable task - not much we can do here
-            return;
-        }
-        CancellableTaskHolder holder = cancellableTasks.get(task.getId());
-        if (holder != null) {
-            holder.registerChildTaskNode(node);
-        }
-    }
-
     /**
      * Blocks the calling thread, waiting for the task to vanish from the TaskManager.
      */
@@ -378,46 +366,44 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
 
         private final CancellableTask task;
 
-        private final Set<String> nodesWithChildTasks = new HashSet<>();
-
         private volatile String cancellationReason = null;
 
-        private volatile Consumer<Set<String>> cancellationListener = null;
+        private volatile Runnable cancellationListener = null;
 
-        public CancellableTaskHolder(CancellableTask task) {
+        CancellableTaskHolder(CancellableTask task) {
             this.task = task;
         }
 
         /**
          * Marks task as cancelled.
          * <p>
-         * Returns a set of nodes with child tasks where this task should be cancelled if cancellation was successful, null otherwise.
+         * Returns true if cancellation was successful, false otherwise.
          */
-        public Set<String> cancel(String reason, Consumer<Set<String>> listener) {
-            Set<String> nodes;
+        public boolean cancel(String reason, Runnable listener) {
+            final boolean cancelled;
             synchronized (this) {
                 assert reason != null;
                 if (cancellationReason == null) {
                     cancellationReason = reason;
                     cancellationListener = listener;
-                    nodes = Collections.unmodifiableSet(nodesWithChildTasks);
+                    cancelled = true;
                 } else {
                     // Already cancelled by somebody else
-                    nodes = null;
+                    cancelled = false;
                 }
             }
-            if (nodes != null) {
+            if (cancelled) {
                 task.cancel(reason);
             }
-            return nodes;
+            return cancelled;
         }
 
         /**
          * Marks task as cancelled.
          * <p>
-         * Returns a set of nodes with child tasks where this task should be cancelled if cancellation was successful, null otherwise.
+         * Returns true if cancellation was successful, false otherwise.
          */
-        public Set<String> cancel(String reason) {
+        public boolean cancel(String reason) {
             return cancel(reason, null);
         }
 
@@ -425,14 +411,12 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
          * Marks task as finished.
          */
         public void finish() {
-            Consumer<Set<String>> listener = null;
-            Set<String> nodes = null;
+            Runnable listener = null;
             synchronized (this) {
                 if (cancellationReason != null) {
                     // The task was cancelled, we need to notify the listener
                     if (cancellationListener != null) {
                         listener = cancellationListener;
-                        nodes = Collections.unmodifiableSet(nodesWithChildTasks);
                         cancellationListener = null;
                     }
                 } else {
@@ -442,7 +426,7 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
             // We need to call the listener outside of the synchronised section to avoid potential bottle necks
             // in the listener synchronization
             if (listener != null) {
-                listener.accept(nodes);
+                listener.run();
             }
 
         }
@@ -453,14 +437,6 @@ public class TaskManager extends AbstractComponent implements ClusterStateApplie
 
         public CancellableTask getTask() {
             return task;
-        }
-
-        public synchronized void registerChildTaskNode(String nodeId) {
-            if (cancellationReason == null) {
-                nodesWithChildTasks.add(nodeId);
-            } else {
-                throw new TaskCancelledException("cannot register child task request, the task is already cancelled");
-            }
         }
     }
 

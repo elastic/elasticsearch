@@ -51,24 +51,10 @@ public abstract class LocalClusterUpdateTask implements ClusterStateTaskConfig, 
     }
 
     /**
-     * node stepped down as master or has lost connection to the master
-     */
-    public static ClusterTasksResult<LocalClusterUpdateTask> noMaster() {
-        return new ClusterTasksResult(true, null, null);
-    }
-
-    /**
      * no changes were made to the cluster state. Useful to execute a runnable on the cluster state applier thread
      */
     public static ClusterTasksResult<LocalClusterUpdateTask> unchanged() {
-        return new ClusterTasksResult(false, null, null);
-    }
-
-    /**
-     * locally apply cluster state received from a master
-     */
-    public static ClusterTasksResult<LocalClusterUpdateTask> newState(ClusterState clusterState) {
-        return new ClusterTasksResult(false, clusterState, null);
+        return new ClusterTasksResult<>(null, null);
     }
 
     @Override

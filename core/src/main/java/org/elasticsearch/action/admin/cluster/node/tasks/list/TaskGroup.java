@@ -81,7 +81,7 @@ public class TaskGroup implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        task.innerToXContent(builder, params);
+        task.toXContent(builder, params);
         if (childTasks.isEmpty() == false) {
             builder.startArray("children");
             for (TaskGroup taskGroup : childTasks) {

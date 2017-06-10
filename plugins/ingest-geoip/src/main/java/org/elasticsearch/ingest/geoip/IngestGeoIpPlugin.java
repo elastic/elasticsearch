@@ -19,6 +19,15 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.maxmind.db.NoCache;
+import com.maxmind.db.NodeCache;
+import com.maxmind.geoip2.DatabaseReader;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.Plugin;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,20 +44,11 @@ import java.util.Map;
 import java.util.stream.Stream;
 import java.util.zip.GZIPInputStream;
 
-import com.maxmind.db.NoCache;
-import com.maxmind.db.NodeCache;
-import com.maxmind.geoip2.DatabaseReader;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.Plugin;
-
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable {
     public static final Setting<Long> CACHE_SIZE =
         Setting.longSetting("ingest.geoip.cache_size", 1000, 0, Setting.Property.NodeScope);
 
-    private Map<String, DatabaseReader> databaseReaders;
+    private Map<String, DatabaseReaderLazyLoader> databaseReaders;
 
     @Override
     public List<Setting<?>> getSettings() {
@@ -76,12 +76,12 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
         return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(databaseReaders));
     }
 
-    static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory, NodeCache cache) throws IOException {
+    static Map<String, DatabaseReaderLazyLoader> loadDatabaseReaders(Path geoIpConfigDirectory, NodeCache cache) throws IOException {
         if (Files.exists(geoIpConfigDirectory) == false && Files.isDirectory(geoIpConfigDirectory)) {
             throw new IllegalStateException("the geoip directory [" + geoIpConfigDirectory  + "] containing databases doesn't exist");
         }
 
-        Map<String, DatabaseReader> databaseReaders = new HashMap<>();
+        Map<String, DatabaseReaderLazyLoader> databaseReaders = new HashMap<>();
         try (Stream<Path> databaseFiles = Files.list(geoIpConfigDirectory)) {
             PathMatcher pathMatcher = geoIpConfigDirectory.getFileSystem().getPathMatcher("glob:**.mmdb.gz");
             // Use iterator instead of forEach otherwise IOException needs to be caught twice...
@@ -89,10 +89,13 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
             while (iterator.hasNext()) {
                 Path databasePath = iterator.next();
                 if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
-                    try (InputStream inputStream = new GZIPInputStream(Files.newInputStream(databasePath, StandardOpenOption.READ))) {
-                        databaseReaders.put(databasePath.getFileName().toString(),
-                            new DatabaseReader.Builder(inputStream).withCache(cache).build());
-                    }
+                    String databaseFileName = databasePath.getFileName().toString();
+                    DatabaseReaderLazyLoader holder = new DatabaseReaderLazyLoader(databaseFileName, () -> {
+                        try (InputStream inputStream = new GZIPInputStream(Files.newInputStream(databasePath, StandardOpenOption.READ))) {
+                            return new DatabaseReader.Builder(inputStream).withCache(cache).build();
+                        }
+                    });
+                    databaseReaders.put(databaseFileName, holder);
                 }
             }
         }

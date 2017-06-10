@@ -30,13 +30,11 @@ import java.util.List;
 public interface RecoveryTargetHandler {
 
     /**
-     * Prepares the tranget to receive translog operations, after all file have been copied
+     * Prepares the target to receive translog operations, after all file have been copied
      *
      * @param totalTranslogOps total translog operations expected to be sent
-     * @param maxUnsafeAutoIdTimestamp the max timestamp that is used to de-optimize documents with auto-generated IDs in the engine.
-     * This is used to ensure we don't add duplicate documents when we assume an append only case based on auto-generated IDs
      */
-    void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException;
+    void prepareForTranslogOperations(int totalTranslogOps) throws IOException;
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
@@ -55,8 +53,10 @@ public interface RecoveryTargetHandler {
      * Index a set of translog operations on the target
      * @param operations operations to index
      * @param totalTranslogOps current number of total operations expected to be indexed
+     *
+     * @return the local checkpoint on the target shard
      */
-    void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps);
+    long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException;
 
     /**
      * Notifies the target of the files it is going to receive
@@ -78,10 +78,5 @@ public interface RecoveryTargetHandler {
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                         boolean lastChunk, int totalTranslogOps) throws IOException;
-
-    /***
-     * @return the allocation id of the target shard.
-     */
-    String getTargetAllocationId();
 
 }

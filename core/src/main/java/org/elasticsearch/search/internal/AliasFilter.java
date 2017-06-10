@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,6 +44,8 @@ public final class AliasFilter implements Writeable {
     private final QueryBuilder filter;
     private final boolean reparseAliases;
 
+    public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
+
     public AliasFilter(QueryBuilder filter, String... aliases) {
         this.aliases = aliases == null ? Strings.EMPTY_ARRAY : aliases;
         this.filter = filter;
@@ -51,7 +54,7 @@ public final class AliasFilter implements Writeable {
 
     public AliasFilter(StreamInput input) throws IOException {
         aliases = input.readStringArray();
-        if (input.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (input.getVersion().onOrAfter(Version.V_5_1_1)) {
             filter = input.readOptionalNamedWriteable(QueryBuilder.class);
             reparseAliases = false;
         } else {
@@ -66,7 +69,7 @@ public final class AliasFilter implements Writeable {
             final IndexMetaData indexMetaData = context.getIndexSettings().getIndexMetaData();
             /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
              * of dependencies we pass in a function that can perform the parsing. */
-            ShardSearchRequest.FilterParser filterParser = bytes -> {
+            CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
                 try (XContentParser parser = XContentFactory.xContent(bytes).createParser(context.getXContentRegistry(), bytes)) {
                     return context.newParseContext(parser).parseInnerQueryBuilder();
                 }
@@ -87,7 +90,7 @@ public final class AliasFilter implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(aliases);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeOptionalNamedWriteable(filter);
         }
     }
@@ -125,6 +128,15 @@ public final class AliasFilter implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(aliases, filter, reparseAliases);
+        return Objects.hash(reparseAliases, Arrays.hashCode(aliases), filter);
+    }
+
+    @Override
+    public String toString() {
+        return "AliasFilter{" +
+            "aliases=" + Arrays.toString(aliases) +
+            ", filter=" + filter +
+            ", reparseAliases=" + reparseAliases +
+            '}';
     }
 }

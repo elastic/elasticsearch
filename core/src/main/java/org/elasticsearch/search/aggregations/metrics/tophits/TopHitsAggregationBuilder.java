@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
@@ -34,8 +35,6 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -60,7 +59,6 @@ import java.util.Set;
 
 public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHitsAggregationBuilder> {
     public static final String NAME = "top_hits";
-    private static final InternalAggregation.Type TYPE = new Type(NAME);
 
     private int from = 0;
     private int size = 3;
@@ -75,14 +73,14 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     private FetchSourceContext fetchSourceContext;
 
     public TopHitsAggregationBuilder(String name) {
-        super(name, TYPE);
+        super(name);
     }
 
     /**
      * Read from a stream.
      */
     public TopHitsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE);
+        super(in);
         explain = in.readBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
@@ -274,7 +272,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Gets the hightlighter builder for this request.
+     * Gets the highlighter builder for this request.
      */
     public HighlightBuilder highlighter() {
         return highlightBuilder;
@@ -526,7 +524,8 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
 
     @Override
     public TopHitsAggregationBuilder subAggregations(Builder subFactories) {
-        throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
+        throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
+                + getType() + "] cannot accept sub-aggregations");
     }
 
     @Override
@@ -535,8 +534,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         List<ScriptFieldsContext.ScriptField> fields = new ArrayList<>();
         if (scriptFields != null) {
             for (ScriptField field : scriptFields) {
-                SearchScript searchScript = context.getQueryShardContext().getSearchScript(field.script(),
-                    ScriptContext.Standard.SEARCH);
+                QueryShardContext shardContext = context.getQueryShardContext();
+                SearchScript.Factory factory = shardContext.getScriptService().compile(field.script(), SearchScript.CONTEXT);
+                SearchScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), shardContext.lookup());
                 fields.add(new org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField(
                     field.fieldName(), searchScript, field.ignoreFailure()));
             }
@@ -548,7 +548,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         } else {
             optionalSort = SortBuilder.buildSort(sorts, context.getQueryShardContext());
         }
-        return new TopHitsAggregatorFactory(name, type, from, size, explain, version, trackScores, optionalSort, highlightBuilder,
+        return new TopHitsAggregatorFactory(name, from, size, explain, version, trackScores, optionalSort, highlightBuilder,
                 storedFieldsContext, fieldDataFields, fields, fetchSourceContext, context, parent, subfactoriesBuilder, metaData);
     }
 
@@ -642,7 +642,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                     currentFieldName = parser.currentName();
                                 } else if (token.isValue()) {
                                     if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName)) {
-                                        script = Script.parse(parser, context.getDefaultScriptLanguage());
+                                        script = Script.parse(parser);
                                     } else if (SearchSourceBuilder.IGNORE_FAILURE_FIELD.match(currentFieldName)) {
                                         ignoreFailure = parser.booleanValue();
                                     } else {
@@ -652,7 +652,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                     }
                                 } else if (token == XContentParser.Token.START_OBJECT) {
                                     if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName)) {
-                                        script = Script.parse(parser, context.getDefaultScriptLanguage());
+                                        script = Script.parse(parser);
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(),
                                                 "Unknown key for a " + token + " in [" + currentFieldName + "].",
@@ -735,7 +735,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

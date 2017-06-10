@@ -22,9 +22,15 @@ import org.apache.http.Header;
 import org.apache.http.client.methods.HttpHead;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,32 +42,30 @@ import java.util.List;
 public class ClientYamlTestResponse {
 
     private final Response response;
-    private final String body;
+    private final byte[] body;
+    private final XContentType bodyContentType;
     private ObjectPath parsedResponse;
+    private String bodyAsString;
 
     ClientYamlTestResponse(Response response) throws IOException {
         this.response = response;
         if (response.getEntity() != null) {
+            String contentType = response.getHeader("Content-Type");
+            this.bodyContentType = XContentType.fromMediaTypeOrFormat(contentType);
             try {
-                this.body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+                byte[] bytes = EntityUtils.toByteArray(response.getEntity());
+                //skip parsing if we got text back (e.g. if we called _cat apis)
+                if (bodyContentType != null) {
+                    this.parsedResponse = ObjectPath.createFromXContent(bodyContentType.xContent(), new BytesArray(bytes));
+                }
+                this.body = bytes;
             } catch (IOException e) {
                 EntityUtils.consumeQuietly(response.getEntity());
-                throw new RuntimeException(e);
+                throw e;
             }
         } else {
             this.body = null;
-        }
-        parseResponseBody();
-    }
-
-    private void parseResponseBody() throws IOException {
-        if (body != null) {
-            String contentType = response.getHeader("Content-Type");
-            XContentType xContentType = XContentType.fromMediaTypeOrFormat(contentType);
-            //skip parsing if we got text back (e.g. if we called _cat apis)
-            if (xContentType == XContentType.JSON || xContentType == XContentType.YAML) {
-                this.parsedResponse = ObjectPath.createFromXContent(xContentType.xContent(), body);
-            }
+            this.bodyContentType = null;
         }
     }
 
@@ -94,14 +98,32 @@ public class ClientYamlTestResponse {
         if (parsedResponse != null) {
             return parsedResponse.evaluate("");
         }
-        return body;
+        //we only get here if there is no response body or the body is text
+        assert bodyContentType == null;
+        return getBodyAsString();
     }
 
     /**
      * Returns the body as a string
      */
     public String getBodyAsString() {
-        return body;
+        if (bodyAsString == null && body != null) {
+            //content-type null means that text was returned
+            if (bodyContentType == null || bodyContentType == XContentType.JSON || bodyContentType == XContentType.YAML) {
+                bodyAsString = new String(body, StandardCharsets.UTF_8);
+            } else {
+                //if the body is in a binary format and gets requested as a string (e.g. to log a test failure), we convert it to json
+                try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
+                    try (XContentParser parser = bodyContentType.xContent().createParser(NamedXContentRegistry.EMPTY, body)) {
+                        jsonBuilder.copyCurrentStructure(parser);
+                    }
+                    bodyAsString = jsonBuilder.string();
+                } catch (IOException e) {
+                    throw new UncheckedIOException("unable to convert response body to a string format", e);
+                }
+            }
+        }
+        return bodyAsString;
     }
 
     public boolean isError() {

@@ -23,25 +23,28 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Set;
 
 public class IndicesQueryCacheTests extends ESTestCase {
 
@@ -69,9 +72,9 @@ public class IndicesQueryCacheTests extends ESTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores)
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost)
                 throws IOException {
-            return new ConstantScoreWeight(this) {
+            return new ConstantScoreWeight(this, boost) {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
                     return new ConstantScoreScorer(this, score(), DocIdSetIterator.all(context.reader().maxDoc()));
@@ -328,4 +331,76 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.close(); // this triggers some assertions
     }
 
+    private static class DummyWeight extends Weight {
+
+        private final Weight weight;
+        private boolean scorerCalled;
+        private boolean scorerSupplierCalled;
+
+        DummyWeight(Weight weight) {
+            super(weight.getQuery());
+            this.weight = weight;
+        }
+
+        @Override
+        public void extractTerms(Set<Term> terms) {
+            weight.extractTerms(terms);
+        }
+
+        @Override
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+            return weight.explain(context, doc);
+        }
+
+        @Override
+        public Scorer scorer(LeafReaderContext context) throws IOException {
+            scorerCalled = true;
+            return weight.scorer(context);
+        }
+
+        @Override
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            scorerSupplierCalled = true;
+            return weight.scorerSupplier(context);
+        }
+
+    }
+
+    public void testDelegatesScorerSupplier() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        w.addDocument(new Document());
+        DirectoryReader r = DirectoryReader.open(w);
+        w.close();
+        ShardId shard = new ShardId("index", "_na_", 0);
+        r = ElasticsearchDirectoryReader.wrap(r, shard);
+        IndexSearcher s = new IndexSearcher(r);
+        s.setQueryCachingPolicy(new QueryCachingPolicy() {
+            @Override
+            public boolean shouldCache(Query query) throws IOException {
+                return false; // never cache
+            }
+            @Override
+            public void onUse(Query query) {}
+        });
+
+        Settings settings = Settings.builder()
+                .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+                .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+                .build();
+        IndicesQueryCache cache = new IndicesQueryCache(settings);
+        s.setQueryCache(cache);
+        Query query = new MatchAllDocsQuery();
+        final DummyWeight weight = new DummyWeight(s.createNormalizedWeight(query, false));
+        final Weight cached = cache.doCache(weight, s.getQueryCachingPolicy());
+        assertNotSame(weight, cached);
+        assertFalse(weight.scorerCalled);
+        assertFalse(weight.scorerSupplierCalled);
+        cached.scorerSupplier(s.getIndexReader().leaves().get(0));
+        assertFalse(weight.scorerCalled);
+        assertTrue(weight.scorerSupplierCalled);
+        IOUtils.close(r, dir);
+        cache.onClose(shard);
+        cache.close();
+    }
 }

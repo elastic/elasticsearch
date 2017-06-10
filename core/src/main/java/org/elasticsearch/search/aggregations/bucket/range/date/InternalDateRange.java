@@ -85,11 +85,6 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
 
     public static class Factory extends InternalRange.Factory<InternalDateRange.Bucket, InternalDateRange> {
         @Override
-        public Type type() {
-            return DateRangeAggregationBuilder.TYPE;
-        }
-
-        @Override
         public ValueType getValueType() {
             return ValueType.DATE;
         }

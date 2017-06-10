@@ -32,7 +32,7 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory implem
 
     public ElisionTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.articles = Analysis.parseArticles(env, settings);
+        this.articles = Analysis.parseArticles(env, indexSettings.getIndexVersionCreated(), settings);
     }
 
     @Override

@@ -59,7 +59,7 @@ final class RestClientTestUtil {
     }
 
     static int randomStatusCode(Random random) {
-        return RandomPicks.randomFrom(random, ALL_ERROR_STATUS_CODES);
+        return RandomPicks.randomFrom(random, ALL_STATUS_CODES);
     }
 
     static int randomOkStatusCode(Random random) {

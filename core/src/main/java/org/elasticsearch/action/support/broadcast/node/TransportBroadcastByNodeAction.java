@@ -172,7 +172,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
      * @param successfulShards the total number of shards for which execution of the operation was successful
      * @param failedShards     the total number of shards for which execution of the operation failed
      * @param results          the per-node aggregated shard-level results
-     * @param shardFailures    the exceptions corresponding to shard operationa failures
+     * @param shardFailures    the exceptions corresponding to shard operation failures
      * @param clusterState     the cluster state
      * @return the response
      */
@@ -270,7 +270,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             ShardsIterator shardIt = shards(clusterState, request, concreteIndices);
             nodeIds = new HashMap<>();
 
-            for (ShardRouting shard : shardIt.asUnordered()) {
+            for (ShardRouting shard : shardIt) {
                 // send a request to the shard only if it is assigned to a node that is in the local node's cluster state
                 // a scenario in which a shard can be assigned but to a node that is not in the local node's cluster state
                 // is when the shard is assigned to the master node, the local node has detected the master as failed
@@ -318,7 +318,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
                 if (task != null) {
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-                    taskManager.registerChildTask(task, node.getId());
                 }
                 transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, new TransportResponseHandler<NodeResponse>() {
                     @Override
@@ -439,7 +438,6 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             } catch (Exception e) {
                 BroadcastShardOperationFailedException failure =
                     new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", e);
-                failure.setIndex(shardRouting.getIndexName());
                 failure.setShard(shardRouting.shardId());
                 shardResults[shardIndex] = failure;
                 if (TransportActions.isShardNotAvailableException(e)) {
@@ -524,10 +522,10 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         protected List<BroadcastShardOperationFailedException> exceptions;
         protected List<ShardOperationResult> results;
 
-        public NodeResponse() {
+        NodeResponse() {
         }
 
-        public NodeResponse(String nodeId,
+        NodeResponse(String nodeId,
                             int totalShards,
                             List<ShardOperationResult> results,
                             List<BroadcastShardOperationFailedException> exceptions) {

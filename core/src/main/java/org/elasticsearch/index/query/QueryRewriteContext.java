@@ -20,24 +20,20 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.function.LongSupplier;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
-public class QueryRewriteContext implements ParseFieldMatcherSupplier {
+public class QueryRewriteContext {
     protected final MapperService mapperService;
     protected final ScriptService scriptService;
     protected final IndexSettings indexSettings;
@@ -69,15 +65,20 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
      * Returns the index settings for this context. This might return null if the
      * context has not index scope.
      */
-    public final IndexSettings getIndexSettings() {
+    public IndexSettings getIndexSettings() {
         return indexSettings;
     }
 
     /**
      * Return the MapperService.
      */
-    public final MapperService getMapperService() {
+    public MapperService getMapperService() {
         return mapperService;
+    }
+
+    /** Return the script service to allow compiling scripts within queries. */
+    public ScriptService getScriptService() {
+        return scriptService;
     }
 
     /** Return the current {@link IndexReader}, or {@code null} if no index reader is available, for
@@ -85,11 +86,6 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
      *  queries (percolation). */
     public IndexReader getIndexReader() {
         return reader;
-    }
-
-    @Override
-    public ParseFieldMatcher getParseFieldMatcher() {
-        return this.indexSettings.getParseFieldMatcher();
     }
 
     /**
@@ -100,21 +96,18 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     }
 
     /**
-     * Returns a new {@link QueryParseContext} that wraps the provided parser, using the ParseFieldMatcher settings that
-     * are configured in the index settings. The default script language will always default to Painless.
+     * Returns a new {@link QueryParseContext} that wraps the provided parser.
      */
     public QueryParseContext newParseContext(XContentParser parser) {
-        return new QueryParseContext(parser, indexSettings.getParseFieldMatcher());
+        return new QueryParseContext(parser);
     }
 
     public long nowInMillis() {
         return nowInMillis.getAsLong();
     }
 
-    public BytesReference getTemplateBytes(Script template) {
-        ExecutableScript executable = scriptService.executable(template, ScriptContext.Standard.SEARCH);
-        return (BytesReference) executable.run();
+    public String getTemplateBytes(Script template) {
+        TemplateScript compiledTemplate = scriptService.compile(template, TemplateScript.CONTEXT).newInstance(template.getParams());
+        return compiledTemplate.execute();
     }
-
-
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -27,8 +28,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -37,6 +40,10 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /** Unit tests for TCPTransport */
 public class TCPTransportTests extends ESTestCase {
@@ -144,11 +151,32 @@ public class TCPTransportTests extends ESTestCase {
         assertEquals(102, addresses[2].getPort());
     }
 
+    public void testEnsureVersionCompatibility() {
+        TcpTransport.ensureVersionCompatibility(VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(),
+            Version.CURRENT), Version.CURRENT, randomBoolean());
+
+        TcpTransport.ensureVersionCompatibility(Version.fromString("5.0.0"), Version.fromString("6.0.0"), true);
+        IllegalStateException ise = expectThrows(IllegalStateException.class, () ->
+            TcpTransport.ensureVersionCompatibility(Version.fromString("5.0.0"), Version.fromString("6.0.0"), false));
+        assertEquals("Received message from unsupported version: [5.0.0] minimal compatible version is: [5.4.0]", ise.getMessage());
+
+        ise = expectThrows(IllegalStateException.class, () ->
+            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("6.0.0"), true));
+        assertEquals("Received handshake message from unsupported version: [2.3.0] minimal compatible version is: [5.4.0]",
+            ise.getMessage());
+
+        ise = expectThrows(IllegalStateException.class, () ->
+            TcpTransport.ensureVersionCompatibility(Version.fromString("2.3.0"), Version.fromString("6.0.0"), false));
+        assertEquals("Received message from unsupported version: [2.3.0] minimal compatible version is: [5.4.0]",
+            ise.getMessage());
+    }
+
     public void testCompressRequest() throws IOException {
         final boolean compressed = randomBoolean();
         final AtomicBoolean called = new AtomicBoolean(false);
         Req request = new Req(randomRealisticUnicodeOfLengthBetween(10, 100));
         ThreadPool threadPool = new TestThreadPool(TCPTransportTests.class.getName());
+        AtomicReference<IOException> exceptionReference = new AtomicReference<>();
         try {
             TcpTransport transport = new TcpTransport("test", Settings.builder().put("transport.tcp.compress", compressed).build(),
                 threadPool, new BigArrays(Settings.EMPTY, null), null, null, null) {
@@ -168,32 +196,36 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected void sendMessage(Object o, BytesReference reference, Runnable sendListener) throws IOException {
-                    StreamInput streamIn = reference.streamInput();
-                    streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
-                    int len = streamIn.readInt();
-                    long requestId = streamIn.readLong();
-                    assertEquals(42, requestId);
-                    byte status = streamIn.readByte();
-                    Version version = Version.fromId(streamIn.readInt());
-                    assertEquals(Version.CURRENT, version);
-                    assertEquals(compressed, TransportStatus.isCompress(status));
-                    called.compareAndSet(false, true);
-                    if (compressed) {
-                        final int bytesConsumed = TcpHeader.HEADER_SIZE;
-                        streamIn = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed))
-                            .streamInput(streamIn);
+                protected void sendMessage(Object o, BytesReference reference, ActionListener listener) {
+                    try {
+                        StreamInput streamIn = reference.streamInput();
+                        streamIn.skip(TcpHeader.MARKER_BYTES_SIZE);
+                        int len = streamIn.readInt();
+                        long requestId = streamIn.readLong();
+                        assertEquals(42, requestId);
+                        byte status = streamIn.readByte();
+                        Version version = Version.fromId(streamIn.readInt());
+                        assertEquals(Version.CURRENT, version);
+                        assertEquals(compressed, TransportStatus.isCompress(status));
+                        called.compareAndSet(false, true);
+                        if (compressed) {
+                            final int bytesConsumed = TcpHeader.HEADER_SIZE;
+                            streamIn = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed))
+                                .streamInput(streamIn);
+                        }
+                        threadPool.getThreadContext().readHeaders(streamIn);
+                        assertEquals("foobar", streamIn.readString());
+                        Req readReq = new Req("");
+                        readReq.readFrom(streamIn);
+                        assertEquals(request.value, readReq.value);
+                    } catch (IOException e) {
+                        exceptionReference.set(e);
                     }
-                    threadPool.getThreadContext().readHeaders(streamIn);
-                    assertEquals("foobar", streamIn.readString());
-                    Req readReq = new Req("");
-                    readReq.readFrom(streamIn);
-                    assertEquals(request.value, readReq.value);
                 }
 
                 @Override
                 protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) throws IOException {
-                    return new NodeChannels(node, new Object[profile.getNumConnections()], profile);
+                    return new NodeChannels(node, new Object[profile.getNumConnections()], profile, c -> {});
                 }
 
                 @Override
@@ -209,13 +241,14 @@ public class TCPTransportTests extends ESTestCase {
                 @Override
                 public NodeChannels getConnection(DiscoveryNode node) {
                     return new NodeChannels(node, new Object[MockTcpTransport.LIGHT_PROFILE.getNumConnections()],
-                        MockTcpTransport.LIGHT_PROFILE);
+                        MockTcpTransport.LIGHT_PROFILE, c -> {});
                 }
             };
             DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
             Transport.Connection connection = transport.getConnection(node);
             connection.sendRequest(42, "foobar", request, TransportRequestOptions.EMPTY);
             assertTrue(called.get());
+            assertNull("IOException while sending message.", exceptionReference.get());
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
@@ -237,6 +270,38 @@ public class TCPTransportTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(value);
         }
+    }
+
+    public void testConnectionProfileResolve() {
+        final ConnectionProfile defaultProfile = TcpTransport.buildDefaultConnectionProfile(Settings.EMPTY);
+        assertEquals(defaultProfile, TcpTransport.resolveConnectionProfile(null, defaultProfile));
+
+        final ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.BULK);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.RECOVERY);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.REG);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.STATE);
+        builder.addConnections(randomIntBetween(0, 5), TransportRequestOptions.Type.PING);
+
+        final boolean connectionTimeoutSet = randomBoolean();
+        if (connectionTimeoutSet) {
+            builder.setConnectTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+        final boolean connectionHandshakeSet = randomBoolean();
+        if (connectionHandshakeSet) {
+            builder.setHandshakeTimeout(TimeValue.timeValueMillis(randomNonNegativeLong()));
+        }
+
+        final ConnectionProfile profile = builder.build();
+        final ConnectionProfile resolved = TcpTransport.resolveConnectionProfile(profile, defaultProfile);
+        assertNotEquals(resolved, defaultProfile);
+        assertThat(resolved.getNumConnections(), equalTo(profile.getNumConnections()));
+        assertThat(resolved.getHandles(), equalTo(profile.getHandles()));
+
+        assertThat(resolved.getConnectTimeout(),
+            equalTo(connectionTimeoutSet ? profile.getConnectTimeout() : defaultProfile.getConnectTimeout()));
+        assertThat(resolved.getHandshakeTimeout(),
+            equalTo(connectionHandshakeSet ? profile.getHandshakeTimeout() : defaultProfile.getHandshakeTimeout()));
     }
 
     public void testDefaultConnectionProfile() {

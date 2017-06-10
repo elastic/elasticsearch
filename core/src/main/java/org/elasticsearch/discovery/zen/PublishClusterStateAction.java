@@ -20,10 +20,11 @@
 package org.elasticsearch.discovery.zen;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
@@ -59,59 +60,51 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 public class PublishClusterStateAction extends AbstractComponent {
 
     public static final String SEND_ACTION_NAME = "internal:discovery/zen/publish/send";
     public static final String COMMIT_ACTION_NAME = "internal:discovery/zen/publish/commit";
 
-    public static final String SETTINGS_MAX_PENDING_CLUSTER_STATES = "discovery.zen.publish.max_pending_cluster_states";
+    public interface IncomingClusterStateListener {
 
-    public interface NewPendingClusterStateListener {
+        /**
+         * called when a new incoming cluster state has been received.
+         * Should validate the incoming state and throw an exception if it's not a valid successor state.
+         */
+        void onIncomingClusterState(ClusterState incomingState);
 
-        /** a new cluster state has been committed and is ready to process via {@link #pendingStatesQueue()} */
-        void onNewClusterState(String reason);
+        /**
+         * called when a cluster state has been committed and is ready to be processed
+         */
+        void onClusterStateCommitted(String stateUUID, ActionListener<Void> processedListener);
     }
 
     private final TransportService transportService;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final Supplier<ClusterState> clusterStateSupplier;
-    private final NewPendingClusterStateListener newPendingClusterStatelistener;
+    private final IncomingClusterStateListener incomingClusterStateListener;
     private final DiscoverySettings discoverySettings;
-    private final ClusterName clusterName;
-    private final PendingClusterStatesQueue pendingStatesQueue;
 
     public PublishClusterStateAction(
             Settings settings,
             TransportService transportService,
             NamedWriteableRegistry namedWriteableRegistry,
-            Supplier<ClusterState> clusterStateSupplier,
-            NewPendingClusterStateListener listener,
-            DiscoverySettings discoverySettings,
-            ClusterName clusterName) {
+            IncomingClusterStateListener incomingClusterStateListener,
+            DiscoverySettings discoverySettings) {
         super(settings);
         this.transportService = transportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
-        this.clusterStateSupplier = clusterStateSupplier;
-        this.newPendingClusterStatelistener = listener;
+        this.incomingClusterStateListener = incomingClusterStateListener;
         this.discoverySettings = discoverySettings;
-        this.clusterName = clusterName;
-        this.pendingStatesQueue = new PendingClusterStatesQueue(logger, settings.getAsInt(SETTINGS_MAX_PENDING_CLUSTER_STATES, 25));
         transportService.registerRequestHandler(SEND_ACTION_NAME, BytesTransportRequest::new, ThreadPool.Names.SAME, false, false,
             new SendClusterStateRequestHandler());
         transportService.registerRequestHandler(COMMIT_ACTION_NAME, CommitClusterStateRequest::new, ThreadPool.Names.SAME, false, false,
             new CommitClusterStateRequestHandler());
-    }
-
-    public PendingClusterStatesQueue pendingStatesQueue() {
-        return pendingStatesQueue;
     }
 
     /**
@@ -375,88 +368,54 @@ public class PublishClusterStateAction extends AbstractComponent {
 
     protected void handleIncomingClusterStateRequest(BytesTransportRequest request, TransportChannel channel) throws IOException {
         Compressor compressor = CompressorFactory.compressor(request.bytes());
-        StreamInput in;
-        if (compressor != null) {
-            in = compressor.streamInput(request.bytes().streamInput());
-        } else {
-            in = request.bytes().streamInput();
-        }
-        in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
-        in.setVersion(request.version());
-        synchronized (lastSeenClusterStateMutex) {
-            final ClusterState incomingState;
-            // If true we received full cluster state - otherwise diffs
-            if (in.readBoolean()) {
-                incomingState = ClusterState.readFrom(in, clusterStateSupplier.get().nodes().getLocalNode());
-                logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
-            } else if (lastSeenClusterState != null) {
-                Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeenClusterState.nodes().getLocalNode());
-                incomingState = diff.apply(lastSeenClusterState);
-                logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
-                    incomingState.version(), incomingState.stateUUID(), request.bytes().length());
-            } else {
-                logger.debug("received diff for but don't have any local cluster state - requesting full state");
-                throw new IncompatibleClusterStateVersionException("have no local cluster state");
+        StreamInput in = request.bytes().streamInput();
+        try {
+            if (compressor != null) {
+                in = compressor.streamInput(in);
             }
-            // sanity check incoming state
-            validateIncomingState(incomingState, lastSeenClusterState);
-
-            pendingStatesQueue.addPending(incomingState);
-            lastSeenClusterState = incomingState;
+            in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+            in.setVersion(request.version());
+            synchronized (lastSeenClusterStateMutex) {
+                final ClusterState incomingState;
+                // If true we received full cluster state - otherwise diffs
+                if (in.readBoolean()) {
+                    incomingState = ClusterState.readFrom(in, transportService.getLocalNode());
+                    logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(),
+                        request.bytes().length());
+                } else if (lastSeenClusterState != null) {
+                    Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeenClusterState.nodes().getLocalNode());
+                    incomingState = diff.apply(lastSeenClusterState);
+                    logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
+                        incomingState.version(), incomingState.stateUUID(), request.bytes().length());
+                } else {
+                    logger.debug("received diff for but don't have any local cluster state - requesting full state");
+                    throw new IncompatibleClusterStateVersionException("have no local cluster state");
+                }
+                incomingClusterStateListener.onIncomingClusterState(incomingState);
+                lastSeenClusterState = incomingState;
+            }
+        } finally {
+            IOUtils.close(in);
         }
         channel.sendResponse(TransportResponse.Empty.INSTANCE);
     }
 
-    // package private for testing
-
-    /**
-     * does simple sanity check of the incoming cluster state. Throws an exception on rejections.
-     */
-    void validateIncomingState(ClusterState incomingState, ClusterState lastSeenClusterState) {
-        final ClusterName incomingClusterName = incomingState.getClusterName();
-        if (!incomingClusterName.equals(this.clusterName)) {
-            logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]",
-                incomingState.nodes().getMasterNode(), incomingClusterName);
-            throw new IllegalStateException("received state from a node that is not part of the cluster");
-        }
-        final ClusterState clusterState = clusterStateSupplier.get();
-
-        if (clusterState.nodes().getLocalNode().equals(incomingState.nodes().getLocalNode()) == false) {
-            logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen",
-                incomingState.nodes().getMasterNode());
-            throw new IllegalStateException("received state with a local node that does not match the current local node");
-        }
-
-        if (ZenDiscovery.shouldIgnoreOrRejectNewClusterState(logger, clusterState, incomingState)) {
-            String message = String.format(
-                    Locale.ROOT,
-                    "rejecting cluster state version [%d] uuid [%s] received from [%s]",
-                    incomingState.version(),
-                    incomingState.stateUUID(),
-                    incomingState.nodes().getMasterNodeId()
-            );
-            logger.warn(message);
-            throw new IllegalStateException(message);
-        }
-
-    }
-
     protected void handleCommitRequest(CommitClusterStateRequest request, final TransportChannel channel) {
-        final ClusterState state = pendingStatesQueue.markAsCommitted(request.stateUUID,
-            new PendingClusterStatesQueue.StateProcessedListener() {
+        incomingClusterStateListener.onClusterStateCommitted(request.stateUUID, new ActionListener<Void>() {
+
             @Override
-            public void onNewClusterStateProcessed() {
+            public void onResponse(Void ignore) {
                 try {
                     // send a response to the master to indicate that this cluster state has been processed post committing it.
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 } catch (Exception e) {
                     logger.debug("failed to send response on cluster state processed", e);
-                    onNewClusterStateFailed(e);
+                    onFailure(e);
                 }
             }
 
             @Override
-            public void onNewClusterStateFailed(Exception e) {
+            public void onFailure(Exception e) {
                 try {
                     channel.sendResponse(e);
                 } catch (Exception inner) {
@@ -465,10 +424,6 @@ public class PublishClusterStateAction extends AbstractComponent {
                 }
             }
         });
-        if (state != null) {
-            newPendingClusterStatelistener.onNewClusterState("master " + state.nodes().getMasterNode() +
-                " committed version [" + state.version() + "]");
-        }
     }
 
     private class SendClusterStateRequestHandler implements TransportRequestHandler<BytesTransportRequest> {

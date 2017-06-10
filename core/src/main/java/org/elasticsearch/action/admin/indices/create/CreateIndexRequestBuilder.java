@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -76,10 +77,20 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     }
 
     /**
-     * The settings to create the index with (either json/yaml/properties format)
+     * The settings to create the index with (either json or yaml format)
+     * @deprecated use {@link #setSettings(String, XContentType)} to avoid content type detection
      */
+    @Deprecated
     public CreateIndexRequestBuilder setSettings(String source) {
         request.settings(source);
+        return this;
+    }
+
+    /**
+     * The settings to create the index with (either json or yaml format)
+     */
+    public CreateIndexRequestBuilder setSettings(String source, XContentType xContentType) {
+        request.settings(source, xContentType);
         return this;
     }
 
@@ -104,9 +115,10 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @param xContentType The content type of the source
      */
-    public CreateIndexRequestBuilder addMapping(String type, String source) {
-        request.mapping(type, source);
+    public CreateIndexRequestBuilder addMapping(String type, String source, XContentType xContentType) {
+        request.mapping(type, source, xContentType);
         return this;
     }
 
@@ -192,32 +204,32 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(String source) {
-        request.source(source);
+    public CreateIndexRequestBuilder setSource(String source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(BytesReference source) {
-        request.source(source);
+    public CreateIndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(byte[] source) {
-        request.source(source);
+    public CreateIndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
     /**
      * Sets the settings and mappings as a single source.
      */
-    public CreateIndexRequestBuilder setSource(byte[] source, int offset, int length) {
-        request.source(source, offset, length);
+    public CreateIndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
+        request.source(source, offset, length, xContentType);
         return this;
     }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -41,30 +42,11 @@ public class NamedXContentRegistry {
     /**
      * The empty {@link NamedXContentRegistry} for use when you are sure that you aren't going to call
      * {@link XContentParser#namedObject(Class, String, Object)}. Be *very* careful with this singleton because a parser using it will fail
-     * every call to {@linkplain XContentParser#namedObject(Class, String, Object)}. Every non-test usage really should be checked thorowly
-     * and marked with a comment about how it was checked. That way anyone that sees code that uses it knows that it is potentially
-     * dangerous.
+     * every call to {@linkplain XContentParser#namedObject(Class, String, Object)}. Every non-test usage really should be checked
+     * thoroughly and marked with a comment about how it was checked. That way anyone that sees code that uses it knows that it is
+     * potentially dangerous.
      */
     public static final NamedXContentRegistry EMPTY = new NamedXContentRegistry(emptyList());
-
-    /**
-     * Parses an object with the type T from parser.
-     */
-    public interface FromXContent<T> {
-        /**
-         * Parses an object with the type T from parser.
-         */
-        T fromXContent(XContentParser parser) throws IOException;
-    }
-
-    /**
-     * Parses an object with the type T from parser.
-     * @deprecated prefer {@link FromXContent} if possible
-     */
-    @Deprecated
-    public interface FromXContentWithContext<T> {
-        T fromXContent(XContentParser parser, Object context) throws IOException;
-    }
 
     /**
      * An entry in the {@linkplain NamedXContentRegistry} containing the name of the object and the parser that can parse it.
@@ -77,20 +59,19 @@ public class NamedXContentRegistry {
         public final ParseField name;
 
         /** A parser capability of parser the entry's class. */
-        private final FromXContentWithContext<?> parser;
+        private final ContextParser<Object, ?> parser;
 
         /** Creates a new entry which can be stored by the registry. */
-        public <T> Entry(Class<T> categoryClass, ParseField name, FromXContent<? extends T> parser) {
+        public <T> Entry(Class<T> categoryClass, ParseField name, CheckedFunction<XContentParser, ? extends T, IOException> parser) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
-            this.parser = Objects.requireNonNull((p, c) -> parser.fromXContent(p));
+            this.parser = Objects.requireNonNull((p, c) -> parser.apply(p));
         }
         /**
          * Creates a new entry which can be stored by the registry.
-         * @deprecated prefer {@link Entry#Entry(Class, ParseField, FromXContent)}. Contexts will be removed when possible
+         * Prefer {@link Entry#Entry(Class, ParseField, CheckedFunction)} unless you need a context to carry around while parsing.
          */
-        @Deprecated
-        public <T> Entry(Class<T> categoryClass, ParseField name, FromXContentWithContext<? extends T> parser) {
+        public <T> Entry(Class<T> categoryClass, ParseField name, ContextParser<Object, ? extends T> parser) {
             this.categoryClass = Objects.requireNonNull(categoryClass);
             this.name = Objects.requireNonNull(name);
             this.parser = Objects.requireNonNull(parser);
@@ -159,7 +140,7 @@ public class NamedXContentRegistry {
             throw new ParsingException(parser.getTokenLocation(),
                     "Unknown " + categoryClass.getSimpleName() + " [" + name + "]: Parser didn't match");
         }
-        return categoryClass.cast(entry.parser.fromXContent(parser, context));
+        return categoryClass.cast(entry.parser.parse(parser, context));
     }
 
     /**

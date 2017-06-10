@@ -58,10 +58,12 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
             Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT,
             Netty4HttpServerTransport.SETTING_HTTP_TCP_NO_DELAY,
             Netty4HttpServerTransport.SETTING_HTTP_TCP_KEEP_ALIVE,
-            Netty4HttpServerTransport.SETTING_HTTP_TCP_BLOCKING_SERVER,
             Netty4HttpServerTransport.SETTING_HTTP_TCP_REUSE_ADDRESS,
             Netty4HttpServerTransport.SETTING_HTTP_TCP_SEND_BUFFER_SIZE,
             Netty4HttpServerTransport.SETTING_HTTP_TCP_RECEIVE_BUFFER_SIZE,
+            Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_SIZE,
+            Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MIN,
+            Netty4HttpServerTransport.SETTING_HTTP_NETTY_RECEIVE_PREDICTOR_MAX,
             Netty4Transport.WORKER_COUNT,
             Netty4Transport.NETTY_MAX_CUMULATION_BUFFER_CAPACITY,
             Netty4Transport.NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS,
@@ -93,9 +95,12 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-            CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-            NamedXContentRegistry xContentRegistry, NetworkService networkService) {
+                                                                        CircuitBreakerService circuitBreakerService,
+                                                                        NamedWriteableRegistry namedWriteableRegistry,
+                                                                        NamedXContentRegistry xContentRegistry,
+                                                                        NetworkService networkService,
+                                                                        HttpServerTransport.Dispatcher dispatcher) {
         return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME,
-            () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry));
+            () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher));
     }
 }

@@ -60,6 +60,7 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -78,6 +79,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -125,12 +127,11 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         documentMapper = mapperService.merge("type", new CompressedXContent(mapper), MapperService.MergeReason.MAPPING_UPDATE, true);
 
         String queryField = "query_field";
-        String mappingType = "query";
-        String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject(mappingType)
+        String percolatorMapper = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject(queryField).field("type", "percolator").endObject().endObject()
                 .endObject().endObject().string();
-        mapperService.merge(mappingType, new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
-        fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper(mappingType).mappers().getMapper(queryField);
+        mapperService.merge("type", new CompressedXContent(percolatorMapper), MapperService.MergeReason.MAPPING_UPDATE, true);
+        fieldMapper = (PercolatorFieldMapper) mapperService.documentMapper("type").mappers().getMapper(queryField);
         fieldType = (PercolatorFieldMapper.FieldType) fieldMapper.fieldType();
 
         queries = new ArrayList<>();
@@ -243,8 +244,8 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         commonTermsQuery.add(new Term("field", "fox"));
         addQuery(commonTermsQuery, documents);
 
-        BlendedTermQuery blendedTermQuery = BlendedTermQuery.booleanBlendedQuery(new Term[]{new Term("field", "quick"),
-                new Term("field", "brown"), new Term("field", "fox")}, false);
+        BlendedTermQuery blendedTermQuery = BlendedTermQuery.dismaxBlendedQuery(new Term[]{new Term("field", "quick"),
+                new Term("field", "brown"), new Term("field", "fox")}, 1.0f);
         addQuery(blendedTermQuery, documents);
 
         SpanNearQuery spanNearQuery = new SpanNearQuery.Builder("field", true)
@@ -359,10 +360,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores) {
-            return new ConstantScoreWeight(this) {
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) {
+            return new Weight(this) {
 
                 float _score;
+
+                @Override
+                public void extractTerms(Set<Term> terms) {}
 
                 @Override
                 public Explanation explain(LeafReaderContext context, int doc) throws IOException {
@@ -384,13 +388,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
                     DocIdSetIterator allDocs = DocIdSetIterator.all(context.reader().maxDoc());
-                    PercolateQuery.QueryStore.Leaf leaf = queryStore.getQueries(context);
+                    CheckedFunction<Integer, Query, IOException> leaf = queryStore.getQueries(context);
                     FilteredDocIdSetIterator memoryIndexIterator = new FilteredDocIdSetIterator(allDocs) {
 
                         @Override
                         protected boolean match(int doc) {
                             try {
-                                Query query = leaf.getQuery(doc);
+                                Query query = leaf.apply(doc);
                                 float score = memoryIndex.search(query);
                                 if (score != 0f) {
                                     if (needsScores) {
@@ -405,7 +409,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
                             }
                         }
                     };
-                    return new FilterScorer(new ConstantScoreScorer(this, score(), memoryIndexIterator)) {
+                    return new FilterScorer(new ConstantScoreScorer(this, 1f, memoryIndexIterator)) {
 
                         @Override
                         public float score() throws IOException {

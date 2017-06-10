@@ -237,13 +237,13 @@ public class SimpleVersioningIT extends ESIntegTestCase {
         // search with versioning
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
-            assertThat(searchResponse.getHits().getAt(0).version(), equalTo(2L));
+            assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(2L));
         }
 
         // search without versioning
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).execute().actionGet();
-            assertThat(searchResponse.getHits().getAt(0).version(), equalTo(Versions.NOT_FOUND));
+            assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(Versions.NOT_FOUND));
         }
 
         DeleteResponse deleteResponse = client().prepareDelete("test", "type", "1").setVersion(2).execute().actionGet();
@@ -293,7 +293,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
 
         for (int i = 0; i < 10; i++) {
             SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setVersion(true).execute().actionGet();
-            assertThat(searchResponse.getHits().getAt(0).version(), equalTo(2L));
+            assertThat(searchResponse.getHits().getAt(0).getVersion(), equalTo(2L));
         }
     }
 
@@ -325,7 +325,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 ids = new IDSource() {
                     @Override
                     public String next() {
-                        return TestUtil.randomSimpleString(random);
+                        return TestUtil.randomSimpleString(random, 1, 10);
                     }
                 };
                 break;
@@ -335,7 +335,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 ids = new IDSource() {
                     @Override
                     public String next() {
-                        return TestUtil.randomRealisticUnicodeString(random);
+                        return TestUtil.randomRealisticUnicodeString(random, 1, 20);
                     }
                 };
                 break;

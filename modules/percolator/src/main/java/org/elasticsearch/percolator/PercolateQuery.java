@@ -27,11 +27,13 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 
@@ -73,9 +75,9 @@ final class PercolateQuery extends Query implements Accountable {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        final Weight verifiedMatchesWeight = verifiedMatchesQuery.createWeight(searcher, false);
-        final Weight candidateMatchesWeight = candidateMatchesQuery.createWeight(searcher, false);
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+        final Weight verifiedMatchesWeight = verifiedMatchesQuery.createWeight(searcher, false, boost);
+        final Weight candidateMatchesWeight = candidateMatchesQuery.createWeight(searcher, false, boost);
         return new Weight(this) {
             @Override
             public void extractTerms(Set<Term> set) {
@@ -90,8 +92,8 @@ final class PercolateQuery extends Query implements Accountable {
                     if (result == docId) {
                         if (twoPhaseIterator.matches()) {
                             if (needsScores) {
-                                QueryStore.Leaf percolatorQueries = queryStore.getQueries(leafReaderContext);
-                                Query query = percolatorQueries.getQuery(docId);
+                                CheckedFunction<Integer, Query, IOException> percolatorQueries = queryStore.getQueries(leafReaderContext);
+                                Query query = percolatorQueries.apply(docId);
                                 Explanation detail = percolatorIndexSearcher.explain(query, 0);
                                 return Explanation.match(scorer.score(), "PercolateQuery", detail);
                             } else {
@@ -104,23 +106,13 @@ final class PercolateQuery extends Query implements Accountable {
             }
 
             @Override
-            public float getValueForNormalization() throws IOException {
-                return candidateMatchesWeight.getValueForNormalization();
-            }
-
-            @Override
-            public void normalize(float v, float v1) {
-                candidateMatchesWeight.normalize(v, v1);
-            }
-
-            @Override
             public Scorer scorer(LeafReaderContext leafReaderContext) throws IOException {
                 final Scorer approximation = candidateMatchesWeight.scorer(leafReaderContext);
                 if (approximation == null) {
                     return null;
                 }
 
-                final QueryStore.Leaf queries = queryStore.getQueries(leafReaderContext);
+                final CheckedFunction<Integer, Query, IOException> queries = queryStore.getQueries(leafReaderContext);
                 if (needsScores) {
                     return new BaseScorer(this, approximation, queries, percolatorIndexSearcher) {
 
@@ -128,7 +120,7 @@ final class PercolateQuery extends Query implements Accountable {
 
                         @Override
                         boolean matchDocId(int docId) throws IOException {
-                            Query query = percolatorQueries.getQuery(docId);
+                            Query query = percolatorQueries.apply(docId);
                             if (query != null) {
                                 TopDocs topDocs = percolatorIndexSearcher.search(query, 1);
                                 if (topDocs.totalHits > 0) {
@@ -148,7 +140,7 @@ final class PercolateQuery extends Query implements Accountable {
                         }
                     };
                 } else {
-                    Scorer verifiedDocsScorer = verifiedMatchesWeight.scorer(leafReaderContext);
+                    ScorerSupplier verifiedDocsScorer = verifiedMatchesWeight.scorerSupplier(leafReaderContext);
                     Bits verifiedDocsBits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), verifiedDocsScorer);
                     return new BaseScorer(this, approximation, queries, percolatorIndexSearcher) {
 
@@ -166,7 +158,7 @@ final class PercolateQuery extends Query implements Accountable {
                             if (verifiedDocsBits.get(docId)) {
                                 return true;
                             }
-                            Query query = percolatorQueries.getQuery(docId);
+                            Query query = percolatorQueries.apply(docId);
                             return query != null && Lucene.exists(percolatorIndexSearcher, query);
                         }
                     };
@@ -191,25 +183,19 @@ final class PercolateQuery extends Query implements Accountable {
         return queryStore;
     }
 
+    // Comparing identity here to avoid being cached
+    // Note that in theory if the same instance gets used multiple times it could still get cached,
+    // however since we create a new query instance each time we this query this shouldn't happen and thus
+    // this risk neglectable.
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        if (sameClassAs(o) == false) return false;
-
-        PercolateQuery that = (PercolateQuery) o;
-
-        if (!documentType.equals(that.documentType)) return false;
-        return documentSource.equals(that.documentSource);
-
+        return this == o;
     }
 
+    // Computing hashcode based on identity to avoid caching.
     @Override
     public int hashCode() {
-        int result = classHash();
-        result = 31 * result + documentType.hashCode();
-        result = 31 * result + documentSource.hashCode();
-        return result;
+        return System.identityHashCode(this);
     }
 
     @Override
@@ -224,26 +210,18 @@ final class PercolateQuery extends Query implements Accountable {
     }
 
     @FunctionalInterface
-    public interface QueryStore {
-
-        Leaf getQueries(LeafReaderContext ctx) throws IOException;
-
-        @FunctionalInterface
-        interface Leaf {
-
-            Query getQuery(int docId) throws IOException;
-
-        }
-
+    interface QueryStore {
+        CheckedFunction<Integer, Query, IOException> getQueries(LeafReaderContext ctx) throws IOException;
     }
 
     abstract static class BaseScorer extends Scorer {
 
         final Scorer approximation;
-        final QueryStore.Leaf percolatorQueries;
+        final CheckedFunction<Integer, Query, IOException> percolatorQueries;
         final IndexSearcher percolatorIndexSearcher;
 
-        BaseScorer(Weight weight, Scorer approximation, QueryStore.Leaf percolatorQueries, IndexSearcher percolatorIndexSearcher) {
+        BaseScorer(Weight weight, Scorer approximation, CheckedFunction<Integer, Query, IOException> percolatorQueries,
+                   IndexSearcher percolatorIndexSearcher) {
             super(weight);
             this.approximation = approximation;
             this.percolatorQueries = percolatorQueries;

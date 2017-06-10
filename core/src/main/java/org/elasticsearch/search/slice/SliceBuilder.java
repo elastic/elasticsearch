@@ -32,7 +32,9 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -43,7 +45,7 @@ import java.util.Objects;
 /**
  *  A slice builder allowing to split a scroll in multiple partitions.
  *  If the provided field is the "_uid" it uses a {@link org.elasticsearch.search.slice.TermsSliceQuery}
- *  to do the slicing. The slicing is done at the shard level first and then each shard is splitted in multiple slices.
+ *  to do the slicing. The slicing is done at the shard level first and then each shard is split into multiple slices.
  *  For instance if the number of shards is equal to 2 and the user requested 4 slices
  *  then the slices 0 and 2 are assigned to the first shard and the slices 1 and 3 are assigned to the second shard.
  *  This way the total number of bitsets that we need to build on each shard is bounded by the number of slices
@@ -194,9 +196,14 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
             throw new IllegalArgumentException("field " + field + " not found");
         }
 
+        String field = this.field;
         boolean useTermQuery = false;
         if (UidFieldMapper.NAME.equals(field)) {
-           useTermQuery = true;
+            if (context.getIndexSettings().isSingleType()) {
+                // on new indices, the _id acts as a _uid
+                field = IdFieldMapper.NAME;
+            }
+            useTermQuery = true;
         } else if (type.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot load numeric doc values on " + field);
         } else {

@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -32,14 +31,11 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
-import java.net.URISyntaxException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
-
-    @Inject
     public RestIndexAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(POST, "/{index}/{type}", this); // auto id creation
@@ -50,9 +46,19 @@ public class RestIndexAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/{type}/{id}/_create", createHandler);
     }
 
+    @Override
+    public String getName() {
+        return "document_index_action";
+    }
+
     final class CreateHandler extends BaseRestHandler {
         protected CreateHandler(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public String getName() {
+            return "document_create_action";
         }
 
         @Override
@@ -66,9 +72,9 @@ public class RestIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndexRequest indexRequest = new IndexRequest(request.param("index"), request.param("type"), request.param("id"));
         indexRequest.routing(request.param("routing"));
-        indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+        indexRequest.parent(request.param("parent"));
         indexRequest.setPipeline(request.param("pipeline"));
-        indexRequest.source(request.content());
+        indexRequest.source(request.requiredContent(), request.getXContentType());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));
         indexRequest.setRefreshPolicy(request.param("refresh"));
         indexRequest.version(RestActions.parseVersion(request));
@@ -83,14 +89,7 @@ public class RestIndexAction extends BaseRestHandler {
         }
 
         return channel ->
-            client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> {
-                try {
-                    return r.getLocation(indexRequest.routing());
-                } catch (URISyntaxException ex) {
-                    logger.warn("Location string is not a valid URI.", ex);
-                    return null;
-                }
-            }));
+                client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
     }
 
 }

@@ -23,6 +23,7 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
@@ -34,6 +35,7 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -50,13 +52,14 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 public class FieldsVisitor extends StoredFieldVisitor {
     private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(
             UidFieldMapper.NAME,
+            IdFieldMapper.NAME,
             RoutingFieldMapper.NAME,
             ParentFieldMapper.NAME));
 
     private final boolean loadSource;
     private final Set<String> requiredFields;
     protected BytesReference source;
-    protected Uid uid;
+    protected String type, id;
     protected Map<String, List<Object>> fieldsValues;
 
     public FieldsVisitor(boolean loadSource) {
@@ -78,6 +81,13 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public void postProcess(MapperService mapperService) {
+        if (mapperService.getIndexSettings().isSingleType()) {
+            final Collection<String> types = mapperService.types();
+            assert types.size() <= 1 : types;
+            if (types.isEmpty() == false) {
+                type = types.iterator().next();
+            }
+        }
         for (Map.Entry<String, List<Object>> entry : fields().entrySet()) {
             MappedFieldType fieldType = mapperService.fullName(entry.getKey());
             if (fieldType == null) {
@@ -104,7 +114,11 @@ public class FieldsVisitor extends StoredFieldVisitor {
     public void stringField(FieldInfo fieldInfo, byte[] bytes) throws IOException {
         final String value = new String(bytes, StandardCharsets.UTF_8);
         if (UidFieldMapper.NAME.equals(fieldInfo.name)) {
-            uid = Uid.createUid(value);
+            Uid uid = Uid.createUid(value);
+            type = uid.type();
+            id = uid.id();
+        } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
+            id = value;
         } else {
             addValue(fieldInfo.name, value);
         }
@@ -135,7 +149,12 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public Uid uid() {
-        return uid;
+        if (id == null) {
+            return null;
+        } else if (type == null) {
+            throw new IllegalStateException("Call postProcess before getting the uid");
+        }
+        return new Uid(type, id);
     }
 
     public String routing() {
@@ -157,7 +176,8 @@ public class FieldsVisitor extends StoredFieldVisitor {
     public void reset() {
         if (fieldsValues != null) fieldsValues.clear();
         source = null;
-        uid = null;
+        type = null;
+        id = null;
 
         requiredFields.addAll(BASE_REQUIRED_FIELDS);
         if (loadSource) {

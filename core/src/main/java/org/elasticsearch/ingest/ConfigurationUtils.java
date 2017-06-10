@@ -22,12 +22,18 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 
 public final class ConfigurationUtils {
 
@@ -244,22 +250,45 @@ public final class ConfigurationUtils {
 
     public static List<Processor> readProcessorConfigs(List<Map<String, Map<String, Object>>> processorConfigs,
                                                        Map<String, Processor.Factory> processorFactories) throws Exception {
+        Exception exception = null;
         List<Processor> processors = new ArrayList<>();
         if (processorConfigs != null) {
             for (Map<String, Map<String, Object>> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
-                    processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
+                    try {
+                        processors.add(readProcessor(processorFactories, entry.getKey(), entry.getValue()));
+                    } catch (Exception e) {
+                        exception = ExceptionsHelper.useOrSuppress(exception, e);
+                    }
                 }
             }
+        }
+
+        if (exception != null) {
+            throw exception;
         }
 
         return processors;
     }
 
-    public static TemplateService.Template compileTemplate(String processorType, String processorTag, String propertyName,
-                                                           String propertyValue, TemplateService templateService) {
+    public static TemplateScript.Factory compileTemplate(String processorType, String processorTag, String propertyName,
+                                                           String propertyValue, ScriptService scriptService) {
         try {
-            return templateService.compile(propertyValue);
+            // This check is here because the DEFAULT_TEMPLATE_LANG(mustache) is not
+            // installed for use by REST tests. `propertyValue` will not be
+            // modified if templating is not available so a script that simply returns an unmodified `propertyValue`
+            // is returned.
+            if (scriptService.isLangSupported(DEFAULT_TEMPLATE_LANG)) {
+                Script script = new Script(ScriptType.INLINE, DEFAULT_TEMPLATE_LANG, propertyValue, Collections.emptyMap());
+                return scriptService.compile(script, TemplateScript.CONTEXT);
+            } else {
+                return (params) -> new TemplateScript(params) {
+                    @Override
+                    public String execute() {
+                        return propertyValue;
+                    }
+                };
+            }
         } catch (Exception e) {
             throw ConfigurationUtils.newConfigurationException(processorType, processorTag, propertyName, e);
         }

@@ -10,6 +10,9 @@ Given the following mapping definition:
 --------------------------------------------
 PUT /my_index
 {
+    "settings": {
+        "mapping.single_type": false
+    },
     "mappings": {
         "blog_post": {
             "properties": {
@@ -29,7 +32,7 @@ PUT /my_index
     }
 }
 
-------------------------------------------
+--------------------------------------------
 // CONSOLE
 // TESTSETUP
 
@@ -40,7 +43,7 @@ GET /my_index/_search
     "query": {
         "parent_id" : {
             "type" : "blog_tag",
-                "id" : "1"
+            "id" : "1"
         }
     }
 }

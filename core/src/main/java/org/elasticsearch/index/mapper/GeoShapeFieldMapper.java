@@ -31,7 +31,6 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.locationtech.spatial4j.shape.Point;
@@ -53,9 +51,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
-
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -185,11 +180,12 @@ public class GeoShapeFieldMapper extends FieldMapper {
                     builder.fieldType().setStrategyName(fieldNode.toString());
                     iterator.remove();
                 } else if (Names.COERCE.equals(fieldName)) {
-                    builder.coerce(lenientNodeBooleanValue(fieldNode));
+                    builder.coerce(TypeParsers.nodeBooleanValue(fieldName, Names.COERCE, fieldNode, parserContext));
                     iterator.remove();
                 } else if (Names.STRATEGY_POINTS_ONLY.equals(fieldName)
                     && builder.fieldType().strategyName.equals(SpatialStrategy.TERM.getStrategyName()) == false) {
-                    builder.fieldType().setPointsOnly(XContentMapValues.lenientNodeBooleanValue(fieldNode));
+                    boolean pointsOnly = TypeParsers.nodeBooleanValue(fieldName, Names.STRATEGY_POINTS_ONLY, fieldNode, parserContext);
+                    builder.fieldType().setPointsOnly(pointsOnly);
                     iterator.remove();
                 }
             }
@@ -466,10 +462,6 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 return null;
             }
             for (Field field : fields) {
-                if (!customBoost() &&
-                    fieldType.boost() != 1f && Version.indexCreated(context.indexSettings()).before(Version.V_5_0_0_alpha1)) {
-                    field.setBoost(fieldType().boost());
-                }
                 context.doc().add(field);
             }
         } catch (Exception e) {

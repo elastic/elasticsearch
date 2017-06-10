@@ -22,6 +22,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -66,4 +69,42 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         }
     }
 
+    public void testPutIndexTemplateRequestSerializationXContent() throws IOException {
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest("foo");
+        String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+        request.patterns(Collections.singletonList("foo"));
+        request.mapping("bar", mapping, XContentType.YAML);
+        assertNotEquals(mapping, request.mappings().get("bar"));
+        assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.mappings().get("bar"));
+
+        final Version version = randomFrom(Version.CURRENT, Version.V_5_3_0, Version.V_5_3_1, Version.V_5_3_2, Version.V_5_4_0);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(version);
+            request.writeTo(out);
+
+            try (StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes)) {
+                in.setVersion(version);
+                PutIndexTemplateRequest serialized = new PutIndexTemplateRequest();
+                serialized.readFrom(in);
+                assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML),
+                    serialized.mappings().get("bar"));
+            }
+        }
+    }
+
+    public void testPutIndexTemplateRequestSerializationXContentBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("ADwDAANmb28IdGVtcGxhdGUAAAAAAAABA2Jhcg8tLS0KZm9vOiAiYmFyIgoAAAAAAAAAAAAAAAA=");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            PutIndexTemplateRequest request = new PutIndexTemplateRequest();
+            request.readFrom(in);
+            String mapping = YamlXContent.contentBuilder().startObject().field("foo", "bar").endObject().string();
+            assertNotEquals(mapping, request.mappings().get("bar"));
+            assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.mappings().get("bar"));
+            assertEquals("foo", request.name());
+            assertEquals("template", request.patterns().get(0));
+        }
+    }
 }

@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -119,7 +118,14 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING =
         Setting.boolSetting("cluster.blocks.read_only", false, Property.Dynamic, Property.NodeScope);
 
-    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+    public static final ClusterBlock CLUSTER_READ_ONLY_BLOCK = new ClusterBlock(6, "cluster read-only (api)", false, false,
+        false, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
+
+    public static final Setting<Boolean> SETTING_READ_ONLY_ALLOW_DELETE_SETTING =
+        Setting.boolSetting("cluster.blocks.read_only_allow_delete", false, Property.Dynamic, Property.NodeScope);
+
+    public static final ClusterBlock CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK = new ClusterBlock(13, "cluster read-only / allow delete (api)",
+        false, false, true, RestStatus.FORBIDDEN, EnumSet.of(ClusterBlockLevel.WRITE, ClusterBlockLevel.METADATA_WRITE));
 
     public static final MetaData EMPTY_META_DATA = builder().build();
 
@@ -237,7 +243,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
      *
      * @param aliases         The names of the index aliases to find
      * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
-     * @return the found index aliases grouped by index
+     * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
+     * present for that index
      */
     public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
         assert aliases != null;
@@ -267,8 +274,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                         return o1.alias().compareTo(o2.alias());
                     }
                 });
-                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
+            mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
         }
         return mapBuilder.build();
     }
@@ -600,7 +607,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         private Diff<ImmutableOpenMap<String, IndexTemplateMetaData>> templates;
         private Diff<ImmutableOpenMap<String, Custom>> customs;
 
-        public MetaDataDiff(MetaData before, MetaData after) {
+        MetaDataDiff(MetaData before, MetaData after) {
             clusterUUID = after.clusterUUID;
             version = after.version;
             transientSettings = after.transientSettings;
@@ -610,7 +617,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
-        public MetaDataDiff(StreamInput in) throws IOException {
+        MetaDataDiff(StreamInput in) throws IOException {
             clusterUUID = in.readString();
             version = in.readLong();
             transientSettings = Settings.readSettingsFromStream(in);
@@ -973,7 +980,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             builder.field("version", metaData.version());
             builder.field("cluster_uuid", metaData.clusterUUID);
 
-            if (!metaData.persistentSettings().getAsMap().isEmpty()) {
+            if (!metaData.persistentSettings().isEmpty()) {
                 builder.startObject("settings");
                 for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());
@@ -981,7 +988,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 builder.endObject();
             }
 
-            if (context == XContentContext.API && !metaData.transientSettings().getAsMap().isEmpty()) {
+            if (context == XContentContext.API && !metaData.transientSettings().isEmpty()) {
                 builder.startObject("transient_settings");
                 for (Map.Entry<String, String> entry : metaData.transientSettings().getAsMap().entrySet()) {
                     builder.field(entry.getKey(), entry.getValue());

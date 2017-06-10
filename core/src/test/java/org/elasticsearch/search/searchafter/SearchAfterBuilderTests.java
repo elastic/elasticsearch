@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.searchafter;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
@@ -28,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -60,7 +58,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     values[i] = randomDouble();
                     break;
                 case 4:
-                    values[i] = randomAsciiOfLengthBetween(5, 20);
+                    values[i] = randomAlphaOfLengthBetween(5, 20);
                     break;
                 case 5:
                     values[i] = randomBoolean();
@@ -72,7 +70,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     values[i] = randomShort();
                     break;
                 case 8:
-                    values[i] = new Text(randomAsciiOfLengthBetween(5, 20));
+                    values[i] = new Text(randomAlphaOfLengthBetween(5, 20));
                     break;
                 case 9:
                     values[i] = null;
@@ -108,7 +106,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     jsonBuilder.value(randomDouble());
                     break;
                 case 4:
-                    jsonBuilder.value(randomAsciiOfLengthBetween(5, 20));
+                    jsonBuilder.value(randomAlphaOfLengthBetween(5, 20));
                     break;
                 case 5:
                     jsonBuilder.value(randomBoolean());
@@ -120,7 +118,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
                     jsonBuilder.value(randomShort());
                     break;
                 case 8:
-                    jsonBuilder.value(new Text(randomAsciiOfLengthBetween(5, 20)));
+                    jsonBuilder.value(new Text(randomAlphaOfLengthBetween(5, 20)));
                     break;
                 case 9:
                     jsonBuilder.nullValue();
@@ -168,7 +166,6 @@ public class SearchAfterBuilderTests extends ESTestCase {
             searchAfterBuilder.innerToXContent(builder);
             builder.endObject();
             XContentParser parser = createParser(shuffleXContent(builder));
-            new QueryParseContext(parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();

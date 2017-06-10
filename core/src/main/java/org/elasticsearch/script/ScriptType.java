@@ -25,11 +25,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  * ScriptType represents the way a script is stored and retrieved from the {@link ScriptService}.
- * It's also used to by {@link ScriptSettings} and {@link ScriptModes} to determine whether or not
- * a {@link Script} is allowed to be executed based on both default and user-defined settings.
+ * It's also used to by {@link ScriptService} to determine whether or not a {@link Script} is
+ * allowed to be executed based on both default and user-defined settings.
  */
 public enum ScriptType implements Writeable {
 
@@ -37,26 +38,19 @@ public enum ScriptType implements Writeable {
      * INLINE scripts are specified in numerous queries and compiled on-the-fly.
      * They will be cached based on the lang and code of the script.
      * They are turned off by default because most languages are insecure
-     * (Groovy and others), but can be overriden by the specific {@link ScriptEngineService}
+     * (Groovy and others), but can be overridden by the specific {@link ScriptEngine}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    INLINE ( 0 , new ParseField("inline") , false ),
+    INLINE ( 0 , new ParseField("source", "inline") , false ),
 
     /**
      * STORED scripts are saved as part of the {@link org.elasticsearch.cluster.ClusterState}
      * based on user requests.  They will be cached when they are first used in a query.
      * They are turned off by default because most languages are insecure
-     * (Groovy and others), but can be overriden by the specific {@link ScriptEngineService}
+     * (Groovy and others), but can be overridden by the specific {@link ScriptEngine}
      * if the language is naturally secure (Painless, Mustache, and Expressions).
      */
-    STORED ( 1 , new ParseField("stored", "id") , false ),
-
-    /**
-     * FILE scripts are loaded from disk either on start-up or on-the-fly depending on
-     * user-defined settings.  They will be compiled and cached as soon as they are loaded
-     * from disk.  They are turned on by default as they should always be safe to execute.
-     */
-    FILE ( 2 , new ParseField("file") , true  );
+    STORED ( 1 , new ParseField("id", "stored") , false );
 
     /**
      * Reads an int from the input stream and converts it to a {@link ScriptType}.
@@ -66,15 +60,12 @@ public enum ScriptType implements Writeable {
     public static ScriptType readFrom(StreamInput in) throws IOException {
         int id = in.readVInt();
 
-        if (FILE.id == id) {
-            return FILE;
-        } else if (STORED.id == id) {
+        if (STORED.id == id) {
             return STORED;
         } else if (INLINE.id == id) {
             return INLINE;
         } else {
             throw new IllegalStateException("Error reading ScriptType id [" + id + "] from stream, expected one of [" +
-                FILE.id + " [" + FILE.parseField.getPreferredName() + "], " +
                 STORED.id + " [" + STORED.parseField.getPreferredName() + "], " +
                 INLINE.id + " [" + INLINE.parseField.getPreferredName() + "]]");
         }
@@ -111,7 +102,7 @@ public enum ScriptType implements Writeable {
      * @return The unique name for this {@link ScriptType} based on the {@link ParseField}.
      */
     public String getName() {
-        return parseField.getPreferredName();
+        return name().toLowerCase(Locale.ROOT);
     }
 
     /**
@@ -123,7 +114,7 @@ public enum ScriptType implements Writeable {
 
     /**
      * @return Whether or not a {@link ScriptType} can be run by default.  Note
-     * this can be potentially overriden by any {@link ScriptEngineService}.
+     * this can be potentially overridden by any {@link ScriptEngine}.
      */
     public boolean isDefaultEnabled() {
         return defaultEnabled;

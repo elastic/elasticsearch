@@ -29,9 +29,9 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
@@ -49,7 +49,6 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -308,12 +307,7 @@ public class QueryShardContext extends QueryRewriteContext {
         });
     }
 
-    @FunctionalInterface
-    private interface CheckedFunction<T, R> {
-       R apply(T t) throws IOException;
-    }
-
-    private ParsedQuery toQuery(QueryBuilder queryBuilder, CheckedFunction<QueryBuilder, Query> filterOrQuery) {
+    private ParsedQuery toQuery(QueryBuilder queryBuilder, CheckedFunction<QueryBuilder, Query, IOException> filterOrQuery) {
         reset();
         try {
             QueryBuilder rewriteQuery = QueryBuilder.rewriteQuery(queryBuilder, this);
@@ -331,41 +325,10 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexSettings.getIndex();
     }
 
-    /**
-     * Compiles (or retrieves from cache) and binds the parameters to the
-     * provided script
-     */
-    public final SearchScript getSearchScript(Script script, ScriptContext context) {
+    /** Return the script service to allow compiling scripts. */
+    public final ScriptService getScriptService() {
         failIfFrozen();
-        return scriptService.search(lookup(), script, context);
-    }
-    /**
-     * Returns a lazily created {@link SearchScript} that is compiled immediately but can be pulled later once all
-     * parameters are available.
-     */
-    public final Function<Map<String, Object>, SearchScript> getLazySearchScript(Script script, ScriptContext context) {
-        failIfFrozen();
-        CompiledScript compile = scriptService.compile(script, context, script.getOptions());
-        return (p) -> scriptService.search(lookup(), compile, p);
-    }
-
-    /**
-     * Compiles (or retrieves from cache) and binds the parameters to the
-     * provided script
-     */
-    public final ExecutableScript getExecutableScript(Script script, ScriptContext context) {
-        failIfFrozen();
-        return scriptService.executable(script, context);
-    }
-
-    /**
-     * Returns a lazily created {@link ExecutableScript} that is compiled immediately but can be pulled later once all
-     * parameters are available.
-     */
-    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(Script script, ScriptContext context) {
-        failIfFrozen();
-        CompiledScript executable = scriptService.compile(script, context, script.getOptions());
-        return (p) ->  scriptService.executable(executable, p);
+        return scriptService;
     }
 
     /**
@@ -395,7 +358,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     @Override
-    public final BytesReference getTemplateBytes(Script template) {
+    public final String getTemplateBytes(Script template) {
         failIfFrozen();
         return super.getTemplateBytes(template);
     }

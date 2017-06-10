@@ -41,13 +41,15 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -123,17 +125,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         }
     }
 
-    /**
-     * cancel all ongoing recoveries for the given shard, if their status match a predicate
-     *
-     * @param reason       reason for cancellation
-     * @param shardId      shardId for which to cancel recoveries
-     * @return true if a recovery was cancelled
-     */
-    public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
-        return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason);
-    }
-
     public void startRecovery(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
@@ -152,7 +143,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         retryRecovery(recoveryId, retryAfter, activityTimeout);
     }
 
-    private void retryRecovery(final long recoveryId, TimeValue retryAfter, TimeValue activityTimeout) {
+    private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
         RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
         if (newTarget != null) {
             threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.recoveryId()));
@@ -166,50 +157,21 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
             if (recoveryRef == null) {
-                logger.trace("not running recovery with id [{}] - can't find it (probably finished)", recoveryId);
+                logger.trace("not running recovery with id [{}] - can not find it (probably finished)", recoveryId);
                 return;
             }
-            RecoveryTarget recoveryTarget = recoveryRef.target();
-            assert recoveryTarget.sourceNode() != null : "can't do a recovery without a source node";
-
-            logger.trace("collecting local files for {}", recoveryTarget.sourceNode());
-            Store.MetadataSnapshot metadataSnapshot;
+            final RecoveryTarget recoveryTarget = recoveryRef.target();
+            cancellableThreads = recoveryTarget.cancellableThreads();
+            timer = recoveryTarget.state().getTimer();
             try {
-                if (recoveryTarget.indexShard().indexSettings().isOnSharedFilesystem()) {
-                    // we are not going to copy any files, so don't bother listing files, potentially running
-                    // into concurrency issues with the primary changing files underneath us.
-                    metadataSnapshot = Store.MetadataSnapshot.EMPTY;
-                } else {
-                    metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
-                }
-                logger.trace("{} local file count: [{}]", recoveryTarget, metadataSnapshot.size());
-            } catch (org.apache.lucene.index.IndexNotFoundException e) {
-                // happens on an empty folder. no need to log
-                logger.trace("{} shard folder empty, recover all files", recoveryTarget);
-                metadataSnapshot = Store.MetadataSnapshot.EMPTY;
-            } catch (IOException e) {
-                logger.warn("error while listing local files, recover as if there are none", e);
-                metadataSnapshot = Store.MetadataSnapshot.EMPTY;
-            } catch (Exception e) {
-                // this will be logged as warning later on...
-                logger.trace("unexpected error while listing local files, failing recovery", e);
-                onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(),
-                    new RecoveryFailedException(recoveryTarget.state(), "failed to list local files", e), true);
-                return;
-            }
-
-            try {
+                assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
+                request = getStartRecoveryRequest(recoveryTarget);
                 logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                 recoveryTarget.indexShard().prepareForIndexRecovery();
-
-                request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
-                    clusterService.localNode(), metadataSnapshot, recoveryTarget.state().getPrimary(), recoveryTarget.recoveryId());
-                cancellableThreads = recoveryTarget.CancellableThreads();
-                timer = recoveryTarget.state().getTimer();
-            } catch (Exception e) {
+            } catch (final Exception e) {
                 // this will be logged as warning later on...
                 logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
-                onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(),
+                onGoingRecoveries.failRecovery(recoveryId,
                     new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e), true);
                 return;
             }
@@ -227,7 +189,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                                 }
                             }).txGet()));
             final RecoveryResponse recoveryResponse = responseHolder.get();
-            assert responseHolder != null;
             final TimeValue recoveryTime = new TimeValue(timer.time());
             // do this through ongoing recoveries to remove it from the collection
             onGoingRecoveries.markRecoveryAsDone(recoveryId);
@@ -286,22 +247,23 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             if (cause instanceof IllegalIndexShardStateException || cause instanceof IndexNotFoundException ||
                 cause instanceof ShardNotFoundException) {
                 // if the target is not ready yet, retry
-                retryRecovery(recoveryId, "remote shard not ready", recoverySettings.retryDelayStateSync(),
+                retryRecovery(
+                    recoveryId,
+                    "remote shard not ready",
+                    recoverySettings.retryDelayStateSync(),
                     recoverySettings.activityTimeout());
                 return;
             }
 
             if (cause instanceof DelayRecoveryException) {
-                retryRecovery(recoveryId, cause, recoverySettings.retryDelayStateSync(),
-                    recoverySettings.activityTimeout());
+                retryRecovery(recoveryId, cause, recoverySettings.retryDelayStateSync(), recoverySettings.activityTimeout());
                 return;
             }
 
             if (cause instanceof ConnectTransportException) {
                 logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", request.shardId(),
                     recoverySettings.retryDelayNetwork(), cause.getMessage());
-                retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(),
-                    recoverySettings.activityTimeout());
+                retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(), recoverySettings.activityTimeout());
                 return;
             }
 
@@ -310,7 +272,100 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                     new RecoveryFailedException(request, "source shard is closed", cause), false);
                 return;
             }
+
             onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, e), true);
+        }
+    }
+
+    /**
+     * Obtains a snapshot of the store metadata for the recovery target.
+     *
+     * @param recoveryTarget the target of the recovery
+     * @return a snapshot of the store metadata
+     */
+    private Store.MetadataSnapshot getStoreMetadataSnapshot(final RecoveryTarget recoveryTarget) {
+        try {
+            return recoveryTarget.indexShard().snapshotStoreMetadata();
+        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
+            // happens on an empty folder. no need to log
+            logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
+            return Store.MetadataSnapshot.EMPTY;
+        } catch (final IOException e) {
+            logger.warn("error while listing local files, recovering as if there are none", e);
+            return Store.MetadataSnapshot.EMPTY;
+        }
+    }
+
+    /**
+     * Prepare the start recovery request.
+     *
+     * @param recoveryTarget the target of the recovery
+     * @return a start recovery request
+     */
+    private StartRecoveryRequest getStartRecoveryRequest(final RecoveryTarget recoveryTarget) {
+        final StartRecoveryRequest request;
+        logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
+
+        final Store.MetadataSnapshot metadataSnapshot = getStoreMetadataSnapshot(recoveryTarget);
+        logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
+
+        final long startingSeqNo;
+        if (metadataSnapshot.size() > 0) {
+            startingSeqNo = getStartingSeqNo(recoveryTarget);
+        } else {
+            startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
+
+        if (startingSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+            logger.trace("{} preparing for file-based recovery from [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
+        } else {
+            logger.trace(
+                "{} preparing for sequence-number-based recovery starting at local checkpoint [{}] from [{}]",
+                recoveryTarget.shardId(),
+                startingSeqNo,
+                recoveryTarget.sourceNode());
+        }
+
+        request = new StartRecoveryRequest(
+            recoveryTarget.shardId(),
+            recoveryTarget.indexShard().routingEntry().allocationId().getId(),
+            recoveryTarget.sourceNode(),
+            clusterService.localNode(),
+            metadataSnapshot,
+            recoveryTarget.state().getPrimary(),
+            recoveryTarget.recoveryId(),
+            startingSeqNo);
+        return request;
+    }
+
+    /**
+     * Get the starting sequence number for a sequence-number-based request.
+     *
+     * @param recoveryTarget the target of the recovery
+     * @return the starting sequence number or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
+     * failed
+     */
+    public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
+        try {
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation());
+            final SeqNoStats seqNoStats = recoveryTarget.store().loadSeqNoStats(globalCheckpoint);
+            if (seqNoStats.getMaxSeqNo() <= seqNoStats.getGlobalCheckpoint()) {
+                /*
+                 * Commit point is good for sequence-number based recovery as the maximum sequence number included in it is below the global
+                 * checkpoint (i.e., it excludes any operations that may not be on the primary). Recovery will start at the first operation
+                 * after the local checkpoint stored in the commit.
+                 */
+                return seqNoStats.getLocalCheckpoint() + 1;
+            } else {
+                return SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            }
+        } catch (final IOException e) {
+            /*
+             * This can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
+             * translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk and
+             * proceeds to attempt a sequence-number-based recovery.
+             */
+            return SequenceNumbersService.UNASSIGNED_SEQ_NO;
         }
     }
 
@@ -326,7 +381,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps(), request.getMaxUnsafeAutoIdTimestamp());
+                recoveryRef.target().prepareForTranslogOperations(request.totalTranslogOps());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -366,23 +421,11 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 final RecoveryTarget recoveryTarget = recoveryRef.target();
                 try {
                     recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps());
-                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                } catch (TranslogRecoveryPerformer.BatchOperationException exception) {
-                    MapperException mapperException = (MapperException) ExceptionsHelper.unwrap(exception, MapperException.class);
-                    if (mapperException == null) {
-                        throw exception;
-                    }
+                    channel.sendResponse(new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint()));
+                } catch (MapperException exception) {
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node
                     // which causes local mapping changes since the mapping (clusterstate) might not have arrived on this node.
-                    // we want to wait until these mappings are processed but also need to do some maintenance and roll back the
-                    // number of processed (completed) operations in this batch to ensure accounting is correct.
-                    logger.trace(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "delaying recovery due to missing mapping changes (rolling back stats for [{}] ops)",
-                            exception.completedOperations()),
-                        exception);
-                    final RecoveryState.Translog translog = recoveryTarget.state().getTranslog();
-                    translog.decrementRecoveredOperations(exception.completedOperations()); // do the maintainance and rollback competed ops
+                    logger.debug("delaying recovery due to missing mapping changes", exception);
                     // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
                     // canceled)
                     observer.waitForNextChange(new ClusterStateObserver.Listener() {

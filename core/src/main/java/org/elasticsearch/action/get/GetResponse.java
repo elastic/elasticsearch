@@ -25,7 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetField;
@@ -42,7 +42,7 @@ import java.util.Objects;
  * @see GetRequest
  * @see org.elasticsearch.client.Client#get(GetRequest)
  */
-public class GetResponse extends ActionResponse implements Iterable<GetField>, ToXContent {
+public class GetResponse extends ActionResponse implements Iterable<GetField>, ToXContentObject {
 
     GetResult getResult;
 
@@ -194,6 +194,6 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
 
     @Override
     public String toString() {
-        return Strings.toString(this, true);
+        return Strings.toString(this);
     }
 }

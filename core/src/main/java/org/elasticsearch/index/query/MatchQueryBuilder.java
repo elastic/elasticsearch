@@ -19,10 +19,7 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
@@ -37,7 +34,6 @@ import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.ZeroTermsQuery;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -461,35 +457,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.setZeroTermsQuery(zeroTermsQuery);
 
         Query query = matchQuery.parse(type, fieldName, value);
-        if (query == null) {
-            return null;
-        }
-
-        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
-        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
-        // and multiple variations of the same word in the query (synonyms for instance).
-        if (query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
-            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
-        } else if (query instanceof GraphQuery && ((GraphQuery) query).hasBoolean()) {
-            // we have a graph query that has at least one boolean sub-query
-            // re-build and set minimum should match value on all boolean queries
-            List<Query> oldQueries = ((GraphQuery) query).getQueries();
-            Query[] queries = new Query[oldQueries.size()];
-            for (int i = 0; i < queries.length; i++) {
-                Query oldQuery = oldQueries.get(i);
-                if (oldQuery instanceof BooleanQuery) {
-                    queries[i] = Queries.applyMinimumShouldMatch((BooleanQuery) oldQuery, minimumShouldMatch);
-                } else {
-                    queries[i] = oldQuery;
-                }
-            }
-
-            query = new GraphQuery(queries);
-        } else if (query instanceof ExtendedCommonTermsQuery) {
-            ((ExtendedCommonTermsQuery)query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
-        }
-
-        return query;
+        return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
     }
 
     @Override

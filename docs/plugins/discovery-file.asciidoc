@@ -4,38 +4,8 @@
 The file-based discovery plugin uses a list of hosts/ports in a `unicast_hosts.txt` file
 in the `config/discovery-file` directory for unicast discovery.
 
-[[discovery-file-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install discovery-file
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation. Note that installing the plugin will add a
-`discovery-file` directory to the `config` folder, and a default `unicast_hosts.txt`
-file that must be edited with the correct unicast hosts list before starting the node.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/discovery-file/discovery-file-{version}.zip.
-
-
-[[discovery-file-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove discovery-file
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: discovery-file
+include::install_remove.asciidoc[]
 
 [[discovery-file-usage]]
 [float]

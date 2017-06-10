@@ -25,7 +25,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +46,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.elasticsearch.index.get.GetField.readGetField;
 
-public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
+public class GetResult implements Streamable, Iterable<GetField>, ToXContentObject {
 
     private static final String _INDEX = "_index";
     private static final String _TYPE = "_type";
@@ -54,7 +54,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     private static final String _VERSION = "_version";
     private static final String FOUND = "found";
     private static final String FIELDS = "fields";
-    
+
     private String index;
     private String type;
     private String id;
@@ -135,6 +135,10 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
      * Returns bytes reference, also un compress the source if needed.
      */
     public BytesReference sourceRef() {
+        if (source == null) {
+            return null;
+        }
+
         try {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
@@ -262,10 +266,11 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
         return builder;
     }
 
-    public static GetResult fromXContent(XContentParser parser) throws IOException {
+    public static GetResult fromXContentEmbedded(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
-        String currentFieldName = null;
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+
+        String currentFieldName = parser.currentName();
         String index = null, type = null, id = null;
         long version = -1;
         boolean found = false;
@@ -307,6 +312,13 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
             }
         }
         return new GetResult(index, type, id, version, found, source, fields);
+    }
+
+    public static GetResult fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+
+        return fromXContentEmbedded(parser);
     }
 
     public static GetResult readGetResult(StreamInput in) throws IOException {

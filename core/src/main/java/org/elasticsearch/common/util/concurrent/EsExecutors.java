@@ -22,6 +22,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
 
 import java.util.Arrays;
@@ -30,6 +31,7 @@ import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedTransferQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -57,8 +59,8 @@ public class EsExecutors {
         return PROCESSORS_SETTING.get(settings);
     }
 
-    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory, ThreadContext contextHolder) {
-        return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder);
+    public static PrioritizedEsThreadPoolExecutor newSinglePrioritizing(String name, ThreadFactory threadFactory, ThreadContext contextHolder, ScheduledExecutorService timer) {
+        return new PrioritizedEsThreadPoolExecutor(name, 1, 1, 0L, TimeUnit.MILLISECONDS, threadFactory, contextHolder, timer);
     }
 
     public static EsThreadPoolExecutor newScaling(String name, int min, int max, long keepAliveTime, TimeUnit unit, ThreadFactory threadFactory, ThreadContext contextHolder) {
@@ -76,6 +78,33 @@ public class EsExecutors {
             queue = new SizeBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), queueCapacity);
         }
         return new EsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS, queue, threadFactory, new EsAbortPolicy(), contextHolder);
+    }
+
+    /**
+     * Return a new executor that will automatically adjust the queue size based on queue throughput.
+     *
+     * @param size number of fixed threads to use for executing tasks
+     * @param initialQueueCapacity initial size of the executor queue
+     * @param minQueueSize minimum queue size that the queue can be adjusted to
+     * @param maxQueueSize maximum queue size that the queue can be adjusted to
+     * @param frameSize number of tasks during which stats are collected before adjusting queue size
+     */
+    public static EsThreadPoolExecutor newAutoQueueFixed(String name, int size, int initialQueueCapacity, int minQueueSize,
+                                                         int maxQueueSize, int frameSize, TimeValue targetedResponseTime,
+                                                         ThreadFactory threadFactory, ThreadContext contextHolder) {
+        if (initialQueueCapacity == minQueueSize && initialQueueCapacity == maxQueueSize) {
+            return newFixed(name, size, initialQueueCapacity, threadFactory, contextHolder);
+        }
+
+        if (initialQueueCapacity <= 0) {
+            throw new IllegalArgumentException("initial queue capacity for [" + name + "] executor must be positive, got: " +
+                            initialQueueCapacity);
+        }
+        ResizableBlockingQueue<Runnable> queue =
+                new ResizableBlockingQueue<>(ConcurrentCollections.<Runnable>newBlockingQueue(), initialQueueCapacity);
+        return new QueueResizingEsThreadPoolExecutor(name, size, size, 0, TimeUnit.MILLISECONDS,
+                queue, minQueueSize, maxQueueSize, TimedRunnable::new, frameSize, targetedResponseTime, threadFactory,
+                new EsAbortPolicy(), contextHolder);
     }
 
     private static final ExecutorService DIRECT_EXECUTOR_SERVICE = new AbstractExecutorService() {
@@ -161,7 +190,7 @@ public class EsExecutors {
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final String namePrefix;
 
-        public EsThreadFactory(String namePrefix) {
+        EsThreadFactory(String namePrefix) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() :
@@ -189,7 +218,7 @@ public class EsExecutors {
 
         ThreadPoolExecutor executor;
 
-        public ExecutorScalingQueue() {
+        ExecutorScalingQueue() {
         }
 
         @Override

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.LatLonDocValuesField;
+import org.apache.lucene.document.LatLonPoint;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
@@ -124,7 +127,21 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
 
     @Override
     protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
-        // TODO: what can we check
+        // TODO: remove the if statement once we always use LatLonPoint
+        if (query instanceof IndexOrDocValuesQuery) {
+            Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
+            assertEquals(LatLonPoint.newDistanceQuery(queryBuilder.fieldName(),
+                    queryBuilder.point().lat(),
+                    queryBuilder.point().lon(),
+                    queryBuilder.distance()),
+                    indexQuery);
+            Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
+            assertEquals(LatLonDocValuesField.newDistanceQuery(queryBuilder.fieldName(),
+                    queryBuilder.point().lat(),
+                    queryBuilder.point().lon(),
+                    queryBuilder.distance()),
+                    dvQuery);
+        }
     }
 
     public void testParsingAndToQuery1() throws IOException {
@@ -303,7 +320,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  \"geo_distance\" : {\n" +
                 "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
                 "    \"distance\" : 12000.0,\n" +
-                "    \"distance_type\" : \"sloppy_arc\",\n" +
+                "    \"distance_type\" : \"arc\",\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
@@ -314,56 +331,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals(json, -70.0, parsed.point().getLon(), 0.0001);
         assertEquals(json, 40.0, parsed.point().getLat(), 0.0001);
         assertEquals(json, 12000.0, parsed.distance(), 0.0001);
-    }
-
-    public void testOptimizeBboxIsDeprecated() throws IOException {
-        String json =
-            "{\n" +
-                "  \"geo_distance\" : {\n" +
-                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
-                "    \"distance\" : 12000.0,\n" +
-                "    \"distance_type\" : \"sloppy_arc\",\n" +
-                "    \"optimize_bbox\" : \"memory\",\n" +
-                "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
-        parseQuery(json);
-        assertWarnings("Deprecated field [optimize_bbox] used, replaced by [no replacement: " +
-                "`optimize_bbox` is no longer supported due to recent improvements]");
-    }
-
-    public void testFromCoerceIsDeprecated() throws IOException {
-        String json =
-                "{\n" +
-                "  \"geo_distance\" : {\n" +
-                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
-                "    \"distance\" : 12000.0,\n" +
-                "    \"distance_type\" : \"sloppy_arc\",\n" +
-                "    \"coerce\" : true,\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
-        parseQuery(json);
-        assertWarnings("Deprecated field [coerce] used, replaced by [validation_method]");
-    }
-
-    public void testFromJsonIgnoreMalformedIsDeprecated() throws IOException {
-        String json =
-                "{\n" +
-                "  \"geo_distance\" : {\n" +
-                "    \"pin.location\" : [ -70.0, 40.0 ],\n" +
-                "    \"distance\" : 12000.0,\n" +
-                "    \"distance_type\" : \"sloppy_arc\",\n" +
-                "    \"ignore_malformed\" : true,\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
-        parseQuery(json);
-        assertWarnings("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     @Override

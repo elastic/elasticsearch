@@ -28,10 +28,11 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermsQuery;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -41,7 +42,9 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
@@ -110,7 +113,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         ft.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(new TermsQuery(new Term("field", "foo"), new Term("field", "bar")),
+        List<BytesRef> terms = new ArrayList<>();
+        terms.add(new BytesRef("foo"));
+        terms.add(new BytesRef("bar"));
+        assertEquals(new TermInSetQuery("field", terms),
                 ft.termsQuery(Arrays.asList("foo", "bar"), null));
 
         ft.setIndexOptions(IndexOptions.NONE);
@@ -143,5 +149,14 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.fuzzyQuery("foo", Fuzziness.fromEdits(2), 1, 50, true));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testNormalizeQueries() {
+        MappedFieldType ft = createDefaultFieldType();
+        ft.setName("field");
+        ft.setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
+        assertEquals(new TermQuery(new Term("field", new BytesRef("FOO"))), ft.termQuery("FOO", null));
+        ft.setSearchAnalyzer(Lucene.STANDARD_ANALYZER);
+        assertEquals(new TermQuery(new Term("field", new BytesRef("foo"))), ft.termQuery("FOO", null));
     }
 }

@@ -54,7 +54,7 @@ public class MainActionTests extends ESTestCase {
     public void testMainResponseSerialization() throws IOException {
         final String nodeName = "node1";
         final ClusterName clusterName = new ClusterName("cluster1");
-        final String clusterUUID = randomAsciiOfLengthBetween(10, 20);
+        final String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final boolean available = randomBoolean();
         final Version version = Version.CURRENT;
         final Build build = Build.CURRENT;
@@ -73,7 +73,7 @@ public class MainActionTests extends ESTestCase {
     }
 
     public void testMainResponseXContent() throws IOException {
-        String clusterUUID = randomAsciiOfLengthBetween(10, 20);
+        String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final MainResponse mainResponse = new MainResponse("node1", Version.CURRENT, new ClusterName("cluster1"), clusterUUID,
                 Build.CURRENT, false);
         final String expected = "{" +
@@ -108,20 +108,20 @@ public class MainActionTests extends ESTestCase {
             } else {
                 blocks = ClusterBlocks.builder()
                     .addGlobalBlock(new ClusterBlock(randomIntBetween(1, 16), "test global block 400", randomBoolean(), randomBoolean(),
-                        RestStatus.BAD_REQUEST, ClusterBlockLevel.ALL))
+                        false, RestStatus.BAD_REQUEST, ClusterBlockLevel.ALL))
                     .build();
             }
         } else {
             blocks = ClusterBlocks.builder()
                 .addGlobalBlock(new ClusterBlock(randomIntBetween(1, 16), "test global block 503", randomBoolean(), randomBoolean(),
-                    RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL))
+                    false, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL))
                 .build();
         }
         ClusterState state = ClusterState.builder(clusterName).blocks(blocks).build();
         when(clusterService.state()).thenReturn(state);
 
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+            x -> null, null);
         TransportMainAction action = new TransportMainAction(settings, mock(ThreadPool.class), transportService, mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), clusterService);
         AtomicReference<MainResponse> responseRef = new AtomicReference<>();

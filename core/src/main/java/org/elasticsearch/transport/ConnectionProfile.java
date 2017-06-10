@@ -79,6 +79,18 @@ public final class ConnectionProfile {
         private TimeValue connectTimeout;
         private TimeValue handshakeTimeout;
 
+        /** create an empty builder */
+        public Builder() {
+        }
+
+        /** copy constructor, using another profile as a base */
+        public Builder(ConnectionProfile source) {
+            handles.addAll(source.getHandles());
+            offset = source.getNumConnections();
+            handles.forEach(th -> addedTypes.addAll(th.types));
+            connectTimeout = source.getConnectTimeout();
+            handshakeTimeout = source.getHandshakeTimeout();
+        }
         /**
          * Sets a connect timeout for this connection profile
          */
@@ -198,7 +210,7 @@ public final class ConnectionProfile {
          */
         <T> T getChannel(T[] channels) {
             if (length == 0) {
-                throw new IllegalStateException("can't select channel size is 0");
+                throw new IllegalStateException("can't select channel size is 0 for types: " + types);
             }
             assert channels.length >= offset + length : "illegal size: " + channels.length + " expected >= " + (offset + length);
             return channels[offset + Math.floorMod(counter.incrementAndGet(), length)];

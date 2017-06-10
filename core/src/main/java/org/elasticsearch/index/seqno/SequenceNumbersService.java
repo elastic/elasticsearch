@@ -40,8 +40,8 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public static final long NO_OPS_PERFORMED = -1L;
 
-    private final LocalCheckpointService localCheckpointService;
-    private final GlobalCheckpointService globalCheckpointService;
+    private final LocalCheckpointTracker localCheckpointTracker;
+    private final GlobalCheckpointTracker globalCheckpointTracker;
 
     /**
      * Initialize the sequence number service. The {@code maxSeqNo} should be set to the last sequence number assigned by this shard, or
@@ -62,8 +62,8 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
         final long localCheckpoint,
         final long globalCheckpoint) {
         super(shardId, indexSettings);
-        localCheckpointService = new LocalCheckpointService(shardId, indexSettings, maxSeqNo, localCheckpoint);
-        globalCheckpointService = new GlobalCheckpointService(shardId, indexSettings, globalCheckpoint);
+        localCheckpointTracker = new LocalCheckpointTracker(indexSettings, maxSeqNo, localCheckpoint);
+        globalCheckpointTracker = new GlobalCheckpointTracker(shardId, indexSettings, globalCheckpoint);
     }
 
     /**
@@ -73,56 +73,67 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * @return the next assigned sequence number
      */
     public long generateSeqNo() {
-        return localCheckpointService.generateSeqNo();
+        return localCheckpointTracker.generateSeqNo();
     }
 
     /**
-     * The maximum sequence number issued so far. See {@link LocalCheckpointService#getMaxSeqNo()} for additional details.
+     * The maximum sequence number issued so far. See {@link LocalCheckpointTracker#getMaxSeqNo()} for additional details.
      *
      * @return the maximum sequence number
      */
     public long getMaxSeqNo() {
-        return localCheckpointService.getMaxSeqNo();
+        return localCheckpointTracker.getMaxSeqNo();
+    }
+
+    /**
+     * Waits for all operations up to the provided sequence number to complete.
+     *
+     * @param seqNo the sequence number that the checkpoint must advance to before this method returns
+     * @throws InterruptedException if the thread was interrupted while blocking on the condition
+     */
+    public void waitForOpsToComplete(final long seqNo) throws InterruptedException {
+        localCheckpointTracker.waitForOpsToComplete(seqNo);
     }
 
     /**
      * Marks the processing of the provided sequence number as completed as updates the checkpoint if possible.
-     * See {@link LocalCheckpointService#markSeqNoAsCompleted(long)} for additional details.
+     * See {@link LocalCheckpointTracker#markSeqNoAsCompleted(long)} for additional details.
      *
      * @param seqNo the sequence number to mark as completed
      */
     public void markSeqNoAsCompleted(final long seqNo) {
-        localCheckpointService.markSeqNoAsCompleted(seqNo);
+        localCheckpointTracker.markSeqNoAsCompleted(seqNo);
     }
 
     /**
      * The current sequence number stats.
      *
-     * @return stats encapuslating the maximum sequence number, the local checkpoint and the global checkpoint
+     * @return stats encapsulating the maximum sequence number, the local checkpoint and the global checkpoint
      */
     public SeqNoStats stats() {
-        return new SeqNoStats(getMaxSeqNo(), getLocalCheckpoint(), getGlobalCheckpoint());
+        return localCheckpointTracker.getStats(getGlobalCheckpoint());
     }
 
     /**
      * Notifies the service to update the local checkpoint for the shard with the provided allocation ID. See
-     * {@link GlobalCheckpointService#updateLocalCheckpoint(String, long)} for details.
+     * {@link GlobalCheckpointTracker#updateLocalCheckpoint(String, long)} for details.
      *
      * @param allocationId the allocation ID of the shard to update the local checkpoint for
      * @param checkpoint   the local checkpoint for the shard
      */
     public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
-        globalCheckpointService.updateLocalCheckpoint(allocationId, checkpoint);
+        globalCheckpointTracker.updateLocalCheckpoint(allocationId, checkpoint);
     }
 
     /**
      * Marks the shard with the provided allocation ID as in-sync with the primary shard. See
-     * {@link GlobalCheckpointService#markAllocationIdAsInSync(String)} for additional details.
+     * {@link GlobalCheckpointTracker#markAllocationIdAsInSync(String, long)} for additional details.
      *
-     * @param allocationId the allocation ID of the shard to mark as in-sync
+     * @param allocationId    the allocation ID of the shard to mark as in-sync
+     * @param localCheckpoint the current local checkpoint on the shard
      */
-    public void markAllocationIdAsInSync(final String allocationId) {
-        globalCheckpointService.markAllocationIdAsInSync(allocationId);
+    public void markAllocationIdAsInSync(final String allocationId, final long localCheckpoint) throws InterruptedException {
+        globalCheckpointTracker.markAllocationIdAsInSync(allocationId, localCheckpoint);
     }
 
     /**
@@ -131,7 +142,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * @return the local checkpoint
      */
     public long getLocalCheckpoint() {
-        return localCheckpointService.getCheckpoint();
+        return localCheckpointTracker.getCheckpoint();
     }
 
     /**
@@ -140,37 +151,36 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * @return the global checkpoint
      */
     public long getGlobalCheckpoint() {
-        return globalCheckpointService.getCheckpoint();
-    }
-
-    /**
-     * Scans through the currently known local checkpoint and updates the global checkpoint accordingly.
-     *
-     * @return {@code true} if the checkpoint has been updated or if it can not be updated since one of the local checkpoints of one of the
-     * active allocations is not known.
-     */
-    public boolean updateGlobalCheckpointOnPrimary() {
-        return globalCheckpointService.updateCheckpointOnPrimary();
+        return globalCheckpointTracker.getGlobalCheckpoint();
     }
 
     /**
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
-     * @param checkpoint the global checkpoint
+     * @param globalCheckpoint the global checkpoint
      */
-    public void updateGlobalCheckpointOnReplica(final long checkpoint) {
-        globalCheckpointService.updateCheckpointOnReplica(checkpoint);
+    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint) {
+        globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint);
     }
 
     /**
      * Notifies the service of the current allocation IDs in the cluster state. See
-     * {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
+     * {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(Set, Set)} for details.
      *
      * @param activeAllocationIds       the allocation IDs of the currently active shard copies
      * @param initializingAllocationIds the allocation IDs of the currently initializing shard copies
      */
     public void updateAllocationIdsFromMaster(final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
-        globalCheckpointService.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+        globalCheckpointTracker.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+    }
+
+    /**
+     * Check if there are any recoveries pending in-sync.
+     *
+     * @return {@code true} if there is at least one shard pending in-sync, otherwise false
+     */
+    public boolean pendingInSync() {
+        return globalCheckpointTracker.pendingInSync();
     }
 
 }

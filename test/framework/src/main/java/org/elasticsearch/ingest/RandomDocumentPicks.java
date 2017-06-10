@@ -42,14 +42,14 @@ public final class RandomDocumentPicks {
      */
     public static String randomFieldName(Random random) {
         int numLevels = RandomNumbers.randomIntBetween(random, 1, 5);
-        String fieldName = "";
+        StringBuilder fieldName = new StringBuilder();
         for (int i = 0; i < numLevels; i++) {
             if (i > 0) {
-                fieldName += ".";
+                fieldName.append('.');
             }
-            fieldName += randomString(random);
+            fieldName.append(randomString(random));
         }
-        return fieldName;
+        return fieldName.toString();
     }
 
     /**

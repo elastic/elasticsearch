@@ -24,19 +24,19 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-public class ClusterHealthResponse extends ActionResponse implements StatusToXContent {
+public class ClusterHealthResponse extends ActionResponse implements StatusToXContentObject {
     private String clusterName;
     private int numberOfPendingTasks = 0;
     private int numberOfInFlightFetch = 0;
@@ -200,18 +200,9 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
         taskMaxWaitingTime.writeTo(out);
     }
 
-
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this);
     }
 
     @Override
@@ -240,6 +231,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field(CLUSTER_NAME, getClusterName());
         builder.field(STATUS, getStatus().name().toLowerCase(Locale.ROOT));
         builder.field(TIMED_OUT, isTimedOut());
@@ -268,6 +260,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             }
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 }

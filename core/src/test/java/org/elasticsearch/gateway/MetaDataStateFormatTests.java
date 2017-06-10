@@ -196,7 +196,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
 
     public static void corruptFile(Path file, Logger logger) throws IOException {
         Path fileToCorrupt = file;
-        try (final SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParent())) {
+        try (SimpleFSDirectory dir = new SimpleFSDirectory(fileToCorrupt.getParent())) {
             long checksumBeforeCorruption;
             try (IndexInput input = dir.openInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
                 checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
@@ -327,12 +327,12 @@ public class MetaDataStateFormatTests extends ESTestCase {
         MetaData.Builder mdBuilder = MetaData.builder();
         mdBuilder.generateClusterUuidIfNeeded();
         for (int i = 0; i < numIndices; i++) {
-            mdBuilder.put(indexBuilder(randomAsciiOfLength(10) + "idx-"+i));
+            mdBuilder.put(indexBuilder(randomAlphaOfLength(10) + "idx-"+i));
         }
         int numDelIndices = randomIntBetween(0, 5);
         final IndexGraveyard.Builder graveyard = IndexGraveyard.builder();
         for (int i = 0; i < numDelIndices; i++) {
-            graveyard.addTombstone(new Index(randomAsciiOfLength(10) + "del-idx-" + i, UUIDs.randomBase64UUID()));
+            graveyard.addTombstone(new Index(randomAlphaOfLength(10) + "del-idx-" + i, UUIDs.randomBase64UUID()));
         }
         mdBuilder.indexGraveyard(graveyard.build());
         return mdBuilder.build();
@@ -386,7 +386,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
                     '}';
         }
 
-        public DummyState(String string, int aInt, long aLong, double aDouble, boolean aBoolean) {
+        DummyState(String string, int aInt, long aLong, double aDouble, boolean aBoolean) {
             this.string = string;
             this.aInt = aInt;
             this.aLong = aLong;
@@ -394,7 +394,7 @@ public class MetaDataStateFormatTests extends ESTestCase {
             this.aBoolean = aBoolean;
         }
 
-        public DummyState() {
+        DummyState() {
 
         }
 

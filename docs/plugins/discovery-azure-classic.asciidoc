@@ -7,35 +7,9 @@ The Azure Classic Discovery plugin uses the Azure Classic API for unicast discov
 // See issue https://github.com/elastic/elasticsearch/issues/19146
 deprecated[5.0.0, Use coming Azure ARM Discovery plugin instead]
 
-[[discovery-azure-classic-install]]
-[float]
-==== Installation
+:plugin_name: discovery-azure-classic
+include::install_remove.asciidoc[]
 
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install discovery-azure-classic
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/discovery-azure-classic/discovery-azure-classic-{version}.zip.
-
-[[discovery-azure-classic-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove discovery-azure-classic
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
 
 [[discovery-azure-classic-usage]]
 ==== Azure Virtual Machine Discovery
@@ -169,7 +143,7 @@ Before starting, you need to have:
 * A http://www.windowsazure.com/[Windows Azure account]
 * OpenSSL that isn't from MacPorts, specifically `OpenSSL 1.0.1f 6 Jan
   2014` doesn't seem to create a valid keypair for ssh. FWIW,
- `OpenSSL 1.0.1c 10 May 2012` on Ubuntu 12.04 LTS is known to work.
+ `OpenSSL 1.0.1c 10 May 2012` on Ubuntu 14.04 LTS is known to work.
 * SSH keys and certificate
 +
 --

@@ -144,10 +144,10 @@ public class TextFieldMapper extends FieldMapper {
                     builder.positionIncrementGap(newPositionIncrementGap);
                     iterator.remove();
                 } else if (propName.equals("fielddata")) {
-                    builder.fielddata(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.fielddata(XContentMapValues.nodeBooleanValue(propNode, "fielddata"));
                     iterator.remove();
                 } else if (propName.equals("eager_global_ordinals")) {
-                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode));
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(propNode, "eager_global_ordinals"));
                     iterator.remove();
                 } else if (propName.equals("fielddata_frequency_filter")) {
                     Map<?,?> frequencyFilter = (Map<?, ?>) propNode;
@@ -287,7 +287,7 @@ public class TextFieldMapper extends FieldMapper {
             if (fielddata == false) {
                 throw new IllegalArgumentException("Fielddata is disabled on text fields by default. Set fielddata=true on [" + name()
                         + "] in order to load fielddata in memory by uninverting the inverted index. Note that this can however "
-                        + "use significant memory.");
+                                + "use significant memory. Alternatively use a keyword field instead.");
             }
             return new PagedBytesIndexFieldData.Builder(fielddataMinFrequency, fielddataMaxFrequency, fielddataMinSegmentSize);
         }

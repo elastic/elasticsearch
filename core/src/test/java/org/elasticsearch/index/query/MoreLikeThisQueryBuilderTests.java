@@ -23,20 +23,25 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
@@ -46,6 +51,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -56,9 +62,12 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
+
+    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[]{Item.Field.DOC.getPreferredName()};
 
     private static String[] randomFields;
     private static Item[] randomLikeItems;
@@ -88,11 +97,11 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     private Item generateRandomItem() {
         String index = randomBoolean() ? getIndex().getName() : null;
-        String type = getRandomType();  // set to one type to avoid ambiguous types
+        String type = "doc";
         // indexed item or artificial document
         Item item;
         if (randomBoolean()) {
-            item = new Item(index, type, randomAsciiOfLength(10));
+            item = new Item(index, type, randomAlphaOfLength(10));
         } else {
             item = new Item(index, type, randomArtificialDoc());
         }
@@ -105,7 +114,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             item.perFieldAnalyzer(randomPerFieldAnalyzer());
         }
         if (randomBoolean()) {
-            item.routing(randomAsciiOfLength(10));
+            item.routing(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             item.version(randomInt(5));
@@ -121,7 +130,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         try {
             doc = XContentFactory.jsonBuilder().startObject();
             for (String field : randomFields) {
-                doc.field(field, randomAsciiOfLength(10));
+                doc.field(field, randomAlphaOfLength(10));
             }
             doc.endObject();
         } catch (IOException e) {
@@ -200,6 +209,16 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         return queryBuilder;
     }
 
+    /**
+     * we don't want to shuffle the "doc" field internally in {@link #testFromXContent()} because even though the
+     * documents would be functionally the same, their {@link BytesReference} representation isn't and thats what we
+     * compare when check for equality of the original and the shuffled builder
+     */
+    @Override
+    protected String[] shuffleProtectedFields() {
+        return SHUFFLE_PROTECTED_FIELDS;
+    }
+
     @Override
     protected Set<String> getObjectsHoldingArbitraryContent() {
         //doc contains arbitrary content, anything can be added to it and no exception will be thrown
@@ -247,6 +266,13 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.likeItems() != null && queryBuilder.likeItems().length > 0) {
             assertThat(query, instanceOf(BooleanQuery.class));
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+            for (BooleanClause booleanClause : booleanQuery) {
+                if (booleanClause.getQuery() instanceof MoreLikeThisQuery) {
+                    MoreLikeThisQuery moreLikeThisQuery = (MoreLikeThisQuery) booleanClause.getQuery();
+                    assertThat(moreLikeThisQuery.getLikeFields().length, greaterThan(0));
+                }
+            }
         } else {
             // we rely on integration tests for a deeper check here
             assertThat(query, instanceOf(MoreLikeThisQuery.class));
@@ -293,12 +319,38 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         assertEquals(expectedItem, newItem);
     }
 
+    public void testItemCopy() throws IOException {
+        Item expectedItem = generateRandomItem();
+        Item newItem = new Item(expectedItem);
+        assertEquals(expectedItem, newItem);
+    }
+
     public void testItemFromXContent() throws IOException {
         Item expectedItem = generateRandomItem();
         String json = expectedItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).string();
         XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         Item newItem = Item.parse(parser, new Item());
         assertEquals(expectedItem, newItem);
+    }
+
+    public void testItemSerializationBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("AQVpbmRleAEEdHlwZQEODXsiZm9vIjoiYmFyIn0A/wD//////////QAAAAAAAAAA");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            Item item = new Item(in);
+            assertEquals(XContentType.JSON, item.xContentType());
+            assertEquals("{\"foo\":\"bar\"}", item.doc().utf8ToString());
+            assertEquals("index", item.index());
+            assertEquals("type", item.type());
+
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                item.writeTo(out);
+                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
+            }
+        }
     }
 
     @Override

@@ -57,6 +57,10 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
@@ -272,6 +276,10 @@ import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
 import org.elasticsearch.action.fieldstats.FieldStatsRequest;
 import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
@@ -343,6 +351,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -400,7 +409,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         doExecute(action, request, listener);
     }
 
-    protected abstract <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener);
+    protected abstract <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void doExecute(Action<Request, Response, RequestBuilder> action, Request request, ActionListener<Response> listener);
 
     @Override
     public ActionFuture<IndexResponse> index(final IndexRequest request) {
@@ -666,12 +675,27 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         return new FieldStatsRequestBuilder(this, FieldStatsAction.INSTANCE);
     }
 
+    @Override
+    public void fieldCaps(FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener) {
+        execute(FieldCapabilitiesAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<FieldCapabilitiesResponse> fieldCaps(FieldCapabilitiesRequest request) {
+        return execute(FieldCapabilitiesAction.INSTANCE, request);
+    }
+
+    @Override
+    public FieldCapabilitiesRequestBuilder prepareFieldCaps() {
+        return new FieldCapabilitiesRequestBuilder(this, FieldCapabilitiesAction.INSTANCE);
+    }
+
     static class Admin implements AdminClient {
 
         private final ClusterAdmin clusterAdmin;
         private final IndicesAdmin indicesAdmin;
 
-        public Admin(ElasticsearchClient client) {
+        Admin(ElasticsearchClient client) {
             this.clusterAdmin = new ClusterAdmin(client);
             this.indicesAdmin = new IndicesAdmin(client);
         }
@@ -691,7 +715,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
         private final ElasticsearchClient client;
 
-        public ClusterAdmin(ElasticsearchClient client) {
+        ClusterAdmin(ElasticsearchClient client) {
             this.client = client;
         }
 
@@ -806,6 +830,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
             return new NodesStatsRequestBuilder(this, NodesStatsAction.INSTANCE).setNodesIds(nodesIds);
+        }
+
+        @Override
+        public ActionFuture<NodesUsageResponse> nodesUsage(final NodesUsageRequest request) {
+            return execute(NodesUsageAction.INSTANCE, request);
+        }
+
+        @Override
+        public void nodesUsage(final NodesUsageRequest request, final ActionListener<NodesUsageResponse> listener) {
+            execute(NodesUsageAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public NodesUsageRequestBuilder prepareNodesUsage(String... nodesIds) {
+            return new NodesUsageRequestBuilder(this, NodesUsageAction.INSTANCE).setNodesIds(nodesIds);
         }
 
         @Override
@@ -1082,6 +1121,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         }
 
         @Override
+        public PutPipelineRequestBuilder preparePutPipeline(String id, BytesReference source, XContentType xContentType) {
+            return new PutPipelineRequestBuilder(this, PutPipelineAction.INSTANCE, id, source, xContentType);
+        }
+
+        @Override
         public void deletePipeline(DeletePipelineRequest request, ActionListener<WritePipelineResponse> listener) {
             execute(DeletePipelineAction.INSTANCE, request, listener);
         }
@@ -1129,6 +1173,11 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source) {
             return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source);
+        }
+
+        @Override
+        public SimulatePipelineRequestBuilder prepareSimulatePipeline(BytesReference source, XContentType xContentType) {
+            return new SimulatePipelineRequestBuilder(this, SimulatePipelineAction.INSTANCE, source, xContentType);
         }
 
         @Override
@@ -1199,7 +1248,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
         @Override
         public DeleteStoredScriptRequestBuilder prepareDeleteStoredScript(@Nullable String scriptLang, String id){
-            return prepareDeleteStoredScript().setScriptLang(scriptLang).setId(id);
+            return prepareDeleteStoredScript().setLang(scriptLang).setId(id);
         }
     }
 
@@ -1207,7 +1256,7 @@ public abstract class AbstractClient extends AbstractComponent implements Client
 
         private final ElasticsearchClient client;
 
-        public IndicesAdmin(ElasticsearchClient client) {
+        IndicesAdmin(ElasticsearchClient client) {
             this.client = client;
         }
 

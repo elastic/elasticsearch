@@ -1574,7 +1574,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                              */
                             active.compareAndSet(false, true);
                             success = true;
-                        } catch (final InterruptedException e) {
+                        } catch (final Exception e) {
                             onFailure(e);
                         } finally {
                             releasable.close();

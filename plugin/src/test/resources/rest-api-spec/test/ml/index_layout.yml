@@ -501,6 +501,9 @@
           state: more-new-categorizer-state
 
   - do:
+      indices.refresh: {}
+
+  - do:
       xpack.ml.delete_job:
         job_id: "index-layout-state-job"
   - match: { acknowledged: true }

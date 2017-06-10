@@ -161,14 +161,15 @@ public class EvilLoggerTests extends ESTestCase {
     public void testPrefixLoggerMarkersCanBeCollected() throws IOException, UserException {
         setupLogging("prefix");
 
-        for (int i = 0; i < 1 << 20; i++) {
+        final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
+        for (int i = 0; i < prefixes; i++) {
             // this has the side effect of caching a marker with this prefix
             Loggers.getLogger("prefix" + i, "prefix" + i);
         }
 
         // this will free the weakly referenced keys in the marker cache
         System.gc();
-        assertThat(PrefixLogger.markersSize(), lessThan(1 << 20));
+        assertThat(PrefixLogger.markersSize(), lessThan(prefixes));
     }
 
     public void testProperties() throws IOException, UserException {

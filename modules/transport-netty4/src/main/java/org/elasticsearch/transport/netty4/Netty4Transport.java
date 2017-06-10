@@ -126,6 +126,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     volatile Netty4OpenChannelsHandler serverOpenChannels;
     protected volatile Bootstrap bootstrap;
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
+    private final ChannelFutureListener closeListener = future -> onChannelClosed(future.channel());
 
     public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
@@ -345,7 +346,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                         throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.cause());
                     }
                     channels[i] = future.channel();
-                    channels[i].closeFuture().addListener(new ChannelCloseListener());
+                    channels[i].closeFuture().addListener(closeListener);
                 }
                 assert iterator.hasNext() == false : "not all created connection have been consumed";
             } catch (final RuntimeException e) {
@@ -372,20 +373,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
             }
         }
         return nodeChannels;
-    }
-
-    private final class ChannelCloseListener implements ChannelFutureListener {
-        @Override
-        public void operationComplete(final ChannelFuture future) throws Exception {
-            try {
-                onChannelClosed(future.channel());
-            } finally {
-                // we also disconnect here since if the other end closes the connection we don't get an exception
-                // but still need to handle node disconnects
-                disconnectFromNodeChannel(future.channel(), "channel closed event");
-            }
-
-        }
     }
 
     @Override

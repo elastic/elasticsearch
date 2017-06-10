@@ -66,11 +66,13 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.StreamCorruptedException;
 import java.net.BindException;
@@ -588,16 +590,23 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final void disconnectFromNodeChannel(final Channel channel, final String reason) {
         threadPool.generic().execute(() -> {
             try {
-                try {
+                if (isOpen(channel)) {
                     closeChannels(Collections.singletonList(channel));
-                } finally {
+                }
+            } catch (IOException e) {
+                logger.warn("failed to close channel", e);
+            } finally {
+                outer:
+                {
                     for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
                         if (disconnectFromNode(entry.getKey(), channel, reason)) {
                             // if we managed to find this channel and disconnect from it, then break, no need to check on
                             // the rest of the nodes
                             // Removing it here from open connections is paranoia since the close handler should deal with this.
                             openConnections.remove(entry.getValue());
-                            return;
+                            // we can only be connected and published to a single node with one connection. So if disconnectFromNode
+                            // returns true we can safely break out from here since we cleaned up everything needed
+                            break outer;
                         }
                     }
                     // now if we haven't found the right connection in the connected nodes we have to go through the open connections
@@ -605,14 +614,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     for (NodeChannels channels : openConnections) {
                         if (channels.hasChannel(channel)) {
                             IOUtils.closeWhileHandlingException(channels);
-                            return;
+                            break;
                         }
                     }
                 }
-            } catch (IOException e) {
-                logger.warn("failed to close channel", e);
-            } finally {
-                onChannelClosed(channel);
             }
         });
     }
@@ -916,9 +921,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                                 "Error closing serverChannel for profile [{}]", entry.getKey()), e);
                     }
                 }
-
-                IOUtils.closeWhileHandlingException(() -> IOUtils.closeWhileHandlingException(connectedNodes.values()),
-                    () -> IOUtils.closeWhileHandlingException(openConnections), openConnections::clear, connectedNodes::clear);
+                // we are holding a write lock so nobody modifies the connectedNodes / openConnections map - it's safe to first close
+                // all instances and then clear them maps
+                IOUtils.closeWhileHandlingException(Iterables.concat(connectedNodes.values(), openConnections));
+                openConnections.clear();
+                connectedNodes.clear();
                 stopInternal();
             } finally {
                 globalLock.writeLock().unlock();
@@ -1622,16 +1629,20 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * Called once the channel is closed for instance due to a disconnect or a closed socket etc.
      */
     protected final void onChannelClosed(Channel channel) {
-        final Optional<Long> first = pendingHandshakes.entrySet().stream()
-            .filter((entry) -> entry.getValue().channel == channel).map((e) -> e.getKey()).findFirst();
-        if (first.isPresent()) {
-            final Long requestId = first.get();
-            final HandshakeResponseHandler handler = pendingHandshakes.remove(requestId);
-            if (handler != null) {
-                // there might be a race removing this or this method might be called twice concurrently depending on how
-                // the channel is closed ie. due to connection reset or broken pipes
-                handler.handleException(new TransportException("connection reset"));
+        try {
+            final Optional<Long> first = pendingHandshakes.entrySet().stream()
+                .filter((entry) -> entry.getValue().channel == channel).map((e) -> e.getKey()).findFirst();
+            if (first.isPresent()) {
+                final Long requestId = first.get();
+                final HandshakeResponseHandler handler = pendingHandshakes.remove(requestId);
+                if (handler != null) {
+                    // there might be a race removing this or this method might be called twice concurrently depending on how
+                    // the channel is closed ie. due to connection reset or broken pipes
+                    handler.handleException(new TransportException("connection reset"));
+                }
             }
+        } finally {
+            disconnectFromNodeChannel(channel, "channel closed");
         }
     }
 

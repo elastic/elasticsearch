@@ -32,8 +32,8 @@ setup:
 "Postings highlighter should have deprecation warning":
   - skip:
       features: 'warnings'
-      version: ' - 5.5.99'
-      reason: deprecated in 5.6
+      version: ' - 5.6.99'
+      reason: deprecated in 5.6 (set to 5.7 to disable test , see https://github.com/elastic/elasticsearch/issues/25169)
   - do:
       warnings:
         - "[postings] highlighter is deprecated, please use [unified] instead"

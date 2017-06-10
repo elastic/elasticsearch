@@ -176,12 +176,11 @@ public class EvilLoggerTests extends ESTestCase {
 
         final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
         for (int i = 0; i < prefixes; i++) {
-            // this has the side effect of caching a marker with this prefix
-            Loggers.getLogger("prefix" + i, "prefix" + i);
+            Loggers.getLogger("prefix" + i, "prefix" + i); // this has the side effect of caching a marker with this prefix
+
         }
 
-        // this will free the weakly referenced keys in the marker cache
-        System.gc();
+        System.gc(); // this will free the weakly referenced keys in the marker cache
         assertThat(PrefixLogger.markersSize(), lessThan(prefixes));
     }
 

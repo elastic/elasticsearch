@@ -100,11 +100,10 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (Version v : VersionUtils.allReleasedVersions()) {
-            if (false == shouldTestVersion(v)) continue;
-            if (v.before(Version.CURRENT.minimumIndexCompatibilityVersion())) continue; // we can only support one major version backward
-            if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
-            if (v.isBeta() == true || v.isAlpha() == true || v.isRC() == true) continue; // don't check alphas etc
-            expectedVersions.add("x-pack-" + v.toString() + ".zip");
+            if (v.isRelease()) {
+                // no guarantees for prereleases
+                expectedVersions.add("x-pack-" + v.toString() + ".zip");
+            }
         }
         expectedVersions.removeAll(dataFiles);
         if (expectedVersions.isEmpty() == false) {
@@ -121,7 +120,6 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
         Collections.shuffle(dataFiles, random());
         for (String dataFile : dataFiles) {
             Version version = Version.fromString(dataFile.replace("x-pack-", "").replace(".zip", ""));
-            if (false == shouldTestVersion(version)) continue;
             long clusterStartTime = System.nanoTime();
             setupCluster(dataFile);
             ensureYellow();
@@ -135,13 +133,6 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
                     TimeUnit.NANOSECONDS.toMillis(testStartTime - clusterStartTime),
                     TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - testStartTime));
         }
-    }
-
-    /**
-     * Should we test this version at all? Called before loading the data directory. Return false to skip it entirely.
-     */
-    protected boolean shouldTestVersion(Version version) {
-        return true;
     }
 
     /**

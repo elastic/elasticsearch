@@ -101,6 +101,7 @@ if (enabled) {
     commandLine = ['git', 'fetch', 'upstream']
   }
 
+  // this is an Exec task so that the SHA that is checked out is logged
   task checkoutBwcBranch(type: Exec) {
     dependsOn fetchLatest
     workingDir = checkoutDir

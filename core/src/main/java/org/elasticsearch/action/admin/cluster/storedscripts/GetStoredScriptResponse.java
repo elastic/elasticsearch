@@ -81,7 +81,7 @@ public class GetStoredScriptResponse extends ActionResponse implements ToXConten
             if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
                 source.writeTo(out);
             } else {
-                out.writeString(source.getCode());
+                out.writeString(source.getSource());
             }
         }
     }

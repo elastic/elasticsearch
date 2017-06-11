@@ -39,8 +39,6 @@ import java.util.List;
 import java.util.Map;
 
 public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
-    private static final List<String> STANDARD_HIGHLIGHTERS_BY_PRECEDENCE = Arrays.asList("fvh", "postings", "plain");
-
     private final Map<String, Highlighter> highlighters;
 
     public HighlightPhase(Settings settings, Map<String, Highlighter> highlighters) {
@@ -94,13 +92,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                 }
                 String highlighterType = field.fieldOptions().highlighterType();
                 if (highlighterType == null) {
-                    for(String highlighterCandidate : STANDARD_HIGHLIGHTERS_BY_PRECEDENCE) {
-                        if (highlighters.get(highlighterCandidate).canHighlight(fieldMapper)) {
-                            highlighterType = highlighterCandidate;
-                            break;
-                        }
-                    }
-                    assert highlighterType != null;
+                    highlighterType = "unified";
                 }
                 Highlighter highlighter = highlighters.get(highlighterType);
                 if (highlighter == null) {

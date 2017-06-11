@@ -55,7 +55,7 @@ GET my_index/_search
     "UID": {
       "script": {
          "lang": "painless",
-         "inline": "doc['_uid']" <4>
+         "source": "doc['_uid']" <4>
       }
     }
   }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -178,7 +179,17 @@ public final class SearchHits implements Streamable, ToXContent, Iterable<Search
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        totalHits = in.readVLong();
+        final boolean hasTotalHits;
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+            hasTotalHits = in.readBoolean();
+        } else {
+            hasTotalHits = true;
+        }
+        if (hasTotalHits) {
+            totalHits = in.readVLong();
+        } else {
+            totalHits = -1;
+        }
         maxScore = in.readFloat();
         int size = in.readVInt();
         if (size == 0) {
@@ -193,7 +204,17 @@ public final class SearchHits implements Streamable, ToXContent, Iterable<Search
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(totalHits);
+        final boolean hasTotalHits;
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+            hasTotalHits = totalHits >= 0;
+            out.writeBoolean(hasTotalHits);
+        } else {
+            assert totalHits >= 0;
+            hasTotalHits = true;
+        }
+        if (hasTotalHits) {
+            out.writeVLong(totalHits);
+        }
         out.writeFloat(maxScore);
         out.writeVInt(hits.length);
         if (hits.length > 0) {

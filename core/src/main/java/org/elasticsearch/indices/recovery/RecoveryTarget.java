@@ -36,13 +36,15 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -59,6 +61,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 import java.util.function.LongConsumer;
 
 /**
@@ -376,12 +379,30 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public long indexTranslogOperations(
-            List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer.BatchOperationException {
+    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws MapperException, IOException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
-        indexShard().performBatchRecovery(operations);
+        if (indexShard().state() != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, indexShard().state());
+        }
+        // first convert all translog operations to engine operations to check for mapping updates
+        List<Engine.Operation> engineOps = operations.stream().map(
+            op -> {
+                Engine.Operation engineOp = indexShard().convertToEngineOp(op, Engine.Operation.Origin.PEER_RECOVERY);
+                if (engineOp instanceof Engine.Index && ((Engine.Index) engineOp).parsedDoc().dynamicMappingsUpdate() != null) {
+                    throw new MapperException("mapping updates are not allowed (type: [" + engineOp.type() + "], id: [" +
+                        ((Engine.Index) engineOp).id() + "])");
+                }
+                return engineOp;
+            }
+        ).collect(Collectors.toList());
+        // actually apply engine operations
+        for (Engine.Operation engineOp : engineOps) {
+            indexShard().applyOperation(engineOp);
+            translog.incrementRecoveredOperations();
+        }
+        indexShard().sync();
         return indexShard().getLocalCheckpoint();
     }
 
@@ -477,5 +498,4 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     Path translogLocation() {
         return indexShard().shardPath().resolveTranslog();
     }
-
 }

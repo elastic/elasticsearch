@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.apache.lucene.search.highlight;
+package org.apache.lucene.search.uhighlight;
 
 /**
  * Represents a scored highlighted snippet.
- * It's our own arbitrary object that we get back from the postings highlighter when highlighting a document.
+ * It's our own arbitrary object that we get back from the unified highlighter when highlighting a document.
  * Every snippet contains its formatted text and its score.
  * The score is needed in case we want to sort snippets by score, they get sorted by position in the text by default.
  */

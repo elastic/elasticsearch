@@ -262,8 +262,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     /**
      * Set type of highlighter to use. Out of the box supported types
-     * are <tt>plain</tt>, <tt>fvh</tt> and <tt>postings</tt>.
-     * The default option selected is dependent on the mappings defined for your index.
+     * are <tt>unified</tt>, <tt>plain</tt> and <tt>fvj</tt>.
+     * Defaults to <tt>unified</tt>.
      * Details of the different highlighter types are covered in the reference guide.
      */
     @SuppressWarnings("unchecked")

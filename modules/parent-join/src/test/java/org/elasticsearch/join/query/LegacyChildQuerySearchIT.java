@@ -26,7 +26,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -53,15 +52,6 @@ public class LegacyChildQuerySearchIT extends ChildQuerySearchIT {
     @Override
     protected boolean legacy() {
         return true;
-    }
-
-    @Override
-    public Settings indexSettings() {
-        Settings indexSettings = super.indexSettings();
-        return Settings.builder()
-            .put(indexSettings)
-            .put("index.mapping.single_type", false)
-            .build();
     }
 
     public void testIndexChildDocWithNoParentMapping() throws IOException {

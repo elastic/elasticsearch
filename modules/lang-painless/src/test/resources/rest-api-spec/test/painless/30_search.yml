@@ -29,12 +29,12 @@
                 query:
                     script:
                         script:
-                            inline: "doc['num1'].value > 1;"
+                            source: "doc['num1'].value > 1;"
                             lang: painless
                 script_fields:
                     sNum1:
                         script: 
-                            inline: "doc['num1'].value;"
+                            source: "doc['num1'].value;"
                             lang: painless
                 sort:
                     num1:
@@ -51,7 +51,7 @@
                 query:
                     script:
                         script:
-                            inline: "doc['num1'].value > params.param1;"
+                            source: "doc['num1'].value > params.param1;"
                             lang: painless
                             params:
                                 param1: 1
@@ -59,7 +59,7 @@
                 script_fields:
                     sNum1:
                         script:
-                            inline: "return doc['num1'].value;"
+                            source: "return doc['num1'].value;"
                             lang: painless
                 sort:
                     num1:
@@ -76,7 +76,7 @@
                 query:
                     script:
                         script:
-                            inline: "doc['num1'].value > params.param1;"
+                            source: "doc['num1'].value > params.param1;"
                             lang: painless
                             params:
                                 param1: -1
@@ -84,7 +84,7 @@
                 script_fields:
                     sNum1:
                         script: 
-                            inline: "doc['num1'].value;"
+                            source: "doc['num1'].value;"
                             lang: painless
                 sort:
                     num1:
@@ -102,7 +102,7 @@
                 query:
                     script:
                         script:
-                            inline: "doc['bool'].value == false"
+                            source: "doc['bool'].value == false"
                             lang: painless
 
     - match: { hits.total: 1 }
@@ -139,7 +139,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "doc['num1'].value"
+                                    "source": "doc['num1'].value"
                                 }
                             }
                         }]
@@ -161,7 +161,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "-doc['num1'].value"
+                                    "source": "-doc['num1'].value"
                                 }
                             }
                         }]
@@ -183,7 +183,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "Math.pow(doc['num1'].value, 2)"
+                                    "source": "Math.pow(doc['num1'].value, 2)"
                                 }
                             }
                         }]
@@ -205,7 +205,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "Math.max(doc['num1'].value, 1)"
+                                    "source": "Math.max(doc['num1'].value, 1)"
                                 }
                             }
                         }]
@@ -227,7 +227,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "doc['num1'].value * _score"
+                                    "source": "doc['num1'].value * _score"
                                 }
                             }
                         }]
@@ -249,7 +249,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "params.param1 * params.param2 * _score",
+                                    "source": "params.param1 * params.param2 * _score",
                                     "params": {
                                         "param1": 2,
                                         "param2": 2
@@ -286,14 +286,14 @@
                                         "script_score": {
                                             "script": {
                                                 "lang": "painless",
-                                                "inline": "1"
+                                                "source": "1"
                                             }
                                         }
                                     }, {
                                         "script_score": {
                                             "script": {
                                                 "lang": "painless",
-                                                "inline": "_score"
+                                                "source": "_score"
                                             }
                                         }
                                     }
@@ -302,7 +302,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "_score"
+                                    "source": "_score"
                                 }
                             }
                         }]
@@ -334,7 +334,7 @@
                             "script_score": {
                                 "script": {
                                     "lang": "painless",
-                                    "inline": "_score"
+                                    "source": "_score"
                                 }
                             }
                         }]
@@ -343,7 +343,7 @@
                         terms:
                             script:
                                 lang: painless
-                                inline: "_score"
+                                source: "_score"
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0._score: 1.0 }
@@ -370,7 +370,7 @@
                 script_fields:
                     foobar:
                         script: 
-                            inline: "doc['f'].values.size()"
+                            source: "doc['f'].values.size()"
                             lang: painless
 
 
@@ -400,7 +400,7 @@
                             field: dummy_field
                             script:
                                 lang: painless
-                                inline: "_value + 1"
+                                source: "_value + 1"
 
     - match: { hits.total: 1 }
     - match: { hits.hits.0._score: 1.0 }

@@ -89,7 +89,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
-import java.util.function.LongConsumer;
 
 public abstract class Engine implements Closeable {
 
@@ -486,7 +485,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory, LongConsumer onRefresh) throws EngineException;
+    public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException;
 
     /**
      * Returns a new searcher instance. The consumer of this
@@ -1009,7 +1008,7 @@ public abstract class Engine implements Closeable {
 
         abstract String id();
 
-        abstract TYPE operationType();
+        public abstract TYPE operationType();
     }
 
     public static class Index extends Operation {
@@ -1051,7 +1050,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.INDEX;
         }
 
@@ -1103,8 +1102,8 @@ public abstract class Engine implements Closeable {
         public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType,
                       Origin origin, long startTime) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
-            this.type = type;
-            this.id = id;
+            this.type = Objects.requireNonNull(type);
+            this.id = Objects.requireNonNull(id);
         }
 
         public Delete(String type, String id, Term uid) {
@@ -1127,7 +1126,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.DELETE;
         }
 
@@ -1177,7 +1176,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.NO_OP;
         }
 

@@ -48,7 +48,6 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
@@ -423,22 +422,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 try {
                     recoveryTarget.indexTranslogOperations(request.operations(), request.totalTranslogOps());
                     channel.sendResponse(new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint()));
-                } catch (TranslogRecoveryPerformer.BatchOperationException exception) {
-                    MapperException mapperException = (MapperException) ExceptionsHelper.unwrap(exception, MapperException.class);
-                    if (mapperException == null) {
-                        throw exception;
-                    }
+                } catch (MapperException exception) {
                     // in very rare cases a translog replay from primary is processed before a mapping update on this node
                     // which causes local mapping changes since the mapping (clusterstate) might not have arrived on this node.
-                    // we want to wait until these mappings are processed but also need to do some maintenance and roll back the
-                    // number of processed (completed) operations in this batch to ensure accounting is correct.
-                    logger.trace(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "delaying recovery due to missing mapping changes (rolling back stats for [{}] ops)",
-                            exception.completedOperations()),
-                        exception);
-                    final RecoveryState.Translog translog = recoveryTarget.state().getTranslog();
-                    translog.decrementRecoveredOperations(exception.completedOperations()); // do the maintainance and rollback competed ops
+                    logger.debug("delaying recovery due to missing mapping changes", exception);
                     // we do not need to use a timeout here since the entire recovery mechanism has an inactivity protection (it will be
                     // canceled)
                     observer.waitForNextChange(new ClusterStateObserver.Listener() {

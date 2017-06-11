@@ -114,6 +114,11 @@ public final class Script implements ToXContentObject, Writeable {
     public static final ParseField SCRIPT_PARSE_FIELD = new ParseField("script");
 
     /**
+     * Standard {@link ParseField} for source on the inner level.
+     */
+    public static final ParseField SOURCE_PARSE_FIELD = new ParseField("source");
+
+    /**
      * Standard {@link ParseField} for lang on the inner level.
      */
     public static final ParseField LANG_PARSE_FIELD = new ParseField("lang");
@@ -218,9 +223,7 @@ public final class Script implements ToXContentObject, Writeable {
          */
         private Script build(String defaultLang) {
             if (type == null) {
-                throw new IllegalArgumentException(
-                    "must specify either code for an [" + ScriptType.INLINE.getParseField().getPreferredName() + "] script " +
-                        "or an id for a [" + ScriptType.STORED.getParseField().getPreferredName() + "] script");
+                throw new IllegalArgumentException("must specify either [source] for an inline script or [id] for a stored script");
             }
 
             if (type == ScriptType.INLINE) {
@@ -299,7 +302,10 @@ public final class Script implements ToXContentObject, Writeable {
      *
      * {@code
      * {
-     *     "<type (inline, stored, file)>" : "<idOrCode>",
+     *     // Exactly one of "id" or "source" must be specified
+     *     "id" : "<id>",
+     *     // OR
+     *     "source": "<source>",
      *     "lang" : "<lang>",
      *     "options" : {
      *         "option0" : "<option0>",
@@ -317,7 +323,7 @@ public final class Script implements ToXContentObject, Writeable {
      * Example:
      * {@code
      * {
-     *     "inline" : "return Math.log(doc.popularity) * params.multiplier",
+     *     "source" : "return Math.log(doc.popularity) * params.multiplier",
      *     "lang" : "painless",
      *     "params" : {
      *         "multiplier" : 100.0
@@ -330,7 +336,7 @@ public final class Script implements ToXContentObject, Writeable {
      *
      * {@code
      * {
-     *     "inline" : { "query" : ... },
+     *     "source" : { "query" : ... },
      *     "lang" : "<lang>",
      *     "options" : {
      *         "option0" : "<option0>",
@@ -567,7 +573,7 @@ public final class Script implements ToXContentObject, Writeable {
      *
      * {@code
      * {
-     *     "<type (inline, stored, file)>" : "<idOrCode>",
+     *     "<(id, source)>" : "<idOrCode>",
      *     "lang" : "<lang>",
      *     "options" : {
      *         "option0" : "<option0>",
@@ -585,7 +591,7 @@ public final class Script implements ToXContentObject, Writeable {
      * Example:
      * {@code
      * {
-     *     "inline" : "return Math.log(doc.popularity) * params.multiplier;",
+     *     "source" : "return Math.log(doc.popularity) * params.multiplier;",
      *     "lang" : "painless",
      *     "params" : {
      *         "multiplier" : 100.0
@@ -600,7 +606,7 @@ public final class Script implements ToXContentObject, Writeable {
      *
      * {@code
      * {
-     *     "inline" : { "query" : ... },
+     *     "source" : { "query" : ... },
      *     "lang" : "<lang>",
      *     "options" : {
      *         "option0" : "<option0>",
@@ -621,10 +627,14 @@ public final class Script implements ToXContentObject, Writeable {
 
         String contentType = options == null ? null : options.get(CONTENT_TYPE_OPTION);
 
-        if (type == ScriptType.INLINE && contentType != null && builder.contentType().mediaType().equals(contentType)) {
-            builder.rawField(type.getParseField().getPreferredName(), new BytesArray(idOrCode));
+        if (type == ScriptType.INLINE) {
+            if (contentType != null && builder.contentType().mediaType().equals(contentType)) {
+                builder.rawField(SOURCE_PARSE_FIELD.getPreferredName(), new BytesArray(idOrCode));
+            } else {
+                builder.field(SOURCE_PARSE_FIELD.getPreferredName(), idOrCode);
+            }
         } else {
-            builder.field(type.getParseField().getPreferredName(), idOrCode);
+            builder.field("id", idOrCode);
         }
 
         if (lang != null) {

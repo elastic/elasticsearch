@@ -34,8 +34,9 @@ The deprecated request parameters and plain text in request body has been remove
 ==== Support custom normalizer in Analyze API
 
 Analyze API can analyze normalizer and custom normalizer.
-In previous versions of Elasticsearch, Analyze API is required `tokenizer` or `analyzer` parameter.
-In Elaticsearch 6.0.0, Analyze API analyze a text as a keyword field with custom normalizer if `char_filter`/`filter` without `tokenizer`/`analyzer`.
+In previous versions of Elasticsearch, Analyze API is requiring a `tokenizer` or `analyzer` parameter.
+In Elasticsearch 6.0.0, Analyze API can analyze a text as a keyword field with custom normalizer
+or if `char_filter`/`filter` is set and `tokenizer`/`analyzer` is not set.
 
 ==== Indices exists API
 

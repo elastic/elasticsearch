@@ -194,44 +194,39 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
                 tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()]));
             closeAnalyzer = true;
-        } else if (request.normalizer() != null ||
-            ((request.tokenFilters() != null && request.tokenFilters().size() > 0)
+        } else if (request.normalizer() != null) {
+            // Get normalizer from indexAnalyzers
+            analyzer = indexAnalyzers.getNormalizer(request.normalizer());
+            if (analyzer == null) {
+                throw new IllegalArgumentException("failed to find normalizer under [" + request.normalizer() + "]");
+            }
+        } else if (((request.tokenFilters() != null && request.tokenFilters().size() > 0)
                 || (request.charFilters() != null && request.charFilters().size() > 0))) {
-            // normalizer + (tokenizer/analyzer) = no error, just ignore normalizer param
             final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
-            if (request.normalizer() != null) {
-                // Get normalizer from indexanalyzers
-                analyzer = indexAnalyzers.getNormalizer(request.normalizer());
-                if (analyzer == null) {
-                    throw new IllegalArgumentException("failed to find normalizer under [" + request.normalizer() + "]");
+            // custom normalizer = if normalizer == null but filter or char_filter is not null and tokenizer/analyzer is null
+            // get charfilter and filter from request
+            CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
+            charFilterFactories = getCharFilterFactories(request, indexSettings, analysisRegistry, environment, charFilterFactories);
+            for (CharFilterFactory charFilter : charFilterFactories) {
+                if (charFilter instanceof MultiTermAwareComponent == false) {
+                    throw new IllegalArgumentException("Custom normalizer may not use char filter ["
+                        + charFilter.name() + "]");
                 }
-            } else {
-                // custom normalizer = if normalizer == null but filter or char_filter is not null and tokenizer/analyzer is null
-                // get charfilter and filter from request
-                CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
-                charFilterFactories = getCharFilterFactories(request, indexSettings, analysisRegistry, environment, charFilterFactories);
-                for (CharFilterFactory charFilter : charFilterFactories) {
-                    if (charFilter instanceof MultiTermAwareComponent == false) {
-                        throw new IllegalArgumentException("Custom normalizer may not use char filter ["
-                            + charFilter.name() + "]");
-                    }
-                }
-
-                TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
-                tokenFilterFactories = getTokenFilterFactories(request, indexSettings, analysisRegistry, environment, tokenFilterFactories);
-                for (TokenFilterFactory tokenFilter : tokenFilterFactories) {
-                    if (tokenFilter instanceof MultiTermAwareComponent == false) {
-                        throw new IllegalArgumentException("Custom normalizer may not use filter ["
-                            + tokenFilter.name() + "]");
-                    }
-                }
-
-                analyzer = new CustomAnalyzer(
-                    PreBuiltTokenizers.KEYWORD.getTokenizerFactory(Version.CURRENT),
-                    charFilterFactories, tokenFilterFactories);
-                closeAnalyzer = true;
             }
 
+            TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
+            tokenFilterFactories = getTokenFilterFactories(request, indexSettings, analysisRegistry, environment, tokenFilterFactories);
+            for (TokenFilterFactory tokenFilter : tokenFilterFactories) {
+                if (tokenFilter instanceof MultiTermAwareComponent == false) {
+                    throw new IllegalArgumentException("Custom normalizer may not use filter ["
+                        + tokenFilter.name() + "]");
+                }
+            }
+
+            analyzer = new CustomAnalyzer("keyword_for_normalizer",
+                PreBuiltTokenizers.KEYWORD.getTokenizerFactory(Version.CURRENT),
+                charFilterFactories, tokenFilterFactories);
+            closeAnalyzer = true;
         } else if (analyzer == null) {
             if (indexAnalyzers == null) {
                 analyzer = analysisRegistry.getAnalyzer("standard");

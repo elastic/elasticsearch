@@ -223,6 +223,9 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         if ((index == null || index.length() == 0) && normalizer != null) {
             validationException = addValidationError("index is required if normalizer is specified", validationException);
         }
+        if (normalizer != null && (tokenizer != null || analyzer != null)) {
+            validationException = addValidationError("tokenizer/analyze should be null if normalizer is specified", validationException);
+        }
         return validationException;
     }
 
@@ -237,7 +240,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         field = in.readOptionalString();
         explain = in.readBoolean();
         attributes = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
             normalizer = in.readOptionalString();
         }
     }
@@ -253,7 +256,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         out.writeOptionalString(field);
         out.writeBoolean(explain);
         out.writeStringArray(attributes);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
             out.writeOptionalString(normalizer);
         }
     }

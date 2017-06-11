@@ -84,7 +84,7 @@ GET analyze_sample/_analyze
 // TEST[setup:analyze_sample]
 
 The above will run an analysis on the "this is a test" text, using the
-default index analyzer associated with the `twitter` index. An `analyzer`
+default index analyzer associated with the `analyze_sample` index. An `analyzer`
 can also be provided to use a different analyzer:
 
 [source,js]
@@ -114,7 +114,7 @@ GET analyze_sample/_analyze
 Will cause the analysis to happen based on the analyzer configured in the
 mapping for `obj1.field1` (and if not, the default index analyzer).
 
-A `normalizer` can be provided for keyword field with normalizer associated with the `twitter` index.
+A `normalizer` can be provided for keyword field with normalizer associated with the `analyze_sample` index.
 
 [source,js]
 --------------------------------------------------

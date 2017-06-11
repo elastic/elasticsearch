@@ -354,24 +354,24 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2L));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(139L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(146L));
         }
 
         translog.add(new Translog.Delete("test", "3", 2, newUid("3")));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3L));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(181L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(195L));
         }
 
         translog.add(new Translog.NoOp(3, 1, randomAlphaOfLength(16)));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(223L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(237L));
         }
 
-        final long expectedSizeInBytes = 266L;
+        final long expectedSizeInBytes = 280L;
         translog.rollGeneration();
         {
             final TranslogStats stats = stats();
@@ -2064,6 +2064,7 @@ public class TranslogTests extends ESTestCase {
      * that we can, after we hit an exception, open and recover the translog successfully and retrieve all successfully synced operations
      * from the transaction log.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25133")
     public void testWithRandomException() throws IOException {
         final int runs = randomIntBetween(5, 10);
         for (int run = 0; run < runs; run++) {
@@ -2263,6 +2264,20 @@ public class TranslogTests extends ESTestCase {
         in = out.bytes().streamInput();
         Translog.Delete serializedDelete = new Translog.Delete(in);
         assertEquals(delete, serializedDelete);
+
+        // simulate legacy delete serialization
+        out = new BytesStreamOutput();
+        out.writeVInt(Translog.Delete.FORMAT_5_0);
+        out.writeString(UidFieldMapper.NAME);
+        out.writeString("my_type#my_id");
+        out.writeLong(3); // version
+        out.writeByte(VersionType.INTERNAL.getValue());
+        out.writeLong(2); // seq no
+        out.writeLong(0); // primary term
+        in = out.bytes().streamInput();
+        serializedDelete = new Translog.Delete(in);
+        assertEquals("my_type", serializedDelete.type());
+        assertEquals("my_id", serializedDelete.id());
     }
 
     public void testRollGeneration() throws IOException {

@@ -240,7 +240,7 @@ public class ScriptServiceTests extends ESTestCase {
         ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id",
             StoredScriptSource.parse("_lang", script, XContentType.JSON));
         assertNotNull(scriptMetaData);
-        assertEquals("abc", scriptMetaData.getStoredScript("_id", "_lang").getCode());
+        assertEquals("abc", scriptMetaData.getStoredScript("_id", "_lang").getSource());
     }
 
     public void testDeleteScript() throws Exception {
@@ -266,7 +266,7 @@ public class ScriptServiceTests extends ESTestCase {
                         StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON)).build()))
             .build();
 
-        assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id", "_lang")).getCode());
+        assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id", "_lang")).getSource());
         assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id2", "_lang")));
 
         cs = ClusterState.builder(new ClusterName("_name")).build();

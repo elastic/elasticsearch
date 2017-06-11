@@ -85,11 +85,6 @@ public interface Processor {
         public final ScriptService scriptService;
 
         /**
-         * Provides template support to pipeline settings.
-         */
-        public final TemplateService templateService;
-
-        /**
          * Provide analyzer support
          */
         public final AnalysisRegistry analysisRegistry;
@@ -100,11 +95,10 @@ public interface Processor {
          */
         public final ThreadContext threadContext;
 
-        public Parameters(Environment env, ScriptService scriptService, TemplateService templateService,
+        public Parameters(Environment env, ScriptService scriptService,
                           AnalysisRegistry analysisRegistry, ThreadContext threadContext) {
             this.env = env;
             this.scriptService = scriptService;
-            this.templateService = templateService;
             this.threadContext = threadContext;
             this.analysisRegistry = analysisRegistry;
         }

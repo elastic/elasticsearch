@@ -852,7 +852,7 @@ public class TopHitsIT extends ESIntegTestCase {
     }
 
     public void testNestedFetchFeatures() {
-        String hlType = randomFrom("plain", "fvh", "postings");
+        String hlType = randomFrom("plain", "fvh", "unified");
         HighlightBuilder.Field hlField = new HighlightBuilder.Field("comments.message")
                 .highlightQuery(matchQuery("comments.message", "comment"))
                 .forceSource(randomBoolean()) // randomly from stored field or _source

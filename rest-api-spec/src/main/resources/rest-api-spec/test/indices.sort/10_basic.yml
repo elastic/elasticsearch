@@ -119,38 +119,6 @@
   - match: {hits.hits.0._id: "2" }
 
   - do:
-      search:
-        index: test
-        type: test
-        body:
-          sort: ["rank"]
-          size: 3
-
-  - is_true: terminated_early
-  - match: {hits.total: 8 }
-  - length: {hits.hits: 3 }
-  - match: {hits.hits.0._id: "2" }
-  - match: {hits.hits.1._id: "4" }
-  - match: {hits.hits.2._id: "3" }
-
-  - do:
-      search:
-        index: test
-        type: test
-        track_total_hits: false
-        body:
-          query: {"range": { "rank": { "from": 0 } } }
-          sort: ["rank"]
-          size: 3
-
-  - match: {terminated_early: true }
-  - match: {hits.total: -1 }
-  - length: {hits.hits: 3 }
-  - match: {hits.hits.0._id: "2" }
-  - match: {hits.hits.1._id: "4" }
-  - match: {hits.hits.2._id: "3" }
-
-  - do:
       indices.forcemerge:
         index: test
         max_num_segments: 1

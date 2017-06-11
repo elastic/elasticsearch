@@ -1,7 +1,7 @@
 ---
 "Non-existent type returns 404":
   - skip:
-      version: " - 5.99.99"
+      version: " - 5.5.99"
       reason: Previous versions did not 404 on missing types
   - do:
         indices.create:
@@ -26,7 +26,7 @@
 ---
 "No type matching pattern returns 404":
   - skip:
-      version: " - 5.99.99"
+      version: " - 5.5.99"
       reason: Previous versions did not 404 on missing types
   - do:
         indices.create:
@@ -52,7 +52,7 @@
 ---
 "Existent and non-existent type returns 404 and the existing type":
   - skip:
-      version: " - 5.99.99"
+      version: " - 5.5.99"
       reason: Previous versions did not 404 on missing types
   - do:
         indices.create:
@@ -78,7 +78,7 @@
 ---
 "Existent and non-existent types returns 404 and the existing type":
   - skip:
-      version: " - 5.99.99"
+      version: " - 5.5.99"
       reason: Previous versions did not 404 on missing types
   - do:
         indices.create:

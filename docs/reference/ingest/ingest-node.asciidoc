@@ -1770,7 +1770,7 @@ numeric fields `field_a` and `field_b` multiplied by the parameter param_c:
 {
   "script": {
     "lang": "painless",
-    "inline": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
+    "source": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
     "params": {
       "param_c": 10
     }
@@ -1791,7 +1791,7 @@ PUT _ingest/pipeline/my_index
     "processors": [
       {
         "script": {
-          "inline": " ctx._index = 'my_index'; ctx._type = 'my_type' "
+          "source": " ctx._index = 'my_index'; ctx._type = 'my_type' "
         }
       }
     ]

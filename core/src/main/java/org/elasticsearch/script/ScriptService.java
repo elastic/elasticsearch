@@ -256,7 +256,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             // the script has been updated since the last compilation
             StoredScriptSource source = getScriptFromClusterState(id, lang);
             lang = source.getLang();
-            idOrCode = source.getCode();
+            idOrCode = source.getSource();
             options = source.getOptions();
         }
 
@@ -429,7 +429,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 if (context == null) {
                     throw new IllegalArgumentException("Unknown context [" + request.context() + "]");
                 }
-                scriptEngine.compile(request.id(), source.getCode(), context, Collections.emptyMap());
+                scriptEngine.compile(request.id(), source.getSource(), context, Collections.emptyMap());
             }
         } catch (ScriptException good) {
             throw good;

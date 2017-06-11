@@ -122,7 +122,7 @@ a script to convert them on-the-fly:
                 "values" : [3, 5],
                 "script" : {
                     "lang": "painless",
-                    "inline": "doc['load_time'].value / params.timeUnit", <1>
+                    "source": "doc['load_time'].value / params.timeUnit", <1>
                     "params" : {
                         "timeUnit" : 1000   <2>
                     }
@@ -146,7 +146,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
             "percentile_ranks" : {
                 "values" : [3, 5],
                 "script" : {
-                    "stored": "my_script",
+                    "id": "my_script",
                     "params" : {
                         "timeUnit" : 1000
                     }

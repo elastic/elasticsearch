@@ -406,7 +406,7 @@ GET /_search
             "type" : "number",
             "script" : {
                 "lang": "painless",
-                "inline": "doc['field_name'].value * params.factor",
+                "source": "doc['field_name'].value * params.factor",
                 "params" : {
                     "factor" : 1.1
                 }

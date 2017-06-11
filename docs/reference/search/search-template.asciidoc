@@ -8,7 +8,7 @@ before they are executed and fill existing templates with template parameters.
 ------------------------------------------
 GET _search/template
 {
-    "inline" : {
+    "source" : {
       "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
       "size" : "{{my_size}}"
     },
@@ -41,7 +41,7 @@ disable scripts per type and context as described in the
 ------------------------------------------
 GET _search/template
 {
-    "inline": {
+    "source": {
         "query": {
             "term": {
                 "message": "{{query_string}}"
@@ -66,7 +66,7 @@ like maps and array to their JSON representation:
 ------------------------------------------
 GET _search/template
 {
-  "inline": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
+  "source": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
   "params": {
     "statuses" : {
         "status": [ "pending", "published" ]
@@ -99,7 +99,7 @@ A more complex example substitutes an array of JSON objects:
 ------------------------------------------
 GET _search/template
 {
-    "inline": "{\"query\":{\"bool\":{\"must\": {{#toJson}}clauses{{/toJson}} }}}",
+    "source": "{\"query\":{\"bool\":{\"must\": {{#toJson}}clauses{{/toJson}} }}}",
     "params": {
         "clauses": [
             { "term": { "user" : "foo" } },
@@ -145,7 +145,7 @@ values of an array as a comma delimited string:
 ------------------------------------------
 GET _search/template
 {
-  "inline": {
+  "source": {
     "query": {
       "match": {
         "emails": "{{#join}}emails{{/join}}"
@@ -179,7 +179,7 @@ The function also accepts a custom delimiter:
 ------------------------------------------
 GET _search/template
 {
-  "inline": {
+  "source": {
     "query": {
       "range": {
         "born": {
@@ -228,7 +228,7 @@ A default value is written as `{{var}}{{^var}}default{{/var}}` for instance:
 [source,js]
 ------------------------------------------
 {
-  "inline": {
+  "source": {
     "query": {
       "range": {
         "line_no": {
@@ -348,7 +348,7 @@ via the REST API, should be written as a string:
 
 [source,js]
 --------------------
-"inline": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
+"source": "{\"query\":{\"bool\":{\"must\":{\"match\":{\"line\":\"{{text}}\"}},\"filter\":{{{#line_no}}\"range\":{\"line_no\":{{{#start}}\"gte\":\"{{start}}\"{{#end}},{{/end}}{{/start}}{{#end}}\"lte\":\"{{end}}\"{{/end}}}}{{/line_no}}}}}}"
 --------------------
 // NOTCONSOLE
 ==================================
@@ -366,7 +366,7 @@ As an example, it is useful to encode a URL:
 ------------------------------------------
 GET _render/template
 {
-    "inline" : {
+    "source" : {
         "query" : {
             "term": {
                 "http_access_log": "{{#url}}{{host}}/{{page}}{{/url}}"
@@ -507,7 +507,7 @@ A template can be rendered in a response with given parameters using
 ------------------------------------------
 GET _render/template
 {
-  "inline": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
+  "source": "{ \"query\": { \"terms\": {{#toJson}}statuses{{/toJson}} }}",
   "params": {
     "statuses" : {
         "status": [ "pending", "published" ]
@@ -616,9 +616,9 @@ stored and file templates. Here is an example:
 --------------------------------------------------
 $ cat requests
 {"index": "test"}
-{"inline": {"query": {"match":  {"user" : "{{username}}" }}}, "params": {"username": "john"}} <1>
+{"source": {"query": {"match":  {"user" : "{{username}}" }}}, "params": {"username": "john"}} <1>
 {"index": "_all", "types": "accounts"}
-{"inline": {"query": {"{{query_type}}": {"name": "{{name}}" }}}, "params": {"query_type": "match_phrase_prefix", "name": "Smith"}}
+{"source": {"query": {"{{query_type}}": {"name": "{{name}}" }}}, "params": {"query_type": "match_phrase_prefix", "name": "Smith"}}
 {"index": "_all"}
 {"id": "template_1", "params": {"query_string": "search for these words" }} <2>
 

@@ -158,7 +158,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 "\"_script\" : {\n" +
                     "\"type\" : \"number\",\n" +
                     "\"script\" : {\n" +
-                        "\"inline\": \"doc['field_name'].value * factor\",\n" +
+                        "\"source\": \"doc['field_name'].value * factor\",\n" +
                         "\"params\" : {\n" +
                             "\"factor\" : 1.1\n" +
                             "}\n" +

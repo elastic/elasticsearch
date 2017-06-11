@@ -71,7 +71,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
             } else {
                 request.setScript(parser.text());
             }
-        }, new ParseField("inline", "template"), ObjectParser.ValueType.OBJECT_OR_STRING);
+        }, new ParseField("source", "inline", "template"), ObjectParser.ValueType.OBJECT_OR_STRING);
     }
 
     public RestSearchTemplateAction(Settings settings, RestController controller) {

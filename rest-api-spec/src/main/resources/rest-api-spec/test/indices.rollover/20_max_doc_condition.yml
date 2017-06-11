@@ -1,5 +1,9 @@
 ---
-"Rollover conditions matched with replica node":
+"Max docs rollover conditions matches only primary shards":
+  - skip:
+        version: "- 5.6.1"
+        reason:  "matching docs changed from all shards to primary shards"
+
   # create index with alias and replica
   - do:
       indices.create:

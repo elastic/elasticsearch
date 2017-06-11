@@ -19,3 +19,13 @@ Elasticsearch accepted a flag `ES_SKIP_SET_KERNEL_PARAMTERS` to skip this
 writing. Starting in Elasticsearch 5.5.0, this flag has been removed and
 instead the same functionality can be achieved by masking the `systemd-sysctl`
 service.
+
+[[breaking_55_rest_changes]]
+[float]
+=== 404s on get alias and get mapping APIs
+
+Previous versions of Elasticsearch did not return a 404 in all cases when a
+requested alias or a requested type did not exist on the get alias or get
+mapping APIs, respectively. Starting in Elasticsearch 5.5.0, these APIs
+consistently return a 404 in any case when an alias or type is requested that
+does not exist.

@@ -46,7 +46,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
     private final boolean trackMaxScore;
 
     CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort,
-                                       int topN, boolean trackMaxScore) throws IOException {
+                                       int topN, boolean trackMaxScore) {
         super(groupSelector, sort, topN);
         this.collapseField = collapseField;
         this.trackMaxScore = trackMaxScore;
@@ -60,7 +60,7 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
 
     /**
      * Transform {@link FirstPassGroupingCollector#getTopGroups(int, boolean)} output in
-     * {@link CollapseTopFieldDocs}. The collapsing needs only one pass so we can create the final top docs at the end
+     * {@link CollapseTopFieldDocs}. The collapsing needs only one pass so we can get the final top docs at the end
      * of the first pass.
      */
     public CollapseTopFieldDocs getTopDocs() throws IOException {
@@ -132,10 +132,9 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      *                      This must be non-null, ie, if you want to groupSort by relevance
      *                      use Sort.RELEVANCE.
      * @param topN          How many top groups to keep.
-     * @throws IOException When I/O related errors occur
      */
     public static CollapsingTopDocsCollector<?> createNumeric(String collapseField, Sort sort,
-                                                              int topN, boolean trackMaxScore) throws IOException {
+                                                              int topN, boolean trackMaxScore)  {
         return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseField),
                 collapseField, sort, topN, trackMaxScore);
     }
@@ -152,12 +151,10 @@ public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollec
      *                      document per collapsed key.
      *                      This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
      * @param topN          How many top groups to keep.
-     * @throws IOException When I/O related errors occur
      */
     public static CollapsingTopDocsCollector<?> createKeyword(String collapseField, Sort sort,
-                                                              int topN, boolean trackMaxScore) throws IOException {
+                                                              int topN, boolean trackMaxScore)  {
         return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseField),
                 collapseField, sort, topN, trackMaxScore);
     }
 }
-

@@ -41,7 +41,6 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.highlight.DefaultEncoder;
-import org.apache.lucene.search.highlight.Snippet;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.all.AllTermQuery;

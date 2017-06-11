@@ -18,7 +18,7 @@
             script:
               script:
                 lang: painless
-                inline: throw new IllegalArgumentException("Cats!")
+                source: throw new IllegalArgumentException("Cats!")
   - match: {updated: 0}
   - match: {version_conflicts: 0}
   - match: {batches: 0}

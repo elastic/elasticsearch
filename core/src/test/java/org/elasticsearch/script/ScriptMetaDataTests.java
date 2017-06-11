@@ -56,11 +56,11 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         builder.storeScript("any", StoredScriptSource.parse("lang", sourceBuilder.bytes(), sourceBuilder.contentType()));
 
         ScriptMetaData scriptMetaData = builder.build();
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("template", "lang").getCode());
-        assertEquals("value", scriptMetaData.getStoredScript("template_field", "lang").getCode());
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("script", "lang").getCode());
-        assertEquals("value", scriptMetaData.getStoredScript("script_field", "lang").getCode());
-        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("any", "lang").getCode());
+        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("template", "lang").getSource());
+        assertEquals("value", scriptMetaData.getStoredScript("template_field", "lang").getSource());
+        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("script", "lang").getSource());
+        assertEquals("value", scriptMetaData.getStoredScript("script_field", "lang").getSource());
+        assertEquals("{\"field\":\"value\"}", scriptMetaData.getStoredScript("any", "lang").getSource());
     }
 
     public void testDiff() throws Exception {
@@ -85,9 +85,9 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         assertNotNull(((DiffableUtils.MapDiff) diff.pipelines).getUpserts().get("4"));
 
         ScriptMetaData result = (ScriptMetaData) diff.apply(scriptMetaData1);
-        assertEquals("{\"foo\":\"abc\"}", result.getStoredScript("1", "lang").getCode());
-        assertEquals("{\"foo\":\"changed\"}", result.getStoredScript("2", "lang").getCode());
-        assertEquals("{\"foo\":\"jkl\"}", result.getStoredScript("4", "lang").getCode());
+        assertEquals("{\"foo\":\"abc\"}", result.getStoredScript("1", "lang").getSource());
+        assertEquals("{\"foo\":\"changed\"}", result.getStoredScript("2", "lang").getSource());
+        assertEquals("{\"foo\":\"jkl\"}", result.getStoredScript("4", "lang").getSource());
     }
 
     public void testBuilder() {
@@ -95,7 +95,7 @@ public class ScriptMetaDataTests extends AbstractSerializingTestCase<ScriptMetaD
         builder.storeScript("_id", StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"1 + 1\"}"), XContentType.JSON));
 
         ScriptMetaData result = builder.build();
-        assertEquals("1 + 1", result.getStoredScript("_id", "_lang").getCode());
+        assertEquals("1 + 1", result.getStoredScript("_id", "_lang").getSource());
     }
 
     private ScriptMetaData randomScriptMetaData(XContentType sourceContentType) throws IOException {

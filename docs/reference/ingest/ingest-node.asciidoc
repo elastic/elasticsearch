@@ -1454,6 +1454,32 @@ second (index starts at zero) pattern in `patterns` to match.
 This trace metadata enables debugging which of the patterns matched. This information is stored in the ingest
 metadata and will not be indexed.
 
+[[grok-processor-rest-get]]
+==== Retrieving patterns from REST endpoint
+
+The Grok Processor comes packaged with its own REST endpoint for retrieving which patterns the processor is packaged with.
+
+[source,js]
+--------------------------------------------------
+GET _ingest/processor/grok
+--------------------------------------------------
+// CONSOLE
+
+The above request will return a response body containing a key-value representation of the built-in patterns dictionary.
+
+[source,js]
+--------------------------------------------------
+{
+  "patterns" : {
+    "BACULA_CAPACITY" : "%{INT}{1,3}(,%{INT}{3})*",
+    "PATH" : "(?:%{UNIXPATH}|%{WINPATH})",
+    ...
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+This can be useful to reference as the built-in patterns change across versions.
+
 [[gsub-processor]]
 === Gsub Processor
 Converts a string field by applying a regular expression and a replacement.
@@ -1651,21 +1677,35 @@ Converts a string to its lowercase equivalent.
 
 [[remove-processor]]
 === Remove Processor
-Removes an existing field. If the field doesn't exist, an exception will be thrown.
+Removes existing fields. If one field doesn't exist, an exception will be thrown.
 
 [[remove-options]]
 .Remove Options
 [options="header"]
 |======
 | Name      | Required  | Default  | Description
-| `field`   | yes       | -        | The field to be removed
+| `field`   | yes       | -        | Fields to be removed
 |======
+
+Here is an example to remove a single field:
 
 [source,js]
 --------------------------------------------------
 {
   "remove": {
     "field": "foo"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+To remove multiple fields, you can use the following query:
+
+[source,js]
+--------------------------------------------------
+{
+  "remove": {
+    "field": ["foo", "bar"]
   }
 }
 --------------------------------------------------
@@ -1730,7 +1770,7 @@ numeric fields `field_a` and `field_b` multiplied by the parameter param_c:
 {
   "script": {
     "lang": "painless",
-    "inline": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
+    "source": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
     "params": {
       "param_c": 10
     }
@@ -1751,7 +1791,7 @@ PUT _ingest/pipeline/my_index
     "processors": [
       {
         "script": {
-          "inline": " ctx._index = 'my_index'; ctx._type = 'my_type' "
+          "source": " ctx._index = 'my_index'; ctx._type = 'my_type' "
         }
       }
     ]

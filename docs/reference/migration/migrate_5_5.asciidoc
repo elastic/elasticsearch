@@ -9,7 +9,7 @@ Previous versions of Elasticsearch would skip hidden files and directories when
 scanning the plugins folder. This allows broken plugin installs to remain
 undetected so this leniency has been removed.
 
-[[breaking_54_packaging_changes]]
+[[breaking_55_packaging_changes]]
 [float]
 === Skip setting kernel parameters
 

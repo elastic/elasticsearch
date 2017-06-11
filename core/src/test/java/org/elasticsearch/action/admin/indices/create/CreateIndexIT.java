@@ -335,4 +335,12 @@ public class CreateIndexIT extends ESIntegTestCase {
 
         assertTrue(createPartitionedIndex.apply(1, 1));
     }
+
+    public void testIndexNameInResponse() {
+        CreateIndexResponse response = prepareCreate("foo")
+            .setSettings(Settings.builder().build())
+            .get();
+
+        assertEquals("Should have index name in response", "foo", response.index());
+    }
 }

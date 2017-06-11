@@ -1939,7 +1939,7 @@ public class InternalEngineTests extends ESTestCase {
         indexResult = engine.index(index);
         assertFalse(indexResult.isCreated());
 
-        engine.delete(new Engine.Delete(null, "1", newUid(doc)));
+        engine.delete(new Engine.Delete("doc", "1", newUid(doc)));
 
         index = indexForDoc(doc);
         indexResult = engine.index(index);

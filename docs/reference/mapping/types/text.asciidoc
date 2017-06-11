@@ -12,6 +12,7 @@ is a notable exception).
 
 If you need to index structured content such as email addresses, hostnames, status
 codes, or tags, it is likely that you should rather use a <<keyword,`keyword`>> field.
+codes, or tags, it is likely that you should rather use a <<keyword,`keyword`>> field.
 
 Below is an example of a mapping for a text field:
 
@@ -121,7 +122,7 @@ The following parameters are accepted by `text` fields:
 <<similarity,`similarity`>>::
 
     Which scoring algorithm or _similarity_ should be used. Defaults
-    to `classic`, which uses TF/IDF.
+    to `BM25`.
 
 <<term-vector,`term_vector`>>::
 

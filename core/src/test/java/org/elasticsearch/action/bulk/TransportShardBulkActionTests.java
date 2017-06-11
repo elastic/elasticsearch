@@ -541,11 +541,13 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         itemRequests[0] = itemRequest;
         BulkShardRequest bulkShardRequest = new BulkShardRequest(
                 shard.shardId(), RefreshPolicy.NONE, itemRequests);
+        bulkShardRequest.primaryTerm(randomIntBetween(1, (int) shard.getPrimaryTerm()));
         TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
         ArgumentCaptor<Engine.NoOp> noOp = ArgumentCaptor.forClass(Engine.NoOp.class);
         verify(shard, times(1)).markSeqNoAsNoOp(noOp.capture());
         final Engine.NoOp noOpValue = noOp.getValue();
         assertThat(noOpValue.seqNo(), equalTo(1L));
+        assertThat(noOpValue.primaryTerm(), equalTo(bulkShardRequest.primaryTerm()));
         assertThat(noOpValue.reason(), containsString(failureMessage));
         closeShards(shard);
     }

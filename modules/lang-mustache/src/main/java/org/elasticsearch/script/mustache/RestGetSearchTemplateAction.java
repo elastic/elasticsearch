@@ -74,7 +74,7 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
                 builder.field(FOUND_PARSE_FIELD.getPreferredName(), found);
 
                 if (found) {
-                    builder.field(StoredScriptSource.TEMPLATE_PARSE_FIELD.getPreferredName(), source.getCode());
+                    builder.field(StoredScriptSource.TEMPLATE_PARSE_FIELD.getPreferredName(), source.getSource());
                 }
 
                 builder.endObject();

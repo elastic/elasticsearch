@@ -168,6 +168,16 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         }
     }
 
+    public void testException() throws IOException {
+        /*
+         * This will throw an index not found exception which will be sent on the channel; previously when handling HEAD requests that would
+         * throw an exception, the content was swallowed and a content length header of zero was returned. Instead of swallowing the content
+         * we now let it rise up to the upstream channel so that it can compute the content length that would be returned. This test case is
+         * a test for this situation.
+         */
+        headTestCase("/index-not-found-exception", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
+    }
+
     private void headTestCase(final String url, final Map<String, String> params, final Matcher<Integer> matcher) throws IOException {
         headTestCase(url, params, OK.getStatus(), matcher);
     }

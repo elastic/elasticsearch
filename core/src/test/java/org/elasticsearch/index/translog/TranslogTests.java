@@ -159,7 +159,8 @@ public class TranslogTests extends ESTestCase {
         if (deletionPolicy.pendingViewsCount() == 0) {
             assertThat(deletionPolicy.minTranslogGenRequired(), equalTo(genToCommit));
         }
-        assertThat(translog.getMinFileGeneration(), equalTo(deletionPolicy.minTranslogGenRequired()));
+        // we may have some views closed concurrently causing the deletion policy to increase it's minTranslogGenRequired
+        assertThat(translog.getMinFileGeneration(), lessThanOrEqualTo(deletionPolicy.minTranslogGenRequired()));
     }
 
     @Override

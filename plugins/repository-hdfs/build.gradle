@@ -29,6 +29,8 @@ esplugin {
   classname 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
+apply plugin: 'elasticsearch.vagrantsupport'
+
 versions << [
   'hadoop2': '2.7.1'
 ]
@@ -83,6 +85,7 @@ task krb5kdcUpdate(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
   subcommand 'update'
   boxName box
   environmentVars vagrantEnvVars
+  dependsOn "vagrantCheckVersion", "virtualboxCheckVersion"
 }
 
 task krb5kdcFixture(type: org.elasticsearch.gradle.test.VagrantFixture) {
@@ -125,7 +128,7 @@ task secureHdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
           "${keytabPath}"
 }
 
-boolean fixtureSupported = false;
+boolean fixtureSupported = false
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   // hdfs fixture will not start without hadoop native libraries on windows
   String nativePath = System.getenv("HADOOP_HOME")
@@ -153,60 +156,38 @@ if (fixtureSupported) {
   integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
 }
 
-boolean secureFixtureSupported = false;
+boolean secureFixtureSupported = false
 if (fixtureSupported) {
-  // Only do secure fixture support if the regular fixture is supported,
-  // and if vagrant is installed. The ignoreExitValue on exec only matters
-  // in cases where the command can be found and successfully started. In
-  // situations where the vagrant command isn't able to be started at all
-  // (it's not installed) then Gradle still throws ExecException.
-  ByteArrayOutputStream pipe = new ByteArrayOutputStream()
-  try {
-    ExecResult runResult = exec {
-      commandLine 'vagrant', '--version'
-      standardOutput pipe
-      ignoreExitValue true
-    }
-    String output = pipe.toString().trim()
-    if (runResult.exitValue == 0) {
-      secureFixtureSupported = (output ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/)
-    } else {
-      logger.warn("Could not read installed vagrant version:\n" + output)
-    }
-  } catch (org.gradle.process.internal.ExecException e) {
-    logger.warn("Could not find vagrant: " + e.message)
-    // Swallow error. Vagrant isn't installed. Leave secure fixture support off.
-  }
+  secureFixtureSupported = project.rootProject.vagrantSupported
 }
 
 // Create a Integration Test suite just for security based tests
-if (secureFixtureSupported && false) { // This fails due to a vagrant configuration issue - remove the false check to re-enable
-  // This must execute before the afterEvaluate block from integTestSecure
-  project.afterEvaluate {
-    Path elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("elasticsearch.keytab").toAbsolutePath()
-    Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
+// This must execute before the afterEvaluate block from integTestSecure
+project.afterEvaluate {
+  Path elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("elasticsearch.keytab").toAbsolutePath()
+  Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
 
-    project.integTestSecureCluster.dependsOn(project.bundlePlugin)
-    project.integTestSecure.clusterConfig.plugin(project.path)
-    project.integTestSecure.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
-    project.integTestSecure.clusterConfig.jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-            " " + "-Djava.security.krb5.conf=${krb5conf}" +
-            " " + System.getProperty('tests.jvm.argline', '')
-  }
+  project.integTestSecureCluster.dependsOn(project.bundlePlugin)
+  project.integTestSecure.clusterConfig.plugin(project.path)
+  project.integTestSecure.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
+  project.integTestSecure.clusterConfig.jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+          " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+          " " + "-Djava.security.krb5.conf=${krb5conf}" +
+          " " + System.getProperty('tests.jvm.argline', '')
+}
 
-  RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', RestIntegTestTask.class) {
-    description = "Runs rest tests against an elasticsearch cluster with HDFS secured by MIT Kerberos."
-  }
+RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', RestIntegTestTask.class) {
+  description = "Runs rest tests against an elasticsearch cluster with HDFS secured by MIT Kerberos."
+}
 
-  integTestSecure.mustRunAfter(project.integTest)
+if (secureFixtureSupported) {
   project.check.dependsOn(integTestSecure)
 
   // Fixture dependencies
   integTestSecureCluster.dependsOn secureHdfsFixture, krb5kdcFixture
   integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
 } else {
-  logger.warn("secured hdfsFixture is unsupported, please install Vagrant 1.8.6+ to enable")
+  integTestSecure.enabled = false
 }
 
 thirdPartyAudit.excludes = [

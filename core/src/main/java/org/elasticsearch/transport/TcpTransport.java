@@ -524,6 +524,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             try {
                 AtomicBoolean runOnce = new AtomicBoolean(false);
                 Consumer<Channel> onClose = c -> {
+                    assert isOpen(c) == false : "channel is still open when onClose is called";
                     try {
                         onChannelClosed(c);
                     } finally {

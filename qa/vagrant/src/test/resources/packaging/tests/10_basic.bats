@@ -50,3 +50,12 @@ setup() {
     assert_file "$ESCONFIG/x-pack/role_mapping.yml" f elasticsearch elasticsearch 660
     assert_file "$ESCONFIG/x-pack/log4j2.properties" f elasticsearch elasticsearch 660
 }
+
+@test "[X-PACK] verify croneval works" {
+    run $ESHOME/bin/x-pack/croneval "0 0 20 ? * MON-THU" -c 2
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Valid!"* ]] || {
+      echo "Expected output message to contain [Valid!] but found: $output"
+      false
+    }
+}

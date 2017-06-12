@@ -93,10 +93,6 @@ fi
 
 declare -a args=("$@")
 
-if [ -e "$CONF_DIR" ]; then
-  args=("${args[@]}" -Edefault.path.conf="$CONF_DIR")
-fi
-
 cd "$ES_HOME" > /dev/null
 "$JAVA" $ES_JAVA_OPTS -cp "$ES_CLASSPATH" -Des.path.home="$ES_HOME" org.elasticsearch.xpack.watcher.trigger.schedule.tool.CronEvalTool "${args[@]}"
 status=$?

@@ -46,7 +46,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public static DatafeedConfig createRandomizedDatafeedConfig(String jobId, long bucketSpanMillis) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(randomValidDatafeedId(), jobId);
         builder.setIndices(randomStringList(1, 10));
-        builder.setTypes(randomStringList(1, 10));
+        builder.setTypes(randomStringList(0, 10));
         if (randomBoolean()) {
             builder.setQuery(QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)));
         }
@@ -119,12 +119,10 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     public void testFillDefaults() {
         DatafeedConfig.Builder expectedDatafeedConfig = new DatafeedConfig.Builder("datafeed1", "job1");
         expectedDatafeedConfig.setIndices(Collections.singletonList("index"));
-        expectedDatafeedConfig.setTypes(Collections.singletonList("type"));
         expectedDatafeedConfig.setQueryDelay(TimeValue.timeValueMinutes(1));
         expectedDatafeedConfig.setScrollSize(1000);
         DatafeedConfig.Builder defaultedDatafeedConfig = new DatafeedConfig.Builder("datafeed1", "job1");
         defaultedDatafeedConfig.setIndices(Collections.singletonList("index"));
-        defaultedDatafeedConfig.setTypes(Collections.singletonList("type"));
 
         assertEquals(expectedDatafeedConfig.build(), defaultedDatafeedConfig.build());
     }

@@ -534,7 +534,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (indices == null || indices.isEmpty() || indices.contains(null) || indices.contains("")) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
             }
-            if (types == null || types.isEmpty() || types.contains(null) || types.contains("")) {
+            if (types == null || types.contains(null) || types.contains("")) {
                 throw invalidOptionValue(TYPES.getPreferredName(), types);
             }
             validateAggregations();

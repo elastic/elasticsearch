@@ -141,14 +141,14 @@ public class WatcherService extends AbstractComponent {
     /**
      * Stops the watcher service and it's subservices. Should only be called, when watcher is stopped manually
      */
-    public void stop() {
+    public void stop(String reason) {
         WatcherState currentState = state.get();
         if (currentState == WatcherState.STOPPING || currentState == WatcherState.STOPPED) {
             logger.trace("watcher is already in state [{}] not stopping", currentState);
         } else {
             try {
                 if (state.compareAndSet(WatcherState.STARTED, WatcherState.STOPPING)) {
-                    logger.debug("stopping watch service...");
+                    logger.debug("stopping watch service, reason [{}]", reason);
                     triggerService.stop();
                     executionService.stop();
                     state.set(WatcherState.STOPPED);

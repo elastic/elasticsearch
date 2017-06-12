@@ -51,7 +51,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
-                stop();
+                stop("stopping before shutting down");
             }
         });
         watcherMetaData = new WatcherMetaData(!settings.getAsBoolean("xpack.watcher.start_immediately", true));
@@ -61,8 +61,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         start(clusterService.state(), true);
     }
 
-    public void stop() {
-        watcherService.stop();
+    public void stop(String reason) {
+        watcherService.stop(reason);
     }
 
     private synchronized void start(ClusterState state, boolean manual) {
@@ -115,8 +115,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
 
         boolean currentWatcherStopped = watcherMetaData != null && watcherMetaData.manuallyStopped() == true;
         if (currentWatcherStopped) {
-            logger.debug("watcher manually marked to shutdown in cluster state update, shutting down");
-            executor.execute(this::stop);
+            executor.execute(() -> this.stop("watcher manually marked to shutdown in cluster state update, shutting down"));
         } else {
             if (watcherService.state() == WatcherState.STARTED && event.state().nodes().getLocalNode().isDataNode()) {
                 DiscoveryNode localNode = event.state().nodes().getLocalNode();

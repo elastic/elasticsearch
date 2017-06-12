@@ -198,7 +198,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     @After
     public void tearDown() throws Exception {
         if (watcherEnabled != null && watcherEnabled) {
-            internalCluster().getInstance(WatcherLifeCycleService.class, internalCluster().getMasterName()).stop();
+            internalCluster().getInstances(WatcherLifeCycleService.class)
+                    .forEach(w -> w.stop("tearing down watcher as part of monitoring test case"));
         }
         stopMonitoringService();
         super.tearDown();

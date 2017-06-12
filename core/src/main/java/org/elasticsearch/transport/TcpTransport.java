@@ -522,7 +522,19 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         try {
             ensureOpen();
             try {
-                nodeChannels = connectToChannels(node, connectionProfile, this::onChannelClosed);
+                AtomicBoolean runOnce = new AtomicBoolean(false);
+                Consumer<Channel> onClose = c -> {
+                    try {
+                        onChannelClosed(c);
+                    } finally {
+                        // we only need to disconnect from the nodes once since all other channels
+                        // will also try to run this we protect it from running multiple times.
+                        if (runOnce.compareAndSet(false, true)) {
+                            disconnectFromNodeChannel(c, "channel closed");
+                        }
+                    }
+                };
+                nodeChannels = connectToChannels(node, connectionProfile, onClose);
                 final Channel channel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
                 final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
                     defaultConnectionProfile.getConnectTimeout() :
@@ -1628,20 +1640,16 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * Called once the channel is closed for instance due to a disconnect or a closed socket etc.
      */
     private final void onChannelClosed(Channel channel) {
-        try {
-            final Optional<Long> first = pendingHandshakes.entrySet().stream()
-                .filter((entry) -> entry.getValue().channel == channel).map((e) -> e.getKey()).findFirst();
-            if (first.isPresent()) {
-                final Long requestId = first.get();
-                final HandshakeResponseHandler handler = pendingHandshakes.remove(requestId);
-                if (handler != null) {
-                    // there might be a race removing this or this method might be called twice concurrently depending on how
-                    // the channel is closed ie. due to connection reset or broken pipes
-                    handler.handleException(new TransportException("connection reset"));
-                }
+        final Optional<Long> first = pendingHandshakes.entrySet().stream()
+            .filter((entry) -> entry.getValue().channel == channel).map((e) -> e.getKey()).findFirst();
+        if (first.isPresent()) {
+            final Long requestId = first.get();
+            final HandshakeResponseHandler handler = pendingHandshakes.remove(requestId);
+            if (handler != null) {
+                // there might be a race removing this or this method might be called twice concurrently depending on how
+                // the channel is closed ie. due to connection reset or broken pipes
+                handler.handleException(new TransportException("connection reset"));
             }
-        } finally {
-            disconnectFromNodeChannel(channel, "channel closed");
         }
     }
 

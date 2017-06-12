@@ -176,12 +176,10 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (Version v : VersionUtils.allReleasedVersions()) {
-            // The current version is in the "released" list even though it isn't released for historical reasons
-            if (v == Version.CURRENT) continue;
-            if (v.isRelease() == false) continue; // no guarantees for prereleases
-            if (v.before(Version.CURRENT.minimumIndexCompatibilityVersion())) continue; // we can only support one major version backward
-            if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
-            expectedVersions.add("index-" + v.toString() + ".zip");
+            if (v.isRelease()) {
+                // no guarantees for prereleases
+                expectedVersions.add("index-" + v.toString() + ".zip");
+            }
         }
 
         for (String index : indexes) {

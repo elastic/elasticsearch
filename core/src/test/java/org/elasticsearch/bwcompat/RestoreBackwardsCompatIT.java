@@ -90,11 +90,10 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (Version v : VersionUtils.allReleasedVersions()) {
             // The current version is in the "released" list even though it isn't released for historical reasons
-            if (v == Version.CURRENT) continue;
-            if (v.isRelease() == false) continue; // no guarantees for prereleases
-            if (v.before(Version.CURRENT.minimumIndexCompatibilityVersion())) continue; // we only support versions N and N-1
-            if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
-            expectedVersions.add(v.toString());
+            if (v.isRelease()) {
+                // no guarantees for prereleases
+                expectedVersions.add(v.toString());
+            }
         }
 
         for (String repoVersion : repoVersions) {

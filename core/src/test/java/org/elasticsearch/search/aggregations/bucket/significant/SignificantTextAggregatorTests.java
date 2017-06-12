@@ -137,12 +137,13 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < 10; i++) {
                 Document doc = new Document();
                 doc.add(new Field("text", "foo", textFieldType));
-                String json ="{ \"text\" : [\"foo\",\"foo\"]}";
+                String json ="{ \"text\" : [\"foo\",\"foo\"], \"title\" : [\"foo\", \"foo\"]}";
                 doc.add(new StoredField("_source", new BytesRef(json)));
                 w.addDocument(doc);
             }
 
             SignificantTextAggregationBuilder sigAgg = new SignificantTextAggregationBuilder("sig_text", "text");
+            sigAgg.sourceFieldNames(Arrays.asList(new String [] {"title", "text"}));
             try (IndexReader reader = DirectoryReader.open(w)) {
                 assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);                                

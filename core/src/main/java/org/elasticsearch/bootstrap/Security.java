@@ -273,8 +273,9 @@ final class Security {
              * on macOS).
              */
             try {
-                if (!dataFilesPaths.add(path.toRealPath())) {
-                    throw new IllegalStateException("path [" + path.toRealPath() + "] is duplicated by [" + path + "]");
+                final Path realPath = path.toRealPath();
+                if (!dataFilesPaths.add(realPath)) {
+                    throw new IllegalStateException("path [" + realPath + "] is duplicated by [" + path + "]");
                 }
             } catch (final IOException e) {
                 throw new IllegalStateException("unable to access [" + path + "]", e);

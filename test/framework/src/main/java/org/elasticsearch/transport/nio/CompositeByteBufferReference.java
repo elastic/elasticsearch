@@ -177,7 +177,7 @@ public class CompositeByteBufferReference extends NetworkBytesReference {
     }
 
     public ByteBuffer[] getWriteByteBuffers() {
-        if (getWriteRemaining() == 0) {
+        if (hasWriteRemaining() == false) {
             return new ByteBuffer[0];
         }
 
@@ -195,7 +195,7 @@ public class CompositeByteBufferReference extends NetworkBytesReference {
     }
 
     public ByteBuffer[] getReadByteBuffers() {
-        if (getReadRemaining() == 0) {
+        if (hasReadRemaining() == false) {
             return new ByteBuffer[0];
         }
 

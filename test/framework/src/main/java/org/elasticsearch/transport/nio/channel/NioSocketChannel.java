@@ -75,7 +75,7 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     public int write(NetworkBytesReference reference) throws IOException {
         int totalWritten = 0;
-        while (reference.getReadRemaining() != 0) {
+        while (reference.hasReadRemaining()) {
             int written;
             if (!reference.hasMultipleBuffers()) {
                 written = socketChannel.write(reference.getReadByteBuffer());

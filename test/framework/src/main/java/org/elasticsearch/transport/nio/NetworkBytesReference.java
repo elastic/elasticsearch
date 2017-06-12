@@ -52,6 +52,10 @@ public abstract class NetworkBytesReference extends BytesReference {
         return length - writeIndex;
     }
 
+    public boolean hasWriteRemaining() {
+        return getWriteRemaining() > 0;
+    }
+
     public int getReadIndex() {
         return readIndex;
     }
@@ -67,6 +71,10 @@ public abstract class NetworkBytesReference extends BytesReference {
 
     public int getReadRemaining() {
         return writeIndex - readIndex;
+    }
+
+    public boolean hasReadRemaining() {
+        return getReadRemaining() > 0;
     }
 
     public void resetIndices() {

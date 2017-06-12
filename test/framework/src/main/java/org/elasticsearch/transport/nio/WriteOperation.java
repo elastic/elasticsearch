@@ -50,7 +50,7 @@ public class WriteOperation {
     }
 
     public boolean isFullyFlushed() {
-        return networkBuffer.getReadRemaining() == 0;
+        return networkBuffer.hasReadRemaining() == false;
     }
 
     public int flush() throws IOException {

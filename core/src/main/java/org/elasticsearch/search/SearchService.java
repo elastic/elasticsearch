@@ -48,6 +48,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -127,6 +128,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final ScriptService scriptService;
 
+    private final ResponseCollectorService responseCollectorService;
+
     private final BigArrays bigArrays;
 
     private final DfsPhase dfsPhase = new DfsPhase();
@@ -148,12 +151,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final ConcurrentMapLong<SearchContext> activeContexts = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
     public SearchService(ClusterService clusterService, IndicesService indicesService,
-                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase) {
+                         ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
+                         ResponseCollectorService responseCollectorService) {
         super(clusterService.getSettings());
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.scriptService = scriptService;
+        this.responseCollectorService = responseCollectorService;
         this.bigArrays = bigArrays;
         this.queryPhase = new QueryPhase(settings);
         this.fetchPhase = fetchPhase;
@@ -516,7 +521,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Engine.Searcher engineSearcher = searcher == null ? indexShard.acquireSearcher("search") : searcher;
 
         final DefaultSearchContext searchContext = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget,
-            engineSearcher, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), timeout, fetchPhase);
+            engineSearcher, indexService, indexShard, bigArrays, threadPool.estimatedTimeInMillisCounter(), timeout, fetchPhase,
+            responseCollectorService);
         boolean success = false;
         try {
             // we clone the query shard context here just for rewriting otherwise we

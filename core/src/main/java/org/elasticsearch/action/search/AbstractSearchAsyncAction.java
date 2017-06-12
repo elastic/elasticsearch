@@ -30,7 +30,9 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -67,6 +69,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Object shardFailuresMutex = new Object();
     private final AtomicInteger successfulOps = new AtomicInteger();
     private final TransportSearchAction.SearchTimeProvider timeProvider;
+    private final ResponseCollectorService collectorService;
+    private long startNanos;
 
 
     protected AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
@@ -75,7 +79,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                         Executor executor, SearchRequest request,
                                         ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                         TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
-                                        SearchTask task, SearchPhaseResults<Result> resultConsumer) {
+                                        SearchTask task, SearchPhaseResults<Result> resultConsumer,
+                                        ResponseCollectorService collectorService) {
         super(name, request, shardsIts, logger);
         this.timeProvider = timeProvider;
         this.logger = logger;
@@ -89,6 +94,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
+        this.collectorService = collectorService;
     }
 
     /**
@@ -110,6 +116,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 ShardSearchFailure.EMPTY_ARRAY));
             return;
         }
+        startNanos = System.nanoTime();
         executePhase(this);
     }
 
@@ -222,6 +229,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     @Override
     public final void onShardSuccess(Result result) {
         successfulOps.incrementAndGet();
+        long responseDuration = System.nanoTime() - startNanos;
+        String nodeId = result.getSearchShardTarget().getNodeId();
+        if (nodeId != null && collectorService != null) {
+            collectorService.addResponseTime(nodeId, responseDuration);
+        }
         results.consumeResult(result);
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);

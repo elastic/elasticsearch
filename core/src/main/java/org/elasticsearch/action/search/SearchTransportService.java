@@ -30,6 +30,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -76,10 +77,13 @@ public class SearchTransportService extends AbstractComponent {
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
 
     private final TransportService transportService;
+    private final ResponseCollectorService responseCollectorService;
 
-    public SearchTransportService(Settings settings, TransportService transportService) {
+    public SearchTransportService(Settings settings, TransportService transportService,
+                                  ResponseCollectorService responseCollectorService) {
         super(settings);
         this.transportService = transportService;
+        this.responseCollectorService = responseCollectorService;
     }
 
     public void sendFreeContext(Transport.Connection connection, final long contextId, OriginalIndices originalIndices) {
@@ -120,7 +124,7 @@ public class SearchTransportService extends AbstractComponent {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
         transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
-            new ActionListenerResponseHandler<>(listener, supplier));
+            new ActionListenerResponseHandler<>(new ResponseListenerWrapper(listener, responseCollectorService), supplier));
     }
 
     public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,

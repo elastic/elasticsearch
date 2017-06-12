@@ -23,6 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
@@ -36,13 +37,15 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     private final SearchPhaseController searchPhaseController;
 
     SearchDfsQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
-            final BiFunction<String, String, Transport.Connection> nodeIdToConnection, final Map<String, AliasFilter> aliasFilter,
-            final Map<String, Float> concreteIndexBoosts, final SearchPhaseController searchPhaseController, final Executor executor,
-            final SearchRequest request, final ActionListener<SearchResponse> listener,
-            final GroupShardsIterator<SearchShardIterator> shardsIts, final TransportSearchAction.SearchTimeProvider timeProvider,
-            final long clusterStateVersion, final SearchTask task) {
+                                       final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
+                                       final Map<String, AliasFilter> aliasFilter, final Map<String, Float> concreteIndexBoosts,
+                                       final SearchPhaseController searchPhaseController, final Executor executor,
+                                       final SearchRequest request, final ActionListener<SearchResponse> listener,
+                                       final GroupShardsIterator<SearchShardIterator> shardsIts,
+                                       final TransportSearchAction.SearchTimeProvider timeProvider,
+                                       final long clusterStateVersion, final SearchTask task, ResponseCollectorService collectorService) {
         super("dfs", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor, request, listener,
-                shardsIts, timeProvider, clusterStateVersion, task, new SearchPhaseResults<>(shardsIts.size()));
+                shardsIts, timeProvider, clusterStateVersion, task, new SearchPhaseResults<>(shardsIts.size()), collectorService);
         this.searchPhaseController = searchPhaseController;
     }
 

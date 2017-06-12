@@ -79,7 +79,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
                 randomIntBetween(1, 10), randomBoolean(), primaryNode, replicaNode);
         AtomicInteger numFreedContext = new AtomicInteger();
-        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null) {
+        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null, null) {
             @Override
             public void sendFreeContext(Transport.Connection connection, long contextId, OriginalIndices originalIndices) {
                 numFreedContext.incrementAndGet();
@@ -108,7 +108,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                         new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                         0,
                         null,
-                        new InitialSearchPhase.SearchPhaseResults<>(shardsIter.size())) {
+                        new InitialSearchPhase.SearchPhaseResults<>(shardsIter.size()), null) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override

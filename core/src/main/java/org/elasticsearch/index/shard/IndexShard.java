@@ -286,6 +286,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(shardRouting, null);
     }
 
+    public ThreadPool getThreadPool() {
+        return this.threadPool;
+    }
+
     public Store store() {
         return this.store;
     }

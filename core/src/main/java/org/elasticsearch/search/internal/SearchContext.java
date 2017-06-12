@@ -31,6 +31,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -66,6 +67,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -88,6 +90,11 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     protected SearchContext() {
         super("search_context");
+    }
+
+    @Nullable
+    public EsThreadPoolExecutor getSearchExecutor() {
+        return null;
     }
 
     public abstract void setTask(SearchTask task);

@@ -38,6 +38,8 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.QueueResizingEsThreadPoolExecutor;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.SearchService;
@@ -237,6 +239,12 @@ public class QueryPhase implements SearchPhase {
             final QuerySearchResult result = searchContext.queryResult();
             for (QueryCollectorContext ctx : collectors) {
                 ctx.postProcess(result, shouldCollect);
+            }
+            EsThreadPoolExecutor executor = searchContext.getSearchExecutor();
+            if (executor instanceof QueueResizingEsThreadPoolExecutor) {
+                QueueResizingEsThreadPoolExecutor rExecutor = (QueueResizingEsThreadPoolExecutor) executor;
+                queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
+                queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
             }
             if (searchContext.getProfilers() != null) {
                 ProfileShardResult shardResults = SearchProfileShardResults.buildShardResults(searchContext.getProfilers());

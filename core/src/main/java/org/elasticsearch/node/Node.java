@@ -422,8 +422,9 @@ public class Node implements Closeable {
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
+            final ResponseCollectorService responseCollectorService = new ResponseCollectorService(this.settings, clusterService);
             final SearchTransportService searchTransportService =  new SearchTransportService(settings,
-                transportService);
+                    transportService, responseCollectorService);
             final Consumer<Binder> httpBind;
             final HttpServerTransport httpServerTransport;
             if (networkModule.isHttpEnabled()) {
@@ -446,6 +447,7 @@ public class Node implements Closeable {
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter());
             modules.add(b -> {
+                    b.bind(ResponseCollectorService.class).toInstance(responseCollectorService);
                     b.bind(NodeService.class).toInstance(nodeService);
                     b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
                     b.bind(PluginsService.class).toInstance(pluginsService);
@@ -467,7 +469,8 @@ public class Node implements Closeable {
                     b.bind(MetaStateService.class).toInstance(metaStateService);
                     b.bind(IndicesService.class).toInstance(indicesService);
                     b.bind(SearchService.class).toInstance(newSearchService(clusterService, indicesService,
-                        threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase()));
+                        threadPool, scriptModule.getScriptService(), bigArrays, searchModule.getFetchPhase(),
+                        responseCollectorService));
                     b.bind(SearchTransportService.class).toInstance(searchTransportService);
                     b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(settings, bigArrays,
                             scriptModule.getScriptService()));
@@ -895,8 +898,9 @@ public class Node implements Closeable {
      */
     protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
                                              ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
-                                             FetchPhase fetchPhase) {
-        return new SearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
+                                             FetchPhase fetchPhase, ResponseCollectorService responseCollectorService) {
+        return new SearchService(clusterService, indicesService, threadPool,
+            scriptService, bigArrays, fetchPhase, responseCollectorService);
     }
 
     /**

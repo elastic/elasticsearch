@@ -1,6 +1,6 @@
 {
   "remote.info": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/remote-info.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/5.4/remote-info.html",
     "methods": ["GET"],
     "url": {
       "path": "/_remote/info",

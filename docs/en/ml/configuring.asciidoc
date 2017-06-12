@@ -29,5 +29,7 @@ The scenarios in this section describe some best practices for generating useful
 {ml} results and insights from your data.
 
 * <<ml-configuring-aggregation>>
+* <<ml-configuring-categories>>
 
 include::aggregations.asciidoc[]
+include::categories.asciidoc[]

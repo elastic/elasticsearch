@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationDataExtractorFactory;
@@ -18,11 +19,18 @@ public interface DataExtractorFactory {
     /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
      */
-    static DataExtractorFactory create(Client client, DatafeedConfig datafeedConfig, Job job) {
-        boolean isScrollSearch = datafeedConfig.hasAggregations() == false;
-        DataExtractorFactory dataExtractorFactory = isScrollSearch ? new ScrollDataExtractorFactory(client, datafeedConfig, job)
-                : new AggregationDataExtractorFactory(client, datafeedConfig, job);
-        return datafeedConfig.getChunkingConfig().isEnabled() ? new ChunkedDataExtractorFactory(
-                client, datafeedConfig, job, dataExtractorFactory) : dataExtractorFactory;
+    static void create(Client client, DatafeedConfig datafeed, Job job, ActionListener<DataExtractorFactory> listener) {
+        ActionListener<DataExtractorFactory> factoryHandler = ActionListener.wrap(
+                factory -> listener.onResponse(datafeed.getChunkingConfig().isEnabled()
+                        ? new ChunkedDataExtractorFactory(client, datafeed, job, factory) : factory)
+                , listener::onFailure
+        );
+
+        boolean isScrollSearch = datafeed.hasAggregations() == false;
+        if (isScrollSearch) {
+            ScrollDataExtractorFactory.create(client, datafeed, job, factoryHandler);
+        } else {
+            factoryHandler.onResponse(new AggregationDataExtractorFactory(client, datafeed, job));
+        }
     }
 }

@@ -173,16 +173,16 @@ class DatafeedJob {
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.
 
-                // A common issue for our users is that they have fields without doc values.
-                // Yet, they did not enable _source on the datafeed. It is really useful
-                // to display a specific error message for this situation. Unfortunately,
-                // there are no great ways to identify the issue but search for 'doc values'
+                // For aggregated datafeeds it is possible for our users to use fields without doc values.
+                // In that case, it is really useful to display an error message explaining exactly that.
+                // Unfortunately, there are no great ways to identify the issue but search for 'doc values'
                 // deep in the exception.
                 if (e.toString().contains("doc values")) {
-                    throw new ExtractionProblemException(new IllegalArgumentException("One or more fields do not have doc values; " +
-                            "please enable doc values for all analysis fields or enable _source on the datafeed"));
+                    throw new ExtractionProblemException(nextRealtimeTimestamp(), new IllegalArgumentException(
+                            "One or more fields do not have doc values; please enable doc values for all analysis fields for datafeeds" +
+                                    " using aggregations"));
                 }
-                throw new ExtractionProblemException(e);
+                throw new ExtractionProblemException(nextRealtimeTimestamp(), e);
             }
             if (isIsolated) {
                 return;
@@ -209,7 +209,7 @@ class DatafeedJob {
                     // happened to the c++ process. We sent a batch of data to the c++ process
                     // yet we do not know how many of those were processed. It is better to
                     // advance time in order to avoid importing duplicate data.
-                    error = new AnalysisProblemException(shouldStop, e);
+                    error = new AnalysisProblemException(nextRealtimeTimestamp(), shouldStop, e);
                     break;
                 }
                 recordCount += counts.getProcessedRecordCount();
@@ -229,7 +229,7 @@ class DatafeedJob {
         }
 
         if (recordCount == 0) {
-            throw new EmptyDataCountException();
+            throw new EmptyDataCountException(nextRealtimeTimestamp());
         }
 
         // If the datafeed was stopped, then it is possible that by the time
@@ -280,35 +280,46 @@ class DatafeedJob {
             // happened to the c++ process. We sent a batch of data to the c++ process
             // yet we do not know how many of those were processed. It is better to
             // advance time in order to avoid importing duplicate data.
-            throw new AnalysisProblemException(shouldStop, e);
+            throw new AnalysisProblemException(nextRealtimeTimestamp(), shouldStop, e);
         }
     }
 
-    class AnalysisProblemException extends RuntimeException {
+    /**
+     * Visible for testing
+     */
+    Long lastEndTimeMs() {
+        return lastEndTimeMs;
+    }
+
+    static class AnalysisProblemException extends RuntimeException {
 
         final boolean shouldStop;
-        final long nextDelayInMsSinceEpoch = nextRealtimeTimestamp();
+        final long nextDelayInMsSinceEpoch;
 
-        AnalysisProblemException(boolean shouldStop, Throwable cause) {
+        AnalysisProblemException(long nextDelayInMsSinceEpoch, boolean shouldStop, Throwable cause) {
             super(cause);
             this.shouldStop = shouldStop;
+            this.nextDelayInMsSinceEpoch = nextDelayInMsSinceEpoch;
         }
     }
 
-    class ExtractionProblemException extends RuntimeException {
+    static class ExtractionProblemException extends RuntimeException {
 
-        final long nextDelayInMsSinceEpoch = nextRealtimeTimestamp();
+        final long nextDelayInMsSinceEpoch;
 
-        ExtractionProblemException(Throwable cause) {
+        ExtractionProblemException(long nextDelayInMsSinceEpoch, Throwable cause) {
             super(cause);
+            this.nextDelayInMsSinceEpoch = nextDelayInMsSinceEpoch;
         }
     }
 
-    class EmptyDataCountException extends RuntimeException {
+    static class EmptyDataCountException extends RuntimeException {
 
-        final long nextDelayInMsSinceEpoch = nextRealtimeTimestamp();
+        final long nextDelayInMsSinceEpoch;
 
-        EmptyDataCountException() {}
+        EmptyDataCountException(long nextDelayInMsSinceEpoch) {
+            this.nextDelayInMsSinceEpoch = nextDelayInMsSinceEpoch;
+        }
     }
 
 }

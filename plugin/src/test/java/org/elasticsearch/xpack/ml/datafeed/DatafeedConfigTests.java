@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
@@ -79,9 +78,6 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         }
         if (randomBoolean()) {
             builder.setQueryDelay(TimeValue.timeValueMillis(randomIntBetween(1, 1_000_000)));
-        }
-        if (randomBoolean()) {
-            builder.setSource(randomBoolean());
         }
         if (randomBoolean()) {
             builder.setChunkingConfig(ChunkingConfigTests.createRandomizedChunk());

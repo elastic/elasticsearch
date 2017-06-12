@@ -405,8 +405,7 @@ public class JobProvider {
      * Uses the internal client, so runs as the _xpack user
      */
     public void bucketsViaInternalClient(String jobId, BucketsQuery query, Consumer<QueryPage<Bucket>> handler,
-                                         Consumer<Exception> errorHandler)
-            throws ResourceNotFoundException {
+                                         Consumer<Exception> errorHandler) {
         buckets(jobId, query, handler, errorHandler, client);
     }
 

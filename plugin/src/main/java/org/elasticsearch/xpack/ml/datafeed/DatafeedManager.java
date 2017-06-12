@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -23,25 +22,16 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
-import org.elasticsearch.xpack.ml.action.util.QueryPage;
-import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
-import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
-import org.elasticsearch.xpack.ml.job.results.Bucket;
-import org.elasticsearch.xpack.ml.job.results.Result;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 import org.elasticsearch.xpack.persistent.PersistentTasksService;
 
-import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -51,7 +41,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -64,29 +53,29 @@ public class DatafeedManager extends AbstractComponent {
     private final Client client;
     private final ClusterService clusterService;
     private final PersistentTasksService persistentTasksService;
-    private final JobProvider jobProvider;
     private final ThreadPool threadPool;
     private final Supplier<Long> currentTimeSupplier;
     private final Auditor auditor;
     // Use allocationId as key instead of datafeed id
     private final ConcurrentMap<Long, Holder> runningDatafeedsOnThisNode = new ConcurrentHashMap<>();
-    private volatile boolean isolated;
+    private final DatafeedJobBuilder datafeedJobBuilder;
     private final TaskRunner taskRunner = new TaskRunner();
+    private volatile boolean isolated;
 
-    public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, JobProvider jobProvider,
+    public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
                            Supplier<Long> currentTimeSupplier, Auditor auditor, PersistentTasksService persistentTasksService) {
         super(Settings.EMPTY);
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.jobProvider = Objects.requireNonNull(jobProvider);
         this.threadPool = threadPool;
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
         this.auditor = Objects.requireNonNull(auditor);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
+        this.datafeedJobBuilder = Objects.requireNonNull(datafeedJobBuilder);
         clusterService.addListener(taskRunner);
     }
 
-    public void run(StartDatafeedAction.DatafeedTask task, Consumer<Exception> handler) {
+    public void run(StartDatafeedAction.DatafeedTask task, Consumer<Exception> taskHandler) {
         String datafeedId = task.getDatafeedId();
         ClusterState state = clusterService.state();
         MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
@@ -96,30 +85,27 @@ public class DatafeedManager extends AbstractComponent {
 
         DatafeedConfig datafeed = mlMetadata.getDatafeed(datafeedId);
         Job job = mlMetadata.getJobs().get(datafeed.getJobId());
-        gatherInformation(job.getId(), (buckets, dataCounts) -> {
-            long latestFinalBucketEndMs = -1L;
-            TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
-            if (buckets.results().size() == 1) {
-                latestFinalBucketEndMs = buckets.results().get(0).getTimestamp().getTime() + bucketSpan.millis() - 1;
-            }
-            long latestRecordTimeMs = -1L;
-            if (dataCounts.getLatestRecordTimeStamp() != null) {
-                latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
-            }
-            Holder holder = createJobDatafeed(datafeed, job, latestFinalBucketEndMs, latestRecordTimeMs, handler, task);
-            runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
-            task.updatePersistentStatus(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
-                @Override
-                public void onResponse(PersistentTask<?> persistentTask) {
-                    taskRunner.runWhenJobIsOpened(task);
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    handler.accept(e);
-                }
-            });
-        }, handler);
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
+                datafeedJob -> {
+                    Holder holder = new Holder(task.getPersistentTaskId(), task.getAllocationId(), datafeed, datafeedJob,
+                            task.isLookbackOnly(), new ProblemTracker(auditor, job.getId()), taskHandler);
+                    runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
+                    task.updatePersistentStatus(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
+                        @Override
+                        public void onResponse(PersistentTask<?> persistentTask) {
+                            taskRunner.runWhenJobIsOpened(task);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            taskHandler.accept(e);
+                        }
+                    });
+                }, taskHandler::accept
+        );
+
+        datafeedJobBuilder.build(job, datafeed, datafeedJobHandler);
     }
 
     public void stopDatafeed(StartDatafeedAction.DatafeedTask task, String reason, TimeValue timeout) {
@@ -269,61 +255,12 @@ public class DatafeedManager extends AbstractComponent {
         }
     }
 
-    Holder createJobDatafeed(DatafeedConfig datafeed, Job job, long finalBucketEndMs, long latestRecordTimeMs,
-                                      Consumer<Exception> handler, StartDatafeedAction.DatafeedTask task) {
-        Duration frequency = getFrequencyOrDefault(datafeed, job);
-        Duration queryDelay = Duration.ofMillis(datafeed.getQueryDelay().millis());
-        DataExtractorFactory dataExtractorFactory = createDataExtractorFactory(datafeed, job);
-        DatafeedJob datafeedJob = new DatafeedJob(job.getId(), buildDataDescription(job), frequency.toMillis(), queryDelay.toMillis(),
-                dataExtractorFactory, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
-        return new Holder(task.getPersistentTaskId(), task.getAllocationId(), datafeed, datafeedJob, task.isLookbackOnly(),
-                new ProblemTracker(auditor, job.getId()), handler);
-    }
-
-    DataExtractorFactory createDataExtractorFactory(DatafeedConfig datafeed, Job job) {
-        return DataExtractorFactory.create(client, datafeed, job);
-    }
-
     private String getJobId(StartDatafeedAction.DatafeedTask task) {
         return runningDatafeedsOnThisNode.get(task.getAllocationId()).getJobId();
     }
 
     private JobState getJobState(PersistentTasksCustomMetaData tasks, StartDatafeedAction.DatafeedTask datafeedTask) {
         return MlMetadata.getJobState(getJobId(datafeedTask), tasks);
-    }
-
-    private static DataDescription buildDataDescription(Job job) {
-        DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
-        if (job.getDataDescription() != null) {
-            dataDescription.setTimeField(job.getDataDescription().getTimeField());
-        }
-        dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
-        return dataDescription.build();
-    }
-
-    private void gatherInformation(String jobId, BiConsumer<QueryPage<Bucket>, DataCounts> handler, Consumer<Exception> errorHandler) {
-        BucketsQueryBuilder.BucketsQuery latestBucketQuery = new BucketsQueryBuilder()
-                .sortField(Result.TIMESTAMP.getPreferredName())
-                .sortDescending(true).size(1)
-                .includeInterim(false)
-                .build();
-        jobProvider.bucketsViaInternalClient(jobId, latestBucketQuery, buckets -> {
-            jobProvider.dataCounts(jobId, dataCounts -> handler.accept(buckets, dataCounts), errorHandler);
-        }, e -> {
-            if (e instanceof ResourceNotFoundException) {
-                QueryPage<Bucket> empty = new QueryPage<>(Collections.emptyList(), 0, Bucket.RESULT_TYPE_FIELD);
-                jobProvider.dataCounts(jobId, dataCounts -> handler.accept(empty, dataCounts), errorHandler);
-            } else {
-                errorHandler.accept(e);
-            }
-        });
-    }
-
-    private static Duration getFrequencyOrDefault(DatafeedConfig datafeed, Job job) {
-        TimeValue frequency = datafeed.getFrequency();
-        TimeValue bucketSpan = job.getAnalysisConfig().getBucketSpan();
-        return frequency == null ? DefaultFrequency.ofBucketSpan(bucketSpan.seconds()) : Duration.ofSeconds(frequency.seconds());
     }
 
     private TimeValue computeNextDelay(long next) {

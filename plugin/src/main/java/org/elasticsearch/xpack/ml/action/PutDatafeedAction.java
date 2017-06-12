@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.support.Exceptions;
 

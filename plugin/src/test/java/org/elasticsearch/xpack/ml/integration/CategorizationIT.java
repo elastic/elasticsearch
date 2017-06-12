@@ -41,7 +41,7 @@ public class CategorizationIT extends MlNativeAutodetectIntegTestCase {
     public void setUpData() throws IOException {
         client().admin().indices().prepareCreate(DATA_INDEX)
                 .addMapping(DATA_TYPE, "time", "type=date,format=epoch_millis",
-                        "msg", "type=keyword")
+                        "msg", "type=text")
                 .get();
 
         nowMillis = System.currentTimeMillis();

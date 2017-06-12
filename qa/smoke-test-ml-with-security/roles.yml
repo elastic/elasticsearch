@@ -11,6 +11,7 @@ minimal:
         - indices:admin/get
         - indices:admin/mapping/put
         - indices:admin/refresh
+        - indices:data/read/field_caps
         - indices:data/read/search
         - indices:data/write/bulk
         - indices:data/write/index

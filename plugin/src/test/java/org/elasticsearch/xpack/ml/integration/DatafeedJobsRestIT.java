@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHeader;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -205,50 +206,47 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     }
 
     public void testLookbackOnly() throws Exception {
-        new LookbackOnlyTestHelper("lookback-1", "airline-data").setShouldSucceedProcessing(true).execute();
+        new LookbackOnlyTestHelper("test-lookback-only", "airline-data").setShouldSucceedProcessing(true).execute();
     }
 
-    public void testLookbackOnlyWithDatafeedSourceEnabled() throws Exception {
-        new LookbackOnlyTestHelper("lookback-2", "airline-data").setEnableDatafeedSource(true).execute();
-    }
-
-    public void testLookbackOnlyWithDocValuesDisabledAndDatafeedSourceDisabled() throws Exception {
-        new LookbackOnlyTestHelper("lookback-3", "airline-data-disabled-doc-values").setShouldSucceedInput(false)
-                .setShouldSucceedProcessing(false).execute();
-
-        // Assert the error notification for doc values is there
-        client().performRequest("post", ".ml-notifications/_refresh");
-        String query = "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"job_id\":\"lookback-3\"}}, {\"term\":{\"level\":\"error\"}}]}}}";
-        Response response = client().performRequest("get", ".ml-notifications/_search", Collections.emptyMap(),
-                new StringEntity(query, ContentType.APPLICATION_JSON));
-        assertThat(responseEntityToString(response), containsString("One or more fields do not have doc values; please enable doc values " +
-                "for all analysis fields or enable _source on the datafeed"));
-    }
-
-    public void testLookbackOnlyWithDocValuesDisabledAndDatafeedSourceEnabled() throws Exception {
-        new LookbackOnlyTestHelper("lookback-4", "airline-data-disabled-doc-values").setEnableDatafeedSource(true).execute();
+    public void testLookbackOnlyWithDocValuesDisabled() throws Exception {
+        new LookbackOnlyTestHelper("test-lookback-only-with-doc-values-disabled", "airline-data-disabled-doc-values").execute();
     }
 
     public void testLookbackOnlyWithSourceDisabled() throws Exception {
-        new LookbackOnlyTestHelper("lookback-5", "airline-data-disabled-source").execute();
+        new LookbackOnlyTestHelper("test-lookback-only-with-source-disabled", "airline-data-disabled-source").execute();
     }
 
     @AwaitsFix(bugUrl = "This test uses painless which is not available in the integTest phase")
     public void testLookbackOnlyWithScriptFields() throws Exception {
-        new LookbackOnlyTestHelper("lookback-6", "airline-data-disabled-source").setAddScriptedFields(true).execute();
+        new LookbackOnlyTestHelper("test-lookback-only-with-script-fields", "airline-data-disabled-source")
+                .setAddScriptedFields(true).execute();
     }
 
-    public void testLookbackOnlyWithNestedFieldsAndDatafeedSourceDisabled() throws Exception {
-        executeTestLookbackOnlyWithNestedFields("lookback-7", false);
-    }
+    public void testLookbackOnlyWithNestedFields() throws Exception {
+        String jobId = "test-lookback-only-with-nested-fields";
+        String job = "{\"description\":\"Nested job\", \"analysis_config\" : {\"bucket_span\":\"1h\",\"detectors\" :"
+                + "[{\"function\":\"mean\",\"field_name\":\"responsetime.millis\"}]}, \"data_description\" : {\"time_field\":\"time\"}"
+                + "}";
+        client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
+                new StringEntity(job, ContentType.APPLICATION_JSON));
 
-    public void testLookbackOnlyWithNestedFieldsAndDatafeedSourceEnabled() throws Exception {
-        executeTestLookbackOnlyWithNestedFields("lookback-8", true);
+        String datafeedId = jobId + "-datafeed";
+        new DatafeedBuilder(datafeedId, jobId, "nested-data", "response").build();
+        openJob(client(), jobId);
+
+        startDatafeedAndWaitUntilStopped(datafeedId);
+        waitUntilJobIsClosed(jobId);
+        Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
+        String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
+        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
+        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":2"));
+        assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
     }
 
     public void testLookbackOnlyGivenEmptyIndex() throws Exception {
-        new LookbackOnlyTestHelper("lookback-9", "airline-data-empty").setShouldSucceedInput(false).setShouldSucceedProcessing(false)
-                .execute();
+        new LookbackOnlyTestHelper("test-lookback-only-given-empty-index", "airline-data-empty")
+                .setShouldSucceedInput(false).setShouldSucceedProcessing(false).execute();
     }
 
     public void testInsufficientSearchPrivilegesOnPut() throws Exception {
@@ -299,7 +297,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                         new BasicHeader("Authorization", BASIC_AUTH_VALUE_ML_ADMIN)));
 
         assertThat(e.getMessage(),
-                containsString("[indices:data/read/search] is unauthorized for user [ml_admin]"));
+                containsString("[indices:data/read/field_caps] is unauthorized for user [ml_admin]"));
     }
 
     public void testLookbackOnlyGivenAggregationsWithHistogram() throws Exception {
@@ -435,7 +433,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         private String jobId;
         private String dataIndex;
         private boolean addScriptedFields;
-        private boolean enableDatafeedSource;
         private boolean shouldSucceedInput;
         private boolean shouldSucceedProcessing;
 
@@ -448,11 +445,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
         public LookbackOnlyTestHelper setAddScriptedFields(boolean value) {
             addScriptedFields = value;
-            return this;
-        }
-
-        public LookbackOnlyTestHelper setEnableDatafeedSource(boolean value) {
-            enableDatafeedSource = value;
             return this;
         }
 
@@ -470,7 +462,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             createJob(jobId);
             String datafeedId = "datafeed-" + jobId;
             new DatafeedBuilder(datafeedId, jobId, dataIndex, "response")
-                    .setSource(enableDatafeedSource)
                     .setScriptedFields(addScriptedFields ?
                             "{\"airline\":{\"script\":{\"lang\":\"painless\",\"inline\":\"doc['airline'].value\"}}}" : null)
                     .build();
@@ -545,26 +536,6 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
     public static void openJob(RestClient client, String jobId) throws IOException {
         Response response = client.performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-    }
-
-    private void executeTestLookbackOnlyWithNestedFields(String jobId, boolean source) throws Exception {
-        String job = "{\"description\":\"Nested job\", \"analysis_config\" : {\"bucket_span\":\"1h\",\"detectors\" :"
-                + "[{\"function\":\"mean\",\"field_name\":\"responsetime.millis\"}]}, \"data_description\" : {\"time_field\":\"time\"}"
-                + "}";
-        client().performRequest("put", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
-                new StringEntity(job, ContentType.APPLICATION_JSON));
-
-        String datafeedId = jobId + "-datafeed";
-        new DatafeedBuilder(datafeedId, jobId, "nested-data", "response").setSource(source).build();
-        openJob(client(), jobId);
-
-        startDatafeedAndWaitUntilStopped(datafeedId);
-        waitUntilJobIsClosed(jobId);
-        Response jobStatsResponse = client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
-        String jobStatsResponseAsString = responseEntityToString(jobStatsResponse);
-        assertThat(jobStatsResponseAsString, containsString("\"input_record_count\":2"));
-        assertThat(jobStatsResponseAsString, containsString("\"processed_record_count\":2"));
-        assertThat(jobStatsResponseAsString, containsString("\"missing_field_count\":0"));
     }
 
     @After

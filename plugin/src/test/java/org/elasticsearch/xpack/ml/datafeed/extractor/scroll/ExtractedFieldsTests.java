@@ -5,15 +5,30 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.test.SearchHitBuilder;
 import org.joda.time.DateTime;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ExtractedFieldsTests extends ESTestCase {
 
@@ -78,5 +93,112 @@ public class ExtractedFieldsTests extends ESTestCase {
         ExtractedFields extractedFields = new ExtractedFields(timeField, Arrays.asList(timeField));
 
         expectThrows(RuntimeException.class, () -> extractedFields.timeFieldValue(hit));
+    }
+
+    public void testBuildGivenMixtureOfTypes() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        Detector.Builder detector = new Detector.Builder("mean", "value");
+        detector.setByFieldName("airline");
+        detector.setOverFieldName("airport");
+        jobBuilder.setAnalysisConfig(new AnalysisConfig.Builder(Collections.singletonList(detector.build())));
+
+        DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
+        datafeedBuilder.setIndices(Collections.singletonList("foo"));
+        datafeedBuilder.setTypes(Collections.singletonList("doc"));
+        datafeedBuilder.setScriptFields(Collections.singletonList(new SearchSourceBuilder.ScriptField("airport", null, false)));
+
+        Map<String, FieldCapabilities> timeCaps = new HashMap<>();
+        timeCaps.put("date", createFieldCaps(true));
+        Map<String, FieldCapabilities> valueCaps = new HashMap<>();
+        valueCaps.put("float", createFieldCaps(true));
+        valueCaps.put("keyword", createFieldCaps(true));
+        Map<String, FieldCapabilities> airlineCaps = new HashMap<>();
+        airlineCaps.put("text", createFieldCaps(false));
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
+        when(fieldCapabilitiesResponse.getField("time")).thenReturn(timeCaps);
+        when(fieldCapabilitiesResponse.getField("value")).thenReturn(valueCaps);
+        when(fieldCapabilitiesResponse.getField("airline")).thenReturn(airlineCaps);
+
+        ExtractedFields extractedFields = ExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(),
+                fieldCapabilitiesResponse);
+
+        assertThat(extractedFields.timeField(), equalTo("time"));
+        assertThat(extractedFields.getDocValueFields().length, equalTo(2));
+        assertThat(extractedFields.getDocValueFields()[0], equalTo("time"));
+        assertThat(extractedFields.getDocValueFields()[1], equalTo("value"));
+        assertThat(extractedFields.getSourceFields().length, equalTo(1));
+        assertThat(extractedFields.getSourceFields()[0], equalTo("airline"));
+        assertThat(extractedFields.getAllFields().size(), equalTo(4));
+    }
+
+    public void testBuildGivenTimeFieldIsNotAggregatable() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        Detector.Builder detector = new Detector.Builder("count", null);
+        jobBuilder.setAnalysisConfig(new AnalysisConfig.Builder(Collections.singletonList(detector.build())));
+
+        DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
+        datafeedBuilder.setIndices(Collections.singletonList("foo"));
+        datafeedBuilder.setTypes(Collections.singletonList("doc"));
+
+        Map<String, FieldCapabilities> timeCaps = new HashMap<>();
+        timeCaps.put("date", createFieldCaps(false));
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
+        when(fieldCapabilitiesResponse.getField("time")).thenReturn(timeCaps);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> ExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(), fieldCapabilitiesResponse));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("datafeed [feed] cannot retrieve time field [time] because it is not aggregatable"));
+    }
+
+    public void testBuildGivenTimeFieldIsNotAggregatableInSomeIndices() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        Detector.Builder detector = new Detector.Builder("count", null);
+        jobBuilder.setAnalysisConfig(new AnalysisConfig.Builder(Collections.singletonList(detector.build())));
+
+        DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
+        datafeedBuilder.setIndices(Collections.singletonList("foo"));
+        datafeedBuilder.setTypes(Collections.singletonList("doc"));
+
+        Map<String, FieldCapabilities> timeCaps = new HashMap<>();
+        timeCaps.put("date", createFieldCaps(true));
+        timeCaps.put("text", createFieldCaps(false));
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
+        when(fieldCapabilitiesResponse.getField("time")).thenReturn(timeCaps);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> ExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(), fieldCapabilitiesResponse));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("datafeed [feed] cannot retrieve time field [time] because it is not aggregatable"));
+    }
+
+    public void testBuildGivenFieldWithoutMappings() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        Detector.Builder detector = new Detector.Builder("max", "value");
+        jobBuilder.setAnalysisConfig(new AnalysisConfig.Builder(Collections.singletonList(detector.build())));
+
+        DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
+        datafeedBuilder.setIndices(Collections.singletonList("foo"));
+        datafeedBuilder.setTypes(Collections.singletonList("doc"));
+
+        Map<String, FieldCapabilities> timeCaps = new HashMap<>();
+        timeCaps.put("date", createFieldCaps(true));
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
+        when(fieldCapabilitiesResponse.getField("time")).thenReturn(timeCaps);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+                () -> ExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(), fieldCapabilitiesResponse));
+        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), equalTo("datafeed [feed] cannot retrieve field [value] because it has no mappings"));
+    }
+
+    private static FieldCapabilities createFieldCaps(boolean isAggregatable) {
+        FieldCapabilities fieldCaps = mock(FieldCapabilities.class);
+        when(fieldCaps.isAggregatable()).thenReturn(isAggregatable);
+        return fieldCaps;
     }
 }

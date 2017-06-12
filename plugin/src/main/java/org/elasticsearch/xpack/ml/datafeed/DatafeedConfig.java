@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -99,7 +100,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return parsedScriptFields;
         }, SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
-        PARSER.declareBoolean(Builder::setSource, SOURCE);
+        // TODO this is to read former _source field. Remove in v7.0.0
+        PARSER.declareBoolean((builder, value) -> {}, SOURCE);
         PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.PARSER, CHUNKING_CONFIG);
     }
 
@@ -122,12 +124,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final AggregatorFactories.Builder aggregations;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
-    private final boolean source;
     private final ChunkingConfig chunkingConfig;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, List<String> types,
                            QueryBuilder query, AggregatorFactories.Builder aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
-                           Integer scrollSize, boolean source, ChunkingConfig chunkingConfig) {
+                           Integer scrollSize, ChunkingConfig chunkingConfig) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -138,7 +139,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.aggregations = aggregations;
         this.scriptFields = scriptFields;
         this.scrollSize = scrollSize;
-        this.source = source;
         this.chunkingConfig = chunkingConfig;
     }
 
@@ -165,7 +165,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.scriptFields = null;
         }
         this.scrollSize = in.readOptionalVInt();
-        this.source = in.readBoolean();
+        if (in.getVersion().before(Version.V_5_5_0)) {
+            // read former _source field
+            in.readBoolean();
+        }
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
     }
 
@@ -195,10 +198,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     public Integer getScrollSize() {
         return scrollSize;
-    }
-
-    public boolean isSource() {
-        return source;
     }
 
     public QueryBuilder getQuery() {
@@ -338,7 +337,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             out.writeBoolean(false);
         }
         out.writeOptionalVInt(scrollSize);
-        out.writeBoolean(source);
+        if (out.getVersion().before(Version.V_5_5_0)) {
+            // write former _source field
+            out.writeBoolean(false);
+        }
         out.writeOptionalWriteable(chunkingConfig);
     }
 
@@ -371,9 +373,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             builder.endObject();
         }
         builder.field(SCROLL_SIZE.getPreferredName(), scrollSize);
-        if (source) {
-            builder.field(SOURCE.getPreferredName(), source);
-        }
         if (chunkingConfig != null) {
             builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
         }
@@ -407,13 +406,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 && Objects.equals(this.scrollSize, that.scrollSize)
                 && Objects.equals(this.aggregations, that.aggregations)
                 && Objects.equals(this.scriptFields, that.scriptFields)
-                && Objects.equals(this.source, that.source)
                 && Objects.equals(this.chunkingConfig, that.chunkingConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, jobId, frequency, queryDelay, indices, types, query, scrollSize, aggregations, scriptFields, source,
+        return Objects.hash(id, jobId, frequency, queryDelay, indices, types, query, scrollSize, aggregations, scriptFields,
                 chunkingConfig);
     }
 
@@ -438,7 +436,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private AggregatorFactories.Builder aggregations;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
-        private boolean source = false;
         private ChunkingConfig chunkingConfig;
 
         public Builder() {
@@ -461,7 +458,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.aggregations = config.aggregations;
             this.scriptFields = config.scriptFields;
             this.scrollSize = config.scrollSize;
-            this.source = config.source;
             this.chunkingConfig = config.chunkingConfig;
         }
 
@@ -517,10 +513,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.scrollSize = scrollSize;
         }
 
-        public void setSource(boolean enabled) {
-            this.source = enabled;
-        }
-
         public void setChunkingConfig(ChunkingConfig chunkingConfig) {
             this.chunkingConfig = chunkingConfig;
         }
@@ -540,7 +532,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             validateAggregations();
             setDefaultChunkingConfig();
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
-                    source, chunkingConfig);
+                    chunkingConfig);
         }
 
         private void validateAggregations() {

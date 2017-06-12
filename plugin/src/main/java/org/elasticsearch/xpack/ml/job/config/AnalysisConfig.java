@@ -66,7 +66,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     private static final ParseField MULTIPLE_BUCKET_SPANS = new ParseField("multiple_bucket_spans");
     private static final ParseField USER_PER_PARTITION_NORMALIZATION = new ParseField("use_per_partition_normalization");
 
-    private static final String ML_CATEGORY_FIELD = "mlcategory";
+    public static final String ML_CATEGORY_FIELD = "mlcategory";
     public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Collections.singletonList(ML_CATEGORY_FIELD));
 
     public static final long DEFAULT_RESULT_FINALIZATION_WINDOW = 2L;

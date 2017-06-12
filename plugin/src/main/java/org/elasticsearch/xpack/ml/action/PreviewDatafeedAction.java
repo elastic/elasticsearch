@@ -218,9 +218,19 @@ public class PreviewDatafeedAction extends Action<PreviewDatafeedAction.Request,
             // NB: this is using the client from the transport layer, NOT the internal client.
             // This is important because it means the datafeed search will fail if the user
             // requesting the preview doesn't have permission to search the relevant indices.
-            DataExtractorFactory dataExtractorFactory = DataExtractorFactory.create(client, datafeedWithAutoChunking.build(), job);
-            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
-            threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
+            DataExtractorFactory.create(client, datafeedWithAutoChunking.build(), job, new ActionListener<DataExtractorFactory>() {
+                @Override
+                public void onResponse(DataExtractorFactory dataExtractorFactory) {
+                    DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
+                    threadPool.generic().execute(() -> previewDatafeed(dataExtractor, listener));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+
         }
 
         /** Visible for testing */

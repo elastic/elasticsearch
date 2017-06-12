@@ -5,12 +5,20 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
+import java.util.List;
 import java.util.Objects;
 
 public class ScrollDataExtractorFactory implements DataExtractorFactory {
@@ -20,11 +28,11 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
     private final Job job;
     private final ExtractedFields extractedFields;
 
-    public ScrollDataExtractorFactory(Client client, DatafeedConfig datafeedConfig, Job job) {
+    private ScrollDataExtractorFactory(Client client, DatafeedConfig datafeedConfig, Job job, ExtractedFields extractedFields) {
         this.client = Objects.requireNonNull(client);
         this.datafeedConfig = Objects.requireNonNull(datafeedConfig);
         this.job = Objects.requireNonNull(job);
-        this.extractedFields = ExtractedFields.build(job, datafeedConfig);
+        this.extractedFields = Objects.requireNonNull(extractedFields);
     }
 
     @Override
@@ -40,5 +48,30 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 start,
                 end);
         return new ScrollDataExtractor(client, dataExtractorContext);
+    }
+
+    public static void create(Client client, DatafeedConfig datafeed, Job job, ActionListener<DataExtractorFactory> listener) {
+
+        // Step 2. Contruct the factory and notify listener
+        ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
+                fieldCapabilitiesResponse -> {
+                    ExtractedFields extractedFields = ExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
+                    listener.onResponse(new ScrollDataExtractorFactory(client, datafeed, job, extractedFields));
+                }, e -> {
+                    if (e instanceof IndexNotFoundException) {
+                        listener.onFailure(new ResourceNotFoundException("datafeed [" + datafeed.getId()
+                                + "] cannot retrieve data because index " + ((IndexNotFoundException) e).getIndex() + " does not exist"));
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+        );
+
+        // Step 1. Get field capabilities necessary to build the information of how to extract fields
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[datafeed.getIndices().size()]));
+        List<String> fields = job.allFields();
+        fieldCapabilitiesRequest.fields(fields.toArray(new String[fields.size()]));
+        client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
     }
 }

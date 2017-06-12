@@ -8,7 +8,7 @@ The source code can be found on https://github.com/elastic/elasticsearch-docker/
 ==== Security note
 
 NOTE: {xpack}/index.html[X-Pack] is preinstalled in this image.
-Please take a few minutes to familiarize yourself with {xpack}/security-getting-started.html[X-Pack Security] and how to change default passwords. The default password for the `elastic` user is `changeme`.
+Please take a few minutes to familiarize yourself with {xpack}/security-getting-started.html[X-Pack Security]. The image comes pre-configured with a {xpack}/file-realm.html[file-realm] user `docker` and the password is `changeme`. The password for this user {xpack}/file-realm.html#file-realm-manage-passwd[can be modified] either with a customized image or bind mounting a new {xpack}/file-realm.html#users-file[users file] on top of `config/x-pack/users`.
 
 NOTE: X-Pack includes a trial license for 30 days. After that, you can obtain one of the https://www.elastic.co/subscriptions[available subscriptions] or {xpack}/security-settings.html[disable Security]. The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
 
@@ -196,14 +196,14 @@ To destroy the cluster **and the data volumes** just type `docker-compose down -
 
 ["source","sh"]
 --------------------------------------------
-curl -u elastic http://127.0.0.1:9200/_cat/health
-Enter host password for user 'elastic':
+curl -u docker http://127.0.0.1:9200/_cat/health
+Enter host password for user 'docker':
 1472225929 15:38:49 docker-cluster green 2 2 4 2 0 0 0 0 - 100.0%
 --------------------------------------------
 // NOTCONSOLE
 // This is demonstrating curl. Console will prompt you for a username and
 // password so no need to demonstrate that. Converting this would not show the
-// important `-u elastic` parameters for `curl`.
+// important `-u docker` parameters for `curl`.
 
 Log messages go to the console and are handled by the configured Docker logging driver. By default you can access logs with `docker logs`.
 

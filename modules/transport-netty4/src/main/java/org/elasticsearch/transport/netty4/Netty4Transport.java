@@ -58,7 +58,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -74,7 +73,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -126,7 +124,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
     volatile Netty4OpenChannelsHandler serverOpenChannels;
     protected volatile Bootstrap bootstrap;
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
-    private final ChannelFutureListener closeListener = future -> onChannelClosed(future.channel());
 
     public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
@@ -315,7 +312,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) {
+    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile, Consumer<Channel> onChannelClose) {
         final Channel[] channels = new Channel[profile.getNumConnections()];
         final NodeChannels nodeChannels = new NodeChannels(node, channels, profile, this::onNodeChannelsClosed);
         boolean success = false;
@@ -337,6 +334,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 connections.add(bootstrap.connect(address));
             }
             final Iterator<ChannelFuture> iterator = connections.iterator();
+            final ChannelFutureListener closeListener = future -> onChannelClose.accept(future.channel());
             try {
                 for (int i = 0; i < channels.length; i++) {
                     assert iterator.hasNext();

@@ -224,7 +224,8 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+                protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile,
+                                                         Consumer onChannelClose) throws IOException {
                     return new NodeChannels(node, new Object[profile.getNumConnections()], profile, c -> {});
                 }
 

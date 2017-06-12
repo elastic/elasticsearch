@@ -72,7 +72,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.StreamCorruptedException;
 import java.net.BindException;
@@ -83,7 +82,6 @@ import java.nio.channels.CancelledKeyException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.HashMap;
@@ -524,7 +522,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         try {
             ensureOpen();
             try {
-                nodeChannels = connectToChannels(node, connectionProfile);
+                nodeChannels = connectToChannels(node, connectionProfile, this::onChannelClosed);
                 final Channel channel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
                 final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
                     defaultConnectionProfile.getConnectTimeout() :
@@ -1033,7 +1031,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     protected abstract void sendMessage(Channel channel, BytesReference reference, ActionListener<Channel> listener);
 
-    protected abstract NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException;
+    protected abstract NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile connectionProfile,
+                                                      Consumer<Channel> onChannelClose) throws IOException;
 
     /**
      * Called to tear down internal resources
@@ -1628,7 +1627,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     /**
      * Called once the channel is closed for instance due to a disconnect or a closed socket etc.
      */
-    protected final void onChannelClosed(Channel channel) {
+    private final void onChannelClosed(Channel channel) {
         try {
             final Optional<Long> first = pendingHandshakes.entrySet().stream()
                 .filter((entry) -> entry.getValue().channel == channel).map((e) -> e.getKey()).findFirst();

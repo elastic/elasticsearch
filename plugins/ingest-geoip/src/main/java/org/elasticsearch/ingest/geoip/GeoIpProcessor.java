@@ -57,10 +57,8 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 public final class GeoIpProcessor extends AbstractProcessor {
 
     public static final String TYPE = "geoip";
-    private static final String CITY_LITE_DB_TYPE = "GeoLite2-City";
-    private static final String COUNTRY_LITE_DB_TYPE = "GeoLite2-Country";
-    private static final String CITY_DB_TYPE = "GeoIP2-City";
-    private static final String COUNTRY_DB_TYPE = "GeoIP2-Country";
+    private static final String CITY_DB_TYPE = "-City";
+    private static final String COUNTRY_DB_TYPE = "-Country";
 
     private final String field;
     private final String targetField;
@@ -95,26 +93,23 @@ public final class GeoIpProcessor extends AbstractProcessor {
         final InetAddress ipAddress = InetAddresses.forString(ip);
 
         Map<String, Object> geoData;
-        switch (dbReader.getMetadata().getDatabaseType()) {
-            case CITY_LITE_DB_TYPE:
-            case CITY_DB_TYPE:
-                try {
-                    geoData = retrieveCityGeoData(ipAddress);
-                } catch (AddressNotFoundRuntimeException e) {
-                    geoData = Collections.emptyMap();
-                }
-                break;
-            case COUNTRY_LITE_DB_TYPE:
-            case COUNTRY_DB_TYPE:
-                try {
-                    geoData = retrieveCountryGeoData(ipAddress);
-                } catch (AddressNotFoundRuntimeException e) {
-                    geoData = Collections.emptyMap();
-                }
-                break;
-            default:
-                throw new ElasticsearchParseException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType()
-                        + "]", new IllegalStateException());
+        String databaseType = dbReader.getMetadata().getDatabaseType();
+
+        if (databaseType.endsWith(CITY_DB_TYPE)) {
+            try {
+                geoData = retrieveCityGeoData(ipAddress);
+            } catch (AddressNotFoundRuntimeException e) {
+                geoData = Collections.emptyMap();
+            }
+        } else if (databaseType.endsWith(COUNTRY_DB_TYPE)) {
+            try {
+                geoData = retrieveCountryGeoData(ipAddress);
+            } catch (AddressNotFoundRuntimeException e) {
+                geoData = Collections.emptyMap();
+            }
+        } else {
+            throw new ElasticsearchParseException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType()
+                    + "]", new IllegalStateException());
         }
         if (geoData.isEmpty() == false) {
             ingestDocument.setFieldValue(targetField, geoData);
@@ -303,9 +298,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     }
                 }
             } else {
-                if (CITY_LITE_DB_TYPE.equals(databaseType) || CITY_DB_TYPE.equals(databaseType)) {
+                if (databaseType.endsWith(CITY_DB_TYPE)) {
                     properties = DEFAULT_CITY_PROPERTIES;
-                } else if (COUNTRY_LITE_DB_TYPE.equals(databaseType) || COUNTRY_DB_TYPE.equals(databaseType)) {
+                } else if (databaseType.endsWith(COUNTRY_DB_TYPE)) {
                     properties = DEFAULT_COUNTRY_PROPERTIES;
                 } else {
                     throw newConfigurationException(TYPE, processorTag, "database_file", "Unsupported database type ["
@@ -344,9 +339,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         public static Property parseProperty(String databaseType, String value) {
             Set<Property> validProperties = EnumSet.noneOf(Property.class);
-            if (CITY_LITE_DB_TYPE.equals(databaseType) || CITY_DB_TYPE.equals(databaseType)) {
+            if (databaseType.endsWith(CITY_DB_TYPE)) {
                 validProperties = ALL_CITY_PROPERTIES;
-            } else if (COUNTRY_LITE_DB_TYPE.equals(databaseType) || COUNTRY_DB_TYPE.equals(databaseType)) {
+            } else if (databaseType.endsWith(COUNTRY_DB_TYPE)) {
                 validProperties = ALL_COUNTRY_PROPERTIES;
             }
 

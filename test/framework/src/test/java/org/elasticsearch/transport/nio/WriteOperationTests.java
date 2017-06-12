@@ -46,7 +46,7 @@ public class WriteOperationTests extends ESTestCase {
     }
 
     public void testFlush() throws IOException {
-        NetworkBytesReference reference =  ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
+        NetworkBytesReference reference =  ByteBufferReference.heapBuffer(new BytesArray(new byte[10]), 10, 0);
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
 
 
@@ -62,7 +62,7 @@ public class WriteOperationTests extends ESTestCase {
     }
 
     public void testPartialFlush() throws IOException {
-        NetworkBytesReference reference = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]));
+        NetworkBytesReference reference = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]), 10, 0);
         WriteOperation writeOp = new WriteOperation(channel, reference, listener);
 
         when(channel.write(reference)).thenAnswer(invocationOnMock -> {

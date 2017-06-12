@@ -170,12 +170,15 @@ public class CompositeByteBufferReferenceTests extends ESTestCase {
 
     public void testReadSpaceMustBeContiguous() {
         ByteBufferReference ref1 = newBuffer(0, 10);
+        ref1.incrementWrite(10);
         ref1.incrementRead(10);
         buffer.addBuffer(ref1);
 
         ByteBufferReference ref2 = newBuffer(10, 10);
+        ref2.incrementWrite(10);
         ref2.incrementRead(5);
         ByteBufferReference ref3 = newBuffer(20, 10);
+        ref3.incrementWrite(3);
         ref3.incrementRead(3);
 
         try {
@@ -187,9 +190,9 @@ public class CompositeByteBufferReferenceTests extends ESTestCase {
 
         assertEquals(10, buffer.length());
         assertEquals(10, buffer.getReadIndex());
-        assertEquals(0, buffer.getWriteIndex());
+        assertEquals(10, buffer.getWriteIndex());
         assertEquals(0, buffer.getReadByteBuffers().length);
-        assertEquals(1, buffer.getWriteByteBuffers().length);
+        assertEquals(0, buffer.getWriteByteBuffers().length);
     }
 
     public void testGetReadBuffersEdgeCases() {
@@ -197,6 +200,7 @@ public class CompositeByteBufferReferenceTests extends ESTestCase {
         assertEquals(0, buffer.getReadByteBuffers().length);
 
         ByteBufferReference ref1 = newBuffer(0, 10);
+        ref1.incrementWrite(10);
         ref1.incrementRead(10);
 
         buffer.addBuffer(ref1);
@@ -207,10 +211,13 @@ public class CompositeByteBufferReferenceTests extends ESTestCase {
 
     public void testGetReadBuffersOnlyReturnsBuffersWithSpace() {
         ByteBufferReference ref1 = newBuffer(0, 10);
+        ref1.incrementWrite(10);
         ref1.incrementRead(10);
         ByteBufferReference ref2 = newBuffer(10, 10);
+        ref2.incrementWrite(10);
         ref2.incrementRead(5);
         ByteBufferReference ref3 = newBuffer(20, 10);
+        ref3.incrementWrite(10);
 
         buffer.addBuffers(ref1, ref2, ref3);
 

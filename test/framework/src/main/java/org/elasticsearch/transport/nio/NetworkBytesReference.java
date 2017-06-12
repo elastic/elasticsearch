@@ -39,7 +39,13 @@ public abstract class NetworkBytesReference extends BytesReference {
     }
 
     public void incrementWrite(int delta) {
-        writeIndex += delta;
+        int newWriteIndex = writeIndex + delta;
+        if (newWriteIndex > length) {
+            throw new IndexOutOfBoundsException("New write index [" + newWriteIndex + "] would be greater than length" +
+                " [" + length + "]");
+        }
+
+        writeIndex = newWriteIndex;
     }
 
     public int getWriteRemaining() {
@@ -51,11 +57,21 @@ public abstract class NetworkBytesReference extends BytesReference {
     }
 
     public void incrementRead(int delta) {
-        readIndex += delta;
+        int newReadIndex = readIndex + delta;
+        if (newReadIndex > writeIndex) {
+            throw new IndexOutOfBoundsException("New read index [" + newReadIndex + "] would be greater than write" +
+                " index [" + writeIndex + "]");
+        }
+        readIndex = newReadIndex;
     }
 
     public int getReadRemaining() {
-        return length - readIndex;
+        return writeIndex - readIndex;
+    }
+
+    public void resetIndices() {
+        readIndex = 0;
+        writeIndex = 0;
     }
 
     public abstract NetworkBytesReference slice(int from, int length);

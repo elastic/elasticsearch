@@ -119,6 +119,8 @@ public class CompositeByteBufferReference extends NetworkBytesReference {
     @Override
     public void incrementWrite(int delta) {
         int offsetIndex = getOffsetIndex(writeIndex);
+        super.incrementWrite(delta);
+
         int i = delta;
         while (i != 0) {
             ByteBufferReference reference = getReference(offsetIndex++);
@@ -126,13 +128,13 @@ public class CompositeByteBufferReference extends NetworkBytesReference {
             reference.incrementWrite(bytesToInc);
             i -= bytesToInc;
         }
-
-        super.incrementWrite(delta);
     }
 
     @Override
     public void incrementRead(int delta) {
         int offsetIndex = getOffsetIndex(readIndex);
+        super.incrementRead(delta);
+
         int i = delta;
         while (i != 0) {
             ByteBufferReference reference = getReference(offsetIndex++);
@@ -140,8 +142,15 @@ public class CompositeByteBufferReference extends NetworkBytesReference {
             reference.incrementRead(bytesToInc);
             i -= bytesToInc;
         }
+    }
 
-        super.incrementRead(delta);
+    @Override
+    public void resetIndices() {
+        for (ObjectCursor<ByteBufferReference> ref : references) {
+            ref.value.resetIndices();
+        }
+
+        super.resetIndices();
     }
 
     @Override

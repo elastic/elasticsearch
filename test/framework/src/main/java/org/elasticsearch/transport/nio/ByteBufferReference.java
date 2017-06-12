@@ -44,6 +44,9 @@ public class ByteBufferReference extends NetworkBytesReference {
     }
 
     public static ByteBufferReference heapBuffer(BytesArray bytesArray, int writeIndex, int readIndex) {
+        if (readIndex > writeIndex) {
+            throw new IndexOutOfBoundsException("Read index [" + readIndex + "] was greater than write index [" + writeIndex + "]");
+        }
         int offset = bytesArray.offset();
         ByteBuffer writeBuffer = ByteBuffer.wrap(bytesArray.array(), offset, bytesArray.length());
         ByteBuffer readBuffer = ByteBuffer.wrap(bytesArray.array(), offset, bytesArray.length());

@@ -81,7 +81,7 @@ public class ByteBufferReferenceTests extends ESTestCase {
     public void testGetReadBufferRespectsReadIndex() {
         byte[] bytes = new byte[10];
 
-        buffer = ByteBufferReference.heapBuffer(new BytesArray(bytes, 3, 6));
+        buffer = ByteBufferReference.heapBuffer(new BytesArray(bytes, 3, 6), 6, 0);
 
         ByteBuffer readByteBuffer = buffer.getReadByteBuffer();
 
@@ -100,13 +100,13 @@ public class ByteBufferReferenceTests extends ESTestCase {
 
         buffer = ByteBufferReference.heapBuffer(new BytesArray(bytes, 2, 8));
 
-        assertEquals(8, buffer.getReadRemaining());
+        assertEquals(0, buffer.getReadRemaining());
         assertEquals(8, buffer.getWriteRemaining());
 
-        buffer.incrementRead(2);
         buffer.incrementWrite(3);
+        buffer.incrementRead(2);
 
-        assertEquals(6, buffer.getReadRemaining());
+        assertEquals(1, buffer.getReadRemaining());
         assertEquals(5, buffer.getWriteRemaining());
     }
 

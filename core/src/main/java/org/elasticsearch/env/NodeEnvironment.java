@@ -208,6 +208,7 @@ public final class NodeEnvironment  implements Closeable {
             int maxLocalStorageNodes = MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
             for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
                 for (int dirIndex = 0; dirIndex < environment.dataFiles().length; dirIndex++) {
+                    Path dataDirWithClusterName = environment.dataWithClusterFiles()[dirIndex];
                     Path dataDir = environment.dataFiles()[dirIndex];
                     // TODO: Remove this in 6.0, we are no longer going to read from the cluster name directory
                     if (readFromDataPathWithClusterName(dataDirWithClusterName)) {

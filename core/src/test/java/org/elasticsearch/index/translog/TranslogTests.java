@@ -107,6 +107,7 @@ import java.util.stream.LongStream;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomLongBetween;
 import static org.elasticsearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -159,7 +160,8 @@ public class TranslogTests extends ESTestCase {
         if (deletionPolicy.pendingViewsCount() == 0) {
             assertThat(deletionPolicy.minTranslogGenRequired(), equalTo(genToCommit));
         }
-        assertThat(translog.getMinFileGeneration(), equalTo(deletionPolicy.minTranslogGenRequired()));
+        // we may have some views closed concurrently causing the deletion policy to increase it's minTranslogGenRequired
+        assertThat(translog.getMinFileGeneration(), lessThanOrEqualTo(deletionPolicy.minTranslogGenRequired()));
     }
 
     @Override
@@ -2080,6 +2082,7 @@ public class TranslogTests extends ESTestCase {
             }
             String generationUUID = null;
             try {
+                boolean committing = false;
                 final Translog failableTLog = getFailableTranslog(fail, config, randomBoolean(), false, generationUUID, new TranslogDeletionPolicy());
                 try {
                     LineFileDocs lineFileDocs = new LineFileDocs(random()); //writes pretty big docs so we cross buffer boarders regularly
@@ -2096,7 +2099,11 @@ public class TranslogTests extends ESTestCase {
                             failableTLog.sync(); // we have to sync here first otherwise we don't know if the sync succeeded if the commit fails
                             syncedDocs.addAll(unsynced);
                             unsynced.clear();
-                            rollAndCommit(failableTLog);
+                            failableTLog.rollGeneration();
+                            committing = true;
+                            failableTLog.getDeletionPolicy().setMinTranslogGenerationForRecovery(failableTLog.currentFileGeneration());
+                            failableTLog.trimUnreferencedReaders();
+                            committing = false;
                             syncedDocs.clear();
                         }
                     }
@@ -2110,11 +2117,18 @@ public class TranslogTests extends ESTestCase {
                     // fair enough
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
+                } catch (RuntimeException ex) {
+                    assertEquals(ex.getMessage(), "simulated");
                 } finally {
                     Checkpoint checkpoint = Translog.readCheckpoint(config.getTranslogPath());
                     if (checkpoint.numOps == unsynced.size() + syncedDocs.size()) {
                         syncedDocs.addAll(unsynced); // failed in fsync but got fully written
                         unsynced.clear();
+                    }
+                    if (committing && checkpoint.minTranslogGeneration == checkpoint.generation) {
+                        // we were committing and blew up in one of the syncs, but they made it through
+                        syncedDocs.clear();
+                        assertThat(unsynced, empty());
                     }
                     generationUUID = failableTLog.getTranslogUUID();
                     minGenForRecovery = failableTLog.getDeletionPolicy().getMinTranslogGenerationForRecovery();

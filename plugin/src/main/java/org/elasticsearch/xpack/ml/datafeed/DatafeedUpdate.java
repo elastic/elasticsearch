@@ -160,7 +160,7 @@ public class DatafeedUpdate implements Writeable, ToXContent {
         out.writeOptionalVInt(scrollSize);
         if (out.getVersion().before(Version.V_5_5_0)) {
             // TODO for former _source param - remove in v7.0.0
-            out.writeOptionalBoolean(false);
+            out.writeOptionalBoolean(null);
         }
         out.writeOptionalWriteable(chunkingConfig);
     }

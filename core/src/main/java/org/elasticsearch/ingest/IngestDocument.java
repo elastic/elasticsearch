@@ -27,6 +27,8 @@ import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -144,7 +146,7 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the pathTemplate is null, empty, invalid, if the field doesn't exist,
      * or if the field that is found at the provided path is not of the expected type.
      */
-    public <T> T getFieldValue(TemplateService.Template pathTemplate, Class<T> clazz) {
+    public <T> T getFieldValue(TemplateScript.Factory pathTemplate, Class<T> clazz) {
         return getFieldValue(renderTemplate(pathTemplate), clazz);
     }
 
@@ -191,7 +193,7 @@ public final class IngestDocument {
      * @return true if the document contains a value for the field, false otherwise
      * @throws IllegalArgumentException if the path is null, empty or invalid
      */
-    public boolean hasField(TemplateService.Template fieldPathTemplate) {
+    public boolean hasField(TemplateScript.Factory fieldPathTemplate) {
         return hasField(renderTemplate(fieldPathTemplate));
     }
 
@@ -280,7 +282,7 @@ public final class IngestDocument {
      * @param fieldPathTemplate Resolves to the path with dot-notation within the document
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the field doesn't exist.
      */
-    public void removeField(TemplateService.Template fieldPathTemplate) {
+    public void removeField(TemplateScript.Factory fieldPathTemplate) {
         removeField(renderTemplate(fieldPathTemplate));
     }
 
@@ -391,9 +393,9 @@ public final class IngestDocument {
      * @param valueSource The value source that will produce the value or values to append to the existing ones
      * @throws IllegalArgumentException if the path is null, empty or invalid.
      */
-    public void appendFieldValue(TemplateService.Template fieldPathTemplate, ValueSource valueSource) {
+    public void appendFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
         Map<String, Object> model = createTemplateModel();
-        appendFieldValue(fieldPathTemplate.execute(model), valueSource.copyAndResolve(model));
+        appendFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model));
     }
 
     /**
@@ -419,9 +421,9 @@ public final class IngestDocument {
      * @throws IllegalArgumentException if the path is null, empty, invalid or if the value cannot be set to the
      * item identified by the provided path.
      */
-    public void setFieldValue(TemplateService.Template fieldPathTemplate, ValueSource valueSource) {
+    public void setFieldValue(TemplateScript.Factory fieldPathTemplate, ValueSource valueSource) {
         Map<String, Object> model = createTemplateModel();
-        setFieldValue(fieldPathTemplate.execute(model), valueSource.copyAndResolve(model), false);
+        setFieldValue(fieldPathTemplate.newInstance(model).execute(), valueSource.copyAndResolve(model), false);
     }
 
     private void setFieldValue(String path, Object value, boolean append) {
@@ -549,8 +551,8 @@ public final class IngestDocument {
                 clazz.getName() + "]");
     }
 
-    public String renderTemplate(TemplateService.Template template) {
-        return template.execute(createTemplateModel());
+    public String renderTemplate(TemplateScript.Factory template) {
+        return template.newInstance(createTemplateModel()).execute();
     }
 
     private Map<String, Object> createTemplateModel() {

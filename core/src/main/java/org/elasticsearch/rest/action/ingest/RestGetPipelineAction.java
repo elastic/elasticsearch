@@ -38,6 +38,11 @@ public class RestGetPipelineAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "ingest_get_pipeline_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetPipelineRequest request = new GetPipelineRequest(Strings.splitStringByCommaToArray(restRequest.param("id")));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));

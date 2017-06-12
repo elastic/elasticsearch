@@ -40,7 +40,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
         super.setUp();
         keyed = randomBoolean();
         keys = new ArrayList<>();
-        int numBuckets = randomIntBetween(1, 5);
+        int numBuckets = randomNumberOfBuckets();
         for (int i = 0; i < numBuckets; i++) {
             if (keyed) {
                 keys.add(randomAlphaOfLength(5));

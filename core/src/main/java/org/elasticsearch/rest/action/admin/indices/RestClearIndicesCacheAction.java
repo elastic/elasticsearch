@@ -53,6 +53,11 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "clear_indices_cache_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(
                 Strings.splitStringByCommaToArray(request.param("index")));

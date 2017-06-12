@@ -17,5 +17,5 @@
         body:
           script:
             lang: painless
-            inline: syntax errors are fun!
+            source: syntax errors are fun!
   - match: {error.reason: 'compile error'}

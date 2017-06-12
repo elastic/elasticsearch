@@ -38,6 +38,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -513,6 +514,39 @@ public class SettingsTests extends ESTestCase {
         assertEquals("c", prefixIterator.next());
         assertFalse(prefixIterator.hasNext());
         expectThrows(NoSuchElementException.class, () -> prefixIterator.next());
+    }
+
+    public void testSecureSettingsPrefix() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.prefix.foo", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.setSecureSettings(secureSettings);
+        Settings settings = builder.build();
+        Settings prefixSettings = settings.getByPrefix("test.prefix.");
+        assertTrue(prefixSettings.names().contains("foo"));
+    }
+
+    public void testGroupPrefix() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.key1.foo", "somethingsecure");
+        secureSettings.setString("test.key1.bar", "somethingsecure");
+        secureSettings.setString("test.key2.foo", "somethingsecure");
+        secureSettings.setString("test.key2.bog", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.put("test.key1.baz", "blah1");
+        builder.put("test.key1.other", "blah2");
+        builder.put("test.key2.baz", "blah3");
+        builder.put("test.key2.else", "blah4");
+        builder.setSecureSettings(secureSettings);
+        Settings settings = builder.build();
+        Map<String, Settings> groups = settings.getGroups("test");
+        assertEquals(2, groups.size());
+        Settings key1 = groups.get("key1");
+        assertNotNull(key1);
+        assertThat(key1.names(), containsInAnyOrder("foo", "bar", "baz", "other"));
+        Settings key2 = groups.get("key2");
+        assertNotNull(key2);
+        assertThat(key2.names(), containsInAnyOrder("foo", "bog", "baz", "else"));
     }
 
     public void testEmptyFilterMap() {

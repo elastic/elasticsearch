@@ -47,9 +47,15 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "put_stored_script_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
         String lang = request.param("lang");
+        String context = request.param("context");
 
         // In the case where only {lang} is not null, we make it {id} because of
         // name ordering issues in the handlers' paths.
@@ -58,14 +64,14 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
             lang = null;
         }
 
-        BytesReference content = request.content();
+        BytesReference content = request.requiredContent();
 
         if (lang != null) {
             deprecationLogger.deprecated(
                 "specifying lang [" + lang + "] as part of the url path is deprecated, use request content instead");
         }
 
-        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, lang, content, request.getXContentType());
+        PutStoredScriptRequest putRequest = new PutStoredScriptRequest(id, lang, context, content, request.getXContentType());
         return channel -> client.admin().cluster().putStoredScript(putRequest, new AcknowledgedRestListener<>(channel));
     }
 }

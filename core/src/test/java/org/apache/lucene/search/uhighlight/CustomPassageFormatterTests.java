@@ -19,7 +19,6 @@
 
 package org.apache.lucene.search.uhighlight;
 
-import org.apache.lucene.search.highlight.Snippet;
 import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.apache.lucene.search.highlight.SimpleHTMLEncoder;
 import org.apache.lucene.util.BytesRef;

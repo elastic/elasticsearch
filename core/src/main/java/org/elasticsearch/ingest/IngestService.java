@@ -49,9 +49,7 @@ public class IngestService {
     public IngestService(ClusterSettings clusterSettings, Settings settings, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
                          List<IngestPlugin> ingestPlugins) {
-
-        final TemplateService templateService = new InternalTemplateService(scriptService);
-        Processor.Parameters parameters = new Processor.Parameters(env, scriptService, templateService,
+        Processor.Parameters parameters = new Processor.Parameters(env, scriptService,
             analysisRegistry, threadPool.getThreadContext());
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
         for (IngestPlugin ingestPlugin : ingestPlugins) {

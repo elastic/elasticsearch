@@ -270,10 +270,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             return new TestTaskResponse(in);
         }
 
-        @Override
-        protected boolean accumulateExceptions() {
-            return true;
-        }
     }
 
     private ActionFuture<NodesResponse> startBlockingTestNodesAction(CountDownLatch checkLatch) throws InterruptedException {

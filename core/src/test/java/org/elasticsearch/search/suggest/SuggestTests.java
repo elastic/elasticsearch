@@ -90,7 +90,7 @@ public class SuggestTests extends ESTestCase {
         Suggest suggest = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(suggest, xContentType, params, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(suggest, xContentType, params, humanReadable);
         Suggest parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);

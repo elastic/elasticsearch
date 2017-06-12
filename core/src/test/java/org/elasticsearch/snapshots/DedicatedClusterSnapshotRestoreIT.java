@@ -36,6 +36,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -777,6 +779,69 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertEquals(0, snapshotInfo.failedShards());
     }
 
+    public void testMasterShutdownDuringFailedSnapshot() throws Exception {
+        logger.info("-->  starting two master nodes and two data nodes");
+        internalCluster().startMasterOnlyNodes(2);
+        internalCluster().startDataOnlyNodes(2);
+
+        logger.info("-->  creating repository");
+        assertAcked(client().admin().cluster().preparePutRepository("test-repo")
+            .setType("mock").setSettings(Settings.builder()
+                .put("location", randomRepoPath())
+                .put("compress", randomBoolean())
+                .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
+
+        assertAcked(prepareCreate("test-idx", 0, Settings.builder()
+            .put("number_of_shards", 6).put("number_of_replicas", 0)));
+        ensureGreen();
+
+        logger.info("-->  indexing some data");
+        final int numdocs = randomIntBetween(50, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test-idx", "type1",
+                Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh();
+
+        logger.info("-->  stopping random data node, which should cause shards to go missing");
+        internalCluster().stopRandomDataNode();
+        assertBusy(() ->
+            assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
+            30, TimeUnit.SECONDS);
+
+        final String masterNode = blockMasterFromFinalizingSnapshot("test-repo");
+
+        logger.info("-->  snapshot");
+        client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap")
+            .setWaitForCompletion(false).setIndices("test-idx").get();
+
+        logger.info("--> waiting for block to kick in on " + masterNode);
+        waitForBlock(masterNode, "test-repo", TimeValue.timeValueSeconds(60));
+
+        logger.info("-->  stopping master node");
+        internalCluster().stopCurrentMasterNode();
+
+        logger.info("-->  wait until the snapshot is done");
+        assertBusy(() -> {
+            GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                .prepareGetSnapshots("test-repo").setSnapshots("test-snap").setIgnoreUnavailable(true).get();
+            assertEquals(1, snapshotsStatusResponse.getSnapshots().size());
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+            assertTrue(snapshotInfo.state().completed());
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+            SnapshotsInProgress snapshotsInProgress = clusterState.custom(SnapshotsInProgress.TYPE);
+            assertEquals(0, snapshotsInProgress.entries().size());
+        }, 30, TimeUnit.SECONDS);
+
+        logger.info("-->  verify that snapshot failed");
+        GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+            .prepareGetSnapshots("test-repo").setSnapshots("test-snap").get();
+        SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
+        assertEquals(SnapshotState.FAILED, snapshotInfo.state());
+    }
+
     /**
      * Tests that a shrunken index (created via the shrink APIs) and subsequently snapshotted
      * can be restored when the node the shrunken index was created on is no longer part of
@@ -844,7 +909,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             restoreResponse.getRestoreInfo().successfulShards());
         ensureYellow();
     }
-    
+
     public static class SnapshottableMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_snapshottable";
 

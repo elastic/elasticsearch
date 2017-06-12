@@ -325,47 +325,10 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexSettings.getIndex();
     }
 
-    /**
-     * Compiles (or retrieves from cache) and binds the parameters to the
-     * provided script
-     */
-    public final SearchScript.LeafFactory getSearchScript(Script script, ScriptContext<SearchScript.Factory> context) {
+    /** Return the script service to allow compiling scripts. */
+    public final ScriptService getScriptService() {
         failIfFrozen();
-        SearchScript.Factory factory = scriptService.compile(script, context);
-        return factory.newFactory(script.getParams(), lookup());
-    }
-    /**
-     * Returns a lazily created {@link SearchScript} that is compiled immediately but can be pulled later once all
-     * parameters are available.
-     */
-    public final Function<Map<String, Object>, SearchScript.LeafFactory> getLazySearchScript(
-        Script script, ScriptContext<SearchScript.Factory> context) {
-        // TODO: this "lazy" binding can be removed once scripted metric aggs have their own contexts, which take _agg/_aggs as a parameter
-        failIfFrozen();
-        SearchScript.Factory factory = scriptService.compile(script, context);
-        return (p) -> factory.newFactory(p, lookup());
-    }
-
-    /**
-     * Compiles (or retrieves from cache) and binds the parameters to the
-     * provided script
-     */
-    public final ExecutableScript getExecutableScript(Script script, ScriptContext<ExecutableScript.Factory> context) {
-        failIfFrozen();
-        ExecutableScript.Factory factory = scriptService.compile(script, context);
-        return factory.newInstance(script.getParams());
-    }
-
-    /**
-     * Returns a lazily created {@link ExecutableScript} that is compiled immediately but can be pulled later once all
-     * parameters are available.
-     */
-    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(
-        Script script, ScriptContext<ExecutableScript.Factory> context) {
-        // TODO: this "lazy" binding can be removed once scripted metric aggs have their own contexts, which take _agg/_aggs as a parameter
-        failIfFrozen();
-        ExecutableScript.Factory factory = scriptService.compile(script, context);
-        return factory::newInstance;
+        return scriptService;
     }
 
     /**

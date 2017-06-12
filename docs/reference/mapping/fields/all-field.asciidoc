@@ -312,8 +312,7 @@ disk space and, because it is a combination of other fields, it may result in
 odd highlighting results.
 
 The `_all` field also accepts the `term_vector` and `index_options`
-parameters, allowing the use of the fast vector highlighter and the postings
-highlighter.
+parameters, allowing highlighting to use it.
 
 [[all-highlight-fields]]
 ===== Highlight original fields

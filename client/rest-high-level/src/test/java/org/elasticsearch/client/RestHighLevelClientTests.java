@@ -42,6 +42,8 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -158,6 +160,19 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals(5, searchResponse.getSuccessfulShards());
         assertEquals(100, searchResponse.getTook().getMillis());
         verify(restClient).performRequest(eq("GET"), eq("/_search/scroll"), eq(Collections.emptyMap()),
+                isNotNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
+    }
+
+    public void testClearScroll() throws IOException {
+        Header[] headers = randomHeaders(random(), "Header");
+        ClearScrollResponse mockClearScrollResponse = new ClearScrollResponse(randomBoolean(), randomIntBetween(0, Integer.MAX_VALUE));
+        mockResponse(mockClearScrollResponse);
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        clearScrollRequest.addScrollId(randomAlphaOfLengthBetween(5, 10));
+        ClearScrollResponse clearScrollResponse = restHighLevelClient.clearScroll(clearScrollRequest, headers);
+        assertEquals(mockClearScrollResponse.isSucceeded(), clearScrollResponse.isSucceeded());
+        assertEquals(mockClearScrollResponse.getNumFreed(), clearScrollResponse.getNumFreed());
+        verify(restClient).performRequest(eq("DELETE"), eq("/_search/scroll"), eq(Collections.emptyMap()),
                 isNotNull(HttpEntity.class), argThat(new HeadersVarargMatcher(headers)));
     }
 

@@ -460,7 +460,7 @@ Generating the terms using a script:
         "genres" : {
             "terms" : {
                 "script" : {
-                    "inline": "doc['genre'].value",
+                    "source": "doc['genre'].value",
                     "lang": "painless"
                 }
             }
@@ -478,7 +478,7 @@ This will interpret the `script` parameter as an `inline` script with the defaul
         "genres" : {
             "terms" : {
                 "script" : {
-                    "stored": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "genre"
                     }
@@ -499,7 +499,7 @@ This will interpret the `script` parameter as an `inline` script with the defaul
             "terms" : {
                 "field" : "gender",
                 "script" : {
-                    "inline" : "'Genre: ' +_value"
+                    "source" : "'Genre: ' +_value"
                     "lang" : "painless"
                 }
             }

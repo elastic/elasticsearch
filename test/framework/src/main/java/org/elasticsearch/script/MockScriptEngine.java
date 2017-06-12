@@ -81,6 +81,19 @@ public class MockScriptEngine implements ScriptEngine {
         } else if (context.instanceClazz.equals(ExecutableScript.class)) {
             ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
             return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(TemplateScript.class)) {
+            TemplateScript.Factory factory = vars -> {
+                // TODO: need a better way to implement all these new contexts
+                // this is just a shim to act as an executable script just as before
+                ExecutableScript execScript = mockCompiled.createExecutableScript(vars);
+                    return new TemplateScript(vars) {
+                        @Override
+                        public String execute() {
+                            return (String) execScript.run();
+                        }
+                    };
+                };
+            return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }

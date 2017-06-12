@@ -46,6 +46,7 @@ import org.apache.lucene.search.spans.SpanOrQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -61,11 +62,13 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
@@ -270,12 +273,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field(STRING_FIELD_NAME_2)
             .useDisMax(false)
             .toQuery(createShardContext());
-        assertThat(query, instanceOf(BooleanQuery.class));
-        BooleanQuery bQuery = (BooleanQuery) query;
-        assertThat(bQuery.clauses().size(), equalTo(2));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getTerm(),
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery bQuery = (DisjunctionMaxQuery) query;
+        assertThat(bQuery.getDisjuncts().size(), equalTo(2));
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME, "test")));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(),
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME_2, "test")));
     }
 
@@ -294,12 +297,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testToQueryFieldsWildcard() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = queryStringQuery("test").field("mapped_str*").useDisMax(false).toQuery(createShardContext());
-        assertThat(query, instanceOf(BooleanQuery.class));
-        BooleanQuery bQuery = (BooleanQuery) query;
-        assertThat(bQuery.clauses().size(), equalTo(2));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 0).getTerm(),
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery dQuery = (DisjunctionMaxQuery) query;
+        assertThat(dQuery.getDisjuncts().size(), equalTo(2));
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 0).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME, "test")));
-        assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(),
+        assertThat(assertDisjunctionSubQuery(query, TermQuery.class, 1).getTerm(),
             equalTo(new Term(STRING_FIELD_NAME_2, "test")));
     }
 
@@ -397,6 +400,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             // simple multi-term
             Query query = queryParser.parse("guinea pig");
+
             Query expectedQuery = new BooleanQuery.Builder()
                     .add(new BooleanQuery.Builder()
                             .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
@@ -448,34 +452,34 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
             // span query
             query = queryParser.parse("\"that guinea pig smells\"");
-            expectedQuery = new BooleanQuery.Builder()
-                .add(new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
-                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
-                    .addClause(new SpanOrQuery(
+
+            SpanNearQuery nearQuery = new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
+                .addClause(
+                    new SpanOrQuery(
                         new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
                             .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
                             .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
                         new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
                     .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
-                    .build(), Occur.SHOULD)
-                .build();
+                    .build();
+            expectedQuery = new DisjunctionMaxQuery(Collections.singletonList(nearQuery), 1.0f);
             assertThat(query, Matchers.equalTo(expectedQuery));
 
             // span query with slop
             query = queryParser.parse("\"that guinea pig smells\"~2");
-            expectedQuery = new BooleanQuery.Builder()
-                .add(new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
-                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
-                    .addClause(new SpanOrQuery(
+            nearQuery = new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
+                .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "that")))
+                .addClause(
+                    new SpanOrQuery(
                         new SpanNearQuery.Builder(STRING_FIELD_NAME, true)
                             .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "guinea")))
                             .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "pig"))).build(),
                         new SpanTermQuery(new Term(STRING_FIELD_NAME, "cavy"))))
-                    .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
-                    .setSlop(2)
-                    .build(),
-                    Occur.SHOULD)
+                .addClause(new SpanTermQuery(new Term(STRING_FIELD_NAME, "smells")))
+                .setSlop(2)
                 .build();
+            expectedQuery = new DisjunctionMaxQuery(Collections.singletonList(nearQuery), 1.0f);
             assertThat(query, Matchers.equalTo(expectedQuery));
         }
     }
@@ -830,6 +834,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testExistsFieldQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        assumeTrue("5.x behaves differently, so skip on non-6.x indices",
+                indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1));
+
         QueryShardContext context = createShardContext();
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
         Query query = queryBuilder.toQuery(context);
@@ -858,9 +865,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testDisabledFieldNamesField() throws Exception {
         QueryShardContext context = createShardContext();
-        context.getMapperService().merge("new_type",
+        context.getMapperService().merge("doc",
             new CompressedXContent(
-                PutMappingRequest.buildFromSimplifiedDef("new_type",
+                PutMappingRequest.buildFromSimplifiedDef("doc",
                     "foo", "type=text",
                     "_field_names", "enabled=false").string()),
             MapperService.MergeReason.MAPPING_UPDATE, true);
@@ -868,9 +875,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         Query query = queryBuilder.toQuery(context);
         Query expected = new WildcardQuery(new Term("foo", "*"));
         assertThat(query, equalTo(expected));
-        context.getMapperService().merge("new_type",
+        context.getMapperService().merge("doc",
             new CompressedXContent(
-                PutMappingRequest.buildFromSimplifiedDef("new_type",
+                PutMappingRequest.buildFromSimplifiedDef("doc",
                     "foo", "type=text",
                     "_field_names", "enabled=true").string()),
             MapperService.MergeReason.MAPPING_UPDATE, true);

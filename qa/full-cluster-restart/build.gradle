@@ -66,6 +66,7 @@ for (Version version : indexCompatVersions) {
     clusterName = 'full-cluster-restart'
     numNodes = 2
     dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
+    cleanShared = false // We want to keep snapshots made by the old cluster!
   }
 
   tasks.getByName("${baseName}#upgradedClusterTestRunner").configure {
@@ -76,13 +77,6 @@ for (Version version : indexCompatVersions) {
 
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
     dependsOn = [upgradedClusterTest]
-  }
-
-  /* Delay this change because the task we need to modify isn't created until
-   * after projects are evaluated. */
-  gradle.projectsEvaluated {
-    // Disable cleaning the repository so we can test loading a snapshot
-    tasks.getByName("${baseName}#upgradedClusterTestCluster#prepareCluster.cleanShared").enabled = false
   }
 
   bwcTest.dependsOn(versionBwcTest)

@@ -128,6 +128,7 @@ public abstract class InternalMappedSignificantTerms<
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), subsetSize);
+        builder.field(BG_COUNT, supersetSize);
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
             //There is a condition (presumably when only one shard has a bucket?) where reduce is not called

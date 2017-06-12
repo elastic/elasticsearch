@@ -35,9 +35,18 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     private List<String> keys;
 
     @Override
+    protected int maxNumberOfBuckets() {
+        return 10;
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         keys = new ArrayList<>();
+        // InternalAdjacencyMatrix represents the upper triangular matrix:
+        // 2 filters (matrix of 2x2) generates 3 buckets
+        // 3 filters generates 6 buckets
+        // 4 filters generates 10 buckets
         int numFilters = randomIntBetween(2, 4);
         String[] filters = new String[numFilters];
         for (int i = 0; i < numFilters; i++) {

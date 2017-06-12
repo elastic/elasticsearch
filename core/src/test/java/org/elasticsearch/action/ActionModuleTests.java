@@ -43,6 +43,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.List;
@@ -110,9 +111,10 @@ public class ActionModuleTests extends ESTestCase {
 
     public void testSetupRestHandlerContainsKnownBuiltin() {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
+        UsageService usageService = new UsageService(settings.getSettings());
         ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(Settings.EMPTY),
                 settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
-                null);
+                null, usageService);
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(IllegalArgumentException.class, () ->
@@ -132,9 +134,10 @@ public class ActionModuleTests extends ESTestCase {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
+            UsageService usageService = new UsageService(settings.getSettings());
             ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(Settings.EMPTY),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(dupsMainAction), null, null);
+                    singletonList(dupsMainAction), null, null, usageService);
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Path [/] already has a value [" + RestMainAction.class.getName()));
         } finally {
@@ -163,9 +166,10 @@ public class ActionModuleTests extends ESTestCase {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
+            UsageService usageService = new UsageService(settings.getSettings());
             ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(Settings.EMPTY),
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(registersFakeHandler), null, null);
+                    singletonList(registersFakeHandler), null, null, usageService);
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(IllegalArgumentException.class, () ->

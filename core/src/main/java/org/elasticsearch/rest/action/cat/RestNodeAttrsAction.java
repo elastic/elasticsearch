@@ -47,6 +47,11 @@ public class RestNodeAttrsAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_node_attrs_action";
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/nodeattrs\n");
     }

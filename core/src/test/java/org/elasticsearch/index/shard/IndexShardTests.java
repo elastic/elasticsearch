@@ -102,12 +102,14 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -139,6 +141,7 @@ import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
@@ -880,6 +883,26 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testRefreshMetric() throws IOException {
+        IndexShard shard = newStartedShard();
+        assertThat(shard.refreshStats().getTotal(), equalTo(2L)); // one refresh on end of recovery, one on starting shard
+        long initialTotalTime = shard.refreshStats().getTotalTimeInMillis();
+        // check time advances
+        for (int i = 1; shard.refreshStats().getTotalTimeInMillis() == initialTotalTime; i++) {
+            indexDoc(shard, "test", "test");
+            assertThat(shard.refreshStats().getTotal(), equalTo(2L + i - 1));
+            shard.refresh("test");
+            assertThat(shard.refreshStats().getTotal(), equalTo(2L + i));
+            assertThat(shard.refreshStats().getTotalTimeInMillis(), greaterThanOrEqualTo(initialTotalTime));
+        }
+        long refreshCount = shard.refreshStats().getTotal();
+        indexDoc(shard, "test", "test");
+        try (Engine.GetResult ignored = shard.get(new Engine.Get(true, "test", "test", new Term("_id", "test")))) {
+            assertThat(shard.refreshStats().getTotal(), equalTo(refreshCount + 1));
+        }
+        closeShards(shard);
+    }
+
     private ParsedDocument testParsedDocument(String id, String type, String routing,
                                               ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field idField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
@@ -1258,7 +1281,7 @@ public class IndexShardTests extends IndexShardTestCase {
         while((operation = snapshot.next()) != null) {
             if (operation.opType() == Translog.Operation.Type.NO_OP) {
                 numNoops++;
-                assertEquals(1, operation.primaryTerm());
+                assertEquals(newShard.getPrimaryTerm(), operation.primaryTerm());
                 assertEquals(0, operation.seqNo());
             }
         }
@@ -1606,7 +1629,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new RecoveryTarget(shard, discoveryNode, recoveryListener, aLong -> {
             }) {
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
                     final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
                     assertFalse(replica.getTranslog().syncNeeded());
                     return localCheckpoint;
@@ -1614,6 +1637,112 @@ public class IndexShardTests extends IndexShardTestCase {
             }, true);
 
         closeShards(primary, replica);
+    }
+
+    public void testRecoverFromTranslog() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder("test")
+            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        List<Translog.Operation> operations = new ArrayList<>();
+        int numTotalEntries = randomIntBetween(0, 10);
+        int numCorruptEntries = 0;
+        for (int i = 0; i < numTotalEntries; i++) {
+            if (randomBoolean()) {
+                operations.add(new Translog.Index("test", "1", 0, 1, VersionType.INTERNAL,
+                    "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")), null, null, -1));
+            } else {
+                // corrupt entry
+                operations.add(new Translog.Index("test", "2", 1, 1, VersionType.INTERNAL,
+                    "{\"foo\" : \"bar}".getBytes(Charset.forName("UTF-8")), null, null, -1));
+                numCorruptEntries++;
+            }
+        }
+
+        Iterator<Translog.Operation> iterator = operations.iterator();
+        Translog.Snapshot snapshot = new Translog.Snapshot() {
+
+            @Override
+            public int totalOperations() {
+                return numTotalEntries;
+            }
+
+            @Override
+            public Translog.Operation next() throws IOException {
+                return iterator.hasNext() ? iterator.next() : null;
+            }
+        };
+        primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(),
+            getFakeDiscoNode(primary.routingEntry().currentNodeId()),
+            null));
+        primary.recoverFromStore();
+
+        primary.runTranslogRecovery(primary.getEngine(), snapshot);
+        assertThat(primary.recoveryState().getTranslog().totalOperationsOnStart(), equalTo(numTotalEntries));
+        assertThat(primary.recoveryState().getTranslog().totalOperations(), equalTo(numTotalEntries));
+        assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numTotalEntries - numCorruptEntries));
+
+        closeShards(primary);
+    }
+
+    public void testTranslogOpToEngineOpConverter() throws IOException {
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+        IndexMetaData metaData = IndexMetaData.builder("test")
+            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
+            .settings(settings)
+            .primaryTerm(0, 1).build();
+        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
+        TranslogOpToEngineOpConverter converter = new TranslogOpToEngineOpConverter(primary.shardId(), primary.mapperService());
+
+        Engine.Operation.Origin origin = randomFrom(Engine.Operation.Origin.values());
+        // convert index op
+        Translog.Index translogIndexOp = new Translog.Index(randomAlphaOfLength(10), randomAlphaOfLength(10), randomNonNegativeLong(),
+            randomNonNegativeLong(), randomFrom(VersionType.values()), "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")),
+            randomAlphaOfLength(5), randomAlphaOfLength(5), randomLong());
+        Engine.Index engineIndexOp = (Engine.Index) converter.convertToEngineOp(translogIndexOp, origin);
+        assertEquals(engineIndexOp.origin(), origin);
+        assertEquals(engineIndexOp.primaryTerm(), translogIndexOp.primaryTerm());
+        assertEquals(engineIndexOp.seqNo(), translogIndexOp.seqNo());
+        assertEquals(engineIndexOp.version(), translogIndexOp.version());
+        assertEquals(engineIndexOp.versionType(), translogIndexOp.versionType().versionTypeForReplicationAndRecovery());
+        assertEquals(engineIndexOp.id(), translogIndexOp.id());
+        assertEquals(engineIndexOp.type(), translogIndexOp.type());
+        assertEquals(engineIndexOp.getAutoGeneratedIdTimestamp(), translogIndexOp.getAutoGeneratedIdTimestamp());
+        assertEquals(engineIndexOp.parent(), translogIndexOp.parent());
+        assertEquals(engineIndexOp.routing(), translogIndexOp.routing());
+        assertEquals(engineIndexOp.source(), translogIndexOp.source());
+
+        // convert delete op
+        Translog.Delete translogDeleteOp = new Translog.Delete(randomAlphaOfLength(5), randomAlphaOfLength(5),
+            new Term(randomAlphaOfLength(5), randomAlphaOfLength(5)), randomNonNegativeLong(), randomNonNegativeLong(),
+            randomNonNegativeLong(), randomFrom(VersionType.values()));
+        Engine.Delete engineDeleteOp = (Engine.Delete) converter.convertToEngineOp(translogDeleteOp, origin);
+        assertEquals(engineDeleteOp.origin(), origin);
+        assertEquals(engineDeleteOp.primaryTerm(), translogDeleteOp.primaryTerm());
+        assertEquals(engineDeleteOp.seqNo(), translogDeleteOp.seqNo());
+        assertEquals(engineDeleteOp.version(), translogDeleteOp.version());
+        assertEquals(engineDeleteOp.versionType(), translogDeleteOp.versionType().versionTypeForReplicationAndRecovery());
+        assertEquals(engineDeleteOp.id(), translogDeleteOp.id());
+        assertEquals(engineDeleteOp.type(), translogDeleteOp.type());
+        assertEquals(engineDeleteOp.uid(), translogDeleteOp.uid());
+
+        // convert noop
+        Translog.NoOp translogNoOp = new Translog.NoOp(randomNonNegativeLong(), randomNonNegativeLong(), randomAlphaOfLength(5));
+        Engine.NoOp engineNoOp = (Engine.NoOp) converter.convertToEngineOp(translogNoOp, origin);
+        assertEquals(engineNoOp.origin(), origin);
+        assertEquals(engineNoOp.primaryTerm(), translogNoOp.primaryTerm());
+        assertEquals(engineNoOp.seqNo(), translogNoOp.seqNo());
+        assertEquals(engineNoOp.reason(), translogNoOp.reason());
+
+        closeShards(primary);
     }
 
     public void testShardActiveDuringInternalRecovery() throws IOException {
@@ -1663,7 +1792,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
 
                 @Override
-                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) {
+                public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
                     final long localCheckpoint = super.indexTranslogOperations(operations, totalTranslogOps);
                     // Shard should now be active since we did recover:
                     assertTrue(replica.isActive());

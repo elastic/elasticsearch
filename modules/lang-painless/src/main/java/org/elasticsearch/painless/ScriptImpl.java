@@ -81,8 +81,8 @@ final class ScriptImpl extends SearchScript {
             variables.putAll(leafLookup.asMap());
         }
 
-        scoreLookup = script.uses$_score() ? this::getScore : () -> 0.0;
-        ctxLookup = script.uses$ctx() ? variables -> (Map<?, ?>) variables.get("ctx") : variables -> null;
+        scoreLookup = script.needs_score() ? this::getScore : () -> 0.0;
+        ctxLookup = script.needsCtx() ? variables -> (Map<?, ?>) variables.get("ctx") : variables -> null;
     }
 
     @Override

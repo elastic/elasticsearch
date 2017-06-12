@@ -104,8 +104,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         final SortedSetDocValues globalOrdinals = valuesSource.globalOrdinalsValues(ctx);
-        Scorer parentScorer = parentFilter.scorer(ctx);
-        final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), parentScorer);
+        final Bits parentDocs = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), parentFilter.scorerSupplier(ctx));
         return new LeafBucketCollector() {
 
             @Override

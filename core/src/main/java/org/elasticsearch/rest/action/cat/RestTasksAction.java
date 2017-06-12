@@ -56,6 +56,11 @@ public class RestTasksAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_tasks_action";
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/tasks\n");
     }

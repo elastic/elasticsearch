@@ -269,7 +269,7 @@ final class Security {
             /*
              * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
              * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
-             * like unicode normalization or case-insensitivity on filesystems some filesystems (e.g., the case-insensitive variant of HFS+
+             * like unicode normalization or case-insensitivity on some filesystems (e.g., the case-insensitive variant of HFS+
              * on macOS).
              */
             try {

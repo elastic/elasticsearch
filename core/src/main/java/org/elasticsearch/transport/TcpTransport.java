@@ -360,9 +360,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         private final DiscoveryNode node;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final Version version;
-        private final Consumer<NodeChannels> onClose;
 
-        public NodeChannels(DiscoveryNode node, Channel[] channels, ConnectionProfile connectionProfile, Consumer<NodeChannels> onClose) {
+        public NodeChannels(DiscoveryNode node, Channel[] channels, ConnectionProfile connectionProfile) {
             this.node = node;
             this.channels = channels;
             assert channels.length == connectionProfile.getNumConnections() : "expected channels size to be == "
@@ -373,7 +372,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     typeMapping.put(type, handle);
             }
             version = node.getVersion();
-            this.onClose = onClose;
         }
 
         NodeChannels(NodeChannels channels, Version handshakeVersion) {
@@ -381,7 +379,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             this.channels = channels.channels;
             this.typeMapping = channels.typeMapping;
             this.version = handshakeVersion;
-            this.onClose = channels.onClose;
         }
 
         @Override
@@ -416,7 +413,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 try {
                     closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()));
                 } finally {
-                    onClose.accept(this);
+                    onNodeChannelsClosed(this);
                 }
             }
         }
@@ -613,8 +610,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         if (disconnectFromNode(entry.getKey(), channel, reason)) {
                             // if we managed to find this channel and disconnect from it, then break, no need to check on
                             // the rest of the nodes
-                            // Removing it here from open connections is paranoia since the close handler should deal with this.
-                            openConnections.remove(entry.getValue());
+                            // #onNodeChannelsClosed will remove it..
+                            assert openConnections.contains(entry.getValue()) == false : "NodeChannel#close should remove the connetion";
                             // we can only be connected and published to a single node with one connection. So if disconnectFromNode
                             // returns true we can safely break out from here since we cleaned up everything needed
                             break outer;
@@ -1689,8 +1686,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    protected void onNodeChannelsClosed(NodeChannels channels) {
-        openConnections.remove(channels);
+    private void onNodeChannelsClosed(NodeChannels channels) {
+        openConnections.remove(channels); // don't assert here since the channel / connection might not have been registered yet
         transportServiceAdapter.onConnectionClosed(channels);
     }
 

@@ -47,6 +47,7 @@ import java.security.Policy;
 import java.security.URIParameter;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -264,8 +265,22 @@ final class Security {
         if (environment.sharedDataFile() != null) {
             addPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(), "read,readlink,write,delete");
         }
+        final Set<Path> dataFilesPaths = new HashSet<>();
         for (Path path : environment.dataFiles()) {
             addPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete");
+            /*
+             * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
+             * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
+             * like unicode normalization or case-insensitivity on some filesystems (e.g., the case-insensitive variant of HFS+ on macOS).
+             */
+            try {
+                final Path realPath = path.toRealPath();
+                if (!dataFilesPaths.add(realPath)) {
+                    throw new IllegalStateException("path [" + realPath + "] is duplicated by [" + path + "]");
+                }
+            } catch (final IOException e) {
+                throw new IllegalStateException("unable to access [" + path + "]", e);
+            }
         }
         // TODO: this should be removed in ES 6.0! We will no longer support data paths with the cluster as a folder
         assert Version.CURRENT.major < 6 : "cluster name is no longer used in data path";
@@ -399,11 +414,12 @@ final class Security {
     }
 
     /**
-     * Add access to path (and all files underneath it)
-     * @param policy current policy to add permissions to
+     * Add access to path (and all files underneath it); this also creates the directory if it does not exist.
+     *
+     * @param policy            current policy to add permissions to
      * @param configurationName the configuration name associated with the path (for error messages only)
-     * @param path the path itself
-     * @param permissions set of filepermissions to grant to the path
+     * @param path              the path itself
+     * @param permissions       set of file permissions to grant to the path
      */
     static void addPath(Permissions policy, String configurationName, Path path, String permissions) {
         // paths may not exist yet, this also checks accessibility

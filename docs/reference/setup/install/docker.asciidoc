@@ -2,15 +2,15 @@
 === Install Elasticsearch with Docker
 
 Elasticsearch is also available as a Docker image.
-The image is built with {xpack}/index.html[X-Pack] and uses https://hub.docker.com/_/centos/[centos:7] as the base image.
+The image is built with {xpack-ref}/index.html[X-Pack] and uses https://hub.docker.com/_/centos/[centos:7] as the base image.
 The source code can be found on https://github.com/elastic/elasticsearch-docker/tree/{branch}[GitHub].
 
 ==== Security note
 
-NOTE: {xpack}/index.html[X-Pack] is preinstalled in this image.
-Please take a few minutes to familiarize yourself with {xpack}/security-getting-started.html[X-Pack Security] and how to change default passwords. The default password for the `elastic` user is `changeme`.
+NOTE: {xpack-ref}/index.html[X-Pack] is preinstalled in this image.
+Please take a few minutes to familiarize yourself with {xpack-ref}/security-getting-started.html[X-Pack Security] and how to change default passwords. The default password for the `elastic` user is `changeme`.
 
-NOTE: X-Pack includes a trial license for 30 days. After that, you can obtain one of the https://www.elastic.co/subscriptions[available subscriptions] or {xpack}/security-settings.html[disable Security]. The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
+NOTE: X-Pack includes a trial license for 30 days. After that, you can obtain one of the https://www.elastic.co/subscriptions[available subscriptions] or {xpack-ref}/security-settings.html[disable Security]. The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
 
 Obtaining Elasticsearch for Docker is as simple as issuing a +docker pull+ command against the Elastic Docker registry.
 

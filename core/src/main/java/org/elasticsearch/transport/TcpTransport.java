@@ -541,8 +541,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     connectTimeout : connectionProfile.getHandshakeTimeout();
                 final Version version = executeHandshake(node, channel, handshakeTimeout);
                 nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
-                openConnections.add(nodeChannels);
                 transportServiceAdapter.onConnectionOpened(nodeChannels);
+                openConnections.add(nodeChannels);
                 success = true;
                 return nodeChannels;
             } catch (ConnectTransportException e) {
@@ -1687,8 +1687,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     private void onNodeChannelsClosed(NodeChannels channels) {
-        openConnections.remove(channels); // don't assert here since the channel / connection might not have been registered yet
-        transportServiceAdapter.onConnectionClosed(channels);
+        // don't assert here since the channel / connection might not have been registered yet
+        final boolean remove = openConnections.remove(channels);
+        if (remove) {
+            transportServiceAdapter.onConnectionClosed(channels);
+        }
     }
 
     final int getNumOpenConnections() {

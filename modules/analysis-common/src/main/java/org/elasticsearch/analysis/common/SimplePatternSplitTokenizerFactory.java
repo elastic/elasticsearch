@@ -33,8 +33,7 @@ public class SimplePatternSplitTokenizerFactory extends AbstractTokenizerFactory
     public SimplePatternSplitTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
 
-        String pattern = settings.get("pattern", "");
-        this.pattern = pattern;
+        pattern = settings.get("pattern", "");
     }
 
     @Override

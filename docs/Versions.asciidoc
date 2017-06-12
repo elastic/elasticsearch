@@ -16,7 +16,7 @@ release-state can be: released | prerelease | unreleased
 :painless:        https://www.elastic.co/guide/en/elasticsearch/painless/master
 :plugins:         https://www.elastic.co/guide/en/elasticsearch/plugins/{branch}
 :javaclient:      https://www.elastic.co/guide/en/elasticsearch/client/java-api/{branch}
-:xpack-ref:           https://www.elastic.co/guide/en/x-pack/{branch}
+:xpack-ref:       https://www.elastic.co/guide/en/x-pack/{branch}
 :logstash:        https://www.elastic.co/guide/en/logstash/{branch}
 :kibana:          https://www.elastic.co/guide/en/kibana/{branch}
 :issue:           https://github.com/elastic/elasticsearch/issues/
@@ -31,7 +31,7 @@ release-state can be: released | prerelease | unreleased
 :es:              Elasticsearch
 :kib:             Kibana
 
-:xes-repo-dir: {docdir}/../../elasticsearch-extra/x-pack-elasticsearch/docs/en
+:xes-repo-dir:    {docdir}/../../elasticsearch-extra/x-pack-elasticsearch/docs/en
 
 ///////
 Javadoc roots used to generate links from Painless's API reference

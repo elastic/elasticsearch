@@ -105,9 +105,9 @@ and is generally faster than the `pattern` tokenizer.
 
 <<analysis-simplepatternsplit-tokenizer,Simple Pattern Split Tokenizer>>::
 
-The `simplepatternsplit` tokenizer uses the same restricted subset as
-the `simplepattern` tokenizer, but splits the input at matches rather than 
-returning the matches as terms.
+The `simplepatternsplit` tokenizer uses the same restricted regular expression
+subset as the `simplepattern` tokenizer, but splits the input at matches rather
+than returning the matches as terms.
 
 <<analysis-pathhierarchy-tokenizer,Path Tokenizer>>::
 

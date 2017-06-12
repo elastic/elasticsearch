@@ -129,23 +129,23 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
 
     static final Map<String,Class<?>> KNOWN_TOKENIZERS = new MapBuilder<String,Class<?>>()
         // exposed in ES
-        .put("classic",            ClassicTokenizerFactory.class)
-        .put("edgengram",          EdgeNGramTokenizerFactory.class)
-        .put("keyword",            KeywordTokenizerFactory.class)
-        .put("letter",             LetterTokenizerFactory.class)
-        .put("lowercase",          LowerCaseTokenizerFactory.class)
-        .put("ngram",              NGramTokenizerFactory.class)
-        .put("pathhierarchy",      PathHierarchyTokenizerFactory.class)
-        .put("pattern",            PatternTokenizerFactory.class)
-        .put("simplepattern",      MovedToAnalysisCommon.class)
+        .put("classic", ClassicTokenizerFactory.class)
+        .put("edgengram", EdgeNGramTokenizerFactory.class)
+        .put("keyword", KeywordTokenizerFactory.class)
+        .put("letter", LetterTokenizerFactory.class)
+        .put("lowercase", LowerCaseTokenizerFactory.class)
+        .put("ngram", NGramTokenizerFactory.class)
+        .put("pathhierarchy", PathHierarchyTokenizerFactory.class)
+        .put("pattern", PatternTokenizerFactory.class)
+        .put("simplepattern", MovedToAnalysisCommon.class)
         .put("simplepatternsplit", MovedToAnalysisCommon.class)
-        .put("standard",           StandardTokenizerFactory.class)
-        .put("thai",               ThaiTokenizerFactory.class)
-        .put("uax29urlemail",      UAX29URLEmailTokenizerFactory.class)
-        .put("whitespace",         WhitespaceTokenizerFactory.class)
+        .put("standard", StandardTokenizerFactory.class)
+        .put("thai", ThaiTokenizerFactory.class)
+        .put("uax29urlemail", UAX29URLEmailTokenizerFactory.class)
+        .put("whitespace", WhitespaceTokenizerFactory.class)
 
         // this one "seems to mess up offsets". probably shouldn't be a tokenizer...
-        .put("wikipedia",     Void.class)
+        .put("wikipedia", Void.class)
         .immutableMap();
 
     static final Map<String,Class<?>> KNOWN_TOKENFILTERS = new MapBuilder<String,Class<?>>()

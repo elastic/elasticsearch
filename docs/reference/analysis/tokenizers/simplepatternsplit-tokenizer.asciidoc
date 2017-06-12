@@ -13,7 +13,7 @@ terms from matches using patterns in the same restricted regular expression
 subset, see the <<analysis-simplepattern-tokenizer,`simplepattern`>>
 tokenizer.
 
-This tokenizer uses http://lucene.apache.org/core//6_5_1/core/org/apache/lucene/util/automaton/RegExp.html[Lucene regular expressions].
+This tokenizer uses {lucene-core-javadoc}/org/apache/lucene/util/automaton/RegExp.html[Lucene regular expressions].
 For an explanation of the supported features and syntax, see <<regexp-syntax,Regular Expression Syntax>>.
 
 The default pattern is the empty string, which produces one term containing the
@@ -27,8 +27,7 @@ The `simplepatternsplit` tokenizer accepts the following parameters:
 
 [horizontal]
 `pattern`::
-
-  A http://lucene.apache.org/core//6_5_1/core/org/apache/lucene/util/automaton/RegExp.html[Lucene regular expression], defaults to the empty string.
+    A {lucene-core-javadoc}/org/apache/lucene/util/automaton/RegExp.html[Lucene regular expression], defaults to the empty string.
 
 [float]
 === Example configuration

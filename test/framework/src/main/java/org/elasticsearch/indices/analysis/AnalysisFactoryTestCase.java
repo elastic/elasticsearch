@@ -71,8 +71,6 @@ import org.elasticsearch.index.analysis.ScandinavianFoldingFilterFactory;
 import org.elasticsearch.index.analysis.ScandinavianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.SerbianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
-import org.elasticsearch.index.analysis.SimplePatternSplitTokenizerFactory;
-import org.elasticsearch.index.analysis.SimplePatternTokenizerFactory;
 import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
@@ -139,8 +137,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("ngram",              NGramTokenizerFactory.class)
         .put("pathhierarchy",      PathHierarchyTokenizerFactory.class)
         .put("pattern",            PatternTokenizerFactory.class)
-        .put("simplepattern",      SimplePatternTokenizerFactory.class)
-        .put("simplepatternsplit", SimplePatternSplitTokenizerFactory.class)
+        .put("simplepattern",      MovedToAnalysisCommon.class)
+        .put("simplepatternsplit", MovedToAnalysisCommon.class)
         .put("standard",           StandardTokenizerFactory.class)
         .put("thai",               ThaiTokenizerFactory.class)
         .put("uax29urlemail",      UAX29URLEmailTokenizerFactory.class)

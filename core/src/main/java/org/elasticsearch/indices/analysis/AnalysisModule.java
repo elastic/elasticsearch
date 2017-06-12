@@ -113,8 +113,6 @@ import org.elasticsearch.index.analysis.ScandinavianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.SerbianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.SimpleAnalyzerProvider;
-import org.elasticsearch.index.analysis.SimplePatternSplitTokenizerFactory;
-import org.elasticsearch.index.analysis.SimplePatternTokenizerFactory;
 import org.elasticsearch.index.analysis.SnowballAnalyzerProvider;
 import org.elasticsearch.index.analysis.SoraniAnalyzerProvider;
 import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
@@ -345,8 +343,6 @@ public final class AnalysisModule {
         tokenizers.register("edgeNGram", EdgeNGramTokenizerFactory::new);
         tokenizers.register("edge_ngram", EdgeNGramTokenizerFactory::new);
         tokenizers.register("pattern", PatternTokenizerFactory::new);
-        tokenizers.register("simplepattern", SimplePatternTokenizerFactory::new);
-        tokenizers.register("simplepatternsplit", SimplePatternSplitTokenizerFactory::new);
         tokenizers.register("classic", ClassicTokenizerFactory::new);
         tokenizers.register("thai", ThaiTokenizerFactory::new);
         tokenizers.extractAndRegister(plugins, AnalysisPlugin::getTokenizers);

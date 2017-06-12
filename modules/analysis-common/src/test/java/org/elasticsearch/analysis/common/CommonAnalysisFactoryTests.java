@@ -43,6 +43,8 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getTokenizers() {
         Map<String, Class<?>> tokenizers = new TreeMap<>(super.getTokenizers());
+        tokenizers.put("simplepattern", SimplePatternTokenizerFactory.class);
+        tokenizers.put("simplepatternsplit", SimplePatternSplitTokenizerFactory.class);
         return tokenizers;
     }
 

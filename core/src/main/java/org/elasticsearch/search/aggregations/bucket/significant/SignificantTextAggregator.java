@@ -113,7 +113,8 @@ public class SignificantTextAggregator extends BucketsAggregator {
                 }
             }
             
-            private void processTokenStream(int doc, long bucket, TokenStream ts, BytesRefHash inDocTerms, String fieldText) throws IOException{
+            private void processTokenStream(int doc, long bucket, TokenStream ts, BytesRefHash inDocTerms, String fieldText) 
+                    throws IOException{
                 if (dupSequenceSpotter != null) {
                     ts = new DeDuplicatingTokenFilter(ts, dupSequenceSpotter);
                 }

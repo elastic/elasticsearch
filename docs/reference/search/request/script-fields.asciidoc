@@ -15,13 +15,13 @@ GET /_search
         "test1" : {
             "script" : {
                 "lang": "painless",
-                "inline": "doc['my_field_name'].value * 2"
+                "source": "doc['my_field_name'].value * 2"
             }
         },
         "test2" : {
             "script" : {
                 "lang": "painless",
-                "inline": "doc['my_field_name'].value * factor",
+                "source": "doc['my_field_name'].value * factor",
                 "params" : {
                     "factor"  : 2.0
                 }

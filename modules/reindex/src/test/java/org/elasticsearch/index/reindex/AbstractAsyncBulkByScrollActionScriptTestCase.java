@@ -25,7 +25,6 @@ import org.elasticsearch.index.reindex.AbstractAsyncBulkByScrollAction.RequestWr
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.junit.Before;
 
@@ -56,9 +55,9 @@ public abstract class AbstractAsyncBulkByScrollActionScriptTestCase<
         IndexRequest index = new IndexRequest("index", "type", "1").source(singletonMap("foo", "bar"));
         ScrollableHitSource.Hit doc = new ScrollableHitSource.BasicHit("test", "type", "id", 0);
         ExecutableScript executableScript = new SimpleExecutableScript(scriptBody);
-        ExecutableScript.Compiled compiled = params -> executableScript;
-        when(scriptService.compile(any(), eq(ScriptContext.EXECUTABLE))).thenReturn(compiled);
-        when(scriptService.compile(any(), eq(ScriptContext.UPDATE))).thenReturn(compiled);
+        ExecutableScript.Factory factory = params -> executableScript;
+        when(scriptService.compile(any(), eq(ExecutableScript.CONTEXT))).thenReturn(factory);
+        when(scriptService.compile(any(), eq(ExecutableScript.UPDATE_CONTEXT))).thenReturn(factory);
         AbstractAsyncBulkByScrollAction<Request> action = action(scriptService, request().setScript(mockScript("")));
         RequestWrapper<?> result = action.buildScriptApplier().apply(AbstractAsyncBulkByScrollAction.wrap(index), doc);
         return (result != null) ? (T) result.self() : null;

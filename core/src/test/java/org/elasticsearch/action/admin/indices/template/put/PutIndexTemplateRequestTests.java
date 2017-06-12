@@ -77,13 +77,19 @@ public class PutIndexTemplateRequestTests extends ESTestCase {
         assertNotEquals(mapping, request.mappings().get("bar"));
         assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), request.mappings().get("bar"));
 
-        BytesStreamOutput out = new BytesStreamOutput();
-        request.writeTo(out);
+        final Version version = randomFrom(Version.CURRENT, Version.V_5_3_0, Version.V_5_3_1, Version.V_5_3_2, Version.V_5_4_0);
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(version);
+            request.writeTo(out);
 
-        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
-        PutIndexTemplateRequest serialized = new PutIndexTemplateRequest();
-        serialized.readFrom(in);
-        assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML), serialized.mappings().get("bar"));
+            try (StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes)) {
+                in.setVersion(version);
+                PutIndexTemplateRequest serialized = new PutIndexTemplateRequest();
+                serialized.readFrom(in);
+                assertEquals(XContentHelper.convertToJson(new BytesArray(mapping), false, XContentType.YAML),
+                    serialized.mappings().get("bar"));
+            }
+        }
     }
 
     public void testPutIndexTemplateRequestSerializationXContentBwc() throws IOException {

@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicNormalizationFilter;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
 import org.apache.lucene.analysis.br.BrazilianStemFilter;
+import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
 import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
@@ -68,6 +69,7 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.DelimitedPayloadTokenFilterFactory;
 import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
 import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
+import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -89,6 +91,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     public Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         Map<String, AnalysisProvider<TokenFilterFactory>> filters = new TreeMap<>();
         filters.put("asciifolding", ASCIIFoldingTokenFilterFactory::new);
+        filters.put("keyword_marker", requriesAnalysisSettings(KeywordMarkerTokenFilterFactory::new));
+        filters.put("porter_stem", PorterStemTokenFilterFactory::new);
+        filters.put("snowball", SnowballTokenFilterFactory::new);
+        filters.put("trim", TrimTokenFilterFactory::new);
         filters.put("word_delimiter", WordDelimiterTokenFilterFactory::new);
         filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
         return filters;
@@ -99,6 +105,15 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("html_strip", HtmlStripCharFilterFactory::new);
         filters.put("pattern_replace", requriesAnalysisSettings(PatternReplaceCharFilterFactory::new));
         filters.put("mapping", requriesAnalysisSettings(MappingCharFilterFactory::new));
+        return filters;
+    }
+
+    @Override
+    public List<PreConfiguredCharFilter> getPreConfiguredCharFilters() {
+        List<PreConfiguredCharFilter> filters = new ArrayList<>();
+        filters.add(PreConfiguredCharFilter.singleton("html_strip", false, HTMLStripCharFilter::new));
+        // TODO deprecate htmlStrip
+        filters.add(PreConfiguredCharFilter.singleton("htmlStrip", false, HTMLStripCharFilter::new));
         return filters;
     }
 

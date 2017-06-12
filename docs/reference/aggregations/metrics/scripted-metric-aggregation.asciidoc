@@ -60,20 +60,20 @@ POST ledger/_search?size=0
         "profit": {
             "scripted_metric": {
                 "init_script" : {
-                    "stored": "my_init_script"
+                    "id": "my_init_script"
                 },
                 "map_script" : {
-                    "stored": "my_map_script"
+                    "id": "my_map_script"
                 },
                 "combine_script" : {
-                    "stored": "my_combine_script"
+                    "id": "my_combine_script"
                 },
                 "params": {
                     "field": "amount", <1>
                     "_agg": {}        <2>
                 },
                 "reduce_script" : {
-                    "stored": "my_reduce_script"
+                    "id": "my_reduce_script"
                 }
             }
         }
@@ -278,3 +278,9 @@ params::           Optional. An object whose contents will be passed as variable
     "_agg" : {}
 }
 --------------------------------------------------
+
+==== Empty Buckets
+
+If a parent bucket of the scripted metric aggregation does not collect any documents an empty aggregation response will be returned from the
+shard with a `null` value. In this case the `reduce_script`'s `_aggs` variable will contain `null` as a response from that shard.  
+`reduce_script`'s should therefore expect and deal with `null` responses from shards.  

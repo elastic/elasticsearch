@@ -158,4 +158,18 @@ public final class TransportActionProxy {
         }
         return request;
     }
+
+    /**
+     * Returns <code>true</code> iff the given action is a proxy action
+     */
+    public static boolean isProxyAction(String action) {
+        return action.startsWith(PROXY_ACTION_PREFIX);
+    }
+
+    /**
+     * Returns <code>true</code> iff the given request is a proxy request
+     */
+    public static boolean isProxyRequest(TransportRequest request) {
+        return request instanceof ProxyRequest;
+    }
 }

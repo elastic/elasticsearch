@@ -184,21 +184,21 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             Builder subfactoriesBuilder) throws IOException {
 
         QueryShardContext queryShardContext = context.getQueryShardContext();
-        Function<Map<String, Object>, ExecutableScript> executableInitScript;
+        ExecutableScript.Factory executableInitScript;
         if (initScript != null) {
-            executableInitScript = queryShardContext.getLazyExecutableScript(initScript, ScriptContext.AGGS_EXECUTABLE);
+            executableInitScript = queryShardContext.getScriptService().compile(initScript, ExecutableScript.AGGS_CONTEXT);
         } else {
-            executableInitScript = (p) -> null;
+            executableInitScript = p -> null;
         }
-        Function<Map<String, Object>, SearchScript> searchMapScript = queryShardContext.getLazySearchScript(mapScript, ScriptContext.AGGS);
-        Function<Map<String, Object>, ExecutableScript> executableCombineScript;
+        SearchScript.Factory searchMapScript = queryShardContext.getScriptService().compile(mapScript, SearchScript.AGGS_CONTEXT);
+        ExecutableScript.Factory executableCombineScript;
         if (combineScript != null) {
-            executableCombineScript = queryShardContext.getLazyExecutableScript(combineScript, ScriptContext.AGGS_EXECUTABLE);
+            executableCombineScript =queryShardContext.getScriptService().compile(combineScript, ExecutableScript.AGGS_CONTEXT);
         } else {
-            executableCombineScript = (p) -> null;
+            executableCombineScript = p -> null;
         }
         return new ScriptedMetricAggregatorFactory(name, searchMapScript, executableInitScript, executableCombineScript, reduceScript,
-                params, context, parent, subfactoriesBuilder, metaData);
+                params, queryShardContext.lookup(), context, parent, subfactoriesBuilder, metaData);
     }
 
 

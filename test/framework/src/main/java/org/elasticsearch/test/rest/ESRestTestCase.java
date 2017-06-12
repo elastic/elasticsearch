@@ -40,7 +40,6 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -55,6 +54,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
@@ -262,8 +263,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertBusy(() -> {
             try {
                 Response response = adminClient().performRequest("GET", "_cluster/pending_tasks");
-                List<Object> tasks = (List<Object>) entityAsMap(response).get("tasks");
-                assertTrue(tasks.isEmpty());
+                List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
+                if (false == tasks.isEmpty()) {
+                    StringBuilder message = new StringBuilder("there are still running tasks:");
+                    for (Object task: tasks) {
+                        message.append('\n').append(task.toString());
+                    }
+                    fail(message.toString());
+                }
             } catch (IOException e) {
                 fail("cannot get cluster's pending tasks: " + e.getMessage());
             }

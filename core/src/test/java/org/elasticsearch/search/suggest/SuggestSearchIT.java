@@ -33,8 +33,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGeneratorBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
 import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
@@ -1009,7 +1008,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     public static class DummyTemplatePlugin extends Plugin implements ScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
+        public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
             return new DummyTemplateScriptEngine();
         }
     }
@@ -1027,28 +1026,23 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         @Override
         public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
-            if (context.instanceClazz != ExecutableScript.class) {
+            if (context.instanceClazz != TemplateScript.class) {
                 throw new UnsupportedOperationException();
             }
-            ExecutableScript.Compiled compiled = p -> {
+            TemplateScript.Factory factory = p -> {
                 String script = scriptSource;
                 for (Entry<String, Object> entry : p.entrySet()) {
                     script = script.replace("{{" + entry.getKey() + "}}", String.valueOf(entry.getValue()));
                 }
                 String result = script;
-                return new ExecutableScript() {
+                return new TemplateScript(null) {
                     @Override
-                    public void setNextVar(String name, Object value) {
-                        throw new UnsupportedOperationException("setNextVar not supported");
-                    }
-
-                    @Override
-                    public Object run() {
+                    public String execute() {
                         return result;
                     }
                 };
             };
-            return context.compiledClazz.cast(compiled);
+            return context.factoryClazz.cast(factory);
         }
     }
 

@@ -60,8 +60,8 @@ Vagrant.configure(2) do |config|
     config.vm.box = "elastic/fedora-25-x86_64"
     dnf_common config
   end
-  config.vm.define "opensuse-13" do |config|
-    config.vm.box = "elastic/opensuse-13-x86_64"
+  config.vm.define "opensuse-42" do |config|
+    config.vm.box = "elastic/opensuse-42-x86_64"
     opensuse_common config
   end
   config.vm.define "sles-12" do |config|

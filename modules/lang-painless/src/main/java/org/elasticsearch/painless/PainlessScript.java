@@ -29,25 +29,25 @@ import java.util.Map;
 /**
  * Abstract superclass on top of which all Painless scripts are built.
  */
-public abstract class PainlessScript {
-    /**
-     * Name of the script set at compile time.
-     */
-    private final String name;
-    /**
-     * Source of the script.
-     */
-    private final String source;
-    /**
-     * Character number of the start of each statement.
-     */
-    private final BitSet statements;
+public interface PainlessScript {
 
-    protected PainlessScript(String name, String source, BitSet statements) {
-        this.name = name;
-        this.source = source;
-        this.statements = statements;
-    }
+    /**
+     * @return The name of the script retrieved from a static variable generated
+     * during compilation of a Painless script.
+     */
+    String getName();
+
+    /**
+     * @return The source for a script retrieved from a static variable generated
+     * during compilation of a Painless script.
+     */
+    String getSource();
+
+    /**
+     * @return The {@link BitSet} tracking the boundaries for statements necessary
+     * for good exception messages.
+     */
+    BitSet getStatements();
 
     /**
      * Adds stack trace and other useful information to exceptions thrown
@@ -55,7 +55,7 @@ public abstract class PainlessScript {
      * @param t The throwable to build an exception around.
      * @return The generated ScriptException.
      */
-    protected final ScriptException convertToScriptException(Throwable t, Map<String, List<String>> extraMetadata) {
+    default ScriptException convertToScriptException(Throwable t, Map<String, List<String>> extraMetadata) {
         // create a script stack: this is just the script portion
         List<String> scriptStack = new ArrayList<>();
         for (StackTraceElement element : t.getStackTrace()) {
@@ -73,10 +73,10 @@ public abstract class PainlessScript {
                     }
                     int endOffset = getNextStatement(startOffset);
                     if (endOffset == -1) {
-                        endOffset = source.length();
+                        endOffset = getSource().length();
                     }
                     // TODO: if this is still too long, truncate and use ellipses
-                    String snippet = source.substring(startOffset, endOffset);
+                    String snippet = getSource().substring(startOffset, endOffset);
                     scriptStack.add(snippet);
                     StringBuilder pointer = new StringBuilder();
                     for (int i = startOffset; i < offset; i++) {
@@ -93,10 +93,10 @@ public abstract class PainlessScript {
         }
         // build a name for the script:
         final String name;
-        if (PainlessScriptEngine.INLINE_NAME.equals(this.name)) {
-            name = source;
+        if (PainlessScriptEngine.INLINE_NAME.equals(getName())) {
+            name = getSource();
         } else {
-            name = this.name;
+            name = getName();
         }
         ScriptException scriptException = new ScriptException("runtime error", t, scriptStack, name, PainlessScriptEngine.NAME);
         for (Map.Entry<String, List<String>> entry : extraMetadata.entrySet()) {
@@ -106,7 +106,7 @@ public abstract class PainlessScript {
     }
 
     /** returns true for methods that are part of the runtime */
-    private static boolean shouldFilter(StackTraceElement element) {
+    default boolean shouldFilter(StackTraceElement element) {
         return element.getClassName().startsWith("org.elasticsearch.painless.") ||
                element.getClassName().startsWith("java.lang.invoke.") ||
                element.getClassName().startsWith("sun.invoke.");
@@ -115,14 +115,14 @@ public abstract class PainlessScript {
     /**
      * Finds the start of the first statement boundary that is on or before {@code offset}. If one is not found, {@code -1} is returned.
      */
-    private int getPreviousStatement(int offset) {
-        return statements.previousSetBit(offset);
+    default int getPreviousStatement(int offset) {
+        return getStatements().previousSetBit(offset);
     }
 
     /**
      * Finds the start of the first statement boundary that is after {@code offset}. If one is not found, {@code -1} is returned.
      */
-    private int getNextStatement(int offset) {
-        return statements.nextSetBit(offset + 1);
+    default int getNextStatement(int offset) {
+        return getStatements().nextSetBit(offset + 1);
     }
 }

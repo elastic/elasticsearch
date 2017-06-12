@@ -226,8 +226,6 @@ public abstract class TransportTasksAction<
         return false;
     }
 
-    protected abstract boolean accumulateExceptions();
-
     private class AsyncAction {
 
         private final TasksRequest request;
@@ -321,9 +319,9 @@ public abstract class TransportTasksAction<
                     (org.apache.logging.log4j.util.Supplier<?>)
                         () -> new ParameterizedMessage("failed to execute on node [{}]", nodeId), t);
             }
-            if (accumulateExceptions()) {
-                responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
-            }
+
+            responses.set(idx, new FailedNodeException(nodeId, "Failed node [" + nodeId + "]", t));
+
             if (counter.incrementAndGet() == responses.length()) {
                 finishHim();
             }

@@ -42,8 +42,8 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -136,7 +136,7 @@ public class UpdateRequestTests extends ESTestCase {
         scripts.put("return", vars -> null);
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts);
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
-        ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptContext.BUILTINS);
+        ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS);
         final Settings settings = settings(Version.CURRENT).build();
 
         updateHelper = new UpdateHelper(settings, scriptService);
@@ -159,7 +159,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         // simple verbose script
         request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
-                    .startObject("script").field("inline", "script1").endObject()
+                    .startObject("script").field("source", "script1").endObject()
                 .endObject()));
         script = request.script();
         assertThat(script, notNullValue());
@@ -173,7 +173,7 @@ public class UpdateRequestTests extends ESTestCase {
         request = new UpdateRequest("test", "type", "1");
         request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
             .startObject("script")
-                .field("inline", "script1")
+                .field("source", "script1")
                 .startObject("params")
                     .field("param1", "value1")
                 .endObject()
@@ -195,7 +195,7 @@ public class UpdateRequestTests extends ESTestCase {
                         .startObject("params")
                             .field("param1", "value1")
                         .endObject()
-                        .field("inline", "script1")
+                        .field("source", "script1")
                     .endObject()
                 .endObject()));
         script = request.script();
@@ -215,7 +215,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .startObject("params")
                     .field("param1", "value1")
                 .endObject()
-                .field("inline", "script1")
+                .field("source", "script1")
             .endObject()
             .startObject("upsert")
                 .field("field1", "value1")
@@ -249,7 +249,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .startObject("params")
                     .field("param1", "value1")
                 .endObject()
-                .field("inline", "script1")
+                .field("source", "script1")
             .endObject().endObject()));
         script = request.script();
         assertThat(script, notNullValue());

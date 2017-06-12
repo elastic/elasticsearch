@@ -70,7 +70,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String SUCCESSFUL_SHARDS = "successful_shards";
 
     private static final Version VERSION_INCOMPATIBLE_INTRODUCED = Version.V_5_2_0;
-    public static final Version VERBOSE_INTRODUCED = Version.V_5_5_0_UNRELEASED;
+    public static final Version VERBOSE_INTRODUCED = Version.V_5_5_0;
 
     private static final Comparator<SnapshotInfo> COMPARATOR =
         Comparator.comparing(SnapshotInfo::startTime).thenComparing(SnapshotInfo::snapshotId);

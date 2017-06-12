@@ -45,6 +45,11 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "put_index_template_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest(request.param("name"));
         if (request.hasParam("template")) {
@@ -57,7 +62,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
-        putRequest.source(request.content(), request.getXContentType());
+        putRequest.source(request.requiredContent(), request.getXContentType());
         return channel -> client.admin().indices().putTemplate(putRequest, new AcknowledgedRestListener<>(channel));
     }
 

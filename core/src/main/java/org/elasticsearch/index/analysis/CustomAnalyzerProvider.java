@@ -80,7 +80,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
         positionIncrementGap = analyzerSettings.getAsInt("position_increment_gap", positionIncrementGap);
 
         int offsetGap = analyzerSettings.getAsInt("offset_gap", -1);;
-        this.customAnalyzer = new CustomAnalyzer(tokenizer,
+        this.customAnalyzer = new CustomAnalyzer(tokenizerName, tokenizer,
                 charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                 tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()]),
                 positionIncrementGap,

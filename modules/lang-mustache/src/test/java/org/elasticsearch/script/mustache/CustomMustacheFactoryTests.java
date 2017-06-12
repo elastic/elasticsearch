@@ -19,11 +19,10 @@
 
 package org.elasticsearch.script.mustache;
 
-import com.github.mustachejava.Mustache;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
@@ -62,29 +61,29 @@ public class CustomMustacheFactoryTests extends ESTestCase {
         final ScriptEngine engine = new MustacheScriptEngine();
         final Map<String, String> params = randomBoolean() ? singletonMap(Script.CONTENT_TYPE_OPTION, JSON_MIME_TYPE) : emptyMap();
 
-        ExecutableScript.Compiled compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", ScriptContext.EXECUTABLE, params);
+        TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
 
-        ExecutableScript executable = compiled.newInstance(singletonMap("value", "a \"value\""));
-        assertThat(executable.run(), equalTo("{\"field\": \"a \\\"value\\\"\"}"));
+        TemplateScript executable = compiled.newInstance(singletonMap("value", "a \"value\""));
+        assertThat(executable.execute(), equalTo("{\"field\": \"a \\\"value\\\"\"}"));
     }
 
     public void testDefaultEncoder() {
         final ScriptEngine engine = new MustacheScriptEngine();
         final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, PLAIN_TEXT_MIME_TYPE);
 
-        ExecutableScript.Compiled compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", ScriptContext.EXECUTABLE, params);
+        TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
 
-        ExecutableScript executable = compiled.newInstance(singletonMap("value", "a \"value\""));
-        assertThat(executable.run(), equalTo("{\"field\": \"a \"value\"\"}"));
+        TemplateScript executable = compiled.newInstance(singletonMap("value", "a \"value\""));
+        assertThat(executable.execute(), equalTo("{\"field\": \"a \"value\"\"}"));
     }
 
     public void testUrlEncoder() {
         final ScriptEngine engine = new MustacheScriptEngine();
         final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, X_WWW_FORM_URLENCODED_MIME_TYPE);
 
-        ExecutableScript.Compiled compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", ScriptContext.EXECUTABLE, params);
+        TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
 
-        ExecutableScript executable = compiled.newInstance(singletonMap("value", "tilde~ AND date:[2016 FROM*]"));
-        assertThat(executable.run(), equalTo("{\"field\": \"tilde%7E+AND+date%3A%5B2016+FROM*%5D\"}"));
+        TemplateScript executable = compiled.newInstance(singletonMap("value", "tilde~ AND date:[2016 FROM*]"));
+        assertThat(executable.execute(), equalTo("{\"field\": \"tilde%7E+AND+date%3A%5B2016+FROM*%5D\"}"));
     }
 }

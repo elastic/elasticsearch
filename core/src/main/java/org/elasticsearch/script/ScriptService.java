@@ -45,7 +45,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.template.CompiledTemplate;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -221,7 +220,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      *
      * @return a compiled script which may be used to construct instances of a script for the given context
      */
-    public <CompiledType> CompiledType compile(Script script, ScriptContext<CompiledType> context) {
+    public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
         Objects.requireNonNull(script);
         Objects.requireNonNull(context);
 
@@ -257,14 +256,14 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             // the script has been updated since the last compilation
             StoredScriptSource source = getScriptFromClusterState(id, lang);
             lang = source.getLang();
-            idOrCode = source.getCode();
+            idOrCode = source.getSource();
             options = source.getOptions();
         }
 
         // TODO: fix this through some API or something, that's wrong
         // special exception to prevent expressions from compiling as update or mapping scripts
         boolean expression = "expression".equals(script.getLang());
-        boolean notSupported = context.name.equals(ScriptContext.UPDATE.name);
+        boolean notSupported = context.name.equals(ExecutableScript.UPDATE_CONTEXT.name);
         if (expression && notSupported) {
             throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
                 " operation [" + context.name + "] and lang [" + lang + "] are not supported");
@@ -292,7 +291,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         Object compiledScript = cache.get(cacheKey);
 
         if (compiledScript != null) {
-            return context.compiledClazz.cast(compiledScript);
+            return context.factoryClazz.cast(compiledScript);
         }
 
         // Synchronize so we don't compile scripts many times during multiple shards all compiling a script
@@ -326,14 +325,8 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 cache.put(cacheKey, compiledScript);
             }
 
-            return context.compiledClazz.cast(compiledScript);
+            return context.factoryClazz.cast(compiledScript);
         }
-    }
-
-    /** Compiles a template. Note this will be moved to a separate TemplateService in the future. */
-    public CompiledTemplate compileTemplate(Script script, ScriptContext<ExecutableScript.Compiled> scriptContext) {
-        ExecutableScript.Compiled compiledScript = compile(script, scriptContext);
-        return params -> (String)compiledScript.newInstance(params).run();
     }
 
     /**
@@ -431,14 +424,12 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             } else if (isAnyContextEnabled() == false) {
                 throw new IllegalArgumentException(
                     "cannot put [" + ScriptType.STORED + "] script, no script contexts are enabled");
-            } else {
-                // TODO: executable context here is just a placeholder, replace with optional context name passed into PUT stored script req
-                Object compiled = scriptEngine.compile(request.id(), source.getCode(), ScriptContext.EXECUTABLE, Collections.emptyMap());
-
-                if (compiled == null) {
-                    throw new IllegalArgumentException("failed to parse/compile stored script [" + request.id() + "]" +
-                        (source.getCode() == null ? "" : " using code [" + source.getCode() + "]"));
+            } else if (request.context() != null) {
+                ScriptContext<?> context = contexts.get(request.context());
+                if (context == null) {
+                    throw new IllegalArgumentException("Unknown context [" + request.context() + "]");
                 }
+                scriptEngine.compile(request.id(), source.getSource(), context, Collections.emptyMap());
             }
         } catch (ScriptException good) {
             throw good;

@@ -569,9 +569,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
                 return ActionListener.wrap(
-                    response -> actionListener.onResponse(
-                        new BulkResponse(response.getItems(), response.getTookInMillis(), ingestTookInMillis)),
-                    actionListener::onFailure);
+                        response -> actionListener.onResponse(new BulkResponse(response.getItems(),
+                                response.getTook().getMillis(), ingestTookInMillis)),
+                        actionListener::onFailure);
             } else {
                 return new IngestBulkResponseListener(ingestTookInMillis, originalSlots, itemResponses, actionListener);
             }
@@ -610,7 +610,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             for (int i = 0; i < items.length; i++) {
                 itemResponses.add(originalSlots[i], response.getItems()[i]);
             }
-            actionListener.onResponse(new BulkResponse(itemResponses.toArray(new BulkItemResponse[itemResponses.size()]), response.getTookInMillis(), ingestTookInMillis));
+            actionListener.onResponse(new BulkResponse(
+                    itemResponses.toArray(new BulkItemResponse[itemResponses.size()]),
+                    response.getTook().getMillis(), ingestTookInMillis));
         }
 
         @Override

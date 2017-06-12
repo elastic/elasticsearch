@@ -19,6 +19,7 @@
 package org.elasticsearch.test.hamcrest;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -65,6 +66,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
@@ -514,6 +516,14 @@ public class ElasticsearchAssertions {
         return subqueryType.cast(q.clauses().get(i).getQuery());
     }
 
+    public static <T extends Query> T assertDisjunctionSubQuery(Query query, Class<T> subqueryType, int i) {
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery q = (DisjunctionMaxQuery) query;
+        assertThat(q.getDisjuncts().size(), greaterThan(i));
+        assertThat(q.getDisjuncts().get(i), instanceOf(subqueryType));
+        return subqueryType.cast(q.getDisjuncts().get(i));
+    }
+
     /**
      * Run the request from a given builder and check that it throws an exception of the right type
      */
@@ -790,11 +800,19 @@ public class ElasticsearchAssertions {
         //1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok
         //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
         //Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
+        Map<String, Object> actualMap = null;
+        Map<String, Object> expectedMap = null;
         try (XContentParser actualParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, actual)) {
-            Map<String, Object> actualMap = actualParser.map();
+            actualMap = actualParser.map();
             try (XContentParser expectedParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, expected)) {
-                Map<String, Object> expectedMap = expectedParser.map();
-                assertMapEquals(expectedMap, actualMap);
+                expectedMap = expectedParser.map();
+                try {
+                    assertMapEquals(expectedMap, actualMap);
+                } catch (AssertionError error) {
+                    NotEqualMessageBuilder message = new NotEqualMessageBuilder();
+                    message.compareMaps(actualMap, expectedMap);
+                    throw new AssertionError("Error when comparing xContent.\n" + message.toString(), error);
+                }
             }
         }
     }
@@ -802,7 +820,6 @@ public class ElasticsearchAssertions {
     /**
      * Compares two maps recursively, using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
-    @SuppressWarnings("unchecked")
     private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual) {
         assertEquals(expected.size(), actual.size());
         for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {

@@ -35,3 +35,9 @@ code for ordering buckets. The `BucketOrder` class must be used instead of `Term
 `Histogram.Order`. The `static` methods in the `BucketOrder` class must be called instead of directly
 accessing internal order instances, e.g. `BucketOrder.count(boolean)` and `BucketOrder.aggregation(String, boolean)`.
 Use `BucketOrder.key(boolean)` to order the `terms` aggregation buckets by `_term`.
+
+=== `getTookInMillis()` removed in `BulkResponse`, `SearchResponse` and `TermVectorsResponse`
+
+In `BulkResponse`, `SearchResponse` and `TermVectorsResponse` `getTookInMiilis()` method
+has been removed in favor of `getTook` method. `getTookInMiilis()` is easily replaced by
+`getTook().getMillis()`.

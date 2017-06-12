@@ -50,7 +50,6 @@ import java.util.Locale;
 import java.util.Map;
 
 public class FastVectorHighlighter implements Highlighter {
-
     private static final BoundaryScanner DEFAULT_SIMPLE_BOUNDARY_SCANNER = new SimpleBoundaryScanner();
     private static final BoundaryScanner DEFAULT_SENTENCE_BOUNDARY_SCANNER =
         new BreakIteratorBoundaryScanner(BreakIterator.getSentenceInstance(Locale.ROOT));

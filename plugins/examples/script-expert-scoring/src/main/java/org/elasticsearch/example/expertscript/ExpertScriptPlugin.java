@@ -21,23 +21,18 @@ package org.elasticsearch.example.expertscript;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collection;
 import java.util.Map;
-import java.util.function.Function;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 /**
  * An example script plugin that adds a {@link ScriptEngine} implementing expert scoring.
@@ -45,7 +40,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public ScriptEngine getScriptEngine(Settings settings) {
+    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         return new MyExpertScriptEngine();
     }
 
@@ -59,12 +54,12 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
 
         @Override
         public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
-            if (context.equals(ScriptContext.SEARCH) == false) {
+            if (context.equals(SearchScript.CONTEXT) == false) {
                 throw new IllegalArgumentException(getType() + " scripts cannot be used for context [" + context.name + "]");
             }
             // we use the script "source" as the script identifier
             if ("pure_df".equals(scriptSource)) {
-                SearchScript.Compiled compiled = (p, lookup) -> new SearchScript() {
+                SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
                     final String field;
                     final String term;
                     {
@@ -79,13 +74,18 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                     }
 
                     @Override
-                    public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+                    public SearchScript newInstance(LeafReaderContext context) throws IOException {
                         PostingsEnum postings = context.reader().postings(new Term(field, term));
                         if (postings == null) {
                             // the field and/or term don't exist in this segment, so always return 0
-                            return () -> 0.0d;
+                            return new SearchScript(p, lookup, context) {
+                                @Override
+                                public double runAsDouble() {
+                                    return 0.0d;
+                                }
+                            };
                         }
-                        return new LeafSearchScript() {
+                        return new SearchScript(p, lookup, context) {
                             int currentDocid = -1;
                             @Override
                             public void setDocument(int docid) {
@@ -119,7 +119,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                         return false;
                     }
                 };
-                return context.compiledClazz.cast(compiled);
+                return context.factoryClazz.cast(factory);
             }
             throw new IllegalArgumentException("Unknown script name " + scriptSource);
         }

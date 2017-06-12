@@ -27,10 +27,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -92,14 +92,15 @@ public class ScriptHeuristic extends SignificanceHeuristic {
 
     @Override
     public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext context) {
-        ExecutableScript.Compiled compiled = context.scriptService().compile(script, ScriptContext.AGGS_EXECUTABLE);
-        return new ExecutableScriptHeuristic(script, compiled.newInstance(script.getParams()));
+        ExecutableScript.Factory factory = context.scriptService().compile(script, ExecutableScript.AGGS_CONTEXT);
+        return new ExecutableScriptHeuristic(script, factory.newInstance(script.getParams()));
     }
 
     @Override
     public SignificanceHeuristic rewrite(SearchContext context) {
-        return new ExecutableScriptHeuristic(script,
-            context.getQueryShardContext().getExecutableScript(script, ScriptContext.AGGS_EXECUTABLE));
+        QueryShardContext shardContext = context.getQueryShardContext();
+        ExecutableScript.Factory compiledScript = shardContext.getScriptService().compile(script, ExecutableScript.AGGS_CONTEXT);
+        return new ExecutableScriptHeuristic(script, compiledScript.newInstance(script.getParams()));
     }
 
 

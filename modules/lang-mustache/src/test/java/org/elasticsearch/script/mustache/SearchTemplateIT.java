@@ -95,7 +95,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
         String query =
-                  "{" + "  \"inline\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
+                  "{" + "  \"source\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
                 + "  \"params\":{"
                 + "    \"size\": 1"
                 + "  }"
@@ -115,7 +115,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         searchRequest.indices("_all");
         String templateString =
                   "{"
-                + "  \"inline\" : \"{ {{#use_size}} \\\"size\\\": \\\"{{size}}\\\", {{/use_size}} \\\"query\\\":{\\\"match_all\\\":{}}}\","
+                + "  \"source\" : \"{ {{#use_size}} \\\"size\\\": \\\"{{size}}\\\", {{/use_size}} \\\"query\\\":{\\\"match_all\\\":{}}}\","
                 + "  \"params\":{"
                 + "    \"size\": 1,"
                 + "    \"use_size\": true"
@@ -136,7 +136,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         searchRequest.indices("_all");
         String templateString =
                   "{"
-                + "  \"inline\" : \"{ \\\"query\\\":{\\\"match_all\\\":{}} {{#use_size}}, \\\"size\\\": \\\"{{size}}\\\" {{/use_size}} }\","
+                + "  \"source\" : \"{ \\\"query\\\":{\\\"match_all\\\":{}} {{#use_size}}, \\\"size\\\": \\\"{{size}}\\\" {{/use_size}} }\","
                 + "  \"params\":{"
                 + "    \"size\": 1,"
                 + "    \"use_size\": true"

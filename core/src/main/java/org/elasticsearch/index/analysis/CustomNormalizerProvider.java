@@ -82,6 +82,7 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
         }
 
         this.customAnalyzer = new CustomAnalyzer(
+                "keyword",
                 PreBuiltTokenizers.KEYWORD.getTokenizerFactory(indexSettings.getIndexVersionCreated()),
                 charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                 tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])

@@ -20,36 +20,29 @@
 package org.elasticsearch.search.scroll;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.mockito.ArgumentCaptor;
+
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyObject;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class RestSearchScrollActionTests extends ESTestCase {
-    public void testParseSearchScrollRequest() throws Exception {
-        XContentParser content = createParser(XContentFactory.jsonBuilder()
-            .startObject()
-                .field("scroll_id", "SCROLL_ID")
-                .field("scroll", "1m")
-            .endObject());
-
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        RestSearchScrollAction.buildFromContent(content, searchScrollRequest);
-
-        assertThat(searchScrollRequest.scrollId(), equalTo("SCROLL_ID"));
-        assertThat(searchScrollRequest.scroll().keepAlive(), equalTo(TimeValue.parseTimeValue("1m", null, "scroll")));
-    }
 
     public void testParseSearchScrollRequestWithInvalidJsonThrowsException() throws Exception {
         RestSearchScrollAction action = new RestSearchScrollAction(Settings.EMPTY, mock(RestController.class));
@@ -59,16 +52,24 @@ public class RestSearchScrollActionTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Failed to parse request body"));
     }
 
-    public void testParseSearchScrollRequestWithUnknownParamThrowsException() throws Exception {
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        XContentParser invalidContent = createParser(XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("scroll_id", "value_2")
-                    .field("unknown", "keyword")
-                .endObject());
+    public void testBodyParamsOverrideQueryStringParams() throws Exception {
+        NodeClient nodeClient = mock(NodeClient.class);
+        doNothing().when(nodeClient).searchScroll(any(), any());
 
-        Exception e = expectThrows(IllegalArgumentException.class,
-                () -> RestSearchScrollAction.buildFromContent(invalidContent, searchScrollRequest));
-        assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
+        RestSearchScrollAction action = new RestSearchScrollAction(Settings.EMPTY, mock(RestController.class));
+        Map<String, String> params = new HashMap<>();
+        params.put("scroll_id", "QUERY_STRING");
+        params.put("scroll", "1000m");
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                .withParams(params)
+                .withContent(new BytesArray("{\"scroll_id\":\"BODY\", \"scroll\":\"1m\"}"), XContentType.JSON).build();
+        FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+        action.handleRequest(request, channel, nodeClient);
+
+        ArgumentCaptor<SearchScrollRequest> argument = ArgumentCaptor.forClass(SearchScrollRequest.class);
+        verify(nodeClient).searchScroll(argument.capture(), anyObject());
+        SearchScrollRequest searchScrollRequest = argument.getValue();
+        assertEquals("BODY", searchScrollRequest.scrollId());
+        assertEquals("1m", searchScrollRequest.scroll().keepAlive().getStringRep());
     }
 }

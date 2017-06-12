@@ -481,6 +481,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             throw new UserException(PLUGIN_EXISTS, message);
         }
 
+        PluginsService.checkForFailedPluginRemovals(env.pluginsFile());
+
         terminal.println(VERBOSE, info.toString());
 
         // don't let user install plugin as a module...

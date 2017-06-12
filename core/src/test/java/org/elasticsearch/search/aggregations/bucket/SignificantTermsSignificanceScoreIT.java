@@ -310,6 +310,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 + "\"doc_count\":4,"
                 + "\"sig_terms\":{"
                 + "\"doc_count\":4,"
+                + "\"bg_count\":7,"
                 + "\"buckets\":["
                 + "{"
                 + "\"key\":" + (type.equals("long") ? "0," : "\"0\",")
@@ -325,6 +326,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
                 + "\"doc_count\":3,"
                 + "\"sig_terms\":{"
                 + "\"doc_count\":3,"
+                + "\"bg_count\":7,"
                 + "\"buckets\":["
                 + "{"
                 + "\"key\":" + (type.equals("long") ? "1," : "\"1\",")

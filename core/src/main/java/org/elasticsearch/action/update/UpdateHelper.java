@@ -46,7 +46,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -300,8 +299,8 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                ExecutableScript.Compiled compiledScript = scriptService.compile(script, ScriptContext.UPDATE);
-                ExecutableScript executableScript = compiledScript.newInstance(script.getParams());
+                ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.UPDATE_CONTEXT);
+                ExecutableScript executableScript = factory.newInstance(script.getParams());
                 executableScript.setNextVar(ContextFields.CTX, ctx);
                 executableScript.run();
             }

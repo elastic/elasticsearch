@@ -57,6 +57,11 @@ public class RestGetRepositoriesAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "get_respositories_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final String[] repositories = request.paramAsStringArray("repository", Strings.EMPTY_ARRAY);
         GetRepositoriesRequest getRepositoriesRequest = getRepositoryRequest(repositories);

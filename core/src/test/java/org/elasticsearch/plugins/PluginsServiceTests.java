@@ -132,8 +132,8 @@ public class PluginsServiceTests extends ESTestCase {
         final Path fake = home.resolve("plugins").resolve("fake");
         Files.createDirectories(fake);
         Files.createFile(fake.resolve("plugin.jar"));
-        final Path removing = fake.resolve(".removing-fake");
-        Files.createFile(fake.resolve(".removing-fake"));
+        final Path removing = home.resolve("plugins").resolve(".removing-fake");
+        Files.createFile(removing);
         PluginTestUtil.writeProperties(
                 fake,
                 "description", "fake",

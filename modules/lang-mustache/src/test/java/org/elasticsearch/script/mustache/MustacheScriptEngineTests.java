@@ -22,9 +22,8 @@ import com.github.mustachejava.MustacheFactory;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -56,7 +55,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}" + "}}, \"negative_boost\": {{boost_val}} } }}";
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
-            String o = (String) qe.compile(null, template, ScriptContext.EXECUTABLE, compileParams).newInstance(vars).run();
+            String o = qe.compile(null, template, TemplateScript.CONTEXT, compileParams).newInstance(vars).execute();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.3 } }}",
                     o);
@@ -67,7 +66,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
             Map<String, Object> vars = new HashMap<>();
             vars.put("boost_val", "0.3");
             vars.put("body_val", "\"quick brown\"");
-            String o = (String) qe.compile(null, template, ScriptContext.EXECUTABLE, compileParams).newInstance(vars).run();
+            String o = qe.compile(null, template, TemplateScript.CONTEXT, compileParams).newInstance(vars).execute();
             assertEquals("GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
                     + "\"negative\": {\"term\": {\"body\": {\"value\": \"\\\"quick brown\\\"\"}}}, \"negative_boost\": 0.3 } }}",
                     o);
@@ -77,29 +76,29 @@ public class MustacheScriptEngineTests extends ESTestCase {
     public void testSimple() throws IOException {
         String templateString =
                   "{" 
-                + "\"inline\":{\"match_{{template}}\": {}},"
+                + "\"source\":{\"match_{{template}}\": {}},"
                 + "\"params\":{\"template\":\"all\"}"
                 + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
-        ExecutableScript.Compiled compiled = qe.compile(null, script.getIdOrCode(), ScriptContext.EXECUTABLE, Collections.emptyMap());
-        ExecutableScript executableScript = compiled.newInstance(script.getParams());
-        assertThat(executableScript.run(), equalTo("{\"match_all\":{}}"));
+        TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Collections.emptyMap());
+        TemplateScript TemplateScript = compiled.newInstance(script.getParams());
+        assertThat(TemplateScript.execute(), equalTo("{\"match_all\":{}}"));
     }
 
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
         String templateString =
                   "{"
-                + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
+                + "  \"source\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
                 + "    \"template\":\"all\","
                 + "    \"use_it\": true"
                 + "  }"
                 + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
         Script script = Script.parse(parser);
-        ExecutableScript.Compiled compiled = qe.compile(null, script.getIdOrCode(), ScriptContext.EXECUTABLE, Collections.emptyMap());
-        ExecutableScript executableScript = compiled.newInstance(script.getParams());
-        assertThat(executableScript.run(), equalTo("{ \"match_all\":{} }"));
+        TemplateScript.Factory compiled = qe.compile(null, script.getIdOrCode(), TemplateScript.CONTEXT, Collections.emptyMap());
+        TemplateScript TemplateScript = compiled.newInstance(script.getParams());
+        assertThat(TemplateScript.execute(), equalTo("{ \"match_all\":{} }"));
     }
 
     public void testEscapeJson() throws IOException {

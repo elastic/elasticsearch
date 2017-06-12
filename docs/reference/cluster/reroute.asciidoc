@@ -118,5 +118,5 @@ structural problems such as having an analyzer which refers to a stopwords
 file which doesn't exist on all nodes.
 
 Once the problem has been corrected, allocation can be manually retried by
-calling the <<cluster-reroute,`_reroute`>> API with `?retry_failed`, which
+calling the <<cluster-reroute,`reroute`>> API with `?retry_failed`, which
 will attempt a single retry round for these shards.

@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.support.values;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
-import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.joda.time.ReadableInstant;
 
@@ -34,9 +34,9 @@ import java.util.Collection;
  */
 public class ScriptDoubleValues extends SortingNumericDoubleValues implements ScorerAware {
 
-    final LeafSearchScript script;
+    final SearchScript script;
 
-    public ScriptDoubleValues(LeafSearchScript script) {
+    public ScriptDoubleValues(SearchScript script) {
         super();
         this.script = script;
     }

@@ -41,7 +41,7 @@ buildscript {
 }
 
 Collection distributions = project.subprojects.findAll {
-   it.path.contains(':tools') == false && it.name != 'bwc' }
+   it.path.contains(':tools') == false && it.path.contains(':bwc') == false }
 
 /*****************************************************************************
  *                                Notice file                                *

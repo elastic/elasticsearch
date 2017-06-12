@@ -1,4 +1,4 @@
-:version:               6.0.0-alpha1
+:version:               6.0.0-alpha2
 :major-version:         6.x
 :lucene_version:        7.0.0-SNAPSHOT
 :lucene_version_path:   7_0_0
@@ -16,7 +16,7 @@ release-state can be: released | prerelease | unreleased
 :painless:        https://www.elastic.co/guide/en/elasticsearch/painless/master
 :plugins:         https://www.elastic.co/guide/en/elasticsearch/plugins/{branch}
 :javaclient:      https://www.elastic.co/guide/en/elasticsearch/client/java-api/{branch}
-:xpack:           https://www.elastic.co/guide/en/x-pack/5.4
+:xpack:           https://www.elastic.co/guide/en/x-pack/{branch}
 :logstash:        https://www.elastic.co/guide/en/logstash/{branch}
 :kibana:          https://www.elastic.co/guide/en/kibana/{branch}
 :issue:           https://github.com/elastic/elasticsearch/issues/

@@ -48,17 +48,8 @@ case "$1" in
 esac
 
 # to pick up /usr/lib/sysctl.d/elasticsearch.conf
-if [ "${ES_SKIP_SET_KERNEL_PARAMETERS:-false}" == "false" ]; then
-    if command -v /usr/lib/systemd/systemd-sysctl > /dev/null; then
-        /usr/lib/systemd/systemd-sysctl
-    elif command -v /lib/systemd/systemd-sysctl > /dev/null; then
-        /lib/systemd/systemd-sysctl
-    fi
-elif [ "$ES_SKIP_SET_KERNEL_PARAMETERS" == "true" ]; then
-    echo "skipping setting kernel parameters"
-else
-    echo "unrecognized value [$ES_SKIP_SET_KERNEL_PARAMETERS] for ES_SKIP_SET_KERNEL_PARAMETERS; must [false] (default) or [true]"
-    exit 1
+if command -v systemctl > /dev/null; then
+    systemctl restart systemd-sysctl.service
 fi
 
 if [ "x$IS_UPGRADE" != "xtrue" ]; then

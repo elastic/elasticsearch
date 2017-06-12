@@ -30,6 +30,8 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.join.mapper.ParentIdFieldMapper;
+import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.FieldContext;
@@ -92,8 +94,30 @@ public class ChildrenAggregationBuilder
     @Override
     protected ValuesSourceConfig<WithOrdinals> resolveConfig(SearchContext context) {
         ValuesSourceConfig<WithOrdinals> config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
-        DocumentMapper childDocMapper = context.mapperService().documentMapper(childType);
+        if (context.mapperService().getIndexSettings().isSingleType()) {
+            joinFieldResolveConfig(context, config);
+        } else {
+            parentFieldResolveConfig(context, config);
+        }
+        return config;
+    }
 
+    private void joinFieldResolveConfig(SearchContext context, ValuesSourceConfig<WithOrdinals> config) {
+        ParentJoinFieldMapper parentJoinFieldMapper = ParentJoinFieldMapper.getMapper(context.mapperService());
+        ParentIdFieldMapper parentIdFieldMapper = parentJoinFieldMapper.getParentIdFieldMapper(childType, false);
+        if (parentIdFieldMapper != null) {
+            parentFilter = parentIdFieldMapper.getParentFilter();
+            childFilter = parentIdFieldMapper.getChildFilter(childType);
+            MappedFieldType fieldType = parentIdFieldMapper.fieldType();
+            final SortedSetDVOrdinalsIndexFieldData fieldData = context.fieldData().getForField(fieldType);
+            config.fieldContext(new FieldContext(fieldType.name(), fieldData, fieldType));
+        } else {
+            config.unmapped(true);
+        }
+    }
+
+    private void parentFieldResolveConfig(SearchContext context, ValuesSourceConfig<WithOrdinals> config) {
+        DocumentMapper childDocMapper = context.mapperService().documentMapper(childType);
         if (childDocMapper != null) {
             ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
             if (!parentFieldMapper.active()) {
@@ -107,14 +131,13 @@ public class ChildrenAggregationBuilder
                 MappedFieldType parentFieldType = parentDocMapper.parentFieldMapper().getParentJoinFieldType();
                 final SortedSetDVOrdinalsIndexFieldData fieldData = context.fieldData().getForField(parentFieldType);
                 config.fieldContext(new FieldContext(parentFieldType.name(), fieldData,
-                        parentFieldType));
+                    parentFieldType));
             } else {
                 config.unmapped(true);
             }
         } else {
             config.unmapped(true);
         }
-        return config;
     }
 
     @Override

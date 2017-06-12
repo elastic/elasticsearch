@@ -27,17 +27,15 @@ import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.GeneralScriptException;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * A bridge to evaluate an {@link Expression} against {@link Bindings} in the context
  * of a {@link SearchScript}.
  */
-class ExpressionSearchScript implements SearchScript {
+class ExpressionSearchScript implements SearchScript.LeafFactory {
 
     final Expression exprScript;
     final SimpleBindings bindings;
@@ -62,13 +60,13 @@ class ExpressionSearchScript implements SearchScript {
 
 
     @Override
-    public LeafSearchScript getLeafSearchScript(final LeafReaderContext leaf) throws IOException {
-        return new LeafSearchScript() {
+    public SearchScript newInstance(final LeafReaderContext leaf) throws IOException {
+        return new SearchScript(null, null, null) {
             // Fake the scorer until setScorer is called.
             DoubleValues values = source.getValues(leaf, new DoubleValues() {
                 @Override
                 public double doubleValue() throws IOException {
-                    return Double.NaN;
+                    return getScore();
                 }
 
                 @Override
@@ -76,7 +74,15 @@ class ExpressionSearchScript implements SearchScript {
                     return true;
                 }
             });
-            double evaluate() {
+
+            @Override
+            public Object run() { return Double.valueOf(runAsDouble()); }
+
+            @Override
+            public long runAsLong() { return (long)runAsDouble(); }
+
+            @Override
+            public double runAsDouble() {
                 try {
                     return values.doubleValue();
                 } catch (Exception exception) {
@@ -85,48 +91,12 @@ class ExpressionSearchScript implements SearchScript {
             }
 
             @Override
-            public Object run() { return Double.valueOf(evaluate()); }
-
-            @Override
-            public long runAsLong() { return (long)evaluate(); }
-
-            @Override
-            public double runAsDouble() { return evaluate(); }
-
-            @Override
             public void setDocument(int d) {
-                docid = d;
                 try {
                     values.advanceExact(d);
                 } catch (IOException e) {
                     throw new IllegalStateException("Can't advance to doc using " + exprScript, e);
                 }
-            }
-
-            @Override
-            public void setScorer(Scorer s) {
-                scorer = s;
-                try {
-                    // We have a new binding for the scorer so we need to reset the values
-                    values = source.getValues(leaf, new DoubleValues() {
-                        @Override
-                        public double doubleValue() throws IOException {
-                            return scorer.score();
-                        }
-
-                        @Override
-                        public boolean advanceExact(int doc) throws IOException {
-                            return true;
-                        }
-                    });
-                } catch (IOException e) {
-                    throw new IllegalStateException("Can't get values using " + exprScript, e);
-                }
-            }
-
-            @Override
-            public void setSource(Map<String, Object> source) {
-                // noop: expressions don't use source data
             }
 
             @Override

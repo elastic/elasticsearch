@@ -25,9 +25,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.template.CompiledTemplate;
+import org.elasticsearch.script.TemplateScript;
 
 import java.util.function.LongSupplier;
 
@@ -77,6 +76,11 @@ public class QueryRewriteContext {
         return mapperService;
     }
 
+    /** Return the script service to allow compiling scripts within queries. */
+    public ScriptService getScriptService() {
+        return scriptService;
+    }
+
     /** Return the current {@link IndexReader}, or {@code null} if no index reader is available, for
      *  instance if we are on the coordinating node or if this rewrite context is used to index
      *  queries (percolation). */
@@ -103,7 +107,7 @@ public class QueryRewriteContext {
     }
 
     public String getTemplateBytes(Script template) {
-        CompiledTemplate compiledTemplate = scriptService.compileTemplate(template, ScriptContext.EXECUTABLE);
-        return compiledTemplate.run(template.getParams());
+        TemplateScript compiledTemplate = scriptService.compile(template, TemplateScript.CONTEXT).newInstance(template.getParams());
+        return compiledTemplate.execute();
     }
 }

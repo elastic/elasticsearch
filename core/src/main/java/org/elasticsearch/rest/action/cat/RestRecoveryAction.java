@@ -55,6 +55,11 @@ public class RestRecoveryAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_recovery_action";
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/recovery\n");
         sb.append("/_cat/recovery/{index}\n");

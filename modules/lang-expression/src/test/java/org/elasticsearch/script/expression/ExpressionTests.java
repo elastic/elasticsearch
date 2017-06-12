@@ -21,7 +21,6 @@ package org.elasticsearch.script.expression;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -42,9 +41,9 @@ public class ExpressionTests extends ESSingleNodeTestCase {
         lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
     }
 
-    private SearchScript compile(String expression) {
-        SearchScript.Compiled compiled = service.compile(null, expression, ScriptContext.SEARCH, Collections.emptyMap());
-        return compiled.newInstance(Collections.emptyMap(), lookup);
+    private SearchScript.LeafFactory compile(String expression) {
+        SearchScript.Factory factory = service.compile(null, expression, SearchScript.CONTEXT, Collections.emptyMap());
+        return factory.newFactory(Collections.emptyMap(), lookup);
     }
 
     public void testNeedsScores() {

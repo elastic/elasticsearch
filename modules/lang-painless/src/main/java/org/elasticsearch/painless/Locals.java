@@ -22,7 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.Definition.Method;
 import org.elasticsearch.painless.Definition.MethodKey;
 import org.elasticsearch.painless.Definition.Type;
-import org.elasticsearch.painless.ScriptInterface.MethodArgument;
+import org.elasticsearch.painless.ScriptClassInfo.MethodArgument;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -91,14 +91,14 @@ public final class Locals {
     }
 
     /** Creates a new main method scope */
-    public static Locals newMainMethodScope(ScriptInterface scriptInterface, Locals programScope, int maxLoopCounter) {
+    public static Locals newMainMethodScope(ScriptClassInfo scriptClassInfo, Locals programScope, int maxLoopCounter) {
         Locals locals = new Locals(programScope, programScope.definition,
-                scriptInterface.getExecuteMethodReturnType(), KEYWORDS);
+                scriptClassInfo.getExecuteMethodReturnType(), KEYWORDS);
         // This reference. Internal use only.
         locals.defineVariable(null, programScope.definition.getType("Object"), THIS, true);
 
         // Method arguments
-        for (MethodArgument arg : scriptInterface.getExecuteArguments()) {
+        for (MethodArgument arg : scriptClassInfo.getExecuteArguments()) {
             locals.defineVariable(null, arg.getType(), arg.getName(), true);
         }
 
@@ -186,7 +186,7 @@ public final class Locals {
 
     ///// private impl
 
-    /** Whitelist against which thhis script is being compiled. */
+    /** Whitelist against which this script is being compiled. */
     private final Definition definition;
     // parent scope
     private final Locals parent;
@@ -275,6 +275,7 @@ public final class Locals {
         public final Type type;
         public final boolean readonly;
         private final int slot;
+        private boolean used;
 
         public Variable(Location location, String name, Type type, int slot, boolean readonly) {
             this.location = location;

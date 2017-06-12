@@ -100,6 +100,10 @@ public class MockRepository extends FsRepository {
 
     private volatile boolean blockOnDataFiles;
 
+    /** Allows blocking on writing the index-N blob; this is a way to enforce blocking the
+     *  finalization of a snapshot, while permitting other IO operations to proceed unblocked. */
+    private volatile boolean blockOnWriteIndexFile;
+
     private volatile boolean atomicMove;
 
     private volatile boolean blocked = false;
@@ -163,11 +167,16 @@ public class MockRepository extends FsRepository {
         blockOnDataFiles = false;
         blockOnControlFiles = false;
         blockOnInitialization = false;
+        blockOnWriteIndexFile = false;
         this.notifyAll();
     }
 
     public void blockOnDataFiles(boolean blocked) {
         blockOnDataFiles = blocked;
+    }
+
+    public void setBlockOnWriteIndexFile(boolean blocked) {
+        blockOnWriteIndexFile = blocked;
     }
 
     public boolean blocked() {
@@ -178,7 +187,7 @@ public class MockRepository extends FsRepository {
         logger.debug("Blocking execution");
         boolean wasBlocked = false;
         try {
-            while (blockOnDataFiles || blockOnControlFiles || blockOnInitialization) {
+            while (blockOnDataFiles || blockOnControlFiles || blockOnInitialization || blockOnWriteIndexFile) {
                 blocked = true;
                 this.wait();
                 wasBlocked = true;
@@ -249,36 +258,30 @@ public class MockRepository extends FsRepository {
                             throw new IOException("Random IOException");
                         }
                     } else if (blockOnDataFiles) {
-                        logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
-                        if (blockExecution() && waitAfterUnblock > 0) {
-                            try {
-                                // Delay operation after unblocking
-                                // So, we can start node shutdown while this operation is still running.
-                                Thread.sleep(waitAfterUnblock);
-                            } catch (InterruptedException ex) {
-                                //
-                            }
-                        }
+                        blockExecutionAndMaybeWait(blobName);
                     }
                 } else {
                     if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         throw new IOException("Random IOException");
                     } else if (blockOnControlFiles) {
-                        logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
-                        if (blockExecution() && waitAfterUnblock > 0) {
-                            try {
-                                // Delay operation after unblocking
-                                // So, we can start node shutdown while this operation is still running.
-                                Thread.sleep(waitAfterUnblock);
-                            } catch (InterruptedException ex) {
-                                //
-                            }
-                        }
+                        blockExecutionAndMaybeWait(blobName);
                     }
                 }
             }
 
+            private void blockExecutionAndMaybeWait(final String blobName) {
+                logger.info("blocking I/O operation for file [{}] at path [{}]", blobName, path());
+                if (blockExecution() && waitAfterUnblock > 0) {
+                    try {
+                        // Delay operation after unblocking
+                        // So, we can start node shutdown while this operation is still running.
+                        Thread.sleep(waitAfterUnblock);
+                    } catch (InterruptedException ex) {
+                        //
+                    }
+                }
+            }
 
             MockBlobContainer(BlobContainer delegate) {
                 super(delegate);
@@ -315,6 +318,9 @@ public class MockRepository extends FsRepository {
 
             @Override
             public void move(String sourceBlob, String targetBlob) throws IOException {
+                if (blockOnWriteIndexFile && targetBlob.startsWith("index-")) {
+                    blockExecutionAndMaybeWait(targetBlob);
+                }
                 if (atomicMove) {
                     // atomic move since this inherits from FsBlobContainer which provides atomic moves
                     maybeIOExceptionOrBlock(targetBlob);

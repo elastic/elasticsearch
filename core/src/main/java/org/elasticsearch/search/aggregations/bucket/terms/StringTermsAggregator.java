@@ -27,14 +27,14 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -153,7 +153,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         final StringTerms.Bucket[] list = new StringTerms.Bucket[ordered.size()];
         long survivingBucketOrds[] = new long[ordered.size()];
         for (int i = ordered.size() - 1; i >= 0; --i) {
-            final StringTerms.Bucket bucket = (StringTerms.Bucket) ordered.pop();
+            final StringTerms.Bucket bucket = ordered.pop();
             survivingBucketOrds[i] = bucket.bucketOrd;
             list[i] = bucket;
             otherDocCount -= bucket.docCount;
@@ -163,7 +163,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
         // Now build the aggs
         for (int i = 0; i < list.length; i++) {
-          final StringTerms.Bucket bucket = (StringTerms.Bucket)list[i];
+          final StringTerms.Bucket bucket = list[i];
           bucket.termBytes = BytesRef.deepCopyOf(bucket.termBytes);
           bucket.aggregations = bucketAggregations(bucket.bucketOrd);
           bucket.docCountError = 0;

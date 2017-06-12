@@ -207,7 +207,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 final Settings actualIndexSettings = indexSettingsBuilder.build();
                 final int routingNumShards = getRoutingShardNum(shrinkFromIndex, currentState, actualIndexSettings);
-                
+
                 IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index())
                     .setRoutingNumShards(routingNumShards);
                 // Set up everything, now locally create the index to see that things are ok, and apply

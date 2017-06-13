@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -255,14 +256,68 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @param seqNoPrimaryContext the sequence number context
      */
     synchronized void updateAllocationIdsFromPrimaryContext(final SeqNoPrimaryContext seqNoPrimaryContext) {
-        final Set<String> inSyncAllocationIds =
-                new HashSet<>(Arrays.asList(seqNoPrimaryContext.inSyncLocalCheckpoints().keys().toArray(String.class)));
-        final Set<String> trackingAllocationIds =
-                new HashSet<>(Arrays.asList(seqNoPrimaryContext.trackingLocalCheckpoints().keys().toArray(String.class)));
-        updateAllocationIdsFromMaster(inSyncAllocationIds, trackingAllocationIds);
+        /*
+         * We are gathered here today to witness the relocation handoff transferring knowledge from the relocation source to the relocation
+         * target. We need to consider the possibility that the version of the cluster state on the relocation source when the primary
+         * context was sampled is different than the version of the cluster state on the relocation target at this exact moment. We define
+         * the following values:
+         *  - version(source) = the cluster state version on the relocation source used to ensure a minimum cluster state version on the
+         *    relocation target
+         *  - version(context) = the cluster state version on the relocation source when the primary context was sampled
+         *  - version(target) = the current cluster state version on the relocation target
+         *
+         * We know that version(source) <= version(target) and version(context) < version(target), version(context) = version(target), and
+         * version(target) < version(context) are all possibilities.
+         *
+         * The case of version(context) = version(target) causes no issues as in this case the knowledge of the in-sync and initializing
+         * shards the target receives from the master will be equal to the knowledge of the in-sync and initializing shards the target
+         * receives from the relocation source via the primary context.
+         *
+         * In the case when version(context) < version(target) or version(target) < version(context), we first consider shards that could be
+         * contained in the primary context but not contained in the cluster state applied on the target.
+         *
+         * Suppose there is such a shard and that it is an in-sync shard. However, marking a shard as in-sync requires an operation permit
+         * on the primary shard. Such a permit can not be obtained after the relocation handoff has started as the relocation handoff blocks
+         * all operations. Therefore, there can not be such a shard that is marked in-sync.
+         *
+         * Now consider the case of an initializing shard that is contained in the primary context but not contained in the cluster state
+         * applied on the target.
+         *
+         * If version(context) < version(target) it means that the shard has been removed by a later cluster state update that is already
+         * applied on the target and we only need to ensure that we do not add it to the tracking map on the target. The call to
+         * GlobalCheckpointTracker#updateLocalCheckpoint(String, long) is a no-op for such shards and this is safe.
+         *
+         * If version(target) < version(context) it means that the shard has started initializing by a later cluster state update has not
+         * yet arrived on the target. However, there is a delay on recoveries before we ensure that version(source) <= version(target).
+         * Therefore, such a shard can never initialize from the relocation source and will have to await the handoff completing. As such,
+         * these shards are not problematic.
+         *
+         * Now we consider shards that are contained in the cluster state applied on the target but not contained in the primary context.
+         *
+         * If version(context) < version(target) it means that the target has learned of an initializing shard that the source is not aware
+         * of. As explained above, this initialization can only succeed after the relocation is complete, and only with the target as the
+         * source of the recovery.
+         *
+         * Otherwise, if version(target) < version(context) it only means that the global checkpoint on the target will be held back until a
+         * later cluster state update arrives because the target will not learn of the removal until later.
+         *
+         * In both cases, no calls to update the local checkpoint for such shards will be made. This case is safe too.
+         */
         for (final ObjectLongCursor<String> cursor : seqNoPrimaryContext.inSyncLocalCheckpoints()) {
             updateLocalCheckpoint(cursor.key, cursor.value);
+            assert cursor.value >= globalCheckpoint
+                    : "local checkpoint [" + cursor.value + "] violates being at least the global checkpoint [" + globalCheckpoint + "]";
+            try {
+                markAllocationIdAsInSync(cursor.key, cursor.value);
+            } catch (final InterruptedException e) {
+                /*
+                 * Since the local checkpoint already exceeds the global checkpoint here, we never blocking waiting for advancement. This
+                 * means that we can never be interrupted. If we are bail, something is catastrophically wrong.
+                 */
+                throw new AssertionError(e);
+            }
         }
+
         for (final ObjectLongCursor<String> cursor : seqNoPrimaryContext.trackingLocalCheckpoints()) {
             updateLocalCheckpoint(cursor.key, cursor.value);
         }

@@ -60,7 +60,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -178,25 +177,13 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile,
+                                             Consumer<MockChannel> onChannelClose) throws IOException {
         final MockChannel[] mockChannels = new MockChannel[1];
-        final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE,
-            transportServiceAdapter::onConnectionClosed); // we always use light here
+        final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
         boolean success = false;
         final MockSocket socket = new MockSocket();
         try {
-            Consumer<MockChannel> onClose = (channel) -> {
-                final NodeChannels connected = connectedNodes.get(node);
-                if (connected != null && connected.hasChannel(channel)) {
-                    try {
-                        executor.execute(() -> {
-                            disconnectFromNode(node, channel, "channel closed event");
-                        });
-                    } catch (RejectedExecutionException ex) {
-                        logger.debug("failed to run disconnectFromNode - node is shutting down");
-                    }
-                }
-            };
             final InetSocketAddress address = node.getAddress().address();
             // we just use a single connections
             configureSocket(socket);
@@ -206,7 +193,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             } catch (SocketTimeoutException ex) {
                 throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", ex);
             }
-            MockChannel channel = new MockChannel(socket, address, "none", onClose);
+            MockChannel channel = new MockChannel(socket, address, "none", onChannelClose);
             channel.loopRead(executor);
             mockChannels[0] = channel;
             success = true;
@@ -376,7 +363,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 synchronized (openChannels) {
                     removedChannel = openChannels.remove(this);
                 }
-                onChannelClosed(this);
                 IOUtils.close(serverSocket, activeChannel, () -> IOUtils.close(workerChannels),
                     () -> cancellableThreads.cancel("channel closed"), onClose);
                 assert removedChannel: "Channel was not removed or removed twice?";

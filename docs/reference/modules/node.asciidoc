@@ -111,7 +111,7 @@ node.ingest: false <3>
 
 ifdef::include-xpack[]
 NOTE: These settings apply only when {xpack} is not installed. To create a
-standalone master-eligible node when {xpack} is installed, see <<modules-node-xpack>>.
+standalone master-eligible node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
 endif::include-xpack[]
 
 
@@ -201,7 +201,7 @@ node.ingest: false <3>
 
 ifdef::include-xpack[]
 NOTE: These settings apply only when {xpack} is not installed. To create a
-dedicated data node when {xpack} is installed, see <<modules-node-xpack>>.
+dedicated data node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
 endif::include-xpack[]
 
 [float]
@@ -229,7 +229,7 @@ search.remote.connect: false <4>
 
 ifdef::include-xpack[]
 NOTE: These settings apply only when {xpack} is not installed. To create a
-dedicated ingest node when {xpack} is installed, see <<modules-node-xpack>>.
+dedicated ingest node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
 endif::include-xpack[]
 
 [float]
@@ -269,7 +269,7 @@ search.remote.connect: false <4>
 
 ifdef::include-xpack[]
 NOTE: These settings apply only when {xpack} is not installed. To create a
-dedicated coordinating node when {xpack} is installed, see <<modules-node-xpack>>.
+dedicated coordinating node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
 endif::include-xpack[]
 
 [float]

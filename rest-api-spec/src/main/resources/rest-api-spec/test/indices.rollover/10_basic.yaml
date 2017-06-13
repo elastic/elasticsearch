@@ -16,6 +16,7 @@
         index: logs-1
         type:  test
         id:    "1"
+        refresh: true # make this doc visible in index stats
         body:  { "foo": "hello world" }
 
   - do:

@@ -1,0 +1,36 @@
+
+:version: 1.3.9
+:branch:  1.3
+:jdk:     1.7.0_60
+
+include::getting-started.asciidoc[]
+
+include::setup.asciidoc[]
+
+include::migration/migrate_1_0.asciidoc[]
+
+include::api-conventions.asciidoc[]
+
+include::docs.asciidoc[]
+
+include::search.asciidoc[]
+
+include::indices.asciidoc[]
+
+include::cat.asciidoc[]
+
+include::cluster.asciidoc[]
+
+include::query-dsl.asciidoc[]
+
+include::mapping.asciidoc[]
+
+include::analysis.asciidoc[]
+
+include::modules.asciidoc[]
+
+include::index-modules.asciidoc[]
+
+include::testing.asciidoc[]
+
+include::glossary.asciidoc[]

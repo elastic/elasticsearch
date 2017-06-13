@@ -132,6 +132,49 @@ public class ExtractedFieldsTests extends ESTestCase {
         assertThat(extractedFields.getAllFields().size(), equalTo(4));
     }
 
+    public void testBuildGivenMultiFields() {
+        Job.Builder jobBuilder = new Job.Builder("foo");
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        Detector.Builder detector = new Detector.Builder("count", null);
+        detector.setByFieldName("airline.text");
+        detector.setOverFieldName("airport.keyword");
+        jobBuilder.setAnalysisConfig(new AnalysisConfig.Builder(Collections.singletonList(detector.build())));
+
+        DatafeedConfig.Builder datafeedBuilder = new DatafeedConfig.Builder("feed", jobBuilder.getId());
+        datafeedBuilder.setIndices(Collections.singletonList("foo"));
+
+        Map<String, FieldCapabilities> timeCaps = new HashMap<>();
+        timeCaps.put("date", createFieldCaps(true));
+        Map<String, FieldCapabilities> text = new HashMap<>();
+        text.put("text", createFieldCaps(false));
+        Map<String, FieldCapabilities> keyword = new HashMap<>();
+        keyword.put("keyword", createFieldCaps(true));
+        FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
+        when(fieldCapabilitiesResponse.getField("time")).thenReturn(timeCaps);
+        when(fieldCapabilitiesResponse.getField("airline")).thenReturn(text);
+        when(fieldCapabilitiesResponse.getField("airline.text")).thenReturn(text);
+        when(fieldCapabilitiesResponse.getField("airport")).thenReturn(text);
+        when(fieldCapabilitiesResponse.getField("airport.keyword")).thenReturn(keyword);
+
+        ExtractedFields extractedFields = ExtractedFields.build(jobBuilder.build(new Date()), datafeedBuilder.build(),
+                fieldCapabilitiesResponse);
+
+        assertThat(extractedFields.timeField(), equalTo("time"));
+        assertThat(extractedFields.getDocValueFields().length, equalTo(2));
+        assertThat(extractedFields.getDocValueFields()[0], equalTo("time"));
+        assertThat(extractedFields.getDocValueFields()[1], equalTo("airport.keyword"));
+        assertThat(extractedFields.getSourceFields().length, equalTo(1));
+        assertThat(extractedFields.getSourceFields()[0], equalTo("airline"));
+        assertThat(extractedFields.getAllFields().size(), equalTo(3));
+
+        assertThat(extractedFields.getAllFields().stream().filter(f -> f.getName().equals("time")).findFirst().get().getAlias(),
+                equalTo("time"));
+        assertThat(extractedFields.getAllFields().stream().filter(f -> f.getName().equals("airport.keyword")).findFirst().get().getAlias(),
+                equalTo("airport.keyword"));
+        assertThat(extractedFields.getAllFields().stream().filter(f -> f.getName().equals("airline")).findFirst().get().getAlias(),
+                equalTo("airline.text"));
+    }
+
     public void testBuildGivenTimeFieldIsNotAggregatable() {
         Job.Builder jobBuilder = new Job.Builder("foo");
         jobBuilder.setDataDescription(new DataDescription.Builder());

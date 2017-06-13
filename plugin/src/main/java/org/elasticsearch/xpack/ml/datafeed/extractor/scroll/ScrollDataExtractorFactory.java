@@ -17,7 +17,9 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.utils.MlStrings;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -70,8 +72,10 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         // Step 1. Get field capabilities necessary to build the information of how to extract fields
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
         fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[datafeed.getIndices().size()]));
-        List<String> fields = job.allFields();
-        fieldCapabilitiesRequest.fields(fields.toArray(new String[fields.size()]));
+        // We need capabilities for all fields matching the requested fields' parents so that we can work around
+        // multi-fields that are not in source.
+        String[] requestFields = job.allFields().stream().map(f -> MlStrings.getParentField(f) + "*").toArray(size -> new String[size]);
+        fieldCapabilitiesRequest.fields(requestFields);
         client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, fieldCapabilitiesHandler);
     }
 }

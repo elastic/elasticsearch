@@ -76,13 +76,19 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest("put", "airline-data-empty", Collections.emptyMap(),
                 new StringEntity(mappings, ContentType.APPLICATION_JSON));
 
-        // Create index with source = enabled, doc_values = enabled, stored = false
+        // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
         mappings = "{"
                 + "  \"mappings\": {"
                 + "    \"response\": {"
                 + "      \"properties\": {"
                 + "        \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
-                + "        \"airline\": { \"type\":\"keyword\"},"
+                + "        \"airline\": {"
+                + "          \"type\":\"text\","
+                + "          \"fields\":{"
+                + "            \"text\":{\"type\":\"text\"},"
+                + "            \"keyword\":{\"type\":\"keyword\"}"
+                + "           }"
+                + "         },"
                 + "        \"responsetime\": { \"type\":\"float\"}"
                 + "      }"
                 + "    }"
@@ -205,8 +211,19 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         client().performRequest("post", "_refresh");
     }
 
-    public void testLookbackOnly() throws Exception {
-        new LookbackOnlyTestHelper("test-lookback-only", "airline-data").setShouldSucceedProcessing(true).execute();
+    public void testLookbackOnlyWithMixedTypes() throws Exception {
+        new LookbackOnlyTestHelper("test-lookback-only-with-mixed-types", "airline-data")
+                .setShouldSucceedProcessing(true).execute();
+    }
+
+    public void testLookbackOnlyWithKeywordMultiField() throws Exception {
+        new LookbackOnlyTestHelper("test-lookback-only-with-keyword-multi-field", "airline-data")
+                .setAirlineVariant("airline.keyword").setShouldSucceedProcessing(true).execute();
+    }
+
+    public void testLookbackOnlyWithTextMultiField() throws Exception {
+        new LookbackOnlyTestHelper("test-lookback-only-with-keyword-multi-field", "airline-data")
+                .setAirlineVariant("airline.text").setShouldSucceedProcessing(true).execute();
     }
 
     public void testLookbackOnlyWithDocValuesDisabled() throws Exception {
@@ -358,7 +375,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testRealtime() throws Exception {
         String jobId = "job-realtime-1";
-        createJob(jobId);
+        createJob(jobId, "airline");
         String datafeedId = jobId + "-datafeed";
         new DatafeedBuilder(datafeedId, jobId, "airline-data", "response").build();
         openJob(client(), jobId);
@@ -403,7 +420,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     public void testForceDeleteWhileDatafeedIsRunning() throws Exception {
         String jobId = "job-realtime-2";
-        createJob(jobId);
+        createJob(jobId, "airline");
         String datafeedId = jobId + "-datafeed";
         new DatafeedBuilder(datafeedId, jobId, "airline-data", "response").build();
         openJob(client(), jobId);
@@ -431,6 +448,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private class LookbackOnlyTestHelper {
         private String jobId;
+        private String airlineVariant;
         private String dataIndex;
         private boolean addScriptedFields;
         private boolean shouldSucceedInput;
@@ -441,12 +459,19 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             this.dataIndex = dataIndex;
             this.shouldSucceedInput = true;
             this.shouldSucceedProcessing = true;
+            this.airlineVariant = "airline";
         }
 
         public LookbackOnlyTestHelper setAddScriptedFields(boolean value) {
             addScriptedFields = value;
             return this;
         }
+
+        public LookbackOnlyTestHelper setAirlineVariant(String airlineVariant) {
+            this.airlineVariant = airlineVariant;
+            return this;
+        }
+
 
         public LookbackOnlyTestHelper setShouldSucceedInput(boolean value) {
             shouldSucceedInput = value;
@@ -459,7 +484,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         }
 
         public void execute() throws Exception {
-            createJob(jobId);
+            createJob(jobId, airlineVariant);
             String datafeedId = "datafeed-" + jobId;
             new DatafeedBuilder(datafeedId, jobId, dataIndex, "response")
                     .setScriptedFields(addScriptedFields ?
@@ -515,10 +540,11 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         });
     }
 
-    private Response createJob(String id) throws Exception {
+    private Response createJob(String id, String airlineVariant) throws Exception {
         String job = "{\n" + "    \"description\":\"Analysis of response time by airline\",\n"
                 + "    \"analysis_config\" : {\n" + "        \"bucket_span\":\"1h\",\n"
-                + "        \"detectors\" :[{\"function\":\"mean\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
+                + "        \"detectors\" :[\n"
+                + "          {\"function\":\"mean\",\"field_name\":\"responsetime\",\"by_field_name\":\"" + airlineVariant + "\"}]\n"
                 + "    },\n" + "    \"data_description\" : {\n"
                 + "        \"format\":\"xcontent\",\n"
                 + "        \"time_field\":\"time stamp\",\n" + "        \"time_format\":\"yyyy-MM-dd'T'HH:mm:ssX\"\n" + "    }\n"

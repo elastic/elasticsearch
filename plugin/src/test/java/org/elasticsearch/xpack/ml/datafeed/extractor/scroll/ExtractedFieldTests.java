@@ -58,7 +58,7 @@ public class ExtractedFieldTests extends ESTestCase {
     public void testValueGivenNestedSource() {
         SearchHit hit = new SearchHitBuilder(42).setSource("{\"level_1\":{\"level_2\":{\"foo\":\"bar\"}}}").build();
 
-        ExtractedField nested = ExtractedField.newField("level_1.level_2.foo", ExtractedField.ExtractionMethod.SOURCE);
+        ExtractedField nested = ExtractedField.newField("alias", "level_1.level_2.foo", ExtractedField.ExtractionMethod.SOURCE);
         assertThat(nested.value(hit), equalTo(new String[] { "bar" }));
     }
 
@@ -101,5 +101,21 @@ public class ExtractedFieldTests extends ESTestCase {
         ExtractedField timeField = ExtractedField.newTimeField("time", ExtractedField.ExtractionMethod.DOC_VALUE);
 
         assertThat(timeField.value(hit), equalTo(new Object[] { 123456789L }));
+    }
+
+    public void testAliasVersusName() {
+        SearchHit hit = new SearchHitBuilder(42).addField("a", 1).addField("b", 2).build();
+
+        ExtractedField field = ExtractedField.newField("a", "a", ExtractedField.ExtractionMethod.DOC_VALUE);
+        assertThat(field.getAlias(), equalTo("a"));
+        assertThat(field.getName(), equalTo("a"));
+        assertThat(field.value(hit), equalTo(new Integer[] { 1 }));
+
+        hit = new SearchHitBuilder(42).addField("a", 1).addField("b", 2).build();
+
+        field = ExtractedField.newField("a", "b", ExtractedField.ExtractionMethod.DOC_VALUE);
+        assertThat(field.getAlias(), equalTo("a"));
+        assertThat(field.getName(), equalTo("b"));
+        assertThat(field.value(hit), equalTo(new Integer[] { 2 }));
     }
 }

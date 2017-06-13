@@ -60,4 +60,23 @@ public final class MlStrings {
     public static boolean isValidId(String id) {
         return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches() && !Job.ALL.equals(id);
     }
+
+    /**
+     * Returns the path to the parent field if {@code fieldPath} is nested
+     * or {@code fieldPath} itself.
+     *
+     * @param fieldPath a field path
+     * @return the path to the parent field if {code fieldPath} is nested
+     * or {@code} fieldPath itself
+     */
+    public static String getParentField(String fieldPath) {
+        if (fieldPath == null) {
+            return fieldPath;
+        }
+        int lastIndexOfDot = fieldPath.lastIndexOf('.');
+        if (lastIndexOfDot < 0) {
+            return fieldPath;
+        }
+        return fieldPath.substring(0, lastIndexOfDot);
+    }
 }

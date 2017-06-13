@@ -23,7 +23,7 @@ For instance, the following setting enables `stored` `update` scripts for
 
 [source,yaml]
 ----------------
-script.engine.groovy.inline.update: true
+script.engine.groovy.stored.update: true
 ----------------
 
 Less fine-grained settings exist which allow you to enable or disable scripts

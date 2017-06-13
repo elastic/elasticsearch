@@ -687,14 +687,10 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testGeopoint() {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+    public void testGeopoint2x() {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_4_5);
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         createIndex("test", settings, "test",
-            "field_index", makeType("geo_point", true, false, false));
-        version = Version.CURRENT;
-        settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        createIndex("test5x", settings, "test",
             "field_index", makeType("geo_point", true, false, false));
         int numDocs = random().nextInt(20);
         for (int i = 0; i <= numDocs; ++i) {
@@ -702,7 +698,6 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
             double lon = GeoTestUtil.nextLongitude();
             final String src = lat + "," + lon;
             client().prepareIndex("test", "test").setSource("field_index", src).get();
-            client().prepareIndex("test5x", "test").setSource("field_index", src).get();
         }
 
         client().admin().indices().prepareRefresh().get();
@@ -712,6 +707,25 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         // min/max random testing is not straightforward; there are 3 different encodings since V_2_0
         // e.g., before V2_3 used legacy numeric encoding which is wildly different from V_2_3 which is morton encoded
         // which is wildly different from V_5_0 which is point encoded. Skipping min/max in favor of testing
+    }
+
+    public void testGeopoint5x() {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.CURRENT);
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        createIndex("test", settings, "test",
+            "field_index", makeType("geo_point", true, false, false));
+        int numDocs = random().nextInt(20);
+        for (int i = 0; i <= numDocs; ++i) {
+            double lat = GeoTestUtil.nextLatitude();
+            double lon = GeoTestUtil.nextLongitude();
+            final String src = lat + "," + lon;
+            client().prepareIndex("test", "test").setSource("field_index", src).get();
+        }
+
+        client().admin().indices().prepareRefresh().get();
+        FieldStatsResponse result = client().prepareFieldStats().setFields("field_index").get();
+        FieldStats stats = result.getAllFieldStats().get("field_index");
+        assertEquals(stats.getDisplayType(), "geo_point");
     }
 
     private void assertSerialization(FieldStats stats, Version version) throws IOException {

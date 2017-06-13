@@ -49,6 +49,25 @@ h3. Indexing
 
 Let's try and index some twitter like information. First, let's create a twitter user, and add some tweets (the @twitter@ index will be created automatically):
 
+<B> A word of caution for Windows users <B>
+<pre>
+There are few differences in the way windows parses the commands 
+1. All the single quotes in the below thread should be replaced by double quotes
+2. String Inputs will need escape Characters 
+
+<B>Sample command for PUT :</B>
+curl -XPUT 'http://localhost:9200/twitter/user/kimchy?pretty' -H 'Content-Type: application/json' -d '{ "name" : "Shay Banon" }'
+<I>will change to </I>
+curl -XPUT "http://localhost:9200/twitter/user/kimchy?pretty" -H "Content-Type: application/json" -d "{\"name\" : "Shay Banon\"}"
+
+<B>Sample command for GET :</B>
+curl -XGET 'http://localhost:9200/twitter/user/kimchy?pretty=true'
+<I>will change to </I>
+curl -XGET "http://localhost:9200/twitter/user/kimchy?pretty=true"
+</pre>
+
+Other users can use the below commands directly
+
 <pre>
 curl -XPUT 'http://localhost:9200/twitter/user/kimchy?pretty' -H 'Content-Type: application/json' -d '{ "name" : "Shay Banon" }'
 

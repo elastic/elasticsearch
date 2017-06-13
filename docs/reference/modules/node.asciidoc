@@ -97,7 +97,7 @@ better _not_ to use dedicated master nodes for this purpose. It is important
 for the stability of the cluster that master-eligible nodes do as little work
 as possible.
 
-To create a standalone master-eligible node, set:
+To create a dedicated master-eligible node, set:
 
 [source,yaml]
 -------------------
@@ -111,7 +111,7 @@ node.ingest: false <3>
 
 ifdef::include-xpack[]
 NOTE: These settings apply only when {xpack} is not installed. To create a
-standalone master-eligible node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
+dedicated master-eligible node when {xpack} is installed, see <<modules-node-xpack,{xpack} node settings>>.
 endif::include-xpack[]
 
 

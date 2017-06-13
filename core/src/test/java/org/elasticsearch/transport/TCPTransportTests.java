@@ -39,6 +39,7 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -196,8 +197,9 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) throws IOException {
-                    return new NodeChannels(node, new Object[profile.getNumConnections()], profile, c -> {});
+                protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile,
+                                                         Consumer onChannelClose) throws IOException {
+                    return new NodeChannels(node, new Object[profile.getNumConnections()], profile);
                 }
 
                 @Override
@@ -213,7 +215,7 @@ public class TCPTransportTests extends ESTestCase {
                 @Override
                 public NodeChannels getConnection(DiscoveryNode node) {
                     return new NodeChannels(node, new Object[MockTcpTransport.LIGHT_PROFILE.getNumConnections()],
-                        MockTcpTransport.LIGHT_PROFILE, c -> {});
+                        MockTcpTransport.LIGHT_PROFILE);
                 }
             };
             DiscoveryNode node = new DiscoveryNode("foo", new LocalTransportAddress("1"), Version.CURRENT);

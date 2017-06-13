@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -25,6 +24,9 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.transport.TransportResponse;
+
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 /**
  * A component that performs the following upgrade procedure:
@@ -35,23 +37,41 @@ import org.elasticsearch.transport.TransportResponse;
  * - Reindex from .{name} to .{name}-v6 with transform
  * - Delete index .{name} and add alias .{name} to .{name}-v6
  */
-public class InternalIndexReindexer {
+public class InternalIndexReindexer<T> {
 
     private final Client client;
     private final ClusterService clusterService;
     private final Script transformScript;
     private final String[] types;
     private final int version;
+    private final Consumer<ActionListener<T>> preUpgrade;
+    private final BiConsumer<T, ActionListener<TransportResponse.Empty>> postUpgrade;
 
-    public InternalIndexReindexer(Client client, ClusterService clusterService, int version, Script transformScript, String[] types) {
+    public InternalIndexReindexer(Client client, ClusterService clusterService, int version, Script transformScript, String[] types,
+                                  Consumer<ActionListener<T>> preUpgrade,
+                                  BiConsumer<T, ActionListener<TransportResponse.Empty>> postUpgrade) {
         this.client = client;
         this.clusterService = clusterService;
         this.transformScript = transformScript;
         this.types = types;
         this.version = version;
+        this.preUpgrade = preUpgrade;
+        this.postUpgrade = postUpgrade;
     }
 
     public void upgrade(String index, ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
+        preUpgrade.accept(ActionListener.wrap(
+                t -> innerUpgrade(index, clusterState, ActionListener.wrap(
+                        response -> postUpgrade.accept(t, ActionListener.wrap(
+                                empty -> listener.onResponse(response),
+                                listener::onFailure
+                        )),
+                        listener::onFailure
+                )),
+                listener::onFailure));
+    }
+
+    private void innerUpgrade(String index, ClusterState clusterState, ActionListener<BulkByScrollResponse> listener) {
         String newIndex = index + "_v" + version;
         try {
             checkMasterAndDataNodeVersion(clusterState);

@@ -7,15 +7,19 @@ package org.elasticsearch.xpack.upgrade;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction.Response;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -68,6 +72,45 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch(testIndex).get();
         assertEquals(2L, searchResponse.getHits().getTotalHits());
+    }
+
+    public void testInternalUpgradePrePostChecks() {
+        Long val = randomLong();
+        AtomicBoolean preUpgradeIsCalled = new AtomicBoolean();
+        AtomicBoolean postUpgradeIsCalled = new AtomicBoolean();
+
+        IndexUpgradeCheck check = new IndexUpgradeCheck<Long>(
+                "test", Settings.EMPTY,
+                (indexMetaData, stringStringMap) -> {
+                    if (indexMetaData.getIndex().getName().equals("internal_index")) {
+                        return UpgradeActionRequired.UPGRADE;
+                    } else {
+                        return UpgradeActionRequired.NOT_APPLICABLE;
+                    }
+                },
+                client(), internalCluster().clusterService(internalCluster().getMasterName()), Strings.EMPTY_ARRAY, null,
+                listener -> {
+                    assertFalse(preUpgradeIsCalled.getAndSet(true));
+                    assertFalse(postUpgradeIsCalled.get());
+                    listener.onResponse(val);
+                },
+                (aLong, listener) -> {
+                    assertTrue(preUpgradeIsCalled.get());
+                    assertFalse(postUpgradeIsCalled.getAndSet(true));
+                    assertEquals(aLong, val);
+                    listener.onResponse(TransportResponse.Empty.INSTANCE);
+                });
+
+        assertAcked(client().admin().indices().prepareCreate("internal_index").get());
+
+        IndexUpgradeService service = new IndexUpgradeService(Settings.EMPTY, Collections.singletonList(check));
+
+        PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
+        service.upgrade("internal_index", Collections.emptyMap(), clusterService().state(), future);
+        future.actionGet();
+
+        assertTrue(preUpgradeIsCalled.get());
+        assertTrue(postUpgradeIsCalled.get());
     }
 
 }

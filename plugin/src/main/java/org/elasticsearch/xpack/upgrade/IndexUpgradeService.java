@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
@@ -49,30 +50,41 @@ public class IndexUpgradeService extends AbstractComponent {
         MetaData metaData = state.getMetaData();
         for (String index : concreteIndexNames) {
             IndexMetaData indexMetaData = metaData.index(index);
-            indexCheck:
-            for (IndexUpgradeCheck check : upgradeChecks) {
-                UpgradeActionRequired upgradeActionRequired = check.actionRequired(indexMetaData, params, state);
-                logger.trace("[{}] check [{}] returned [{}]", index, check.getName(), upgradeActionRequired);
-                switch (upgradeActionRequired) {
-                    case UPGRADE:
-                    case REINDEX:
-                        // this index needs to be upgraded or reindexed - skipping all other checks
-                        results.put(index, upgradeActionRequired);
-                        break indexCheck;
-                    case UP_TO_DATE:
-                        // this index is good - skipping all other checks
-                        break indexCheck;
-                    case NOT_APPLICABLE:
-                        // this action is not applicable to this index - skipping to the next one
-                        break;
-                    default:
-                        throw new IllegalStateException("unknown upgrade action " + upgradeActionRequired + " for the index "
-                                + index);
-
-                }
+            UpgradeActionRequired upgradeActionRequired = upgradeInfo(indexMetaData, index, params);
+            if (upgradeActionRequired != null) {
+                results.put(index, upgradeActionRequired);
             }
         }
         return results;
+    }
+
+    private UpgradeActionRequired upgradeInfo(IndexMetaData indexMetaData, String index, Map<String, String> params) {
+        for (IndexUpgradeCheck check : upgradeChecks) {
+            UpgradeActionRequired upgradeActionRequired = check.actionRequired(indexMetaData, params);
+            logger.trace("[{}] check [{}] returned [{}]", index, check.getName(), upgradeActionRequired);
+            switch (upgradeActionRequired) {
+                case UPGRADE:
+                case REINDEX:
+                    // this index needs to be upgraded or reindexed - skipping all other checks
+                    return upgradeActionRequired;
+                case UP_TO_DATE:
+                    // this index is good - skipping all other checks
+                    return null;
+                case NOT_APPLICABLE:
+                    // this action is not applicable to this index - skipping to the next one
+                    break;
+                default:
+                    throw new IllegalStateException("unknown upgrade action " + upgradeActionRequired + " for the index "
+                            + index);
+
+            }
+        }
+        // Catch all check for all indices that didn't match the specific checks
+        if (indexMetaData.getCreationVersion().before(Version.V_5_0_0)) {
+            return UpgradeActionRequired.REINDEX;
+        } else {
+            return null;
+        }
     }
 
     public void upgrade(String index, Map<String, String> params, ClusterState state,
@@ -82,11 +94,11 @@ public class IndexUpgradeService extends AbstractComponent {
             throw new IndexNotFoundException(index);
         }
         for (IndexUpgradeCheck check : upgradeChecks) {
-            UpgradeActionRequired upgradeActionRequired = check.actionRequired(indexMetaData, params, state);
+            UpgradeActionRequired upgradeActionRequired = check.actionRequired(indexMetaData, params);
             switch (upgradeActionRequired) {
                 case UPGRADE:
                     // this index needs to be upgraded - start the upgrade procedure
-                    check.upgrade(indexMetaData, params, state, listener);
+                    check.upgrade(indexMetaData, state, listener);
                     return;
                 case REINDEX:
                     // this index needs to be re-indexed

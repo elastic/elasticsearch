@@ -29,6 +29,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.ArrayList;
@@ -180,8 +181,10 @@ public class InternalIndexReindexerIT extends IndexUpgradeIntegTestCase {
     }
 
     private InternalIndexReindexer createIndexReindexer(int version, Script transformScript, String[] types) {
-        return new InternalIndexReindexer(client(), internalCluster().clusterService(internalCluster().getMasterName()),
-                version, transformScript, types);
+        return new InternalIndexReindexer<Void>(client(), internalCluster().clusterService(internalCluster().getMasterName()),
+                version, transformScript, types, voidActionListener -> voidActionListener.onResponse(null),
+                (aVoid, listener) -> listener.onResponse(TransportResponse.Empty.INSTANCE));
+
     }
 
     private ClusterState clusterState() {

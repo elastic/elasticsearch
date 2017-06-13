@@ -404,66 +404,6 @@ public class Strings {
     }
 
     /**
-     * Normalize the path by suppressing sequences like "path/.." and
-     * inner simple dots.
-     * <p>The result is convenient for path comparison. For other uses,
-     * notice that Windows separators ("\") are replaced by simple slashes.
-     *
-     * @param path the original path
-     * @return the normalized path
-     */
-    public static String cleanPath(String path) {
-        if (path == null) {
-            return null;
-        }
-        String pathToUse = replace(path, WINDOWS_FOLDER_SEPARATOR, FOLDER_SEPARATOR);
-
-        // Strip prefix from path to analyze, to not treat it as part of the
-        // first path element. This is necessary to correctly parse paths like
-        // "file:core/../core/io/Resource.class", where the ".." should just
-        // strip the first "core" directory while keeping the "file:" prefix.
-        int prefixIndex = pathToUse.indexOf(":");
-        String prefix = "";
-        if (prefixIndex != -1) {
-            prefix = pathToUse.substring(0, prefixIndex + 1);
-            pathToUse = pathToUse.substring(prefixIndex + 1);
-        }
-        if (pathToUse.startsWith(FOLDER_SEPARATOR)) {
-            prefix = prefix + FOLDER_SEPARATOR;
-            pathToUse = pathToUse.substring(1);
-        }
-
-        String[] pathArray = delimitedListToStringArray(pathToUse, FOLDER_SEPARATOR);
-        List<String> pathElements = new LinkedList<>();
-        int tops = 0;
-
-        for (int i = pathArray.length - 1; i >= 0; i--) {
-            String element = pathArray[i];
-            if (CURRENT_PATH.equals(element)) {
-                // Points to current directory - drop it.
-            } else if (TOP_PATH.equals(element)) {
-                // Registering top path found.
-                tops++;
-            } else {
-                if (tops > 0) {
-                    // Merging path element with element corresponding to top path.
-                    tops--;
-                } else {
-                    // Normal path element found.
-                    pathElements.add(0, element);
-                }
-            }
-        }
-
-        // Remaining top paths need to be retained.
-        for (int i = 0; i < tops; i++) {
-            pathElements.add(0, TOP_PATH);
-        }
-
-        return prefix + collectionToDelimitedString(pathElements, FOLDER_SEPARATOR);
-    }
-
-    /**
      * Copy the given Collection into a String array.
      * The Collection must contain String elements only.
      *

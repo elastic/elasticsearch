@@ -1487,10 +1487,12 @@ If the field is not a string, the processor will throw an exception.
 .Gsub Options
 [options="header"]
 |======
-| Name          | Required  | Default  | Description
-| `field`       | yes       | -        | The field to apply the replacement to
-| `pattern`     | yes       | -        | The pattern to be replaced
-| `replacement` | yes       | -        | The string to replace the matching patterns with
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to apply the replacement to
+| `pattern`         | yes       | -        | The pattern to be replaced
+| `replacement`     | yes       | -        | The string to replace the matching patterns with
+| `target_field`    | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
+| `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 [source,js]
@@ -1514,9 +1516,10 @@ Throws an error when the field is not an array.
 .Join Options
 [options="header"]
 |======
-| Name          | Required  | Default  | Description
-| `field`       | yes       | -        | The field to be separated
-| `separator`   | yes       | -        | The separator character
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to be separated
+| `separator`       | yes       | -        | The separator character
+| `target_field`    | no        | `field`  | The field to assign the joined value to, by default `field` is updated in-place
 |======
 
 [source,js]
@@ -1660,6 +1663,7 @@ Converts a string to its lowercase equivalent.
 |======
 | Name             | Required  | Default  | Description
 | `field`          | yes       | -        | The field to make lowercase
+| `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
@@ -1816,6 +1820,7 @@ Splits a field into an array using a separator character. Only works on string f
 | Name              | Required  | Default  | Description
 | `field`           | yes       | -        | The field to split
 | `separator`       | yes       | -        | A regex which matches the separator, eg `,` or `\s+`
+| `target_field`    | no        | `field`  | The field to assign the split value to, by default `field` is updated in-place
 | `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
@@ -1841,9 +1846,10 @@ Throws an error when the field is not an array.
 .Sort Options
 [options="header"]
 |======
-| Name    | Required  | Default  | Description
-| `field` | yes       | -        | The field to be sorted
-| `order` | no        | `"asc"`  | The sort order to use. Accepts `"asc"` or `"desc"`.
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to be sorted
+| `order`           | no        | `"asc"`  | The sort order to use. Accepts `"asc"` or `"desc"`.
+| `target_field`    | no        | `field`  | The field to assign the sorted value to, by default `field` is updated in-place
 |======
 
 [source,js]
@@ -1869,6 +1875,7 @@ NOTE: This only works on leading and trailing whitespace.
 |======
 | Name              | Required  | Default  | Description
 | `field`           | yes       | -        | The string-valued field to trim whitespace from
+| `target_field`    | no        | `field`  | The field to assign the trimmed value to, by default `field` is updated in-place
 | `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
@@ -1892,6 +1899,7 @@ Converts a string to its uppercase equivalent.
 |======
 | Name             | Required  | Default  | Description
 | `field`          | yes       | -        | The field to make uppercase
+| `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 

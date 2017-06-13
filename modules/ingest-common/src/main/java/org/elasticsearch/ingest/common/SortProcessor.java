@@ -69,11 +69,13 @@ public final class SortProcessor extends AbstractProcessor {
 
     private final String field;
     private final SortOrder order;
+    private final String targetField;
 
-    SortProcessor(String tag, String field, SortOrder order) {
+    SortProcessor(String tag, String field, SortOrder order, String targetField) {
         super(tag);
         this.field = field;
         this.order = order;
+        this.targetField = targetField;
     }
 
     String getField() {
@@ -82,6 +84,10 @@ public final class SortProcessor extends AbstractProcessor {
 
     SortOrder getOrder() {
         return order;
+    }
+
+    String getTargetField() {
+        return targetField;
     }
 
     @Override
@@ -103,7 +109,7 @@ public final class SortProcessor extends AbstractProcessor {
             Collections.sort(list, Collections.reverseOrder());
         }
 
-        document.setFieldValue(field, list);
+        document.setFieldValue(targetField, list);
     }
 
     @Override
@@ -117,6 +123,7 @@ public final class SortProcessor extends AbstractProcessor {
         public SortProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                     Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, FIELD);
+            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
             try {
                 SortOrder direction = SortOrder.fromString(
                     ConfigurationUtils.readStringProperty(
@@ -125,7 +132,7 @@ public final class SortProcessor extends AbstractProcessor {
                         config,
                         ORDER,
                         DEFAULT_ORDER));
-                return new SortProcessor(processorTag, field, direction);
+                return new SortProcessor(processorTag, field, direction, targetField);
             } catch (IllegalArgumentException e) {
                 throw ConfigurationUtils.newConfigurationException(TYPE, processorTag, ORDER, e.getMessage());
             }

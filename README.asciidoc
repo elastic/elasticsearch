@@ -108,10 +108,11 @@ the `--resource` option when you run `build_docs.pl`.
 
 For example:
 
-```
+[source, txt]
+-----
 docs/build_docs.pl --doc x-pack/docs/en/index.asciidoc
 --resource=x-pack-kibana/docs/ --resource=elasticsearch-extra/x-pack-elasticsearch/docs/
-```
+-----
 
 To build the Elasticsearch Reference (5.5 and later) on your local machine and include the X-Pack content:
 
@@ -121,9 +122,11 @@ the `--resource` option when you run `build_docs.pl`.
 
 For example:
 
-```
-docs/build_docs.pl --doc elasticsearch/docs/reference/index-all.asciidoc --resource=elasticsearch-extra/x-pack-elasticsearch/docs/
-```
+[source, txt]
+-----
+docs/build_docs.pl --doc elasticsearch/docs/reference/index-all.asciidoc 
+--resource=elasticsearch-extra/x-pack-elasticsearch/docs/
+-----
 
 == Adding Images
 
@@ -131,19 +134,12 @@ When you include an image in the documentation, specify the path relative to the
 
 For example to insert `watcher-ui-edit-watch.png` in `watcher/limitations.asciidoc`:
 
-1. Add an `images` subdirectory to the watcher directory if it doesn't already exist:
-
- ```
- ├── elasticsearch-extra
- │   └── x-pack-elasticsearch
- │        └── watcher
- │             └── limitations.asciidoc
- │             └── images
- │                  └── watcher-ui-edit-watch.png
- ```
-2. In `limitations.asciidoc` specify:
-
- ```
+. Add an `images` subdirectory to the watcher directory if it doesn't already exist. 
+. In `limitations.asciidoc` specify:
++
+[source, txt]
+-----
  image::images/watcher-ui-edit-watch.png["Editing a watch"]
- ```
+-----
+ 
 Please note that image names and anchor IDs must be unique within the book, so do not use generic identifiers.

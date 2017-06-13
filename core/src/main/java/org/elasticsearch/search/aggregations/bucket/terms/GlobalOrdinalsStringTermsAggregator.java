@@ -254,6 +254,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     protected BucketSelectorValuesSource getBucketSelector(long... selectedBuckets) {
         final LongHash hash = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
         for (long bucket : selectedBuckets) {
+            // remap the global ord not the bucket
             hash.add(bucketOrds == null ? bucket : bucketOrds.get(bucket));
         }
         return context -> {

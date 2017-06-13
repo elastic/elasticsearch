@@ -185,6 +185,7 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
         final BytesRefHash hash = new BytesRefHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
         BytesRef rec = new BytesRef();
         for (long bucket : selectedBuckets) {
+            // remap the value not the bucket
             hash.add(bucketOrds.get(bucket, rec));
         }
 

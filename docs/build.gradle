@@ -158,7 +158,6 @@ buildRestTests.docs = fileTree(projectDir) {
     // That is where the snippets go, not where they come from!
     exclude 'build'
     // These file simply doesn't pass yet. We should figure out how to fix them.
-    exclude 'en/rest-api/watcher/ack-watch.asciidoc'
     exclude 'en/watcher/reference/actions.asciidoc'
     exclude 'en/rest-api/graph/explore.asciidoc'
 }

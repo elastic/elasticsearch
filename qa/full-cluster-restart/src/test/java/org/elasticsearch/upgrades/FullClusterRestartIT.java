@@ -72,6 +72,11 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     @Override
+    protected boolean preserveSnapshotsUponCompletion() {
+        return true;
+    }
+
+    @Override
     protected boolean preserveReposUponCompletion() {
         return true;
     }
@@ -279,7 +284,6 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/25203")
     public void testSnapshotRestore() throws IOException {
         int count;
         if (runningAgainstOldCluster) {

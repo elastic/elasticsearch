@@ -94,3 +94,56 @@ gradle clean assemble
 -----
 gradle clean install
 -----
+
+= Building documentation
+
+From version 5.5 onward, the source files in this repository can be included in either the X-Pack Reference or the Elasticsearch Reference. 
+
+To build the X-Pack Reference (5.4 and later) on your local machine:
+
+* Use the `index.asciidoc` file in the x-pack/docs/en repository.
+* Specify the locations of the `x-pack-kibana/docs` and
+`elasticsearch-extra/x-pack-exlasticsearch/docs` directories with
+the `--resource` option when you run `build_docs.pl`.
+
+For example:
+
+```
+docs/build_docs.pl --doc x-pack/docs/en/index.asciidoc
+--resource=x-pack-kibana/docs/ --resource=elasticsearch-extra/x-pack-elasticsearch/docs/
+```
+
+To build the Elasticsearch Reference (5.5 and later) on your local machine and include the X-Pack content:
+
+* Use the `index-all.asciidoc` file in the elasticsearch/docs/reference repository.
+* Specify the location of the `elasticsearch-extra/x-pack-exlasticsearch/docs` directory with
+the `--resource` option when you run `build_docs.pl`.
+
+For example:
+
+```
+docs/build_docs.pl --doc elasticsearch/docs/reference/index-all.asciidoc --resource=elasticsearch-extra/x-pack-elasticsearch/docs/
+```
+
+== Adding Images
+
+When you include an image in the documentation, specify the path relative to the location of the asciidoc file. By convention, we put images in an `images` subdirectory.
+
+For example to insert `watcher-ui-edit-watch.png` in `watcher/limitations.asciidoc`:
+
+1. Add an `images` subdirectory to the watcher directory if it doesn't already exist:
+
+ ```
+ ├── elasticsearch-extra
+ │   └── x-pack-elasticsearch
+ │        └── watcher
+ │             └── limitations.asciidoc
+ │             └── images
+ │                  └── watcher-ui-edit-watch.png
+ ```
+2. In `limitations.asciidoc` specify:
+
+ ```
+ image::images/watcher-ui-edit-watch.png["Editing a watch"]
+ ```
+Please note that image names and anchor IDs must be unique within the book, so do not use generic identifiers.

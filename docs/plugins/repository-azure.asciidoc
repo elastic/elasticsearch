@@ -90,6 +90,19 @@ cloud:
 
 In this example, timeout will be 10s for `my_account1` and 30s for `my_account2`.
 
+[IMPORTANT]
+.Supported Azure Storage Account types
+===============================================
+The Azure Repository plugin works with all Standard storage accounts
+
+* Standard Locally Redundant Storage - `Standard_LRS`
+* Standard Zone-Redundant Storage - `Standard_ZRS`
+* Standard Geo-Redundant Storage - `Standard_GRS`
+* Standard Read Access Geo-Redundant Storage - `Standard_RAGRS`
+
+https://azure.microsoft.com/en-gb/documentation/articles/storage-premium-storage[Premium Locally Redundant Storage] (`Premium_LRS`) is **not supported** as it is only usable as VM disk storage, not as general storage.
+===============================================
+
 [[repository-azure-repository-settings]]
 ===== Repository settings
 

@@ -370,7 +370,7 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
 
                 @Override
                 public void onFailure(Exception e) {
-                    if (countDown.fastForward()) {
+                    if (countDown.fastForward()) { // we need to check if it's true since we could have multiple failures
                         listener.onFailure(e);
                     }
                 }

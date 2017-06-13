@@ -111,11 +111,9 @@ final class ClearScrollController implements Runnable {
                         onFreedContext(false);
                     } else {
                         try {
-                            Transport.Connection connection = searchTransportService.getConnection(target.getClusterAlias(),
-                                node);
+                            Transport.Connection connection = searchTransportService.getConnection(target.getClusterAlias(), node);
                             searchTransportService.sendFreeContext(connection, target.getScrollId(),
-                                ActionListener.wrap(freed -> onFreedContext(freed.isFreed()),
-                                    e -> onFailedFreedContext(e, node)));
+                                ActionListener.wrap(freed -> onFreedContext(freed.isFreed()), e -> onFailedFreedContext(e, node)));
                         } catch (Exception e) {
                             onFailedFreedContext(e, node);
                         }

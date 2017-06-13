@@ -27,6 +27,7 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import org.apache.commons.io.IOUtils;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -34,7 +35,7 @@ import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.io.Streams;
+
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -91,9 +92,15 @@ class S3BlobContainer extends AbstractBlobContainer {
         if (blobExists(blobName)) {
             throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
         }
-        try (OutputStream stream = createOutput(blobName)) {
-            SocketAccess.doPrivilegedIOException(() -> Streams.copy(inputStream, stream));
-        }
+        SocketAccess.doPrivilegedIOException(() -> {
+                try (OutputStream stream = createOutput(blobName)) {
+                    IOUtils.copy(inputStream, stream);
+                } finally {
+                    IOUtils.closeQuietly(inputStream);
+                }
+                return null;
+            }
+        );
     }
 
     @Override

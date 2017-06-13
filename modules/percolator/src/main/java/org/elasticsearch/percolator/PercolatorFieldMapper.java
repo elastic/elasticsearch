@@ -176,8 +176,8 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new QueryShardException(context, "Percolator fields are not searchable directly, use a percolate query instead");
         }
 
-        public Query percolateQuery(String documentType, PercolateQuery.QueryStore queryStore, BytesReference documentSource,
-                                    IndexSearcher searcher) throws IOException {
+        Query percolateQuery(PercolateQuery.QueryStore queryStore, BytesReference documentSource,
+                             IndexSearcher searcher) throws IOException {
             IndexReader indexReader = searcher.getIndexReader();
             Query candidateMatchesQuery = createCandidateQuery(indexReader);
             Query verifiedMatchesQuery;
@@ -190,7 +190,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             } else {
                 verifiedMatchesQuery = new MatchNoDocsQuery("nested docs, so no verified matches");
             }
-            return new PercolateQuery(documentType, queryStore, documentSource, candidateMatchesQuery, searcher, verifiedMatchesQuery);
+            return new PercolateQuery(queryStore, documentSource, candidateMatchesQuery, searcher, verifiedMatchesQuery);
         }
 
         Query createCandidateQuery(IndexReader indexReader) throws IOException {

@@ -74,7 +74,7 @@ and `30s` per try for `my_account2` with `3` retries.
 [IMPORTANT]
 .Supported Azure Storage Account types
 ===============================================
-Azure Cloud plugin works with all Standard storage accounts
+The Azure Repository plugin works with all Standard storage accounts
 
 * Standard Locally Redundant Storage - `Standard_LRS`
 * Standard Zone-Redundant Storage - `Standard_ZRS`

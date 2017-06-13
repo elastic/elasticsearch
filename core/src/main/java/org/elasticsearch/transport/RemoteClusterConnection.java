@@ -217,7 +217,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             final ClusterStateRequest request = new ClusterStateRequest();
             request.clear();
             request.nodes(true);
-            request.local(true); // run this on the node that get's the request it's as good as any other
+            request.local(true); // run this on the node that gets the request it's as good as any other
             final DiscoveryNode node = nodeSupplier.get();
             transportService.sendRequest(node, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
                 new TransportResponseHandler<ClusterStateResponse>() {

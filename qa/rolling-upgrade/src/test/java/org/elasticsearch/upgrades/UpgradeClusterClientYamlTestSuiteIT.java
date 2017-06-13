@@ -22,6 +22,8 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
@@ -45,6 +47,15 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        return Settings.builder().put(super.restClientSettings())
+            // increase the timeout so that we can actually see the result of failed cluster health
+            // calls that have a default timeout of 30s
+            .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "40s")
+            .build();
     }
 
     @Override

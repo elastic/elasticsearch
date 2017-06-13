@@ -36,7 +36,7 @@ final String wildflyInstall = "${buildDir}/wildfly/wildfly-${wildflyVersion}"
 final int portOffset = 30000
 final int managementPort = 9990 + portOffset
 // we skip these tests on Windows so we do not need to worry about compatibility here
-final String stopWildflyCommand = "${wildflyInstall}/bin/jboss-cli.sh --controller=localhost:${managementPort} --connect command=:shutdown"
+final String stopWildflyCommand = "${wildflyInstall}/bin/jboss-cli.sh --controller=localhost:${managementPort} --connect command=shutdown"
 
 repositories {
     mavenCentral()

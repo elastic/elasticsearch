@@ -28,7 +28,8 @@ teardown:
         body: >
           {
             "doc": {
-              "enabled": false
+              "enabled": false,
+              "password": ""
             }
           }
   - do:

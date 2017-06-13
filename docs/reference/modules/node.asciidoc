@@ -109,6 +109,12 @@ node.ingest: false <3>
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
 
+ifdef::include-xpack[]
+NOTE: These settings apply only when {xpack} is not installed. To create a
+standalone master-eligible node when {xpack} is installed, see <<modules-node-xpack>>.
+endif::include-xpack[]
+
+
 [float]
 [[split-brain]]
 ==== Avoiding split brain with `minimum_master_nodes`
@@ -193,6 +199,11 @@ node.ingest: false <3>
 <2> The `node.data` role is enabled by default.
 <3> Disable the `node.ingest` role (enabled by default).
 
+ifdef::include-xpack[]
+NOTE: These settings apply only when {xpack} is not installed. To create a
+dedicated data node when {xpack} is installed, see <<modules-node-xpack>>.
+endif::include-xpack[]
+
 [float]
 [[node-ingest-node]]
 === Ingest Node
@@ -215,6 +226,11 @@ search.remote.connect: false <4>
 <2> Disable the `node.data` role (enabled by default).
 <3> The `node.ingest` role is enabled by default.
 <4> Disable cross-cluster search (enabled by default).
+
+ifdef::include-xpack[]
+NOTE: These settings apply only when {xpack} is not installed. To create a
+dedicated ingest node when {xpack} is installed, see <<modules-node-xpack>>.
+endif::include-xpack[]
 
 [float]
 [[coordinating-only-node]]
@@ -250,6 +266,11 @@ search.remote.connect: false <4>
 <2> Disable the `node.data` role (enabled by default).
 <3> Disable the `node.ingest` role (enabled by default).
 <4> Disable cross-cluster search (enabled by default).
+
+ifdef::include-xpack[]
+NOTE: These settings apply only when {xpack} is not installed. To create a
+dedicated coordinating node when {xpack} is installed, see <<modules-node-xpack>>.
+endif::include-xpack[]
 
 [float]
 == Node data path settings

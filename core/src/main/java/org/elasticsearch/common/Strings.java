@@ -53,9 +53,9 @@ public class Strings {
 
     private static final String WINDOWS_FOLDER_SEPARATOR = "\\";
 
-    private static final String TOP_PATH = "src/test";
-
     private static final String CURRENT_PATH = ".";
+
+    private static final String PARENT_PATH = "..";
 
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
         try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
@@ -435,32 +435,52 @@ public class Strings {
 
         String[] pathArray = delimitedListToStringArray(pathToUse, FOLDER_SEPARATOR);
         List<String> pathElements = new LinkedList<>();
-        int tops = 0;
 
-        for (int i = pathArray.length - 1; i >= 0; i--) {
-            String element = pathArray[i];
-            if (CURRENT_PATH.equals(element)) {
-                // Points to current directory - drop it.
-            } else if (TOP_PATH.equals(element)) {
-                // Registering top path found.
-                tops++;
-            } else {
-                if (tops > 0) {
-                    // Merging path element with element corresponding to top path.
-                    tops--;
-                } else {
-                    // Normal path element found.
-                    pathElements.add(0, element);
-                }
-            }
-        }
-
-        // Remaining top paths need to be retained.
-        for (int i = 0; i < tops; i++) {
-            pathElements.add(0, TOP_PATH);
-        }
+        mergeSubPath(pathArray, pathElements);
+        simplifyParentPath(pathToUse, pathArray, pathElements);
 
         return prefix + collectionToDelimitedString(pathElements, FOLDER_SEPARATOR);
+    }
+
+    private static void mergeSubPath(String[] pathArray, List<String> pathElements) {
+        for (int i = pathArray.length - 1; i >= 0; i--) {
+            String element = pathArray[i];
+            // Points to current directory - drop it.
+            if (!CURRENT_PATH.equals(element) && !"".equals(element)) {
+                pathElements.add(0, element);
+            }
+        }
+    }
+
+    private static void simplifyParentPath(String pathToUse, String[] pathArray, List<String> pathElements) {
+        if (pathToUse.contains(PARENT_PATH)) {
+            int lastParentPathIndex = 0;
+            int nonNullElementNumBeforeFirstParentPath = 0;
+
+            for (int index = pathArray.length - 1; index >= 0; index--) {
+                String subPath = pathArray[index];
+                if (PARENT_PATH.equals(subPath)) {
+                    break;
+                }
+                if (!"".equals(subPath) && !CURRENT_PATH.equals(subPath)) {
+                    lastParentPathIndex = index;
+                }
+            }
+
+            for (int i = 0; i < lastParentPathIndex; i++) {
+                String element = pathArray[i];
+                if (!CURRENT_PATH.equals(element) && !"".equals(element)) {
+                    if (!PARENT_PATH.equals(element)) {
+                        nonNullElementNumBeforeFirstParentPath += 1;
+                    }
+                }
+            }
+
+            //remove pairs of subPath and double dots to simplify path
+            for (int count2Remove = nonNullElementNumBeforeFirstParentPath * 2; count2Remove > 0; count2Remove--) {
+                pathElements.remove(0);
+            }
+        }
     }
 
     /**

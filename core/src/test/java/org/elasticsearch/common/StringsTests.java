@@ -115,4 +115,21 @@ public class StringsTests extends ESTestCase {
         assertEquals(Strings.splitStringToSet("aa   ", ' '), Sets.newHashSet("aa"));
         assertEquals(Strings.splitStringToSet("   ", ' '), Sets.newHashSet());
     }
+
+    public void testCleanPath() {
+        assertEquals("/root/home", Strings.cleanPath("/root//home"));
+        assertEquals("/root/home", Strings.cleanPath("\\root\\home"));
+
+        assertEquals("/home", Strings.cleanPath("/root/../home"));
+        assertEquals("home", Strings.cleanPath("./root/../home"));
+        assertEquals("home", Strings.cleanPath(".\\root\\..\\home"));
+
+        assertEquals("file:/home/elk", Strings.cleanPath("file:/root/../home/elk"));
+        assertEquals("file:home/elk", Strings.cleanPath("file:./root/../home/elk"));
+
+        assertEquals("file:../home/elk", Strings.cleanPath("file:./root/../../home/elk"));
+        assertEquals("file:/../home/elk", Strings.cleanPath("file:/root/../../home/elk"));
+
+        assertEquals("file:../../home/elk", Strings.cleanPath("file:./root/../../../home/elk"));
+    }
 }

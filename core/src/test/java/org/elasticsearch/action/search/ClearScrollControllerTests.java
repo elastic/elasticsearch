@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -44,9 +45,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ClearScrollControllerTests extends ESTestCase {
 
     public void testClearAll() throws IOException, InterruptedException {
-        DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node1 = new DiscoveryNode("node_1", LocalTransportAddress.buildUnique(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("node_2", LocalTransportAddress.buildUnique(), Version.CURRENT);
+        DiscoveryNode node3 = new DiscoveryNode("node_3", LocalTransportAddress.buildUnique(), Version.CURRENT);
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(node1).add(node2).add(node3).build();
         CountDownLatch latch = new CountDownLatch(1);
         ActionListener<ClearScrollResponse> listener = new ActionListener<ClearScrollResponse>() {
@@ -96,9 +97,9 @@ public class ClearScrollControllerTests extends ESTestCase {
 
 
     public void testClearScrollIds() throws IOException, InterruptedException {
-        DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node1 = new DiscoveryNode("node_1", LocalTransportAddress.buildUnique(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("node_2", LocalTransportAddress.buildUnique(), Version.CURRENT);
+        DiscoveryNode node3 = new DiscoveryNode("node_3", LocalTransportAddress.buildUnique(), Version.CURRENT);
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(1, node1);
         testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), null, null));
@@ -166,9 +167,9 @@ public class ClearScrollControllerTests extends ESTestCase {
     }
 
     public void testClearScrollIdsWithFailure() throws IOException, InterruptedException {
-        DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node1 = new DiscoveryNode("node_1", LocalTransportAddress.buildUnique(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode("node_2", LocalTransportAddress.buildUnique(), Version.CURRENT);
+        DiscoveryNode node3 = new DiscoveryNode("node_3", LocalTransportAddress.buildUnique(), Version.CURRENT);
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
         SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(1, node1);
         testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), null, null));

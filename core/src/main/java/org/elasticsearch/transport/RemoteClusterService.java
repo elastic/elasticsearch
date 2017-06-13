@@ -51,6 +51,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -344,6 +346,46 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
             for (RemoteClusterConnection connection : remoteClusters.values()) {
                 connection.getConnectionInfo(actionListener);
             }
+        }
+    }
+
+    /**
+     * Collects all nodes of the given clusters and returns / passes a (clusterAlias, nodeId) to {@link DiscoveryNode}
+     * function on success.
+     */
+    public void collectNodes(Set<String> clusters, ActionListener<BiFunction<String, String, DiscoveryNode>> listener) {
+        Map<String, RemoteClusterConnection> remoteClusters = this.remoteClusters;
+        for (String cluster : clusters) {
+            if (remoteClusters.containsKey(cluster) == false) {
+                listener.onFailure(new IllegalArgumentException("no such remote cluster: [" + cluster + "]"));
+                return;
+            }
+        }
+
+        final Map<String, Function<String, DiscoveryNode>> clusterMap = new HashMap<>();
+        CountDown countDown = new CountDown(clusters.size());
+        Function<String, DiscoveryNode> nullFunction = s -> null;
+        for (final String cluster : clusters) {
+            RemoteClusterConnection connection = remoteClusters.get(cluster);
+            connection.collectNodes(new ActionListener<Function<String, DiscoveryNode>>() {
+                @Override
+                public void onResponse(Function<String, DiscoveryNode> nodeLookup) {
+                    synchronized (clusterMap) {
+                        clusterMap.put(cluster, nodeLookup);
+                    }
+                    if (countDown.countDown()) {
+                        listener.onResponse((clusterAlias, nodeId)
+                            -> clusterMap.getOrDefault(clusterAlias, nullFunction).apply(nodeId));
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (countDown.fastForward()) { // we need to check if it's true since we could have multiple failures
+                        listener.onFailure(e);
+                    }
+                }
+            });
         }
     }
 }

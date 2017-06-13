@@ -22,7 +22,7 @@ nodes by default. As the cluster grows and in particular if you have large
 {ml} jobs, consider separating dedicated master-eligible nodes from dedicated
 data nodes and dedicated {ml} nodes.
 
-To create a standalone master-eligible node when {xpack} is installed, set:
+To create a dedicated master-eligible node when {xpack} is installed, set:
 
 [source,yaml]
 -------------------

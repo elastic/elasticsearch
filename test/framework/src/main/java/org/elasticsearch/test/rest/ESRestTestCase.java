@@ -178,8 +178,18 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     /**
      * Returns whether to preserve the repositories on completion of this test.
+     * Defaults to not preserving repos. See also
+     * {@link #preserveSnapshotsUponCompletion()}.
      */
     protected boolean preserveReposUponCompletion() {
+        return false;
+    }
+
+    /**
+     * Returns whether to preserve the snapshots in repositories on completion of this
+     * test. Defaults to not preserving snapshots. Only works for {@code fs} repositories.
+     */
+    protected boolean preserveSnapshotsUponCompletion() {
         return false;
     }
 
@@ -214,7 +224,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             String repoName = repo.getKey();
             Map<?, ?> repoSpec = (Map<?, ?>) repo.getValue();
             String repoType = (String) repoSpec.get("type");
-            if (repoType.equals("fs")) {
+            if (false == preserveSnapshotsUponCompletion() && repoType.equals("fs")) {
                 // All other repo types we really don't have a chance of being able to iterate properly, sadly.
                 String url = "_snapshot/" + repoName + "/_all";
                 Map<String, String> params = singletonMap("ignore_unavailable", "true");

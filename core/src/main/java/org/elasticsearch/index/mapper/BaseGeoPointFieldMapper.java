@@ -661,8 +661,8 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         return updated;
     }
 
-    private static GeoPoint prefixCodedToGeoPoint(BytesRef val, boolean isGeoCoded) {
-        final long encoded = isGeoCoded ? prefixCodedToGeoCoded(val) : LegacyNumericUtils.prefixCodedToLong(val);
+    private static GeoPoint prefixCodedToGeoPoint(BytesRef val, boolean numericEncoded) {
+        final long encoded = numericEncoded ? LegacyNumericUtils.prefixCodedToLong(val) : prefixCodedToGeoCoded(val);
         return new GeoPoint(MortonEncoder.decodeLatitude(encoded), MortonEncoder.decodeLongitude(encoded));
     }
 

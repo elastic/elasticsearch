@@ -24,6 +24,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
@@ -152,8 +153,8 @@ public class SamplerAggregator extends SingleBucketAggregator {
     }
 
     @Override
-    public DeferringBucketCollector getDeferringCollector() {
-        bdd = new BestDocsDeferringCollector(shardSize, context.bigArrays());
+    protected DeferringBucketCollector getDeferringCollector(BucketCollector deferredCollector) {
+        bdd = new BestDocsDeferringCollector(deferredCollector, shardSize, context.bigArrays());
         return bdd;
     }
 

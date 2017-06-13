@@ -57,7 +57,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     }
 
     final List<Entry> entries = new ArrayList<>();
-    BucketCollector collector;
     final SearchContext searchContext;
     LeafReaderContext context;
     PackedLongValues.Builder docDeltas;
@@ -67,22 +66,15 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     LongHash selectedBuckets;
 
     /** Sole constructor. */
-    public BestBucketsDeferringCollector(SearchContext context) {
+    public BestBucketsDeferringCollector(BucketCollector deferredCollector,
+                                         SearchContext context) {
+        super(deferredCollector);
         this.searchContext = context;
     }
 
     @Override
     public boolean needsScores() {
-        if (collector == null) {
-            throw new IllegalStateException();
-        }
-        return collector.needsScores();
-    }
-
-    /** Set the deferred collectors. */
-    @Override
-    public void setDeferredCollector(Iterable<BucketCollector> deferredCollectors) {
-        this.collector = BucketCollector.wrap(deferredCollectors);
+        return false;
     }
 
     private void finishLeaf() {
@@ -116,9 +108,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     }
 
     @Override
-    public void preCollection() throws IOException {
-        collector.preCollection();
-    }
+    public void preCollection() throws IOException {}
 
     @Override
     public void postCollection() throws IOException {
@@ -130,7 +120,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * Replay the wrapped collector, but only on a selection of buckets.
      */
     @Override
-    public void prepareSelectedBuckets(long... selectedBuckets) throws IOException {
+    public void replaySelectedBuckets(long... selectedBuckets) throws IOException {
         if (!finished) {
             throw new IllegalStateException("Cannot replay yet, collection is not finished: postCollect() has not been called");
         }
@@ -144,14 +134,14 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
         }
         this.selectedBuckets = hash;
 
-        boolean needsScores = collector.needsScores();
+        boolean needsScores = deferredCollector.needsScores();
         Weight weight = null;
         if (needsScores) {
             weight = searchContext.searcher()
                         .createNormalizedWeight(searchContext.query(), true);
         }
         for (Entry entry : entries) {
-            final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);
+            final LeafBucketCollector leafCollector = deferredCollector.getLeafCollector(entry.context);
             DocIdSetIterator docIt = null;
             if (needsScores && entry.docDeltas.size() > 0) {
                 Scorer scorer = weight.scorer(entry.context);
@@ -179,8 +169,6 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
                 }
             }
         }
-
-        collector.postCollection();
     }
 
     /**

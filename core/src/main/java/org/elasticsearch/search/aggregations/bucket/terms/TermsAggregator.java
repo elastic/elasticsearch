@@ -20,6 +20,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,10 +28,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Comparators;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
@@ -260,4 +264,18 @@ public abstract class TermsAggregator extends BucketsAggregator {
                 && !aggsUsedForSorting.contains(aggregator);
     }
 
+    @Override
+    protected DeferringBucketCollector getDeferringCollector(BucketCollector deferredCollector) {
+        return new BestTermsDeferringCollector(deferredCollector, context(), this::getBucketSelector);
+    }
+
+
+    interface BucketSelectorValuesSource {
+        AbstractSortedNumericDocValues get(LeafReaderContext context) throws IOException;
+    }
+
+    /**
+     * Returns a provider of {@link AbstractSortedNumericDocValues} filtered by the given <code>selectedBuckets</code>
+     */
+    protected abstract BucketSelectorValuesSource getBucketSelector(long... selectedBuckets);
 }

@@ -31,9 +31,11 @@ import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Base implementation for concrete aggregators.
@@ -107,7 +109,7 @@ public abstract class AggregatorBase extends Aggregator {
         };
         addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
     }
-    
+
     /**
      * Increment or decrement the number of bytes that have been allocated to service
      * this request and potentially trigger a {@link CircuitBreakingException}. The
@@ -116,7 +118,7 @@ public abstract class AggregatorBase extends Aggregator {
      * If memory has been returned, decrement it without tripping the breaker.
      * For performance reasons subclasses should not call this millions of times
      * each with small increments and instead batch up into larger allocations.
-     * 
+     *
      * @param bytes the number of bytes to register or negative to deregister the bytes
      * @return the cumulative size in bytes allocated by this aggregator to service this request
      */
@@ -134,6 +136,7 @@ public abstract class AggregatorBase extends Aggregator {
         this.requestBytesUsed += bytes;
         return requestBytesUsed;
     }
+
     /**
      * Most aggregators don't need scores, make sure to extend this method if
      * your aggregator needs them.
@@ -171,26 +174,24 @@ public abstract class AggregatorBase extends Aggregator {
     /**
      * Can be overridden by aggregator implementation to be called back when the collection phase starts.
      */
-    protected void doPreCollection() throws IOException {
-    }
+    protected void doPreCollection() throws IOException {}
 
     @Override
     public final void preCollection() throws IOException {
-        List<BucketCollector> collectors = new ArrayList<>();
-        List<BucketCollector> deferredCollectors = new ArrayList<>();
-        for (int i = 0; i < subAggregators.length; ++i) {
-            if (shouldDefer(subAggregators[i])) {
-                if (recordingWrapper == null) {
-                    recordingWrapper = getDeferringCollector();
+        List<BucketCollector> collectors = Arrays.stream(subAggregators)
+            .filter((sub) -> shouldDefer(sub) == false)
+            .collect(Collectors.toList());
+        List<BucketCollector> deferredCollectors = Arrays.stream(subAggregators)
+            .filter((sub) -> shouldDefer(sub))
+            .collect(Collectors.toList());
+        if (deferredCollectors.size() > 0) {
+            final BucketCollector deferredCollector = BucketCollector.wrap(deferredCollectors);
+            recordingWrapper = getDeferringCollector(deferredCollector);
+            for (int i = 0; i < subAggregators.length; ++i) {
+                if (shouldDefer(subAggregators[i])) {
+                    subAggregators[i] = recordingWrapper.wrap(subAggregators[i]);
                 }
-                deferredCollectors.add(subAggregators[i]);
-                subAggregators[i] = recordingWrapper.wrap(subAggregators[i]);
-            } else {
-                collectors.add(subAggregators[i]);
             }
-        }
-        if (recordingWrapper != null) {
-            recordingWrapper.setDeferredCollector(deferredCollectors);
             collectors.add(recordingWrapper);
         }
         collectableSubAggregators = BucketCollector.wrap(collectors);
@@ -198,10 +199,10 @@ public abstract class AggregatorBase extends Aggregator {
         collectableSubAggregators.preCollection();
     }
 
-    public DeferringBucketCollector getDeferringCollector() {
+    protected DeferringBucketCollector getDeferringCollector(BucketCollector deferredCollector) {
         // Default impl is a collector that selects the best buckets
         // but an alternative defer policy may be based on best docs.
-        return new BestBucketsDeferringCollector(context());
+        return new BestBucketsDeferringCollector(deferredCollector, context());
     }
 
     /**
@@ -222,7 +223,7 @@ public abstract class AggregatorBase extends Aggregator {
     protected final void runDeferredCollections(long... bucketOrds) throws IOException{
         // Being lenient here - ignore calls where there are no deferred collections to playback
         if (recordingWrapper != null) {
-            recordingWrapper.replay(bucketOrds);
+            recordingWrapper.replaySelectedBuckets(bucketOrds);
         }
     }
 

@@ -30,6 +30,7 @@ import org.apache.lucene.search.TopDocsCollector;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -53,8 +54,8 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
     }
 
     @Override
-    public DeferringBucketCollector getDeferringCollector() {
-        bdd = new DiverseDocsDeferringCollector();
+    protected DeferringBucketCollector getDeferringCollector(BucketCollector deferredCollector) {
+        bdd = new DiverseDocsDeferringCollector(deferredCollector);
         return bdd;
     }
 
@@ -65,8 +66,8 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
      */
     class DiverseDocsDeferringCollector extends BestDocsDeferringCollector {
 
-        DiverseDocsDeferringCollector() {
-            super(shardSize, context.bigArrays());
+        DiverseDocsDeferringCollector(BucketCollector deferredCollector) {
+            super(deferredCollector, shardSize, context.bigArrays());
         }
 
         @Override

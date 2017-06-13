@@ -29,9 +29,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.fielddata.AbstractSortedNumericDocValues;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalMapping;
 import org.elasticsearch.search.DocValueFormat;
@@ -79,19 +81,20 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         BytesRef apply(long ord) throws IOException;
     }
 
-    public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories,
-                                                ValuesSource.Bytes.WithOrdinals valuesSource,
-                                                BucketOrder order,
-                                                DocValueFormat format,
-                                                BucketCountThresholds bucketCountThresholds,
-                                                IncludeExclude.OrdinalsFilter includeExclude,
-                                                SearchContext context,
-                                                Aggregator parent,
-                                                boolean forceRemapGlobalOrds,
-                                                SubAggCollectionMode collectionMode,
-                                                boolean showTermDocCountError,
-                                                List<PipelineAggregator> pipelineAggregators,
-                                                Map<String, Object> metaData) throws IOException {
+    public GlobalOrdinalsStringTermsAggregator(String name,
+                                               AggregatorFactories factories,
+                                               ValuesSource.Bytes.WithOrdinals valuesSource,
+                                               BucketOrder order,
+                                               DocValueFormat format,
+                                               BucketCountThresholds bucketCountThresholds,
+                                               IncludeExclude.OrdinalsFilter includeExclude,
+                                               SearchContext context,
+                                               Aggregator parent,
+                                               boolean forceRemapGlobalOrds,
+                                               SubAggCollectionMode collectionMode,
+                                               boolean showTermDocCountError,
+                                               List<PipelineAggregator> pipelineAggregators,
+                                               Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError,
                 pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
@@ -137,8 +140,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     private SortedSetDocValues getGlobalOrds(LeafReaderContext ctx) throws IOException {
-        return acceptedGlobalOrdinals == null ?
-            valuesSource.globalOrdinalsValues(ctx) : new FilteredOrdinals(valuesSource.globalOrdinalsValues(ctx), acceptedGlobalOrdinals);
+        return acceptedGlobalOrdinals == null ? valuesSource.globalOrdinalsValues(ctx) :
+            new FilteredOrdinals(valuesSource.globalOrdinalsValues(ctx), acceptedGlobalOrdinals);
     }
 
     @Override
@@ -245,6 +248,62 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
                 pipelineAggregators(), metaData(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
                 otherDocCount, Arrays.asList(list), 0);
+    }
+
+    @Override
+    protected BucketSelectorValuesSource getBucketSelector(long... selectedBuckets) {
+        final LongHash hash = new LongHash(selectedBuckets.length, BigArrays.NON_RECYCLING_INSTANCE);
+        for (long bucket : selectedBuckets) {
+            hash.add(bucketOrds == null ? bucket : bucketOrds.get(bucket));
+        }
+        return context -> {
+            final SortedSetDocValues globalOrds = getGlobalOrds(context);
+            return new AbstractSortedNumericDocValues() {
+                long[] buckets = new long[1];
+                int offset;
+                int size;
+
+                @Override
+                public long nextValue() throws IOException {
+                    if (offset >= size) {
+                        return -1;
+                    }
+                    return buckets[offset++];
+                }
+
+                @Override
+                public int docValueCount() {
+                    return size;
+                }
+
+                @Override
+                public boolean advanceExact(int target) throws IOException {
+                    if (globalOrds.advanceExact(target)) {
+                        return fillBuckets();
+                    }
+                    return false;
+                }
+
+                boolean fillBuckets() throws IOException {
+                    offset = 0;
+                    int pos = 0;
+                    long globalOrd;
+                    while ((globalOrd = globalOrds.nextOrd()) != NO_MORE_ORDS) {
+                        long bucket = hash.find(globalOrd);
+                        if (bucket != -1) {
+                            if (pos >= buckets.length) {
+                                long[] newBuckets = new long[buckets.length * 2];
+                                System.arraycopy(buckets, 0, newBuckets, 0, buckets.length);
+                                buckets = newBuckets;
+                            }
+                            buckets[pos++] = bucket;
+                        }
+                    }
+                    size = pos;
+                    return size > 0;
+                }
+            };
+        };
     }
 
     /**

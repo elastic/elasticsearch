@@ -141,7 +141,8 @@ public class IndexLifecycleManager extends AbstractComponent {
         final ClusterState state = event.state();
         this.indexExists = resolveConcreteIndex(indexName, event.state().metaData()) != null;
         this.indexAvailable = checkIndexAvailable(state);
-        this.templateIsUpToDate = checkTemplateExistsAndIsUpToDate(state);
+        this.templateIsUpToDate = TemplateUtils.checkTemplateExistsAndIsUpToDate(templateName,
+            SECURITY_VERSION_STRING, state, logger);
         this.mappingIsUpToDate = checkIndexMappingUpToDate(state);
         this.canWriteToIndex = templateIsUpToDate && mappingIsUpToDate;
         this.mappingVersion = oldestIndexMappingVersion(event.state());
@@ -178,54 +179,11 @@ public class IndexLifecycleManager extends AbstractComponent {
         }
     }
 
-    private boolean checkTemplateExistsAndIsUpToDate(ClusterState state) {
-        return checkTemplateExistsAndVersionMatches(templateName, state, logger,
-                Version.CURRENT::equals);
-    }
-
     public static boolean checkTemplateExistsAndVersionMatches(
             String templateName, ClusterState state, Logger logger, Predicate<Version> predicate) {
 
-        IndexTemplateMetaData templateMeta = state.metaData().templates().get(templateName);
-        if (templateMeta == null) {
-            return false;
-        }
-        ImmutableOpenMap<String, CompressedXContent> mappings = templateMeta.getMappings();
-        // check all mappings contain correct version in _meta
-        // we have to parse the source here which is annoying
-        for (Object typeMapping : mappings.values().toArray()) {
-            CompressedXContent typeMappingXContent = (CompressedXContent) typeMapping;
-            try {
-                Map<String, Object> typeMappingMap = convertToMap(
-                        new BytesArray(typeMappingXContent.uncompressed()), false,
-                        XContentType.JSON).v2();
-                // should always contain one entry with key = typename
-                assert (typeMappingMap.size() == 1);
-                String key = typeMappingMap.keySet().iterator().next();
-                // get the actual mapping entries
-                @SuppressWarnings("unchecked")
-                Map<String, Object> mappingMap = (Map<String, Object>) typeMappingMap.get(key);
-                if (containsCorrectVersion(mappingMap, predicate) == false) {
-                    return false;
-                }
-            } catch (ElasticsearchParseException e) {
-                logger.error(new ParameterizedMessage(
-                        "Cannot parse the template [{}]", templateName), e);
-                throw new IllegalStateException("Cannot parse the template " + templateName, e);
-            }
-        }
-        return true;
-    }
-
-    private static boolean containsCorrectVersion(Map<String, Object> typeMappingMap,
-                                                  Predicate<Version> predicate) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> meta = (Map<String, Object>) typeMappingMap.get("_meta");
-        if (meta == null) {
-            // pre 5.0, cannot be up to date
-            return false;
-        }
-        return predicate.test(Version.fromString((String) meta.get(SECURITY_VERSION_STRING)));
+        return TemplateUtils.checkTemplateExistsAndVersionMatches(templateName, SECURITY_VERSION_STRING,
+            state, logger, predicate);
     }
 
     private boolean checkIndexMappingUpToDate(ClusterState clusterState) {

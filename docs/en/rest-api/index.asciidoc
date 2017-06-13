@@ -53,6 +53,11 @@ Example response:
          "available" : true,
          "enabled" : true
       },
+      "logstash" : {
+         "description" : "Logstash management component for X-Pack",
+         "available" : true,
+         "enabled" : true
+      },
       "ml" : {
          "description" : "Machine Learning for the Elastic Stack",
          "available" : true,

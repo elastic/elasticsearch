@@ -76,6 +76,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.settings.Setting.byteSizeSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
@@ -345,9 +346,9 @@ public class Netty3Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) {
+    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile, Consumer<Channel> onChannelClose) {
         final Channel[] channels = new Channel[profile.getNumConnections()];
-        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile, transportServiceAdapter::onConnectionClosed);
+        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile);
         boolean success = false;
         try {
             final TimeValue connectTimeout;
@@ -368,6 +369,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
             for (int i = 0; i < channels.length; i++) {
                 connections.add(clientBootstrap.connect(address));
             }
+            final ChannelFutureListener listener = future -> onChannelClose.accept(future.getChannel());
             final Iterator<ChannelFuture> iterator = connections.iterator();
             try {
                 for (int i = 0; i < channels.length; i++) {
@@ -378,7 +380,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
                         throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.getCause());
                     }
                     channels[i] = future.getChannel();
-                    channels[i].getCloseFuture().addListener(new ChannelCloseListener(node));
+                    channels[i].getCloseFuture().addListener(listener);
                 }
                 assert iterator.hasNext() == false : "not all created connection have been consumed";
             } catch (RuntimeException e) {
@@ -473,26 +475,6 @@ public class Netty3Transport extends TcpTransport<Channel> {
             channelPipeline.addLast("size", sizeHeader);
             channelPipeline.addLast("dispatcher", new Netty3MessageChannelHandler(nettyTransport, name));
             return channelPipeline;
-        }
-    }
-
-    protected class ChannelCloseListener implements ChannelFutureListener {
-
-        private final DiscoveryNode node;
-
-        private ChannelCloseListener(DiscoveryNode node) {
-            this.node = node;
-        }
-
-        @Override
-        public void operationComplete(final ChannelFuture future) throws Exception {
-            onChannelClosed(future.getChannel());
-            NodeChannels nodeChannels = connectedNodes.get(node);
-            if (nodeChannels != null && nodeChannels.hasChannel(future.getChannel())) {
-                threadPool.generic().execute(() -> {
-                    disconnectFromNode(node, future.getChannel(), "channel closed event");
-                });
-            }
         }
     }
 

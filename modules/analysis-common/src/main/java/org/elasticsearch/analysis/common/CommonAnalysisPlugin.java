@@ -73,6 +73,7 @@ import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -100,12 +101,21 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         return filters;
     }
 
+    @Override
     public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
         Map<String, AnalysisProvider<CharFilterFactory>> filters = new TreeMap<>();
         filters.put("html_strip", HtmlStripCharFilterFactory::new);
         filters.put("pattern_replace", requriesAnalysisSettings(PatternReplaceCharFilterFactory::new));
         filters.put("mapping", requriesAnalysisSettings(MappingCharFilterFactory::new));
         return filters;
+    }
+
+    @Override
+    public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
+        Map<String, AnalysisProvider<TokenizerFactory>> tokenizers = new TreeMap<>();
+        tokenizers.put("simplepattern", SimplePatternTokenizerFactory::new);
+        tokenizers.put("simplepatternsplit", SimplePatternSplitTokenizerFactory::new);
+        return tokenizers;
     }
 
     @Override

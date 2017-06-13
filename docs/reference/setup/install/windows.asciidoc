@@ -68,6 +68,8 @@ the command line, using the `-E` syntax as follows:
 
 NOTE: Values that contain spaces must be surrounded with quotes.  For instance `-Epath.logs="C:\My Logs\logs"`.
 
+NOTE: Values in the `elasticsearch.yml` file that contain backslashes must be escaped with `\\`.  For instance `path.logs="C:\\My Logs\\logs"`.
+
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings
 such as `node.name` could be specified on the command line.

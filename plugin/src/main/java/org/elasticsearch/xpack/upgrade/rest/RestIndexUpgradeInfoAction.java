@@ -33,6 +33,11 @@ public class RestIndexUpgradeInfoAction extends BaseRestHandler {
 
 
     @Override
+    public String getName() {
+        return "xpack_migration_assistance";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (request.method().equals(RestRequest.Method.GET)) {
             return handleGet(request, client);

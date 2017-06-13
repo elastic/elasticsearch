@@ -22,6 +22,8 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
@@ -40,11 +42,29 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import org.mockito.ArgumentCaptor;
 import static org.elasticsearch.action.admin.indices.rollover.TransportRolloverAction.evaluateConditions;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 
 public class TransportRolloverActionTests extends ESTestCase {
+
+    public void testDocStatsSelectionFromPrimariesOnly() throws Exception {
+        long docsInPrimaryShards = 100;
+        long docsInShards = 200;
+
+        final Condition condition = createTestCondition();
+        evaluateConditions(Sets.newHashSet(condition), createMetaData(), createIndecesStatResponse(docsInShards, docsInPrimaryShards));
+        final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
+        verify(condition).evaluate(argument.capture());
+
+        assertEquals(docsInPrimaryShards, argument.getValue().numDocs);
+    }
 
     public void testEvaluateConditions() throws Exception {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
@@ -189,5 +209,38 @@ public class TransportRolloverActionTests extends ESTestCase {
         assertThat(createIndexRequest.settings(), equalTo(settings));
         assertThat(createIndexRequest.index(), equalTo(rolloverIndex));
         assertThat(createIndexRequest.cause(), equalTo("rollover_index"));
+    }
+
+    private IndicesStatsResponse createIndecesStatResponse(long totalDocs, long primaryDocs) {
+        final CommonStats primaryStats = mock(CommonStats.class);
+        when(primaryStats.getDocs()).thenReturn(new DocsStats(primaryDocs, 0));
+
+        final CommonStats totalStats = mock(CommonStats.class);
+        when(totalStats.getDocs()).thenReturn(new DocsStats(totalDocs, 0));
+
+        final IndicesStatsResponse response = mock(IndicesStatsResponse.class);
+        when(response.getPrimaries()).thenReturn(primaryStats);
+        when(response.getTotal()).thenReturn(totalStats);
+
+        return response;
+    }
+
+    private IndexMetaData createMetaData() {
+        final Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        return IndexMetaData.builder(randomAlphaOfLength(10))
+            .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
+            .settings(settings)
+            .build();
+    }
+
+    private Condition createTestCondition() {
+        final Condition condition = mock(Condition.class);
+        when(condition.evaluate(any())).thenReturn(new Condition.Result(condition, true));
+        return condition;
     }
 }

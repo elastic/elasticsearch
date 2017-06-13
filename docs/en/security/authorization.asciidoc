@@ -59,15 +59,13 @@ themselves.
 {security} also provides a set of built-in roles you can explicitly assign
 to users. These roles have a fixed set of privileges and cannot be updated.
 
-[[built-in-roles-ingest-user]]
-`ingest_admin` ::
+[[built-in-roles-ingest-user]] `ingest_admin` ::
 Grants access to manage *all* index templates and *all* ingest pipeline configurations.
 +
 NOTE: This role does *not* provide the ability to create indices; those privileges
 must be defined in a separate role.
 
-[[built-in-roles-kibana-system]]
-`kibana_system` ::
+[[built-in-roles-kibana-system]] `kibana_system` ::
 Grants access necessary for the <<kibana, Kibana system user>>
 to read from and write to the Kibana indices and check the availability of the
 Elasticsearch cluster.
@@ -75,13 +73,11 @@ Elasticsearch cluster.
 NOTE: This role should not be assigned to users as the granted permissions may
 change between releases.
 
-[[built-in-roles-kibana-user]]
-`kibana_user`::
+[[built-in-roles-kibana-user]] `kibana_user`::
 Grants the minimum privileges required for any user of Kibana. This role grants
 access to the Kibana indices and grants  monitoring privileges for the cluster.
 
-[[built-in-roles-logstash-system]]
-`logstash_system` ::
+[[built-in-roles-logstash-system]] `logstash_system` ::
 Grants access necessary for the <<ls-monitoring-user, Logstash system user>>
 to send system-level data (such as monitoring) to Elasticsearch.
 +
@@ -91,44 +87,37 @@ change between releases.
 NOTE: This role does not provide access to the logstash indices and is not
 suitable for use within a Logstash pipeline.
 
-[[built-in-roles-ml-admin]]
-`machine_learning_admin`::
+[[built-in-roles-ml-admin]] `machine_learning_admin`::
 Grants `manage_ml` cluster privileges and read access to the `.ml-*` indices.
 
-[[built-in-roles-ml-user]]
-`machine_learning_user`::
+[[built-in-roles-ml-user]] `machine_learning_user`::
 Grants the minimum privileges required to view {xpackml} configuration,
 status, and results. This role grants `monitor_ml` cluster privileges and
 read access to the `.ml-notifications` and `.ml-anomalies*` indices,
 which store {ml} results.
 
-[[built-in-roles-monitoring-user]]
-`monitoring_user`::
+[[built-in-roles-monitoring-user]] `monitoring_user`::
 Grants the minimum privileges required for any user of Monitoring other than those
 required to use Kibana. This role grants access to the monitoring indices.
 Monitoring users should also be assigned the `kibana_user` role.
 
-[[built-in-roles-remote-monitoring-agent]]
-`remote_monitoring_agent`::
+[[built-in-roles-remote-monitoring-agent]] `remote_monitoring_agent`::
 Grants the minimum privileges required for a remote monitoring agent to write data
 into this cluster.
 
-[[built-in-roles-reporting-user]]
-`reporting_user`::
+[[built-in-roles-reporting-user]] `reporting_user`::
 Grants the specific privileges required for users of Reporting other than those
 required to use Kibana. This role grants access to the reporting indices. Reporting
 users should also be assigned the `kibana_user` role and a role that grants them
 access to the data that will be used to generate reports with.
 
-[[built-in-roles-superuser]]
-`superuser`::
+[[built-in-roles-superuser]] `superuser`::
 Grants full access to the cluster, including all indices and data. A user with
 the `superuser` role can also manage users and roles and
 <<run-as-privilege, impersonate>> any other user in the system. Due to the
 permissive nature of this role, take extra care when assigning it to a user.
 
-[[built-in-roles-transport-client]]
-`transport_client`::
+[[built-in-roles-transport-client]] `transport_client`::
 Grants the privileges required to access the cluster through the Java Transport
 Client. The Java Transport Client fetches information about the nodes in the
 cluster using the _Node Liveness API_ and the _Cluster State API_ (when
@@ -140,14 +129,12 @@ to the cluster state. This means users can view the metadata over all indices,
 index templates, mappings, node and basically everything about the cluster.
 However, this role does not grant permission to view the data in all indices.
 
-[[built-in-roles-watcher-admin]]
-`watcher_admin`::
+[[built-in-roles-watcher-admin]] `watcher_admin`::
 +
 Grants write access to the `.watches` index, read access to the watch history and
 the triggered watches index and allows to execute all watcher actions.
 
-[[built-in-roles-watcher-user]]
-`watcher_user`::
+[[built-in-roles-watcher-user]] `watcher_user`::
 +
 Grants read access to the `.watches` index, the get watch action and the watcher
 stats.

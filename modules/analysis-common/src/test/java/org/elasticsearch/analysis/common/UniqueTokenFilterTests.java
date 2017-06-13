@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.lucene.analysis.miscellaneous;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockTokenizer;

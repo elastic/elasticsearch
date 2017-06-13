@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
@@ -27,6 +27,8 @@ import org.apache.lucene.analysis.tr.TurkishLowerCaseFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
+import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 
 /**
  * Factory for {@link LowerCaseFilter} and some language-specific variants
@@ -41,7 +43,7 @@ public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory impl
 
     private final String lang;
 
-    public LowerCaseTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    LowerCaseTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.lang = settings.get("language", null);
     }

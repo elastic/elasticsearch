@@ -279,6 +279,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/25203")
     public void testSnapshotRestore() throws IOException {
         int count;
         if (runningAgainstOldCluster) {

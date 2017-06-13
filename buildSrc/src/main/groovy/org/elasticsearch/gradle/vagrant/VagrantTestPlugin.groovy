@@ -213,43 +213,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         vagrantSetUpTask.dependsOn copyBatsTests, copyBatsUtils, copyBatsArchives, createVersionFile, createUpgradeFromFile
     }
 
-    private static void createCheckVagrantVersionTask(Project project) {
-        project.tasks.create('vagrantCheckVersion', Exec) {
-            description 'Check the Vagrant version'
-            group 'Verification'
-            commandLine 'vagrant', '--version'
-            standardOutput = new ByteArrayOutputStream()
-            doLast {
-                String version = standardOutput.toString().trim()
-                if ((version ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/) == false) {
-                    throw new InvalidUserDataException("Illegal version of vagrant [${version}]. Need [Vagrant 1.8.6+]")
-                }
-            }
-        }
-    }
-
-    private static void createCheckVirtualBoxVersionTask(Project project) {
-        project.tasks.create('virtualboxCheckVersion', Exec) {
-            description 'Check the Virtualbox version'
-            group 'Verification'
-            commandLine 'vboxmanage', '--version'
-            standardOutput = new ByteArrayOutputStream()
-            doLast {
-                String version = standardOutput.toString().trim()
-                try {
-                    String[] versions = version.split('\\.')
-                    int major = Integer.parseInt(versions[0])
-                    int minor = Integer.parseInt(versions[1])
-                    if ((major < 5) || (major == 5 && minor < 1)) {
-                        throw new InvalidUserDataException("Illegal version of virtualbox [${version}]. Need [5.1+]")
-                    }
-                } catch (NumberFormatException | ArrayIndexOutOfBoundsException e) {
-                    throw new InvalidUserDataException("Unable to parse version of virtualbox [${version}]. Required [5.1+]", e)
-                }
-            }
-        }
-    }
-
     private static void createPackagingTestTask(Project project) {
         project.tasks.create('packagingTest') {
             group 'Verification'
@@ -277,8 +240,6 @@ class VagrantTestPlugin implements Plugin<Project> {
         createCleanTask(project)
         createStopTask(project)
         createSmokeTestTask(project)
-        createCheckVagrantVersionTask(project)
-        createCheckVirtualBoxVersionTask(project)
         createPrepareVagrantTestEnvTask(project)
         createPackagingTestTask(project)
         createPlatformTestTask(project)

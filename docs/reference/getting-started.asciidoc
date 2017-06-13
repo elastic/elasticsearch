@@ -111,9 +111,14 @@ java -version
 echo $JAVA_HOME
 --------------------------------------------------
 
-Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, or a `DEB` or `RPM` package. For simplicity, let's use the tar file.
+Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, a `DEB` or `RPM` package, or a Windows `MSI` installation package. 
 
-Let's download the Elasticsearch {version} tar as follows (Windows users should download the zip package):
+[float]
+=== Installation example with tar 
+
+For simplicity, let's use the <<zip-targz, tar>> file.
+
+Let's download the Elasticsearch {version} tar as follows:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
@@ -121,7 +126,7 @@ curl -L -O https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{v
 --------------------------------------------------
 // NOTCONSOLE
 
-Then extract it as follows (Windows users should unzip the zip package):
+Then extract it as follows:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
@@ -135,14 +140,74 @@ It will then create a bunch of files and folders in your current directory. We t
 cd elasticsearch-{version}/bin
 --------------------------------------------------
 
-And now we are ready to start our node and single cluster (Windows users should run the elasticsearch.bat file):
+And now we are ready to start our node and single cluster:
 
 [source,sh]
 --------------------------------------------------
 ./elasticsearch
 --------------------------------------------------
 
-If everything goes well, you should see a bunch of messages that look like below:
+[float]
+=== Installation example with MSI Windows Installer
+
+For Windows users, we recommend using the <<windows, MSI Installer package>>. The package contains a graphical user interface (GUI) that guides you through the installation process.
+
+First, download the Elasticsearch {version} MSI from 
+https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.msi.
+
+Then double-click the downloaded file to launch the GUI. Within the first screen, select the deployment directories:
+
+[[getting-started-msi-installer-locations]]
+image::images/msi_installer/msi_installer_locations.png[]
+
+Then select whether to install as a service or start Elasticsearch manually as needed. 
+To align with the tar example, choose not to install as a service:
+
+[[getting-started-msi-installer-service]]
+image::images/msi_installer/msi_installer_no_service.png[]
+
+For configuration, simply leave the default values:
+
+[[getting-started-msi-installer-configuration]]
+image::images/msi_installer/msi_installer_configuration.png[]
+
+Again, to align with the tar example, uncheck all plugins to not install any plugins:
+
+[[getting-started-msi-installer-plugins]]
+image::images/msi_installer/msi_installer_plugins.png[]
+
+After clicking the install button, Elasticsearch will be installed: 
+
+[[getting-started-msi-installer-success]]
+image::images/msi_installer/msi_installer_success.png[]
+
+By default, Elasticsearch will be installed at `%PROGRAMFILES%\Elastic\Elasticsearch`. Navigate here and go into the bin directory as follows:
+
+**with Command Prompt:**
+
+[source,sh]
+--------------------------------------------------
+cd %PROGRAMFILES%\Elastic\Elasticsearch\bin
+--------------------------------------------------
+
+**with PowerShell:**
+
+[source,powershell]
+--------------------------------------------------
+cd $env:PROGRAMFILES\Elastic\Elasticsearch\bin
+--------------------------------------------------
+
+And now we are ready to start our node and single cluster:
+
+[source,sh]
+--------------------------------------------------
+.\elasticsearch.exe
+--------------------------------------------------
+
+[float]
+=== Successfully running node
+
+If everything goes well with installation, you should see a bunch of messages that look like below:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------

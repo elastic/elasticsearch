@@ -105,7 +105,7 @@ public class TribeService extends AbstractLifecycleComponent {
     public static final ClusterBlock TRIBE_METADATA_BLOCK = new ClusterBlock(10, "tribe node, metadata not allowed", false, false,
         false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.METADATA_READ, ClusterBlockLevel.METADATA_WRITE));
     public static final ClusterBlock TRIBE_WRITE_BLOCK = new ClusterBlock(11, "tribe node, write not allowed", false, false,
-            RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.WRITE));
+        false, RestStatus.BAD_REQUEST, EnumSet.of(ClusterBlockLevel.WRITE));
 
     public static Settings processSettings(Settings settings) {
         if (TRIBE_NAME_SETTING.exists(settings)) {
@@ -233,12 +233,6 @@ public class TribeService extends AbstractLifecycleComponent {
         this.blockIndicesRead = BLOCKS_READ_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
         this.blockIndicesWrite = BLOCKS_WRITE_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
         if (!nodes.isEmpty()) {
-            if (BLOCKS_WRITE_SETTING.get(settings)) {
-                clusterService.addInitialStateBlock(TRIBE_WRITE_BLOCK);
-            }
-            if (BLOCKS_METADATA_SETTING.get(settings)) {
-                clusterService.addInitialStateBlock(TRIBE_METADATA_BLOCK);
-            }
             new DeprecationLogger(Loggers.getLogger(TribeService.class))
                 .deprecated("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
         }
@@ -289,12 +283,7 @@ public class TribeService extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        if (nodes.isEmpty() == false) {
-            // remove the initial election / recovery blocks since we are not going to have a
-            // master elected in this single tribe  node local "cluster"
-            clusterService.removeInitialStateBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
-            clusterService.removeInitialStateBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
-        }
+
     }
 
     public void startNodes() {

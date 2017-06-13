@@ -197,7 +197,7 @@ public class TribeServiceTests extends ESTestCase {
             String clusterName = "single-node-cluster";
             String tribeSetting = "tribe." + clusterName + ".";
             settings.put(tribeSetting + ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
-                .put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(),  NetworkModule.LOCAL_TRANSPORT);
+                .put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), "mock-socket-network");
         }
         try (Node node = new MockNode(settings.build(),Collections.singleton(MockTcpTransportPlugin.class) )) {
             if (tribeServiceEnable) {

@@ -28,12 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Set;
+import java.util.*;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -584,10 +579,17 @@ public class SettingsTests extends ESTestCase {
         expectThrows(NoSuchElementException.class, () -> iterator.next());
     }
 
+    public void testEmptyArraySetting(){
+        Settings settings = Settings.builder().putArray("foo.bar", Collections.emptyList()).build();
+
+        assertThat(settings.get("foo.bar"), equalTo("[]"));
+    }
+  
     public void testEmpty() {
         assertTrue(Settings.EMPTY.isEmpty());
         MockSecureSettings secureSettings = new MockSecureSettings();
         assertTrue(Settings.builder().setSecureSettings(secureSettings).build().isEmpty());
+
     }
 
     public void testSecureSettingConflict() {

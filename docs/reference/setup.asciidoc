@@ -55,3 +55,7 @@ include::setup/sysconfig.asciidoc[]
 include::setup/upgrade.asciidoc[]
 
 include::setup/stopping.asciidoc[]
+
+ifdef::include-xpack[]
+include::{xes-repo-dir}/installing.asciidoc[]
+endif::include-xpack[]

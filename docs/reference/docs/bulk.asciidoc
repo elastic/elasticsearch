@@ -213,7 +213,7 @@ operation based on the `_parent` / `_routing` mapping.
 
 When making bulk calls, you can set the `wait_for_active_shards`
 parameter to require a minimum number of shard copies to be active
-before starting to process the bulk request. See
+before starting to process the bulk request. See 
 <<index-wait-for-active-shards,here>> for further details and a usage
 example.
 
@@ -233,8 +233,7 @@ the action itself (not in the extra payload line), to specify how many
 times an update should be retried in the case of a version conflict.
 
 The `update` action payload, supports the following options: `doc`
-(partial document), `upsert`, `doc_as_upsert`, `script`, `params` (for
-script), `lang` (for script) and `_source`. See update documentation for details on
+(partial document), `upsert`, `doc_as_upsert`, `script` and `_source`. See <<docs-update,update>> documentation for details on
 the options. Example with update actions:
 
 [source,js]

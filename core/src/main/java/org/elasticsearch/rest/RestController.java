@@ -224,7 +224,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
 
         RestChannel responseChannel = channel;
         // Indicator of whether a response was sent or not
-        final boolean requestHandled;
+        boolean requestHandled;
         if (checkRequestParameters(request, responseChannel) == false) {
             responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(responseChannel,
                             BAD_REQUEST, "error traces in responses are disabled."));

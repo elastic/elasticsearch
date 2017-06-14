@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * The request object to handoff the primary context to the relocation target.
  */
-public class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
+class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;

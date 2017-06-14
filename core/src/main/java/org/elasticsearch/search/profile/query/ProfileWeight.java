@@ -25,6 +25,7 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.profile.Timer;
 
@@ -49,19 +50,50 @@ public final class ProfileWeight extends Weight {
 
     @Override
     public Scorer scorer(LeafReaderContext context) throws IOException {
+        ScorerSupplier supplier = scorerSupplier(context);
+        if (supplier == null) {
+            return null;
+        }
+        return supplier.get(false);
+    }
+
+    @Override
+    public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
         Timer timer = profile.getTimer(QueryTimingType.BUILD_SCORER);
         timer.start();
-        final Scorer subQueryScorer;
+        final ScorerSupplier subQueryScorerSupplier;
         try {
-            subQueryScorer = subQueryWeight.scorer(context);
+            subQueryScorerSupplier = subQueryWeight.scorerSupplier(context);
         } finally {
             timer.stop();
         }
-        if (subQueryScorer == null) {
+        if (subQueryScorerSupplier == null) {
             return null;
         }
 
-        return new ProfileScorer(this, subQueryScorer, profile);
+        final ProfileWeight weight = this;
+        return new ScorerSupplier() {
+
+            @Override
+            public Scorer get(boolean randomAccess) throws IOException {
+                timer.start();
+                try {
+                    return new ProfileScorer(weight, subQueryScorerSupplier.get(randomAccess), profile);
+                } finally {
+                    timer.stop();
+                }
+            }
+
+            @Override
+            public long cost() {
+                timer.start();
+                try {
+                    return subQueryScorerSupplier.cost();
+                } finally {
+                    timer.stop();
+                }
+            }
+        };
     }
 
     @Override

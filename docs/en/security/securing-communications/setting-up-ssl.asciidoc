@@ -87,7 +87,7 @@ Enter name for directories and files [node02]:
 Enter IP Addresses for instance (comma-separated if more than one) []: 10.10.0.2
 Enter DNS names for instance (comma-separated if more than one) []: node02.mydomain.com
 Would you like to specify another instance? Press 'y' to continue entering instance information:
-Certificates written to /Users/jmodi/dev/tmp/elasticsearch-5.0.0-alpha5-SNAPSHOT/config/x-pack/certificate-bundle.zip
+Certificates written to /home/es/config/x-pack/certificate-bundle.zip
 
 This file should be properly secured as it contains the private keys for all
 instances and the certificate authority.

@@ -134,13 +134,15 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile, Consumer<NioChannel> onChannelClose)
+        throws IOException {
         NioSocketChannel[] channels = new NioSocketChannel[profile.getNumConnections()];
-        boolean connected = client.connectToChannels(node, channels, profile.getConnectTimeout(), new ClientChannelCloseListener(node));
+        ClientChannelCloseListener closeListener = new ClientChannelCloseListener(onChannelClose);
+        boolean connected = client.connectToChannels(node, channels, profile.getConnectTimeout(), closeListener);
         if (connected == false) {
             throw new ElasticsearchException("client is shutdown");
         }
-        return new NodeChannels(node, channels, profile, transportServiceAdapter::onConnectionClosed);
+        return new NodeChannels(node, channels, profile);
     }
 
     @Override
@@ -268,20 +270,16 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
     class ClientChannelCloseListener implements Consumer<NioChannel> {
 
-        private final DiscoveryNode node;
+        private final Consumer<NioChannel> consumer;
 
-        private ClientChannelCloseListener(DiscoveryNode node) {
-            this.node = node;
+        private ClientChannelCloseListener(Consumer<NioChannel> consumer) {
+            this.consumer = consumer;
         }
 
         @Override
         public void accept(final NioChannel channel) {
-            onChannelClosed(channel);
-            NodeChannels nodeChannels = connectedNodes.get(node);
-            if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
-                openChannels.channelClosed(channel);
-                threadPool.generic().execute(() -> disconnectFromNode(node, channel, "channel closed event"));
-            }
+            consumer.accept(channel);
+            openChannels.channelClosed(channel);
         }
     }
 }

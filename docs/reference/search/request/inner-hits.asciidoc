@@ -538,5 +538,4 @@ An example of a response snippet that could be generated from the above search r
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"_source": \.\.\./"_source": $body.hits.hits.0._source/]
-// TESTRESPONSE[s/"fields": \.\.\./"fields": $body.hits.hits.0.fields/]
 // TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]

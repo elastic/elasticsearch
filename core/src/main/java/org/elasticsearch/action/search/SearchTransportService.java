@@ -71,7 +71,6 @@ public class SearchTransportService extends AbstractComponent {
     public static final String QUERY_ACTION_NAME = "indices:data/read/search[phase/query]";
     public static final String QUERY_ID_ACTION_NAME = "indices:data/read/search[phase/query/id]";
     public static final String QUERY_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query/scroll]";
-    public static final String QUERY_FETCH_ACTION_NAME = "indices:data/read/search[phase/query+fetch]";
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
@@ -337,20 +336,6 @@ public class SearchTransportService extends AbstractComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
-
-        // this is for BWC with 5.3 until the QUERY_AND_FETCH removal change has been back-ported to 5.x
-        // in 5.3 we will only execute a `indices:data/read/search[phase/query+fetch]` if the node is pre 5.3
-        // such that we can remove this after the back-port.
-        transportService.registerRequestHandler(QUERY_FETCH_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH,
-            new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
-                @Override
-                public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {
-                    assert request.numberOfShards() == 1 : "expected single shard request but got: " + request.numberOfShards();
-                    SearchPhaseResult result = searchService.executeQueryPhase(request, (SearchTask)task);
-                    channel.sendResponse(result);
-                }
-            });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_ACTION_NAME, QueryFetchSearchResult::new);
 
         transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {

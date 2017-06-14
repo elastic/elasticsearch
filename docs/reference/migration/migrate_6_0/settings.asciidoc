@@ -76,3 +76,9 @@ deprecation warning.
 
 All of the existing scripting security settings have been removed.  Instead
 they are replaced with `script.allowed_types` and `script.allowed_contexts`.
+
+==== Discovery Settings
+
+The `discovery.type` settings no longer supports the values `gce`, `aws` and `ec2`.
+Integration with these platforms should be done by setting the `discovery.zen.hosts_provider` setting to
+one of those values.

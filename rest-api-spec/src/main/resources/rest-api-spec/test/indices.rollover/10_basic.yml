@@ -17,6 +17,7 @@
         type:  test
         id:    "1"
         body:  { "foo": "hello world" }
+        refresh: true # make this doc visible in index stats
 
   - do:
       get:

@@ -31,7 +31,7 @@ release-state can be: released | prerelease | unreleased
 :es:              Elasticsearch
 :kib:             Kibana
 
-:xes-repo-dir:    {docdir}/../../elasticsearch-extra/x-pack-elasticsearch/docs/en
+:xes-repo-dir:    {docdir}/../../../elasticsearch-extra/x-pack-elasticsearch/docs/en
 
 ///////
 Javadoc roots used to generate links from Painless's API reference

@@ -17,24 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.common;
+package org.elasticsearch.analysis.common;
 
-import java.util.regex.Pattern;
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.pattern.SimplePatternSplitTokenizer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
-public class GsubProcessorTests extends AbstractStringProcessorTestCase {
+public class SimplePatternSplitTokenizerFactory extends AbstractTokenizerFactory {
 
-    @Override
-    protected AbstractStringProcessor newProcessor(String field, boolean ignoreMissing, String targetField) {
-        return new GsubProcessor(randomAlphaOfLength(10), field, Pattern.compile("\\."), "-", ignoreMissing, targetField);
+    private final String pattern;
+
+    public SimplePatternSplitTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
+
+        pattern = settings.get("pattern", "");
     }
 
     @Override
-    protected String modifyInput(String input) {
-        return "127.0.0.1";
-    }
-
-    @Override
-    protected String expectedResult(String input) {
-        return "127-0-0-1";
+    public Tokenizer create() {
+        return new SimplePatternSplitTokenizer(pattern);
     }
 }

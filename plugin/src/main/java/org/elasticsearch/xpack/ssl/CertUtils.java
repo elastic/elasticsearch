@@ -99,7 +99,7 @@ public class CertUtils {
         if (environment != null) {
             return environment.configFile().resolve(path);
         }
-        return PathUtils.get(Strings.cleanPath(path));
+        return PathUtils.get(path).normalize();
     }
 
     /**

@@ -215,24 +215,29 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         }
     }
 
+    /**
+     * Dispatch the request, if possible, returning true if a response was sent or false otherwise.
+     */
     boolean dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext,
                             final RestHandler handler, final PathTrie.TrieMatchingMode trieMatchingMode) throws Exception {
         final int contentLength = request.hasContent() ? request.content().length() : 0;
 
         RestChannel responseChannel = channel;
+        // Indicator of whether a response was sent or not
+        final boolean requestHandled;
         if (checkRequestParameters(request, responseChannel) == false) {
             responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(responseChannel,
                             BAD_REQUEST, "error traces in responses are disabled."));
-            return true;
+            requestHandled = true;
         } else if (contentLength > 0 && hasContentType(request, handler) == false) {
             sendContentTypeErrorMessage(request, responseChannel);
-            return true;
+            requestHandled = true;
         } else if (contentLength > 0 && handler != null && handler.supportsContentStream() &&
                 request.getXContentType() != XContentType.JSON && request.getXContentType() != XContentType.SMILE) {
             responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(responseChannel,
                             RestStatus.NOT_ACCEPTABLE, "Content-Type [" + request.getXContentType() +
                                             "] does not support stream parsing. Use JSON or SMILE instead"));
-            return true;
+            requestHandled = true;
         } else {
             if (handler == null) {
                 /*
@@ -249,13 +254,13 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                      * Not Allowed error.
                      */
                     handleUnsupportedHttpMethod(request, channel, validMethodSet);
-                    return true;
+                    requestHandled = true;
                 } else if (!validMethodSet.contains(request.method())
                         && request.method() == RestRequest.Method.OPTIONS) {
                     handleOptionsRequest(request, channel, validMethodSet);
-                    return true;
+                    requestHandled = true;
                 } else {
-                    return false;
+                    requestHandled = false;
                 }
             } else {
                 try {
@@ -269,14 +274,16 @@ public class RestController extends AbstractComponent implements HttpServerTrans
 
                     final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
                     wrappedHandler.handleRequest(request, responseChannel, client);
-                    return true;
+                    requestHandled = true;
                 } catch (Exception e) {
                     responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
-                    // We "handled" the request by returning a response, so return true here
-                    return true;
+                    // We "handled" the request by returning a response, even though it was an error
+                    requestHandled = true;
                 }
             }
         }
+        // Return true if the request was handled, false otherwise.
+        return requestHandled;
     }
 
     /**

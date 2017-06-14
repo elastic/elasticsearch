@@ -30,9 +30,6 @@ task bwcTest {
 }
 
 for (Version version : wireCompatVersions) {
-  if (project.bwc_tests_enabled == false) {
-    continue
-  }
   String baseName = "v${version}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -102,7 +99,9 @@ for (Version version : wireCompatVersions) {
     dependsOn = [upgradedClusterTest]
   }
 
-  bwcTest.dependsOn(versionBwcTest)
+  if (project.bwc_tests_enabled) {
+    bwcTest.dependsOn(versionBwcTest)
+  }
 }
 
 test.enabled = false // no unit tests for rolling upgrades, only the rest integration test

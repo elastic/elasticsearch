@@ -614,6 +614,9 @@
                     },
                     "cpu": {
                       "properties": {
+                        "cfs_quota_micros": {
+                          "type": "long"
+                        },
                         "control_group": {
                           "type": "keyword"
                         },

@@ -22,16 +22,25 @@ package org.elasticsearch.search.profile.query;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomApproximationQuery;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
@@ -45,6 +54,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -190,5 +200,77 @@ public class QueryProfilerTests extends ESTestCase {
         time = profileCollector.getTime();
         leafCollector.collect(0);
         assertThat(profileCollector.getTime(), greaterThan(time));
+    }
+
+    private static class DummyQuery extends Query {
+
+        @Override
+        public String toString(String field) {
+            return getClass().getSimpleName();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return this == obj;
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+
+        @Override
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+            return new ConstantScoreWeight(this) {
+                @Override
+                public void extractTerms(Set<Term> terms) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public Scorer scorer(LeafReaderContext context) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                    final Weight weight = this;
+                    return new ScorerSupplier() {
+
+                        @Override
+                        public Scorer get(boolean randomAccess) throws IOException {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public long cost() {
+                            return 42;
+                        }
+                    };
+                }
+            };
+        }
+    }
+
+    public void testScorerSupplier() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
+        w.addDocument(new Document());
+        DirectoryReader reader = DirectoryReader.open(w);
+        w.close();
+        IndexSearcher s = newSearcher(reader);
+        s.setQueryCache(null);
+        Weight weight = s.createNormalizedWeight(new DummyQuery(), randomBoolean());
+        // exception when getting the scorer
+        expectThrows(UnsupportedOperationException.class, () ->  weight.scorer(s.getIndexReader().leaves().get(0)));
+        // no exception, means scorerSupplier is delegated
+        weight.scorerSupplier(s.getIndexReader().leaves().get(0));
+        reader.close();
+        dir.close();
     }
 }

@@ -49,6 +49,7 @@ if (project.name == 'bwc-stable-snapshot') {
 
 if (enabled) {
   apply plugin: 'distribution'
+  tasks.remove(assemble)  // Not published so no need to assemble
 
   def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
   def (String currentMajor, String currentMinor, String currentBugfix) = version.split('\\.')

@@ -19,3 +19,4 @@
 
 apply plugin: 'elasticsearch.build'
 test.enabled = false
+tasks.remove(assemble)  // Not published so no need to assemble

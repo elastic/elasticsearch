@@ -2,5 +2,6 @@
 = Elasticsearch Reference
 
 :es-test-dir: {docdir}/../src/test
+:plugins-examples-dir: {docdir}/../../plugins/examples
 
 include::index-shared.asciidoc[]

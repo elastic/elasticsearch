@@ -22,6 +22,10 @@ include::cat.asciidoc[]
 
 include::cluster.asciidoc[]
 
+ifdef::include-xpack[]
+include::{xes-repo-dir}/rest-api/index.asciidoc[]
+endif::include-xpack[]
+
 include::query-dsl.asciidoc[]
 
 include::mapping.asciidoc[]

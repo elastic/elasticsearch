@@ -91,29 +91,6 @@ public class FastVectorHighlighter implements Highlighter {
         HighlighterEntry cache = (HighlighterEntry) hitContext.cache().get(CACHE_KEY);
 
         try {
-            FieldQuery fieldQuery;
-            if (field.fieldOptions().requireFieldMatch()) {
-                if (cache.fieldMatchFieldQuery == null) {
-                    /*
-                     * we use top level reader to rewrite the query against all readers,
-                     * with use caching it across hits (and across readers...)
-                     */
-                    cache.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query,
-                        hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
-                }
-                fieldQuery = cache.fieldMatchFieldQuery;
-            } else {
-                if (cache.noFieldMatchFieldQuery == null) {
-                    /*
-                     * we use top level reader to rewrite the query against all readers,
-                     * with use caching it across hits (and across readers...)
-                     */
-                    cache.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query,
-                        hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
-                }
-                fieldQuery = cache.noFieldMatchFieldQuery;
-            }
-
             MapperHighlightEntry entry = cache.mappers.get(mapper);
             if (entry == null) {
                 FragListBuilder fragListBuilder;
@@ -155,6 +132,21 @@ public class FastVectorHighlighter implements Highlighter {
                 }
                 fragmentsBuilder.setDiscreteMultiValueHighlighting(termVectorMultiValue);
                 entry = new MapperHighlightEntry();
+                if (field.fieldOptions().requireFieldMatch()) {
+                    /**
+                     * we use top level reader to rewrite the query against all readers,
+                     * with use caching it across hits (and across readers...)
+                     */
+                    entry.fieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query,
+                        hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
+                } else {
+                    /**
+                     * we use top level reader to rewrite the query against all readers,
+                     * with use caching it across hits (and across readers...)
+                     */
+                    entry.noFieldMatchFieldQuery = new CustomFieldQuery(highlighterContext.query,
+                        hitContext.topLevelReader(), true, field.fieldOptions().requireFieldMatch());
+                }
                 entry.fragListBuilder = fragListBuilder;
                 entry.fragmentsBuilder = fragmentsBuilder;
                 if (cache.fvh == null) {
@@ -165,6 +157,12 @@ public class FastVectorHighlighter implements Highlighter {
                 }
                 CustomFieldQuery.highlightFilters.set(field.fieldOptions().highlightFilter());
                 cache.mappers.put(mapper, entry);
+            }
+            final FieldQuery fieldQuery;
+            if (field.fieldOptions().requireFieldMatch()) {
+                fieldQuery = entry.fieldMatchFieldQuery;
+            } else {
+                fieldQuery = entry.noFieldMatchFieldQuery;
             }
             cache.fvh.setPhraseLimit(field.fieldOptions().phraseLimit());
 
@@ -253,12 +251,12 @@ public class FastVectorHighlighter implements Highlighter {
     private class MapperHighlightEntry {
         public FragListBuilder fragListBuilder;
         public FragmentsBuilder fragmentsBuilder;
+        public FieldQuery noFieldMatchFieldQuery;
+        public FieldQuery fieldMatchFieldQuery;
     }
 
     private class HighlighterEntry {
         public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
-        public FieldQuery noFieldMatchFieldQuery;
-        public FieldQuery fieldMatchFieldQuery;
         public Map<FieldMapper, MapperHighlightEntry> mappers = new HashMap<>();
     }
 }

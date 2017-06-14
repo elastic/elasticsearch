@@ -33,6 +33,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.is;
 
 /** Runs rest tests against external cluster */
 public class XPackRestIT extends XPackRestTestCase {
@@ -55,6 +56,24 @@ public class XPackRestIT extends XPackRestTestCase {
             awaitCallApi("indices.exists_template", singletonMap("name", template), emptyList(),
                     response -> true,
                     () -> "Exception when waiting for [" + template + "] template to be created");
+        }
+
+        // ensure watcher is started, so that a test can stop watcher and everything still works fine
+        if (isWatcherTest()) {
+            assertBusy(() -> {
+                try {
+                    ClientYamlTestResponse response =
+                            getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
+                    String state = (String) response.evaluate("stats.0.watcher_state");
+                    if ("started".equals(state) == false) {
+                        getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+                    }
+                    // assertion required to exit the assertBusy lambda
+                    assertThat(state, is("started"));
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            });
         }
     }
 
@@ -158,7 +177,9 @@ public class XPackRestIT extends XPackRestTestCase {
      * thing and could be moved into a general X-Pack method at some point).
      */
     private void clearMlState() throws Exception {
-        new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
+        if (isMachineLearningTest()) {
+            new MlRestTestStateCleaner(logger, adminClient(), this).clearMlMetadata();
+        }
     }
 
     /**
@@ -200,5 +221,15 @@ public class XPackRestIT extends XPackRestTestCase {
     private boolean isMonitoringTest() {
         String testName = getTestName();
         return testName != null && (testName.contains("=monitoring/") || testName.contains("=monitoring\\"));
+    }
+
+    private boolean isWatcherTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("=watcher/") || testName.contains("=watcher\\"));
+    }
+
+    private boolean isMachineLearningTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("=ml/") || testName.contains("=ml\\"));
     }
 }

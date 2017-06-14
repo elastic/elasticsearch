@@ -65,7 +65,7 @@ public class DatafeedJobBuilder {
                 }
         );
 
-        // Step 3. Create data extractory factory
+        // Step 3. Create data extractor factory
         Consumer<DataCounts> dataCountsHandler = dataCounts -> {
             if (dataCounts.getLatestRecordTimeStamp() != null) {
                 context.latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();

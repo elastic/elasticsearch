@@ -30,9 +30,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -55,10 +57,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
     private QueryBuilder query;
     private List<SearchSourceBuilder.ScriptField> scriptFields;
     private int scrollSize;
+    private long initScrollStartTime;
 
     private class TestDataExtractor extends ScrollDataExtractor {
 
-        private SearchResponse nextResponse;
+        private Queue<SearchResponse> responses = new LinkedList<>();
 
         TestDataExtractor(long start, long end) {
             this(createContext(start, end));
@@ -69,15 +72,21 @@ public class ScrollDataExtractorTests extends ESTestCase {
         }
 
         @Override
+        protected InputStream initScroll(long startTimestamp) throws IOException {
+            initScrollStartTime = startTimestamp;
+            return super.initScroll(startTimestamp);
+        }
+
+        @Override
         protected SearchResponse executeSearchRequest(SearchRequestBuilder searchRequestBuilder) {
             capturedSearchRequests.add(searchRequestBuilder);
-            return nextResponse;
+            return responses.remove();
         }
 
         @Override
         protected SearchResponse executeSearchScrollRequest(String scrollId) {
             capturedContinueScrollIds.add(scrollId);
-            return nextResponse;
+            return responses.remove();
         }
 
         @Override
@@ -86,7 +95,11 @@ public class ScrollDataExtractorTests extends ESTestCase {
         }
 
         void setNextResponse(SearchResponse searchResponse) {
-            nextResponse = searchResponse;
+            responses.add(searchResponse);
+        }
+
+        public long getInitScrollStartTime() {
+            return initScrollStartTime;
         }
     }
 
@@ -263,6 +276,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
     public void testExtractionGivenInitSearchResponseHasShardFailures() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
         extractor.setNextResponse(createResponseWithShardFailures());
+        extractor.setNextResponse(createResponseWithShardFailures());
 
         assertThat(extractor.hasNext(), is(true));
         expectThrows(IOException.class, () -> extractor.next());
@@ -271,10 +285,59 @@ public class ScrollDataExtractorTests extends ESTestCase {
     public void testExtractionGivenInitSearchResponseEncounteredUnavailableShards() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
         extractor.setNextResponse(createResponseWithUnavailableShards(1));
+        extractor.setNextResponse(createResponseWithUnavailableShards(1));
 
         assertThat(extractor.hasNext(), is(true));
         IOException e = expectThrows(IOException.class, () -> extractor.next());
         assertThat(e.getMessage(), equalTo("[" + jobId + "] Search request encountered [1] unavailable shards"));
+    }
+
+    public void testResetScrollAfterFailure() throws IOException {
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+
+        SearchResponse goodResponse = createSearchResponse(
+                Arrays.asList(1100L, 1200L),
+                Arrays.asList("a1", "a2"),
+                Arrays.asList("b1", "b2")
+        );
+        extractor.setNextResponse(goodResponse);
+        extractor.setNextResponse(createResponseWithShardFailures());
+        extractor.setNextResponse(goodResponse);
+        extractor.setNextResponse(createResponseWithShardFailures());
+
+        // first response is good
+        assertThat(extractor.hasNext(), is(true));
+        Optional<InputStream> output = extractor.next();
+        assertThat(output.isPresent(), is(true));
+        // this should recover from the first shard failure and try again
+        assertThat(extractor.hasNext(), is(true));
+        output = extractor.next();
+        assertThat(output.isPresent(), is(true));
+        // A second failure is not tolerated
+        assertThat(extractor.hasNext(), is(true));
+        expectThrows(IOException.class, () -> extractor.next());
+    }
+
+    public void testResetScollUsesLastResultTimestamp() throws IOException {
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+
+        SearchResponse goodResponse = createSearchResponse(
+                Arrays.asList(1100L, 1200L),
+                Arrays.asList("a1", "a2"),
+                Arrays.asList("b1", "b2")
+        );
+
+        extractor.setNextResponse(goodResponse);
+        extractor.setNextResponse(createResponseWithShardFailures());
+        extractor.setNextResponse(createResponseWithShardFailures());
+
+        Optional<InputStream> output = extractor.next();
+        assertThat(output.isPresent(), is(true));
+        assertEquals(1000L, extractor.getInitScrollStartTime());
+
+        expectThrows(IOException.class, () -> extractor.next());
+        // the new start time after error is the last record timestamp +1
+        assertEquals(1201L, extractor.getInitScrollStartTime());
     }
 
     public void testDomainSplitScriptField() throws IOException {
@@ -369,6 +432,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getShardFailures()).thenReturn(
                 new ShardSearchFailure[] { new ShardSearchFailure(new RuntimeException("shard failed"))});
+        when(searchResponse.getFailedShards()).thenReturn(1);
         return searchResponse;
     }
 
@@ -377,6 +441,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         when(searchResponse.status()).thenReturn(RestStatus.OK);
         when(searchResponse.getSuccessfulShards()).thenReturn(2);
         when(searchResponse.getTotalShards()).thenReturn(2 + unavailableShards);
+        when(searchResponse.getFailedShards()).thenReturn(unavailableShards);
         return searchResponse;
     }
 

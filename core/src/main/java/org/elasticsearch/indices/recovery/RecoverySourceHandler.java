@@ -31,6 +31,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.BufferedOutputStream;
@@ -451,23 +453,21 @@ public class RecoverySourceHandler {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("finalizing recovery");
         cancellableThreads.execute(() -> {
-            final CountDownLatch latch = new CountDownLatch(1);
-            final AtomicReference<Exception> reference = new AtomicReference<>();
-            shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint, latch, reference::set);
             /*
-             * We wait for the shard to be marked as in-sync. However, our latch could also be counted down if marking the shard in-sync
-             * was interrupted or for any other exception that is thrown marking the shard as in-sync. Therefore, after we are unlatched we
-             * check if an exception was thrown. Interrupted exceptions must be handled specially due to their meaning to cancellable
-             * threads. All other exceptions are wrapped as runtime exceptions and rethrown.
+             * Before marking the shard as in-sync we acquire an operation permit. We do this so that there is a barrier between marking a
+             * shard as in-sync and relocating a shard. If we acquire the permit then no relocation handoff can complete before we are done
+             * marking the shard as in-sync. If the relocation handoff holds all the permits then after the handoff completes and we acquire
+             * the permit then the state of the shard will be relocated and this recovery will fail.
              */
-            latch.await();
-            if (reference.get() != null) {
-                if (reference.get() instanceof InterruptedException) {
-                    throw (InterruptedException) reference.get();
-                } else {
-                    throw new RuntimeException(reference.get());
+            final PlainActionFuture<Releasable> onAcquired = new PlainActionFuture<>();
+            shard.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME);
+            try (Releasable ignored = onAcquired.actionGet()) {
+                if (shard.state() == IndexShardState.RELOCATED) {
+                    throw new IndexShardRelocatedException(shard.shardId());
                 }
+                shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint);
             }
+
             recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint());
         });
 

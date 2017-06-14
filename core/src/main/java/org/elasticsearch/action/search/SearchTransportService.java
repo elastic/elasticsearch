@@ -117,26 +117,11 @@ public class SearchTransportService extends AbstractComponent {
     public void sendExecuteQuery(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
                                  final SearchActionListener<SearchPhaseResult> listener) {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
-        // this used to be the QUERY_AND_FETCH which doesn't exists anymore.
+        // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
-        if (connection.getVersion().before(Version.V_5_3_0) && fetchDocuments) {
-            // this is a BWC layer for pre 5.3 indices
-            if (request.scroll() != null) {
-                /**
-                 * This is needed for nodes pre 5.3 when the single shard optimization is used.
-                 * These nodes will set the last emitted doc only if the removed `query_and_fetch` search type is set
-                 * in the request. See {@link SearchType}.
-                 */
-                request.searchType(SearchType.QUERY_AND_FETCH);
-            }
-            // TODO this BWC layer can be removed once this is back-ported to 5.3
-            transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
-                new ActionListenerResponseHandler<>(listener, supplier));
-        } else {
             transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
                 new ActionListenerResponseHandler<>(listener, supplier));
-        }
     }
 
     public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,

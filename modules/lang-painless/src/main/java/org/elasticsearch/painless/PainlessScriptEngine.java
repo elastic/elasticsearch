@@ -133,7 +133,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
                     return new ScriptImpl(painlessScript, p, lookup, context);
                 }
                 @Override
-                public boolean needsScores() {
+                public boolean needs_score() {
                     return painlessScript.needs_score();
                 }
             };

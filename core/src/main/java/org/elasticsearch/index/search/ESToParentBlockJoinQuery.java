@@ -23,24 +23,24 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.XToParentBlockJoinQuery;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
-import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 
 import java.io.IOException;
 import java.util.Objects;
 
-/** A {@link ToParentBlockJoinQuery} that allows to retrieve its nested path. */
+/** A {@link XToParentBlockJoinQuery} that allows to retrieve its nested path. */
 public final class ESToParentBlockJoinQuery extends Query {
 
-    private final ToParentBlockJoinQuery query;
+    private final XToParentBlockJoinQuery query;
     private final String path;
 
     public ESToParentBlockJoinQuery(Query childQuery, BitSetProducer parentsFilter, ScoreMode scoreMode, String path) {
-        this(new ToParentBlockJoinQuery(childQuery, parentsFilter, scoreMode), path);
+        this(new XToParentBlockJoinQuery(childQuery, parentsFilter, scoreMode), path);
     }
 
-    private ESToParentBlockJoinQuery(ToParentBlockJoinQuery query, String path) {
+    private ESToParentBlockJoinQuery(XToParentBlockJoinQuery query, String path) {
         this.query = query;
         this.path = path;
     }
@@ -65,8 +65,8 @@ public final class ESToParentBlockJoinQuery extends Query {
             // a MatchNoDocsQuery if it realizes that it cannot match any docs and rewrites
             // to a MatchNoDocsQuery. In that case it would be fine to lose information
             // about the nested path.
-            if (innerRewrite instanceof ToParentBlockJoinQuery) {
-                return new ESToParentBlockJoinQuery((ToParentBlockJoinQuery) innerRewrite, path);
+            if (innerRewrite instanceof XToParentBlockJoinQuery) {
+                return new ESToParentBlockJoinQuery((XToParentBlockJoinQuery) innerRewrite, path);
             } else {
                 return innerRewrite;
             }

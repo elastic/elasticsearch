@@ -52,6 +52,9 @@ TimeoutStopSec=0
 # SIGTERM signal is used to stop the Java process
 KillSignal=SIGTERM
 
+# Send the signal only to the JVM rather than its control group
+KillMode=process
+
 # Java process is never killed
 SendSIGKILL=no
 

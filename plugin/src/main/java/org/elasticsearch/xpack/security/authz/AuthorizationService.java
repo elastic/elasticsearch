@@ -126,8 +126,14 @@ public class AuthorizationService extends AbstractComponent {
         final TransportRequest originalRequest = request;
         if (request instanceof ConcreteShardRequest) {
             request = ((ConcreteShardRequest<?>) request).getRequest();
+            assert TransportActionProxy.isProxyRequest(request) == false : "expected non-proxy request for action: " + action;
+        } else {
+            request = TransportActionProxy.unwrapRequest(request);
+            if (TransportActionProxy.isProxyRequest(originalRequest) && TransportActionProxy.isProxyAction(action) == false) {
+                throw new IllegalStateException("originalRequest is a proxy request for: [" + request + "] but action: ["
+                        + action + "] isn't");
+            }
         }
-        request = TransportActionProxy.unwrapRequest(request);
         // prior to doing any authorization lets set the originating action in the context only
         putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
 
@@ -198,6 +204,20 @@ public class AuthorizationService extends AbstractComponent {
                 return;
             }
             throw denial(authentication, action, request);
+        } else if (TransportActionProxy.isProxyAction(action)) {
+            // we authorize proxied actions once they are "unwrapped" on the next node
+            if (TransportActionProxy.isProxyRequest(originalRequest) == false ) {
+                throw new IllegalStateException("originalRequest is not a proxy request: [" + originalRequest + "] but action: ["
+                        + action + "] is a proxy action");
+            }
+            if (permission.indices().check(action)) {
+                grant(authentication, action, request);
+                return;
+            } else {
+                // we do this here in addition to the denial below since we might run into an assertion on scroll requrest below if we
+                // don't have permission to read cross cluster but wrap a scroll request.
+                throw denial(authentication, action, request);
+            }
         }
 
         // some APIs are indices requests that are not actually associated with indices. For example,

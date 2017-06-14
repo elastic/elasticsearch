@@ -90,7 +90,7 @@ public class GceDiscoverTests extends ESIntegTestCase {
             throw new RuntimeException(e);
         }
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put("discovery.type", "gce")
+            .put("discovery.zen.hosts_provider", "gce")
             .put("path.logs", resolve)
             .put("transport.tcp.port", 0)
             .put("node.portsfile", "true")

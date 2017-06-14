@@ -16,23 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.ingest;
 
-import java.util.Map;
+package org.elasticsearch.analysis.common;
 
-/**
- * Abstraction for the ingest template engine used to decouple {@link IngestDocument} from {@link org.elasticsearch.script.ScriptService}.
- * Allows to compile a template into an ingest {@link Template} object.
- * A compiled template can be executed by calling its {@link Template#execute(Map)} method.
- */
-public interface TemplateService {
+import org.apache.lucene.analysis.Tokenizer;
+import org.apache.lucene.analysis.pattern.SimplePatternTokenizer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 
-    Template compile(String template);
+public class SimplePatternTokenizerFactory extends AbstractTokenizerFactory {
 
-    interface Template {
+    private final String pattern;
 
-        String execute(Map<String, Object> model);
+    public SimplePatternTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
 
-        String getKey();
+        pattern = settings.get("pattern", "");
+    }
+
+    @Override
+    public Tokenizer create() {
+        return new SimplePatternTokenizer(pattern);
     }
 }

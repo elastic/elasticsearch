@@ -21,11 +21,13 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.queries.MinDocQuery;
+import org.apache.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.EarlyTerminatingSortingCollector;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -50,7 +52,6 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestPhase;
 
 import java.util.LinkedList;
-import java.util.List;
 
 import static org.elasticsearch.search.query.QueryCollectorContext.createCancellableCollectorContext;
 import static org.elasticsearch.search.query.QueryCollectorContext.createEarlySortingTerminationCollectorContext;
@@ -130,16 +131,17 @@ public class QueryPhase implements SearchPhase {
 
             final ScrollContext scrollContext = searchContext.scrollContext();
             if (scrollContext != null) {
-                if (returnsDocsInOrder(query, searchContext.sort())) {
-                    if (scrollContext.totalHits == -1) {
-                        // first round
-                        assert scrollContext.lastEmittedDoc == null;
-                        // there is not much that we can optimize here since we want to collect all
-                        // documents in order to get the total number of hits
-                    } else {
+                if (scrollContext.totalHits == -1) {
+                    // first round
+                    assert scrollContext.lastEmittedDoc == null;
+                    // there is not much that we can optimize here since we want to collect all
+                    // documents in order to get the total number of hits
+
+                } else {
+                    final ScoreDoc after = scrollContext.lastEmittedDoc;
+                    if (returnsDocsInOrder(query, searchContext.sort())) {
                         // now this gets interesting: since we sort in index-order, we can directly
                         // skip to the desired doc
-                        final ScoreDoc after = scrollContext.lastEmittedDoc;
                         if (after != null) {
                             BooleanQuery bq = new BooleanQuery.Builder()
                                 .add(query, BooleanClause.Occur.MUST)
@@ -149,6 +151,17 @@ public class QueryPhase implements SearchPhase {
                         }
                         // ... and stop collecting after ${size} matches
                         searchContext.terminateAfter(searchContext.size());
+                        searchContext.trackTotalHits(false);
+                    } else if (canEarlyTerminate(indexSort, searchContext)) {
+                        // now this gets interesting: since the index sort matches the search sort, we can directly
+                        // skip to the desired doc
+                        if (after != null) {
+                            BooleanQuery bq = new BooleanQuery.Builder()
+                                .add(query, BooleanClause.Occur.MUST)
+                                .add(new SearchAfterSortedDocQuery(indexSort, (FieldDoc) after), BooleanClause.Occur.FILTER)
+                                .build();
+                            query = bq;
+                        }
                         searchContext.trackTotalHits(false);
                     }
                 }
@@ -189,7 +202,10 @@ public class QueryPhase implements SearchPhase {
             final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, reader,
                 collectors.stream().anyMatch(QueryCollectorContext::shouldCollect));
             final boolean shouldCollect = topDocsFactory.shouldCollect();
-            if (scrollContext == null && topDocsFactory.numHits() > 0 && canEarlyTerminate(indexSort, searchContext)) {
+
+            if (topDocsFactory.numHits() > 0 &&
+                (scrollContext == null || scrollContext.totalHits != -1) &&
+                canEarlyTerminate(indexSort, searchContext)) {
                 // top docs collection can be early terminated based on index sort
                 // add the collector context first so we don't early terminate aggs but only top docs
                 collectors.addFirst(createEarlySortingTerminationCollectorContext(reader, searchContext.query(), indexSort,

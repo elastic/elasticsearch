@@ -159,7 +159,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         // simple verbose script
         request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
-                    .startObject("script").field("inline", "script1").endObject()
+                    .startObject("script").field("source", "script1").endObject()
                 .endObject()));
         script = request.script();
         assertThat(script, notNullValue());
@@ -173,7 +173,7 @@ public class UpdateRequestTests extends ESTestCase {
         request = new UpdateRequest("test", "type", "1");
         request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
             .startObject("script")
-                .field("inline", "script1")
+                .field("source", "script1")
                 .startObject("params")
                     .field("param1", "value1")
                 .endObject()
@@ -195,7 +195,7 @@ public class UpdateRequestTests extends ESTestCase {
                         .startObject("params")
                             .field("param1", "value1")
                         .endObject()
-                        .field("inline", "script1")
+                        .field("source", "script1")
                     .endObject()
                 .endObject()));
         script = request.script();
@@ -215,7 +215,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .startObject("params")
                     .field("param1", "value1")
                 .endObject()
-                .field("inline", "script1")
+                .field("source", "script1")
             .endObject()
             .startObject("upsert")
                 .field("field1", "value1")
@@ -249,7 +249,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .startObject("params")
                     .field("param1", "value1")
                 .endObject()
-                .field("inline", "script1")
+                .field("source", "script1")
             .endObject().endObject()));
         script = request.script();
         assertThat(script, notNullValue());

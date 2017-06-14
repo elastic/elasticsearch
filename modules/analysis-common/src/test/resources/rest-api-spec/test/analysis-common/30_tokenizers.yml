@@ -25,3 +25,33 @@
     - match:  { detail.tokenizer.tokens.0.token: go }
     - match:  { detail.tokenizer.tokens.1.token: oo }
     - match:  { detail.tokenizer.tokens.2.token: od }
+
+---
+"simplepattern":
+    - do:
+        indices.analyze:
+          body:
+            text: "a6bf fooo ff61"
+            explain: true
+            tokenizer:
+              type: simplepattern
+              pattern: "[abcdef0123456789]{4}"
+    - length: { detail.tokenizer.tokens: 2 }
+    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.tokens.0.token: a6bf }
+    - match:  { detail.tokenizer.tokens.1.token: ff61 }
+
+---
+"simplepatternsplit":
+    - do:
+        indices.analyze:
+          body:
+            text: "foo==bar"
+            explain: true
+            tokenizer:
+              type: simplepatternsplit
+              pattern: ==
+    - length: { detail.tokenizer.tokens: 2 }
+    - match:  { detail.tokenizer.name: _anonymous_tokenizer }
+    - match:  { detail.tokenizer.tokens.0.token: foo }
+    - match:  { detail.tokenizer.tokens.1.token: bar }

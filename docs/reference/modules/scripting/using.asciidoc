@@ -8,13 +8,13 @@ the same pattern:
 -------------------------------------
   "script": {
     "lang":   "...",  <1>
-    "inline" | "stored": "...", <2>
+    "source" | "id": "...", <2>
     "params": { ... } <3>
   }
 -------------------------------------
 // NOTCONSOLE
 <1> The language the script is written in, which defaults to `painless`.
-<2> The script itself which may be specified as `inline` or `stored`.
+<2> The script itself which may be specified as `source` for an inline script or `id` for a stored script.
 <3> Any named parameters that should be passed into the script.
 
 For example, the following script is used in a search request to return a
@@ -33,7 +33,7 @@ GET my_index/_search
     "my_doubled_field": {
       "script": {
         "lang":   "expression",
-        "inline": "doc['my_field'] * multiplier",
+        "source": "doc['my_field'] * multiplier",
         "params": {
           "multiplier": 2
         }
@@ -55,10 +55,10 @@ GET my_index/_search
     setting `script.default_lang` to the appropriate language.
 
 
-`inline`, `stored`::
+`source`, `id`::
 
     Specifies the source of the script.  An `inline` script is specified
-    `inline` as in the example above. A `stored` script is specified `stored`
+    `source` as in the example above. A `stored` script is specified `id`
     and is retrieved from the cluster state (see <<modules-scripting-stored-scripts,Stored Scripts>>).
 
 
@@ -82,7 +82,7 @@ multipliers, don't hard-code the multiplier into the script:
 
 [source,js]
 ----------------------
-  "inline": "doc['my_field'] * 2"
+  "source": "doc['my_field'] * 2"
 ----------------------
 // NOTCONSOLE
 
@@ -90,7 +90,7 @@ Instead, pass it in as a named parameter:
 
 [source,js]
 ----------------------
-  "inline": "doc['my_field'] * multiplier",
+  "source": "doc['my_field'] * multiplier",
   "params": {
     "multiplier": 2
   }
@@ -150,7 +150,7 @@ POST _scripts/calculate-score
 {
   "script": {
     "lang": "painless",
-    "code": "Math.log(_score * 2) + params.my_modifier"
+    "source": "Math.log(_score * 2) + params.my_modifier"
   }
 }
 -----------------------------------
@@ -165,7 +165,7 @@ GET _scripts/calculate-score
 // CONSOLE
 // TEST[continued]
 
-Stored scripts can be used by specifying the `stored` parameters as follows:
+Stored scripts can be used by specifying the `id` parameters as follows:
 
 [source,js]
 --------------------------------------------------
@@ -174,7 +174,7 @@ GET _search
   "query": {
     "script": {
       "script": {
-        "stored": "calculate-score",
+        "id": "calculate-score",
         "params": {
           "my_modifier": 2
         }

@@ -22,9 +22,9 @@ package org.elasticsearch.ingest.common;
 import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.TestProcessor;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -49,7 +49,7 @@ public class ForEachProcessorTests extends ESTestCase {
         );
 
         ForEachProcessor processor = new ForEachProcessor(
-            "_tag", "values", new UppercaseProcessor("_tag", "_ingest._value", false)
+            "_tag", "values", new UppercaseProcessor("_tag", "_ingest._value", false, "_ingest._value")
         );
         processor.execute(ingestDocument);
 
@@ -134,10 +134,10 @@ public class ForEachProcessorTests extends ESTestCase {
         document.put("other", "value");
         IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", null, null, document);
 
-        TemplateService ts = TestTemplateService.instance();
         ForEachProcessor processor = new ForEachProcessor(
-                "_tag", "values", new SetProcessor("_tag", ts.compile("_ingest._value.new_field"), (model) -> model.get("other"))
-        );
+            "_tag", "values", new SetProcessor("_tag",
+            new TestTemplateService.MockTemplateScript.Factory("_ingest._value.new_field"),
+            (model) -> model.get("other")));
         processor.execute(ingestDocument);
 
         assertThat(ingestDocument.getFieldValue("values.0.new_field", String.class), equalTo("value"));
@@ -193,13 +193,12 @@ public class ForEachProcessorTests extends ESTestCase {
                 "_index", "_type", "_id", null, null, Collections.singletonMap("values", values)
         );
 
-        TemplateService ts = TestTemplateService.instance();
+        TemplateScript.Factory template = new TestTemplateService.MockTemplateScript.Factory("errors");
 
         ForEachProcessor processor = new ForEachProcessor(
                 "_tag", "values", new CompoundProcessor(false,
-                Collections.singletonList(new UppercaseProcessor("_tag_upper", "_ingest._value", false)),
-                Collections.singletonList(new AppendProcessor("_tag",
-                        ts.compile("errors"), (model) -> (Collections.singletonList("added"))))
+                Collections.singletonList(new UppercaseProcessor("_tag_upper", "_ingest._value", false, "_ingest._value")),
+                Collections.singletonList(new AppendProcessor("_tag", template, (model) -> (Collections.singletonList("added"))))
         ));
         processor.execute(ingestDocument);
 

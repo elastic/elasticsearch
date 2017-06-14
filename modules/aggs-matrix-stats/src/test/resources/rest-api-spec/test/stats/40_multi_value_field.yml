@@ -199,7 +199,7 @@ setup:
       search:
         index: test
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["vals", "val3"], "script" : { "my_script" : {"inline" : "1 + doc['val1'].value", "lang" : "js"} } } } } }
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["vals", "val3"], "script" : { "my_script" : {"source" : "1 + doc['val1'].value", "lang" : "js"} } } } } }
 
 ---
 "With script params":
@@ -209,4 +209,4 @@ setup:
       search:
         index: test
         type:  test
-        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val3", "vals"], "script" : { "my_script" : {"inline" : "my_var + doc['val1'].value", "params" : { "my_var" : 1 }, "lang" : "js" } } } } } }
+        body: {"aggs": { "mfs" : { "matrix_stats": {"fields": ["val1", "val3", "vals"], "script" : { "my_script" : {"source" : "my_var + doc['val1'].value", "params" : { "my_var" : 1 }, "lang" : "js" } } } } } }

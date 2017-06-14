@@ -106,7 +106,7 @@ will increment the `likes` field on all of kimchy's tweets:
 POST twitter/_update_by_query
 {
   "script": {
-    "inline": "ctx._source.likes++",
+    "source": "ctx._source.likes++",
     "lang": "painless"
   },
   "query": {
@@ -418,7 +418,7 @@ POST twitter/_update_by_query
     "max": 2
   },
   "script": {
-    "inline": "ctx._source['extra'] = 'test'"
+    "source": "ctx._source['extra'] = 'test'"
   }
 }
 POST twitter/_update_by_query
@@ -428,7 +428,7 @@ POST twitter/_update_by_query
     "max": 2
   },
   "script": {
-    "inline": "ctx._source['extra'] = 'test'"
+    "source": "ctx._source['extra'] = 'test'"
   }
 }
 ----------------------------------------------------------------
@@ -469,7 +469,7 @@ You can also let update-by-query automatically parallelize using
 POST twitter/_update_by_query?refresh&slices=5
 {
   "script": {
-    "inline": "ctx._source['extra'] = 'test'"
+    "source": "ctx._source['extra'] = 'test'"
   }
 }
 ----------------------------------------------------------------

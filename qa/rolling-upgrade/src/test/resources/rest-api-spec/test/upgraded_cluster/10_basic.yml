@@ -129,7 +129,7 @@
           "query": {
             "script": {
               "script": {
-                "stored": "greater",
+                "id": "greater",
                 "lang": "painless"
               }
             }
@@ -137,13 +137,13 @@
           "script_fields": {
             "script_painless": {
               "script": {
-                "stored": "value",
+                "id": "value",
                 "lang": "painless"
               }
             },
             "script_expressions": {
               "script": {
-                "stored": "value",
+                "id": "value",
                 "lang": "expression"
               }
             }
@@ -236,7 +236,7 @@
           "query": {
             "script": {
               "script": {
-                "stored": "greater",
+                "id": "greater",
                 "lang": "painless"
               }
             }
@@ -244,12 +244,12 @@
           "script_fields": {
             "script_painless": {
               "script": {
-                "stored": "value"
+                "id": "value"
               }
             },
             "script_expressions": {
               "script": {
-                "stored": "value",
+                "id": "value",
                 "lang": "expression"
               }
             }
@@ -310,7 +310,7 @@
         lang: "value"
         body: {
           "script": {
-            "code": "doc['num'].value",
+            "source": "doc['num'].value",
             "lang": "painless"
           }
         }
@@ -353,7 +353,7 @@
         lang: "value"
         body: {
           "script": {
-            "code": "doc['num'].value",
+            "source": "doc['num'].value",
             "lang": "expression"
           }
         }
@@ -427,7 +427,7 @@
         lang: "value"
         body: {
           "script": {
-            "code": "doc['num'].value",
+            "source": "doc['num'].value",
             "lang": "painless"
           }
         }
@@ -469,14 +469,14 @@
           "query": {
             "script": {
               "script": {
-                "stored": "greater"
+                "id": "greater"
               }
             }
           },
           "script_fields": {
             "script_painless": {
               "script": {
-                "stored": "value"
+                "id": "value"
               }
             }
           },

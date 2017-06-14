@@ -55,8 +55,6 @@ if (enabled) {
   String bwcBranch
   if (project.name == 'bwc-stable-snapshot') {
     bwcBranch = "${major}.x"
-  } else if (major != currentMajor) {
-    bwcBranch = "${major}.x"
   } else {
     bwcBranch = "${major}.${minor}"
   }
@@ -103,7 +101,8 @@ if (enabled) {
     commandLine = ['git', 'fetch', 'upstream']
   }
 
-  task checkoutBwcBranch(type: LoggedExec) {
+  // this is an Exec task so that the SHA that is checked out is logged
+  task checkoutBwcBranch(type: Exec) {
     dependsOn fetchLatest
     workingDir = checkoutDir
     commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]

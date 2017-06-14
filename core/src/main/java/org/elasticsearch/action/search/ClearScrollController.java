@@ -103,21 +103,23 @@ final class ClearScrollController implements Runnable {
     }
 
     void cleanScrollIds(List<ScrollIdForNode> parsedScrollIds) {
-        for (ScrollIdForNode target : parsedScrollIds) {
-            final DiscoveryNode node = nodes.get(target.getNode());
-            if (node == null) {
-                onFreedContext(false);
-            } else {
-                try {
-                    Transport.Connection connection = searchTransportService.getConnection(null, node);
-                    searchTransportService.sendFreeContext(connection, target.getScrollId(),
-                        ActionListener.wrap(freed -> onFreedContext(freed.isFreed()),
-                            e -> onFailedFreedContext(e, node)));
-                } catch (Exception e) {
-                    onFailedFreedContext(e, node);
+        SearchScrollAsyncAction.collectNodesAndRun(parsedScrollIds, nodes, searchTransportService, ActionListener.wrap(
+            lookup -> {
+                for (ScrollIdForNode target : parsedScrollIds) {
+                    final DiscoveryNode node = lookup.apply(target.getClusterAlias(), target.getNode());
+                    if (node == null) {
+                        onFreedContext(false);
+                    } else {
+                        try {
+                            Transport.Connection connection = searchTransportService.getConnection(target.getClusterAlias(), node);
+                            searchTransportService.sendFreeContext(connection, target.getScrollId(),
+                                ActionListener.wrap(freed -> onFreedContext(freed.isFreed()), e -> onFailedFreedContext(e, node)));
+                        } catch (Exception e) {
+                            onFailedFreedContext(e, node);
+                        }
+                    }
                 }
-            }
-        }
+            }, listener::onFailure));
     }
 
     private void onFreedContext(boolean freed) {

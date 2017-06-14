@@ -215,13 +215,16 @@ The supported units are:
 `m`:: minutes
 `s`:: seconds
 
-Some examples are:
+Assuming `now` is `2001-01-01 12:00:00`, some examples are:
 
-[horizontal]
-`now+1h`::              The current time plus one hour, with ms resolution.
-`now+1h+1m`::           The current time plus one hour plus one minute, with ms resolution.
-`now+1h/d`::            The current time plus one hour, rounded down to the nearest day.
-`2015-01-01||+1M/d`::   `2015-01-01` plus one month, rounded down to the nearest day.
+[options="header"]
+|======
+| Expression            | Resolves to
+| `now+1h`              | `2001-01-01 13:00:00`
+| `now-1h`              | `2000-12-31 11:00:00`
+| `now+1h/d`            | `2001-01-01 00:00:00`
+| `2001-01-01\|\|+1M/d` | `2001-02-01 00:00:00`
+|======
 
 [float]
 [[common-options-response-filtering]]

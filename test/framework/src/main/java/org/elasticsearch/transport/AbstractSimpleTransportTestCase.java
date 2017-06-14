@@ -169,8 +169,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try {
             assertNoPendingHandshakes(serviceA.getOriginalTransport());
             assertNoPendingHandshakes(serviceB.getOriginalTransport());
-            assertPendingConnections(0, serviceA.getOriginalTransport());
-            assertPendingConnections(0, serviceB.getOriginalTransport());
         } finally {
             IOUtils.close(serviceA, serviceB, () -> {
                 try {
@@ -194,12 +192,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void assertPendingConnections(int numConnections, Transport transport) {
-        if (transport instanceof TcpTransport) {
-            TcpTransport tcpTransport = (TcpTransport) transport;
-            assertEquals(numConnections, tcpTransport.getNumOpenConnections() - tcpTransport.getNumConnectedNodes());
-        }
-    }
 
     public void testHelloWorld() {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
@@ -2243,13 +2235,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceB.sendRequest(connection, "action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
             receivedLatch.await();
-            assertPendingConnections(1, serviceB.getOriginalTransport());
             serviceC.close();
-            assertPendingConnections(0, serviceC.getOriginalTransport());
             sendResponseLatch.countDown();
             responseLatch.await();
         }
-        assertPendingConnections(0, serviceC.getOriginalTransport());
     }
 
 }

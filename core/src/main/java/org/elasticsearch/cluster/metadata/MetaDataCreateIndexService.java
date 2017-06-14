@@ -84,18 +84,12 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -167,6 +161,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 final Index shrinkFromIndex = request.shrinkFrom();
 
+                // @todo we could skip this call for shrinked index
                 // we only find a template when its an API call (a new index)
                 // find templates, highest order are better matching
                 List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
@@ -413,6 +408,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {
             List<IndexTemplateMetaData> templateMetadata = new ArrayList<>();
+
             for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
                 IndexTemplateMetaData metadata = cursor.value;
                 for (String template: metadata.patterns()) {

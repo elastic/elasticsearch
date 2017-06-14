@@ -69,6 +69,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
     public static final String CLIENT_RETRY_TIMEOUT = "client.retry.timeout";
+    public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -345,6 +346,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (requestTimeoutString != null) {
             final TimeValue maxRetryTimeout = TimeValue.parseTimeValue(requestTimeoutString, CLIENT_RETRY_TIMEOUT);
             builder.setMaxRetryTimeoutMillis(Math.toIntExact(maxRetryTimeout.getMillis()));
+        }
+        final String socketTimeoutString = settings.get(CLIENT_SOCKET_TIMEOUT);
+        if (socketTimeoutString != null) {
+            final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
+            builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
         }
         return builder.build();
     }

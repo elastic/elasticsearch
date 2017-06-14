@@ -27,7 +27,7 @@ esplugin {
   classname 'org.elasticsearch.plugin.noop.NoopPlugin'
 }
 
-tasks.remove(assemble)  // Not published so no need to assemble
+tasks.remove(assemble) // Not published so no need to assemble
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-try,-unchecked"
 

@@ -63,23 +63,13 @@ public class XContentParserUtilsTests extends ESTestCase {
         }));
         final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(namedXContents);
 
-        BytesReference bytes = toXContent((builder, params) -> builder.field("test", 0), xContentType, randomBoolean());
-        try (XContentParser parser = xContentType.xContent().createParser(namedXContentRegistry, bytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-
-            ParsingException e = expectThrows(ParsingException.class, () -> parseTypedKeysObject(parser, delimiter, Boolean.class, false));
-            assertEquals("Cannot parse object of class [Boolean] without type information. Set [typed_keys] parameter " +
-                    "on the request to ensure the type information is added to the response output", e.getMessage());
-        }
-
-        bytes = toXContent((builder, params) -> builder.field("type" + delimiter + "name", 0), xContentType, randomBoolean());
+        BytesReference bytes = toXContent((builder, params) -> builder.field("type" + delimiter + "name", 0), xContentType, randomBoolean());
         try (XContentParser parser = xContentType.xContent().createParser(namedXContentRegistry, bytes)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
 
             NamedXContentRegistry.UnknownNamedObjectException e = expectThrows(NamedXContentRegistry.UnknownNamedObjectException.class,
-                    () -> parseTypedKeysObject(parser, delimiter, Boolean.class, false));
+                    () -> parseTypedKeysObject(parser, delimiter, Boolean.class, new ArrayList<>()));
             assertEquals("Unknown Boolean [type]", e.getMessage());
             assertEquals("type", e.getName());
             assertEquals("java.lang.Boolean", e.getCategoryClass());
@@ -97,14 +87,18 @@ public class XContentParserUtilsTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-            Long parsedLong = parseTypedKeysObject(parser, delimiter, Long.class, false).get();
+            List<Long> parsedLong = new ArrayList<>();
+            parseTypedKeysObject(parser, delimiter, Long.class, parsedLong);
             assertNotNull(parsedLong);
-            assertEquals(longValue, parsedLong.longValue());
+            assertEquals(1, parsedLong.size());
+            assertEquals(longValue, parsedLong.get(0).longValue());
 
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-            Boolean parsedBoolean = parseTypedKeysObject(parser, delimiter, Boolean.class, false).get();
+            List<Boolean> parsedBoolean = new ArrayList<>();
+            parseTypedKeysObject(parser, delimiter, Boolean.class, parsedBoolean);
             assertNotNull(parsedBoolean);
-            assertEquals(boolValue, parsedBoolean);
+            assertEquals(1, parsedBoolean.size());
+            assertEquals(boolValue, parsedBoolean.get(0));
 
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
         }

@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,9 +30,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
 
 /**
  * Represents a set of {@link Aggregation}s
@@ -134,11 +133,7 @@ public class Aggregations implements Iterable<Aggregation>, ToXContent {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_OBJECT) {
-                Optional<Aggregation> aggregation = XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER,
-                        Aggregation.class, true);
-                if (aggregation.isPresent()) {
-                    aggregations.add(aggregation.get());
-                }
+                parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, aggregations);
             }
         }
         return new Aggregations(aggregations);

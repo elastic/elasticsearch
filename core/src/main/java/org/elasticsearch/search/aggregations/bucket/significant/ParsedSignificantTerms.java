@@ -36,7 +36,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -181,11 +180,7 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
                         bucket.supersetDf = parser.longValue();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    Optional<Aggregation> aggregation = XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER,
-                            Aggregation.class, true);
-                    if (aggregation.isPresent()) {
-                        aggregations.add(aggregation.get());
-                    }
+                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, aggregations);
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

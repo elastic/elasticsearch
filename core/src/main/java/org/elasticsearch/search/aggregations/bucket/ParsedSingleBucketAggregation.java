@@ -29,7 +29,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -84,11 +83,7 @@ public abstract class ParsedSingleBucketAggregation extends ParsedAggregation im
                 if (CommonFields.META.getPreferredName().equals(currentFieldName)) {
                     aggregation.metadata = parser.map();
                 } else {
-                    Optional<Aggregation> innerAggregation = XContentParserUtils.parseTypedKeysObject(parser,
-                            Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, true);
-                    if (innerAggregation.isPresent()) {
-                        aggregations.add(innerAggregation.get());
-                    }
+                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, aggregations);
                 }
             }
         }

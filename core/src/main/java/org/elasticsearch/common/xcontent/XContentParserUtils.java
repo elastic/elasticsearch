@@ -23,11 +23,10 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 /**
@@ -122,30 +121,26 @@ public final class XContentParserUtils {
      * @param parser      the current {@link XContentParser}
      * @param delimiter   the delimiter to use to splits the field's name
      * @param objectClass the object class of the object to parse
+     * @param objects     a list of objects the parsed one will be added to
      * @param <T>         the type of the object to parse
-     * @param lenient     set to <tt>true</tt> if the method should throw a ParsingException in no delimeter was found
      * @return the parsed object
      * @throws IOException if anything went wrong during parsing or if the type or name cannot be derived
      *                     from the field's name
      */
-    public static <T> Optional<T> parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass, boolean lenient)
+    public static <T> void parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass, List<T> objects)
             throws IOException {
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
         String currentFieldName = parser.currentName();
         if (Strings.hasLength(currentFieldName)) {
             int position = currentFieldName.indexOf(delimiter);
             if (position > 0) {
                 String type = currentFieldName.substring(0, position);
                 String name = currentFieldName.substring(position + 1);
-                return Optional.of(parser.namedObject(objectClass, type, name));
+                objects.add(parser.namedObject(objectClass, type, name));
+                return;
             }
         }
-        if (lenient) {
-            parser.skipChildren();
-            return Optional.empty();
-        }
-        throw new ParsingException(parser.getTokenLocation(),
-                "Cannot parse object of class [" + objectClass.getSimpleName() + "] without type information. Set ["
-                        + RestSearchAction.TYPED_KEYS_PARAM
-                        + "] parameter on the request to ensure the type information is added to the response output");
+        // this will only happen when the field name is empty or we don't find a delimiter
+        parser.skipChildren();
     }
 }

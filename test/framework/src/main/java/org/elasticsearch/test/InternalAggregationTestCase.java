@@ -330,7 +330,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             /**
              * - we don't add to the root object because it should only contain the named aggregation to test
              * - we don't want to insert into the "meta" object, because we pass on everything we find there
-             * - we don't want to directly insert anything ranodm into "buckets" objects, they are used with "keyed" aggregations and contain
+             * - we don't want to directly insert anything random into "buckets" objects, they are used with "keyed" aggregations and contain
              *   named bucket objects. Any new named object on this level should also be a bucket and be parsed as such.
              */
             Predicate<String> basicExcludes = path -> path.isEmpty() || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
@@ -345,8 +345,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-
-            parsedAggregation = XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, false).get();
+            List<Aggregation> aggregations = new ArrayList<>();
+            XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, aggregations);
+            parsedAggregation = aggregations.get(0);
 
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());

@@ -314,7 +314,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          */
         for (final ObjectLongCursor<String> cursor : seqNoPrimaryContext.inSyncLocalCheckpoints()) {
             updateLocalCheckpoint(cursor.key, cursor.value);
- ''            assert cursor.value >= globalCheckpoint
+            assert cursor.value >= globalCheckpoint
                     : "local checkpoint [" + cursor.value + "] violates being at least the global checkpoint [" + globalCheckpoint + "]";
             try {
                 markAllocationIdAsInSync(cursor.key, cursor.value);

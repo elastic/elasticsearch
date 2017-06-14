@@ -200,12 +200,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * @return the sequence number primary context
      */
     public SeqNoPrimaryContext seqNoPrimaryContext() {
-        synchronized (globalCheckpointTracker) {
-            final ObjectLongMap<String> inSyncLocalCheckpoints = new ObjectLongHashMap<>(globalCheckpointTracker.inSyncLocalCheckpoints);
-            final ObjectLongMap<String> trackingLocalCheckpoints =
-                    new ObjectLongHashMap<>(globalCheckpointTracker.trackingLocalCheckpoints);
-            return new SeqNoPrimaryContext(inSyncLocalCheckpoints, trackingLocalCheckpoints);
-        }
+        return globalCheckpointTracker.seqNoPrimaryContext();
     }
 
 }

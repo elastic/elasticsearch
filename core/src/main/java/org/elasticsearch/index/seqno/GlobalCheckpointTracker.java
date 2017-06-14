@@ -251,6 +251,17 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     }
 
     /**
+     * Get the sequence number primary context for the shard. This includes the state of the global checkpoint tracker.
+     *
+     * @return the sequence number primary context
+     */
+    synchronized SeqNoPrimaryContext seqNoPrimaryContext() {
+        final ObjectLongMap<String> inSyncLocalCheckpoints = new ObjectLongHashMap<>(this.inSyncLocalCheckpoints);
+        final ObjectLongMap<String> trackingLocalCheckpoints = new ObjectLongHashMap<>(this.trackingLocalCheckpoints);
+        return new SeqNoPrimaryContext(inSyncLocalCheckpoints, trackingLocalCheckpoints);
+    }
+
+    /**
      * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
      *
      * @param seqNoPrimaryContext the sequence number context

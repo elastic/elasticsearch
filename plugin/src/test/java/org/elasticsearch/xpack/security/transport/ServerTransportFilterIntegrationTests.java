@@ -18,6 +18,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.ssl.SSLClientAuth;
@@ -72,6 +73,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
                 .put("transport.profiles.client.bind_host", "localhost")
                 .put("xpack.security.audit.enabled", false)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
                 .build();
     }
@@ -96,6 +98,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("discovery.zen.minimum_master_nodes",
                         internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
                 .put("xpack.security.audit.enabled", false)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put("path.home", home)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
@@ -133,6 +136,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("discovery.zen.minimum_master_nodes",
                         internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
                 .put("xpack.security.audit.enabled", false)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put("discovery.initial_state_timeout", "0s")
                 .put("path.home", home)

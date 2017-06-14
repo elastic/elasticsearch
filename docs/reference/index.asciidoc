@@ -1,4 +1,6 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
+:es-test-dir: {docdir}/../src/test
+
 include::index-shared.asciidoc[]

@@ -103,7 +103,7 @@ public class XToParentBlockJoinQuery extends Query {
     private final BitSetProducer parentsFilter;
     private final ScoreMode scoreMode;
 
-    public BlockJoinWeight(Query joinQuery, Weight childWeight, BitSetProducer parentsFilter, ScoreMode scoreMode) {
+    BlockJoinWeight(Query joinQuery, Weight childWeight, BitSetProducer parentsFilter, ScoreMode scoreMode) {
       super(joinQuery, childWeight);
       this.parentsFilter = parentsFilter;
       this.scoreMode = scoreMode;
@@ -244,7 +244,7 @@ public class XToParentBlockJoinQuery extends Query {
     private float score;
     private int freq;
 
-    public BlockJoinScorer(Weight weight, Scorer childScorer, BitSet parentBits, ScoreMode scoreMode) {
+    BlockJoinScorer(Weight weight, Scorer childScorer, BitSet parentBits, ScoreMode scoreMode) {
       super(weight);
       //System.out.println("Q.init firstChildDoc=" + firstChildDoc);
       this.parentBits = parentBits;
@@ -318,7 +318,9 @@ public class XToParentBlockJoinQuery extends Query {
               score = Math.min(score, childScore);
               break;
             case Max:
+              // BEGIN CHANGE
               score = Math.max(score, childScore);
+              // BEGIN CHANGE
               break;
             case None:
               break;

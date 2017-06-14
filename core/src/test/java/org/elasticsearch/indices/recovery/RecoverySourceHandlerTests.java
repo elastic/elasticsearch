@@ -453,10 +453,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             return null;
         }).when(shard).relocated(any(String.class), any(Runnable.class));
         when(shard.acquireIndexCommit(anyBoolean())).thenReturn(mock(Engine.IndexCommitRef.class));
-        doAnswer(invocationOrMock -> {
-            ((CountDownLatch)invocationOrMock.getArguments()[2]).countDown();
-            return null;
-        }).when(shard).markAllocationIdAsInSync(any(String.class), anyLong(), any(CountDownLatch.class), any(Consumer.class));
 
         final Supplier<Long> currentClusterStateVersionSupplier = () -> {
             assertFalse(ensureClusterStateVersionCalled.get());

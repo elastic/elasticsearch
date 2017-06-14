@@ -5,7 +5,7 @@ The `join` datatype is a special field that creates
 parent/child relation within documents of the same index.
 This field defines a set of possible relations within the documents,
 each relation being a parent name and a child name.
-A single parent/child relation can be defined as follow:
+A parent/child relation can be defined as follow:
 
 [source,js]
 --------------------------------------------------
@@ -26,56 +26,11 @@ PUT my_index
 // CONSOLE
 
 <1> The name for the field
-<2> `my_parent` is parent of `my_child`.
+<2> Defines a single relation where `my_parent` is parent of `my_child`.
 
-It is also possible to define multiple children for a single parent:
-
-[source,js]
---------------------------------------------------
-PUT my_index
-{
-  "mappings": {
-    "doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "my_parent": ["my_child", "another_child"]  <1>
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-
-<1> `my_parent` is parent of `my_child`.
-
-... and multiple levels of parent/child:
-
-[source,js]
---------------------------------------------------
-PUT my_index
-{
-  "mappings": {
-    "doc": {
-      "properties": {
-        "my_join_field": {
-          "type": "join",
-          "my_parent": ["my_child", "another_child"],  <1>
-          "another_child": "grand_child" <2>
-        }
-      }
-    }
-  }
-}
---------------------------------------------------
-// CONSOLE
-
-<1> `my_parent` is parent of `my_child` and `another_child`
-<2> `another_child` is parent of `grand_child
-
-To index a parent `my_parent` document the name of the relation
-must be added to the `_source`:
+To index a document with a join, the name of the relation and the optional parent
+of the document must be provided in the `source`.
+For instance the following creates a parent document in the `my_parent` context:
 
 [source,js]
 --------------------------------------------------
@@ -83,6 +38,12 @@ PUT my_index/doc/1?refresh
 {
   "text": "This is a parent document",
   "my_join_field": "my_parent" <1>
+}
+
+PUT my_index/doc/2?refresh
+{
+  "text": "This is a another parent document",
+  "my_join_field": "my_parent"
 }
 --------------------------------------------------
 // CONSOLE
@@ -92,16 +53,14 @@ PUT my_index/doc/1?refresh
 
 When indexing a child, the name of the relation as well as the parent id of the document
 must be added in the `_source`.
-
-
 It is required to index the lineage of a parent in the same shard so you must
 always route child documents using their greater parent id.
-For instance the following index a child document with a `routing` value
-equals to the `id` of the parent:
+For instance the following index two children documents pointing to the same parent
+with a `routing` value equals to the `id` of the parent:
 
 [source,js]
 --------------------------------------------------
-PUT my_index/doc/2?routing=1&refresh <1>
+PUT my_index/doc/3?routing=1&refresh <1>
 {
   "text": "This is a child document",
   "my_join_field": {
@@ -109,35 +68,24 @@ PUT my_index/doc/2?routing=1&refresh <1>
     "parent": "1" <3>
   }
 }
---------------------------------------------------
-// CONSOLE
-// TEST[continued]
 
-<1> This child document must be on the same shard than its parent
-<2> This is `my_child` document
-<3> The parent id of this child document
-
-Similarly indexing a great child document requires a `routing` value equals
-to the grand-parent (the greater parent of the lineage):
-
-[source,js]
---------------------------------------------------
-PUT my_index/doc/3?routing=1&refresh <1>
+PUT my_index/doc/4?routing=1&refresh <1>
 {
-  "text": "This is a grand child document",
+  "text": "This is a another child document",
   "my_join_field": {
-    "name": "grand_child",
-    "parent": "2" <2>
+    "name": "my_child",
+    "parent": "1"
   }
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-<1> This child document must be on the same shard than its grandparent and parent
-<2> The parent id of this document (must points to an `another_child` document)
+<1> This child document must be on the same shard than its parent
+<2> `my_child` is the name of the join for this document
+<3> The parent id of this child document
 
-==== Parent-child restrictions
+==== Parent-join restrictions
 
 * Only one `join` field is allowed per index mapping.
 * An element can have multiple children but only one parent.
@@ -181,7 +129,7 @@ GET my_index/_search
 {
     ...,
     "hits": {
-        "total": 3,
+        "total": 4,
         "max_score": null,
         "hits": [
             {
@@ -195,7 +143,7 @@ GET my_index/_search
                 },
                 "fields": {
                     "my_join_field": [
-                        "my_parent" <1>
+                        "my_parent"
                     ]
                 },
                 "sort": [
@@ -207,20 +155,13 @@ GET my_index/_search
                 "_type": "doc",
                 "_id": "2",
                 "_score": null,
-                "_routing": "1",
                 "_source": {
-                    "text": "This is a child document",
-                    "my_join_field": {
-                        "name": "my_child",
-                        "parent": "1"
-                    }
+                    "text": "This is a another parent document",
+                    "my_join_field": "my_parent"
                 },
                 "fields": {
                     "my_join_field": [
-                        "my_child"  <2>
-                    ],
-                    "my_join_field#my_parent": [
-                        "1"  <3>
+                        "my_parent"
                     ]
                 },
                 "sort": [
@@ -234,22 +175,47 @@ GET my_index/_search
                 "_score": null,
                 "_routing": "1",
                 "_source": {
-                    "text": "This is a grand child document",
+                    "text": "This is a child document",
                     "my_join_field": {
-                        "name": "grand_child",
-                        "parent": "2"
+                        "name": "my_child",
+                        "parent": "1"
                     }
                 },
                 "fields": {
                     "my_join_field": [
-                        "grand_child" <4>
+                        "my_child"
                     ],
-                    "my_join_field#another_child": [
-                        "2" <5>
+                    "my_join_field#my_parent": [
+                        "1"
                     ]
                 },
                 "sort": [
                     "3"
+                ]
+            },
+            {
+                "_index": "my_index",
+                "_type": "doc",
+                "_id": "4",
+                "_score": null,
+                "_routing": "1",
+                "_source": {
+                    "text": "This is a another child document",
+                    "my_join_field": {
+                        "name": "my_child",
+                        "parent": "1"
+                    }
+                },
+                "fields": {
+                    "my_join_field": [
+                        "my_child"
+                    ],
+                    "my_join_field#my_parent": [
+                        "1"
+                    ]
+                },
+                "sort": [
+                    "4"
                 ]
             }
         ]
@@ -258,11 +224,10 @@ GET my_index/_search
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"timed_out": false, "took": $body.took, "_shards": $body._shards/]
 
-<1> This is a parent document in the `my_parent` context
-<2> This is child document in the `my_child` context
-<3> The linked parent id for the child document
-<4> This is child document in the `grand_child` context
-<5> The linked parent id for the child document
+<1> This document belongs to the `my_parent` join
+<2> This document belongs to the `my_parent` join
+<3> This document belongs to the `my_child` join
+<4> The linked parent id for the child document
 
 ==== Parent-join queries and aggregations
 
@@ -361,3 +326,74 @@ GET _nodes/stats/indices/fielddata?human&fields=my_join_field#my_parent
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+==== Multiple levels of parent join
+
+It is also possible to define multiple children for a single parent:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "doc": {
+      "properties": {
+        "my_join_field": {
+          "type": "join",
+          "my_parent": ["my_child", "another_child"]  <1>
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> `my_parent` is parent of `my_child`.
+
+... and multiple levels of parent/child:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "doc": {
+      "properties": {
+        "my_join_field": {
+          "type": "join",
+          "my_parent": ["my_child", "another_child"],  <1>
+          "another_child": "grand_child" <2>
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+<1> `my_parent` is parent of `my_child` and `another_child`
+<2> `another_child` is parent of `grand_child
+
+Indexing a great child document requires a `routing` value equals
+to the grand-parent (the greater parent of the lineage):
+
+
+[source,js]
+--------------------------------------------------
+PUT my_index/doc/3?routing=1&refresh <1>
+{
+  "text": "This is a grand child document",
+  "my_join_field": {
+    "name": "grand_child",
+    "parent": "2" <2>
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+<1> This child document must be on the same shard than its grandparent and parent
+<2> The parent id of this document (must points to an `another_child` document)
+
+

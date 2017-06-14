@@ -30,6 +30,9 @@ task bwcTest {
 }
 
 for (Version version : wireCompatVersions) {
+  if (project.bwc_tests_enabled == false) {
+    continue
+  }
   String baseName = "v${version}"
 
   Task oldClusterTest = tasks.create(name: "${baseName}#oldClusterTest", type: RestIntegTestTask) {
@@ -95,6 +98,7 @@ for (Version version : wireCompatVersions) {
   }
 
   Task versionBwcTest = tasks.create(name: "${baseName}#bwcTest") {
+    enabled = project.bwc_tests_enabled
     dependsOn = [upgradedClusterTest]
   }
 
@@ -105,7 +109,9 @@ test.enabled = false // no unit tests for rolling upgrades, only the rest integr
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
-  dependsOn = ["v${wireCompatVersions[-1]}#bwcTest"]
+  if (project.bwc_tests_enabled) {
+    dependsOn = ["v${wireCompatVersions[-1]}#bwcTest"]
+  }
 }
 
 check.dependsOn(integTest)

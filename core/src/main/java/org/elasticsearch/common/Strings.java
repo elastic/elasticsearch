@@ -49,14 +49,6 @@ public class Strings {
 
     public static final String[] EMPTY_ARRAY = new String[0];
 
-    private static final String FOLDER_SEPARATOR = "/";
-
-    private static final String WINDOWS_FOLDER_SEPARATOR = "\\";
-
-    private static final String TOP_PATH = "src/test";
-
-    private static final String CURRENT_PATH = ".";
-
     public static void spaceify(int spaces, String from, StringBuilder to) throws Exception {
         try (BufferedReader reader = new BufferedReader(new FastStringReader(from))) {
             String line;

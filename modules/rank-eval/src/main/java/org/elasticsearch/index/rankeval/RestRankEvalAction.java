@@ -150,7 +150,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
  * */
 public class RestRankEvalAction extends BaseRestHandler {
-    //private ScriptService scriptService;
 
     public RestRankEvalAction(Settings settings, RestController controller) {
         super(settings);
@@ -188,5 +187,10 @@ public class RestRankEvalAction extends BaseRestHandler {
         ;
 
         rankEvalRequest.setRankEvalSpec(spec);
+    }
+
+    @Override
+    public String getName() {
+        return "rank_eval_action";
     }
 }

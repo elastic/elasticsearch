@@ -33,12 +33,11 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.template.CompiledTemplate;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -97,10 +96,10 @@ public class TransportRankEvalAction
                 ratedRequests.size());
         Map<String, Exception> errors = new ConcurrentHashMap<>(ratedRequests.size());
 
-        Map<String, CompiledTemplate> scriptsWithoutParams = new HashMap<>();
+        Map<String, TemplateScript.Factory> scriptsWithoutParams = new HashMap<>();
         for (Entry<String, Script> entry : qualityTask.getTemplates().entrySet()) {
             scriptsWithoutParams.put(entry.getKey(),
-                    scriptService.compileTemplate(entry.getValue(), ExecutableScript.CONTEXT));
+                    scriptService.compile(entry.getValue(), TemplateScript.CONTEXT));
         }
 
         for (RatedRequest ratedRequest : ratedRequests) {
@@ -110,8 +109,8 @@ public class TransportRankEvalAction
             if (ratedSearchSource == null) {
                 Map<String, Object> params = ratedRequest.getParams();
                 String templateId = ratedRequest.getTemplateId();
-                CompiledTemplate compiled = scriptsWithoutParams.get(templateId);
-                String resolvedRequest = compiled.run(params);
+                TemplateScript.Factory templateScript = scriptsWithoutParams.get(templateId);
+                String resolvedRequest = templateScript.newInstance(params).execute();
                 try (XContentParser subParser = createParser(namedXContentRegistry, new BytesArray(resolvedRequest),
                         XContentType.JSON)) {
                     QueryParseContext parseContext = new QueryParseContext(subParser);

@@ -273,8 +273,8 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 .setId("1")
                 .setIndex("test")
                 .setSource(
-                        jsonBuilder().startObject().field("test", "value value").startObject("loc").field("lat", 11).field("lon", 21).endObject()
-                                .endObject()));
+                        jsonBuilder().startObject().field("test", "value value").startObject("loc").field("lat", 11).field("lon", 21)
+                                .endObject().endObject()));
         indexBuilders.add(client().prepareIndex()
                 .setType("type1")
                 .setId("2")

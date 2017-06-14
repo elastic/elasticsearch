@@ -312,6 +312,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          *
          * In both cases, no calls to update the local checkpoint for such shards will be made. This case is safe too.
          */
+        assert inSyncLocalCheckpoints.isEmpty() : inSyncLocalCheckpoints;
         for (final ObjectLongCursor<String> cursor : seqNoPrimaryContext.inSyncLocalCheckpoints()) {
             updateLocalCheckpoint(cursor.key, cursor.value);
             assert cursor.value >= globalCheckpoint

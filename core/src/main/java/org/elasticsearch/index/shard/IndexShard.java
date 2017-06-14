@@ -480,6 +480,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
+     * {@link Runnable} is executed after all operations are successfully blocked.
+     *
+     * @param reason    the reason for the relocation
+     * @param onBlocked a {@link Runnable} that is executed after operations are blocked
+     * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
+     * @throws InterruptedException            if blocking operations is interrupted
+     */
     public void relocated(final String reason, final Runnable onBlocked) throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
@@ -491,11 +500,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (state != IndexShardState.STARTED) {
                         throw new IndexShardNotStartedException(shardId, state);
                     }
-                    // if the master cancelled the recovery, the target will be removed
-                    // and the recovery will stopped.
-                    // However, it is still possible that we concurrently end up here
-                    // and therefore have to protect we don't mark the shard as relocated when
-                    // its shard routing says otherwise.
+                    /*
+                     * If the master cancelled recovery, the target will be removed and the recovery will be cancelled. However, it is still
+                     * possible that we concurrently end up here and therefore have to protect that we do not mark the shard as relocated
+                     * when its shard routing says otherwise.
+                     */
                     if (shardRouting.relocating() == false) {
                         throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
                             ": shard is no longer relocating " + shardRouting);

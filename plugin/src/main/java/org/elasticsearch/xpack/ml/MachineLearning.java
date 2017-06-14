@@ -251,15 +251,8 @@ public class MachineLearning implements ActionPlugin {
 
     public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, ThreadPool threadPool,
                                                NamedXContentRegistry xContentRegistry) {
-        if (transportClientMode || tribeNodeClient) {
+        if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
             return emptyList();
-        }
-
-        // Even when ML is disabled the native controller will be running if it's installed, and it
-        // prevents graceful shutdown on Windows unless we tell it to stop.  Hence when disabled we
-        // still return a lifecycle service that will tell the native controller to stop.
-        if (enabled == false || tribeNode) {
-            return Collections.singletonList(new MlLifeCycleService(settings, clusterService));
         }
 
         Auditor auditor = new Auditor(internalClient, clusterService);

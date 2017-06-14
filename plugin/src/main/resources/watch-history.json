@@ -98,11 +98,6 @@
         "state": {
           "type": "keyword"
         },
-        "_status": {
-          "type": "object",
-          "enabled" : false,
-          "dynamic" : true
-        },
         "status": {
           "type": "object",
           "enabled" : false,

@@ -249,15 +249,7 @@ public class WatchTests extends ESTestCase {
         WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), unmodifiableMap(actionsStatuses));
 
         Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
-        XContentBuilder builder = jsonBuilder().startObject()
-                .startObject("trigger").endObject();
-        if (randomBoolean()) {
-            builder.field("_status", watchStatus);
-        } else {
-            builder.field("status", watchStatus);
-        }
-
-        builder.endObject();
+        XContentBuilder builder = jsonBuilder().startObject().startObject("trigger").endObject().field("status", watchStatus).endObject();
         Watch watch = watchParser.parse("foo", true, builder.bytes(), XContentType.JSON);
         assertThat(watch.status().state().getTimestamp().getMillis(), is(clock.millis()));
         for (ActionWrapper action : actions) {

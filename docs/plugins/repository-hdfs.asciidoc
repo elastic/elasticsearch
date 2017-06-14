@@ -76,6 +76,14 @@ The following settings are supported:
     the pattern with the hostname of the node at runtime (see
     link:repository-hdfs-security-runtime[Creating the Secure Repository]).
 
+[[repository-hdfs-availability]]
+[float]
+===== A Note on HDFS Availablility
+When you create a repository, its settings are persisted in the cluster state. When a node comes online, it will
+attempt to create all repositories for which it has settings. If your cluster has an HDFS repository configured, then
+all nodes in the cluster must be able to reach HDFS, even when starting. If not, then the node may fail to create the
+repository at start up. If this happens, you may need to remove and re-add the repository or restart the offending node.
+
 [[repository-hdfs-security]]
 ==== Hadoop Security
 

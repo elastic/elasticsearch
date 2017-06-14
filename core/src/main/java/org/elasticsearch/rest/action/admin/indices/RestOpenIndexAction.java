@@ -40,6 +40,11 @@ public class RestOpenIndexAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "open_index_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(Strings.splitStringByCommaToArray(request.param("index")));
         openIndexRequest.timeout(request.paramAsTime("timeout", openIndexRequest.timeout()));

@@ -30,7 +30,6 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ExplainableSearchScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -78,9 +77,9 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                 public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
                     assert scriptSource.equals("explainable_script");
                     assert context == SearchScript.CONTEXT;
-                    SearchScript.Factory factory = (p, lookup) -> new SearchScript() {
+                    SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
                         @Override
-                        public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+                        public SearchScript newInstance(LeafReaderContext context) throws IOException {
                             return new MyScript(lookup.doc().getLeafDocLookup(context));
                         }
                         @Override
@@ -94,10 +93,11 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         }
     }
 
-    static class MyScript implements ExplainableSearchScript {
+    static class MyScript extends SearchScript implements ExplainableSearchScript {
         LeafDocLookup docLookup;
 
         MyScript(LeafDocLookup docLookup) {
+            super(null, null, null);
             this.docLookup = docLookup;
         }
 

@@ -63,6 +63,11 @@ public class RestNodesInfoAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "nodes_info_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] nodeIds;
         Set<String> metrics;

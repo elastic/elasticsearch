@@ -30,7 +30,6 @@ import org.apache.lucene.index.Term;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.SearchScript;
@@ -60,7 +59,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
             }
             // we use the script "source" as the script identifier
             if ("pure_df".equals(scriptSource)) {
-                SearchScript.Factory factory = (p, lookup) -> new SearchScript() {
+                SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
                     final String field;
                     final String term;
                     {
@@ -75,13 +74,18 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                     }
 
                     @Override
-                    public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+                    public SearchScript newInstance(LeafReaderContext context) throws IOException {
                         PostingsEnum postings = context.reader().postings(new Term(field, term));
                         if (postings == null) {
                             // the field and/or term don't exist in this segment, so always return 0
-                            return () -> 0.0d;
+                            return new SearchScript(p, lookup, context) {
+                                @Override
+                                public double runAsDouble() {
+                                    return 0.0d;
+                                }
+                            };
                         }
-                        return new LeafSearchScript() {
+                        return new SearchScript(p, lookup, context) {
                             int currentDocid = -1;
                             @Override
                             public void setDocument(int docid) {

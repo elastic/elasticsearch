@@ -36,8 +36,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.CheckedFunction;
@@ -325,14 +328,57 @@ public class RestHighLevelClient {
         performRequestAsyncAndParseEntity(searchRequest, Request::search, SearchResponse::fromXContent, listener, emptySet(), headers);
     }
 
-    private <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
+    /**
+     * Executes a search using the Search Scroll api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
+     * API on elastic.co</a>
+     */
+    public SearchResponse searchScroll(SearchScrollRequest searchScrollRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(searchScrollRequest, Request::searchScroll, SearchResponse::fromXContent, emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously executes a search using the Search Scroll api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html">Search Scroll
+     * API on elastic.co</a>
+     */
+    public void searchScrollAsync(SearchScrollRequest searchScrollRequest, ActionListener<SearchResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(searchScrollRequest, Request::searchScroll, SearchResponse::fromXContent,
+                listener, emptySet(), headers);
+    }
+
+    /**
+     * Clears one or more scroll ids using the Clear Scroll api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
+     * Clear Scroll API on elastic.co</a>
+     */
+    public ClearScrollResponse clearScroll(ClearScrollRequest clearScrollRequest, Header... headers) throws IOException {
+        return performRequestAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
+                emptySet(), headers);
+    }
+
+    /**
+     * Asynchronously clears one or more scroll ids using the Clear Scroll api
+     *
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-scroll.html#_clear_scroll_api">
+     * Clear Scroll API on elastic.co</a>
+     */
+    public void clearScrollAsync(ClearScrollRequest clearScrollRequest, ActionListener<ClearScrollResponse> listener, Header... headers) {
+        performRequestAsyncAndParseEntity(clearScrollRequest, Request::clearScroll, ClearScrollResponse::fromXContent,
+                listener, emptySet(), headers);
+    }
+
+    protected <Req extends ActionRequest, Resp> Resp performRequestAndParseEntity(Req request,
                                                                             CheckedFunction<Req, Request, IOException> requestConverter,
                                                                             CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                             Set<Integer> ignores, Header... headers) throws IOException {
         return performRequest(request, requestConverter, (response) -> parseEntity(response.getEntity(), entityParser), ignores, headers);
     }
 
-    <Req extends ActionRequest, Resp> Resp performRequest(Req request,
+    protected <Req extends ActionRequest, Resp> Resp performRequest(Req request,
                                                           CheckedFunction<Req, Request, IOException> requestConverter,
                                                           CheckedFunction<Response, Resp, IOException> responseConverter,
                                                           Set<Integer> ignores, Header... headers) throws IOException {
@@ -354,6 +400,7 @@ public class RestHighLevelClient {
             }
             throw parseResponseException(e);
         }
+
         try {
             return responseConverter.apply(response);
         } catch(Exception e) {
@@ -361,7 +408,7 @@ public class RestHighLevelClient {
         }
     }
 
-    private <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
+    protected <Req extends ActionRequest, Resp> void performRequestAsyncAndParseEntity(Req request,
                                                                  CheckedFunction<Req, Request, IOException> requestConverter,
                                                                  CheckedFunction<XContentParser, Resp, IOException> entityParser,
                                                                  ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {
@@ -369,7 +416,7 @@ public class RestHighLevelClient {
                 listener, ignores, headers);
     }
 
-    <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
+    protected <Req extends ActionRequest, Resp> void performRequestAsync(Req request,
                                                                CheckedFunction<Req, Request, IOException> requestConverter,
                                                                CheckedFunction<Response, Resp, IOException> responseConverter,
                                                                ActionListener<Resp> listener, Set<Integer> ignores, Header... headers) {

@@ -50,3 +50,9 @@ default when a provided wildcard expression doesn't match any closed/open index.
 Delete a document from non-existing index has been modified to not create the index.
 However if an external versioning is used the index will be created and the document
 will be marked for deletion. 
+
+==== Indices aliases api resolves indices expressions only against indices
+
+The index parameter in the update-aliases, put-alias, and delete-alias APIs no
+longer accepts alias names. Instead, it accepts only index names (or wildcards
+which will expand to matching indices).

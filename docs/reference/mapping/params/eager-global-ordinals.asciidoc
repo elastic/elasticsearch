@@ -1,0 +1,74 @@
+[[eager-global-ordinals]]
+=== `eager_global_ordinals`
+
+Global ordinals is a data-structure on top of doc values, that maintains an
+incremental numbering for each unique term in a lexicographic order. Each
+term has a unique number and the number of term 'A' is lower than the
+number of term 'B'. Global ordinals are only supported with
+<<keyword,`keyword`>> and <<text,`text`>> fields. In `keyword` fields, they
+are available by default but `text` fields can only use them when `fielddata`,
+with all of its associated baggage, is enabled.
+
+Doc values (and fielddata) also have ordinals, which is a unique numbering for
+all terms in a particular segment and field. Global ordinals just build on top
+of this, by providing a mapping between the segment ordinals and the global
+ordinals, the latter being unique across the entire shard. Given that global
+ordinals for a specific field are tied to _all the segments of a shard_, they
+need to be entirely rebuilt whenever a once new segment becomes visible.
+
+Global ordinals are used for features that use segment ordinals, such as
+the <<search-aggregations-bucket-terms-aggregation,`terms` aggregation>>,
+to improve the execution time. A terms aggregation relies purely on global
+ordinals to perform the aggregation at the shard level, then converts global
+ordinals to the real term only for the final reduce phase, which combines
+results from different shards.
+
+The loading time of global ordinals depends on the number of terms in a field,
+but in general it is low, since it source field data has already been loaded.
+The memory overhead of global ordinals is a small because it is very
+efficiently compressed.
+
+By default, global ordinals are loaded at search-time, which is the right
+trade-off if you are optimizing for indexing speed. However, if you are more
+interested in search speed, it could be interesting to set
+`eager_global_ordinals: true` on fields that you plan to use in terms
+aggregations:
+
+[source,js]
+------------
+PUT my_index/_mapping/my_type
+{
+  "properties": {
+    "tags": {
+      "type": "keyword",
+      "eager_global_ordinals": true
+    }
+  }
+}
+------------
+// CONSOLE
+// TEST[s/^/PUT my_index\n/]
+
+This will shift the cost from search-time to refresh-time. Elasticsearch will
+make sure that global ordinals are built before publishing updates to the
+content of the index.
+
+If you ever decide that you do not need to run `terms` aggregations on this
+field anymore, then you can disable eager loading of global ordinals at any
+time:
+
+[source,js]
+------------
+PUT my_index/_mapping/my_type
+{
+  "properties": {
+    "tags": {
+      "type": "keyword",
+      "eager_global_ordinals": false
+    }
+  }
+}
+------------
+// CONSOLE
+// TEST[continued]
+

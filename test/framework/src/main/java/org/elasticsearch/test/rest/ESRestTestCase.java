@@ -32,6 +32,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -40,7 +41,6 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
-import javax.net.ssl.SSLContext;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -56,6 +56,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.net.ssl.SSLContext;
+
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
@@ -66,6 +68,7 @@ import static java.util.Collections.unmodifiableList;
 public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
+    public static final String CLIENT_RETRY_TIMEOUT = "client.retry.timeout";
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -262,8 +265,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertBusy(() -> {
             try {
                 Response response = adminClient().performRequest("GET", "_cluster/pending_tasks");
-                List<Object> tasks = (List<Object>) entityAsMap(response).get("tasks");
-                assertTrue(tasks.isEmpty());
+                List<?> tasks = (List<?>) entityAsMap(response).get("tasks");
+                if (false == tasks.isEmpty()) {
+                    StringBuilder message = new StringBuilder("there are still running tasks:");
+                    for (Object task: tasks) {
+                        message.append('\n').append(task.toString());
+                    }
+                    fail(message.toString());
+                }
             } catch (IOException e) {
                 fail("cannot get cluster's pending tasks: " + e.getMessage());
             }
@@ -330,6 +339,12 @@ public abstract class ESRestTestCase extends ESTestCase {
                 defaultHeaders[i++] = new BasicHeader(entry.getKey(), entry.getValue());
             }
             builder.setDefaultHeaders(defaultHeaders);
+        }
+
+        final String requestTimeoutString = settings.get(CLIENT_RETRY_TIMEOUT);
+        if (requestTimeoutString != null) {
+            final TimeValue maxRetryTimeout = TimeValue.parseTimeValue(requestTimeoutString, CLIENT_RETRY_TIMEOUT);
+            builder.setMaxRetryTimeoutMillis(Math.toIntExact(maxRetryTimeout.getMillis()));
         }
         return builder.build();
     }

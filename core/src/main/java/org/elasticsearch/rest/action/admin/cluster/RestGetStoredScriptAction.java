@@ -54,6 +54,11 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "get_stored_scripts_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         String id;
         String lang;
@@ -93,7 +98,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
                     if (lang == null) {
                         builder.startObject(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName());
                         builder.field(StoredScriptSource.LANG_PARSE_FIELD.getPreferredName(), source.getLang());
-                        builder.field(StoredScriptSource.CODE_PARSE_FIELD.getPreferredName(), source.getCode());
+                        builder.field(StoredScriptSource.SOURCE_PARSE_FIELD.getPreferredName(), source.getSource());
 
                         if (source.getOptions().isEmpty() == false) {
                             builder.field(StoredScriptSource.OPTIONS_PARSE_FIELD.getPreferredName(), source.getOptions());
@@ -101,7 +106,7 @@ public class RestGetStoredScriptAction extends BaseRestHandler {
 
                         builder.endObject();
                     } else {
-                        builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName(), source.getCode());
+                        builder.field(StoredScriptSource.SCRIPT_PARSE_FIELD.getPreferredName(), source.getSource());
                     }
                 }
 

@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -37,29 +38,35 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
     private List<Tuple<BytesRef, BytesRef>> ranges;
 
     @Override
+    protected int minNumberOfBuckets() {
+        return 1;
+    }
+
+    @Override
     public void setUp() throws Exception {
         super.setUp();
 
-        final int numRanges = randomIntBetween(1, 10);
-        ranges = new ArrayList<>(numRanges);
+        List<Tuple<BytesRef, BytesRef>> listOfRanges = new ArrayList<>();
+        if (randomBoolean()) {
+            listOfRanges.add(Tuple.tuple(null, new BytesRef(randomAlphaOfLength(15))));
+        }
+        if (randomBoolean()) {
+            listOfRanges.add(Tuple.tuple(new BytesRef(randomAlphaOfLength(15)), null));
+        }
+        if (randomBoolean()) {
+            listOfRanges.add(Tuple.tuple(null, null));
+        }
 
+        final int numRanges = Math.max(0, randomNumberOfBuckets() - listOfRanges.size());
         for (int i = 0; i < numRanges; i++) {
             BytesRef[] values = new BytesRef[2];
             values[0] = new BytesRef(randomAlphaOfLength(15));
             values[1] = new BytesRef(randomAlphaOfLength(15));
             Arrays.sort(values);
-            ranges.add(Tuple.tuple(values[0], values[1]));
+            listOfRanges.add(Tuple.tuple(values[0], values[1]));
         }
-
-        if (randomBoolean()) {
-            ranges.add(Tuple.tuple(null, new BytesRef(randomAlphaOfLength(15))));
-        }
-        if (randomBoolean()) {
-            ranges.add(Tuple.tuple(new BytesRef(randomAlphaOfLength(15)), null));
-        }
-        if (randomBoolean()) {
-            ranges.add(Tuple.tuple(null, null));
-        }
+        Collections.shuffle(listOfRanges, random());
+        ranges = Collections.unmodifiableList(listOfRanges);
     }
 
     @Override

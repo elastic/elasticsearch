@@ -132,7 +132,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         ), indexService.mapperService()).build(indexService.mapperService());
 
         String builtMapping = builderDocMapper.mappingSource().string();
-//        System.out.println(builtMapping);
         // reparse it
         DocumentMapper docMapper = indexService.mapperService().documentMapperParser().parse("person", new CompressedXContent(builtMapping));
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -30,8 +31,10 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SearchHitsTests extends ESTestCase {
@@ -42,7 +45,7 @@ public class SearchHitsTests extends ESTestCase {
         for (int i = 0; i < searchHits; i++) {
             hits[i] = SearchHitTests.createTestItem(false); // creating random innerHits could create loops
         }
-        long totalHits = randomLong();
+        long totalHits = frequently() ? TestUtil.nextLong(random(), 0, Long.MAX_VALUE) : -1;
         float maxScore = frequently() ? randomFloat() : Float.NaN;
         return new SearchHits(hits, totalHits, maxScore);
     }
@@ -54,12 +57,45 @@ public class SearchHitsTests extends ESTestCase {
         BytesReference originalBytes = toShuffledXContent(searchHits, xcontentType, ToXContent.EMPTY_PARAMS, humanReadable);
         SearchHits parsed;
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(SearchHits.Fields.HITS, parser.currentName());
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = SearchHits.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xcontentType, humanReadable), xcontentType);
+    }
+
+    /**
+     * This test adds randomized fields on all json objects and checks that we
+     * can parse it to ensure the parsing is lenient for forward compatibility.
+     * We need to exclude json objects with the "highlight" and "fields" field
+     * name since these objects allow arbitrary keys (the field names that are
+     * queries). Also we want to exclude to add anything under "_source" since
+     * it is not parsed.
+     */
+    public void testFromXContentLenientParsing() throws IOException {
+        SearchHits searchHits = createTestItem();
+        XContentType xcontentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toXContent(searchHits, xcontentType, ToXContent.EMPTY_PARAMS, true);
+        Predicate<String> pathsToExclude = path -> (path.isEmpty() || path.endsWith("highlight") || path.endsWith("fields")
+                || path.contains("_source"));
+        BytesReference withRandomFields = insertRandomFields(xcontentType, originalBytes, pathsToExclude, random());
+        SearchHits parsed = null;
+        try (XContentParser parser = createParser(xcontentType.xContent(), withRandomFields)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(SearchHits.Fields.HITS, parser.currentName());
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsed = SearchHits.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xcontentType, true), xcontentType);
     }
 
     public void testToXContent() throws IOException {

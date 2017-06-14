@@ -18,7 +18,7 @@
           body:
             script:
               lang:   painless
-              inline: "ctx._source.foo = params.bar"
+              source: "ctx._source.foo = params.bar"
               params: { bar: 'xxx' }
 
   - match: { _index:   test_1 }
@@ -43,7 +43,7 @@
           body:
             script:
               lang:   painless
-              inline: "ctx._source.foo = 'yyy'"
+              source: "ctx._source.foo = 'yyy'"
 
   - match: { _index:   test_1 }
   - match: { _type:    test   }
@@ -67,7 +67,7 @@
           body:
             script:
               lang:   painless
-              inline: "ctx._source.missing_length = ctx._source.missing?.length()"
+              source: "ctx._source.missing_length = ctx._source.missing?.length()"
 
   - match: { _index:   test_1 }
   - match: { _type:    test   }
@@ -93,7 +93,7 @@
           body:
             script:
               lang:   painless
-              inline: "ctx._source.foo_length = ctx._source.foo?.length()"
+              source: "ctx._source.foo_length = ctx._source.foo?.length()"
 
   - match: { _index:   test_1 }
   - match: { _type:    test   }
@@ -132,7 +132,7 @@
           body:
             script:
               lang:   painless
-              inline: "for (def key : params.keySet()) { ctx._source[key] = params[key]}"
+              source: "for (def key : params.keySet()) { ctx._source[key] = params[key]}"
               params: { bar: 'xxx' }
 
   - match: { error.root_cause.0.type: "remote_transport_exception" }

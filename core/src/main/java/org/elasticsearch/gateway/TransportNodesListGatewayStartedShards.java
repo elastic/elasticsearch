@@ -172,11 +172,6 @@ public class TransportNodesListGatewayStartedShards extends
         }
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
-
     public static class Request extends BaseNodesRequest<Request> {
 
         private ShardId shardId;

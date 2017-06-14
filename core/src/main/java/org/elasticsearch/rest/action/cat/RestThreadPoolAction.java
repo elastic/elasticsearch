@@ -58,6 +58,11 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_threadpool_action";
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/thread_pool\n");
         sb.append("/_cat/thread_pool/{thread_pools}\n");

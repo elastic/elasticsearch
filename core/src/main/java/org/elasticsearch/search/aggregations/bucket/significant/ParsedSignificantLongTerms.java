@@ -39,9 +39,7 @@ public class ParsedSignificantLongTerms extends ParsedSignificantTerms {
     }
 
     public static ParsedSignificantLongTerms fromXContent(XContentParser parser, String name) throws IOException {
-        ParsedSignificantLongTerms aggregation = PARSER.parse(parser, null);
-        aggregation.setName(name);
-        return aggregation;
+        return parseSignificantTermsXContent(() -> PARSER.parse(parser, null), name);
     }
 
     public static class ParsedBucket extends ParsedSignificantTerms.ParsedBucket {

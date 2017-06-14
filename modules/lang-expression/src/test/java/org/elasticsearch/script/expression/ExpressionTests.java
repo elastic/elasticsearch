@@ -41,9 +41,9 @@ public class ExpressionTests extends ESSingleNodeTestCase {
         lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
     }
 
-    private SearchScript compile(String expression) {
+    private SearchScript.LeafFactory compile(String expression) {
         SearchScript.Factory factory = service.compile(null, expression, SearchScript.CONTEXT, Collections.emptyMap());
-        return factory.newInstance(Collections.emptyMap(), lookup);
+        return factory.newFactory(Collections.emptyMap(), lookup);
     }
 
     public void testNeedsScores() {

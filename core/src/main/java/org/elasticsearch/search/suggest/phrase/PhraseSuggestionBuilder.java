@@ -41,6 +41,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
@@ -630,9 +631,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         }
 
         if (this.collateQuery != null) {
-            Function<Map<String, Object>, ExecutableScript> compiledScript = context.getLazyExecutableScript(this.collateQuery,
-                ExecutableScript.CONTEXT);
-            suggestionContext.setCollateQueryScript(compiledScript);
+            TemplateScript.Factory scriptFactory = context.getScriptService().compile(this.collateQuery, TemplateScript.CONTEXT);
+            suggestionContext.setCollateQueryScript(scriptFactory);
             if (this.collateParams != null) {
                 suggestionContext.setCollateScriptParams(this.collateParams);
             }

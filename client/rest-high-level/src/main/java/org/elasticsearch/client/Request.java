@@ -33,7 +33,9 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
@@ -63,7 +65,7 @@ import java.util.StringJoiner;
 
 final class Request {
 
-    private static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
+    static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
     final String method;
     final String endpoint;
@@ -338,6 +340,16 @@ final class Request {
         return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), entity);
     }
 
+    static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
+        HttpEntity entity = createEntity(searchScrollRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request("GET", "/_search/scroll", Collections.emptyMap(), entity);
+    }
+
+    static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
+        HttpEntity entity = createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
+    }
+
     private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
         return new ByteArrayEntity(source.bytes, source.offset, source.length, ContentType.create(xContentType.mediaType()));
@@ -483,7 +495,7 @@ final class Request {
             return this;
         }
 
-        Params withIndicesOptions (IndicesOptions indicesOptions) {
+        Params withIndicesOptions(IndicesOptions indicesOptions) {
             putParam("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));
             putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
             String expandWildcards;

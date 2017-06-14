@@ -51,6 +51,11 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "get_search_template_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
 
@@ -69,7 +74,7 @@ public class RestGetSearchTemplateAction extends BaseRestHandler {
                 builder.field(FOUND_PARSE_FIELD.getPreferredName(), found);
 
                 if (found) {
-                    builder.field(StoredScriptSource.TEMPLATE_PARSE_FIELD.getPreferredName(), source.getCode());
+                    builder.field(StoredScriptSource.TEMPLATE_PARSE_FIELD.getPreferredName(), source.getSource());
                 }
 
                 builder.endObject();

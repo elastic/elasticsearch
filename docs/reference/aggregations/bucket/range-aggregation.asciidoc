@@ -136,7 +136,7 @@ It is also possible to customize the key for each range:
             "range" : {
                 "script" : {
                     "lang": "painless",
-                    "inline": "doc['price'].value"
+                    "source": "doc['price'].value"
                 },
                 "ranges" : [
                     { "to" : 50 },
@@ -158,7 +158,7 @@ This will interpret the `script` parameter as an `inline` script with the `painl
         "price_ranges" : {
             "range" : {
                 "script" : {
-                    "stored": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "price"
                     }
@@ -187,7 +187,7 @@ Lets say the product prices are in USD but we would like to get the price ranges
                 "field" : "price",
                 "script" : {
                     "lang": "painless",
-                    "inline": "_value * params.conversion_rate",
+                    "source": "_value * params.conversion_rate",
                     "params" : {
                         "conversion_rate" : 0.8
                     }

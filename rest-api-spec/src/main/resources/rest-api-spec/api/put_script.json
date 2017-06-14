@@ -18,6 +18,10 @@
         }
       },
       "params" : {
+        "context": {
+          "type" : "string",
+          "description" : "Context name to compile script against"
+        }
       }
     },
     "body": {

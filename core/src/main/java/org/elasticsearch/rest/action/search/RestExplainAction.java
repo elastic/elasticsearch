@@ -55,6 +55,11 @@ public class RestExplainAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "explain_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("type"), request.param("id"));
         explainRequest.parent(request.param("parent"));

@@ -85,6 +85,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -309,7 +310,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public ScrollQuerySearchResult executeQueryPhase(InternalScrollSearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
         try {
@@ -333,7 +334,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public QuerySearchResult executeQueryPhase(QuerySearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         context.setTask(task);
         IndexShard indexShard = context.indexShard();
         SearchOperationListener operationListener = indexShard.getSearchOperationListener();
@@ -374,7 +375,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public ScrollQueryFetchSearchResult executeFetchPhase(InternalScrollSearchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         context.incRef();
         try {
             context.setTask(task);
@@ -405,7 +406,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public FetchSearchResult executeFetchPhase(ShardFetchRequest request, SearchTask task) {
-        final SearchContext context = findContext(request.id());
+        final SearchContext context = findContext(request.id(), request);
         final SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         context.incRef();
         try {
@@ -435,7 +436,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    private SearchContext findContext(long id) throws SearchContextMissingException {
+    private SearchContext findContext(long id, TransportRequest request) throws SearchContextMissingException {
         SearchContext context = activeContexts.get(id);
         if (context == null) {
             throw new SearchContextMissingException(id);
@@ -443,7 +444,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         SearchOperationListener operationListener = context.indexShard().getSearchOperationListener();
         try {
-            operationListener.validateSearchContext(context);
+            operationListener.validateSearchContext(context, request);
             return context;
         } catch (Exception e) {
             processFailure(context, e);
@@ -634,6 +635,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         context.trackScores(source.trackScores());
+        if (source.trackTotalHits() == false && context.scrollContext() != null) {
+            throw new SearchContextException(context, "disabling [track_total_hits] is not allowed in a scroll context");
+        }
+        context.trackTotalHits(source.trackTotalHits());
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
         }
@@ -689,7 +694,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.scriptFields() != null) {
             for (org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField field : source.scriptFields()) {
                 SearchScript.Factory factory = scriptService.compile(field.script(), SearchScript.CONTEXT);
-                SearchScript searchScript = factory.newInstance(field.script().getParams(), context.lookup());
+                SearchScript.LeafFactory searchScript = factory.newFactory(field.script().getParams(), context.lookup());
                 context.scriptFields().add(new ScriptField(field.fieldName(), searchScript, field.ignoreFailure()));
             }
         }

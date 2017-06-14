@@ -33,7 +33,7 @@
                 script_fields:
                     field:
                         script:
-                            inline: "doc['binary'].get(0).utf8ToString()"
+                            source: "doc['binary'].get(0).utf8ToString()"
     - match: { hits.hits.0.fields.field.0: "Some binary blob" }
 
     - do:
@@ -42,6 +42,6 @@
                 script_fields:
                     field:
                         script:
-                            inline: "doc['binary'].value.utf8ToString()"
+                            source: "doc['binary'].value.utf8ToString()"
     - match: { hits.hits.0.fields.field.0: "Some binary blob" }
 

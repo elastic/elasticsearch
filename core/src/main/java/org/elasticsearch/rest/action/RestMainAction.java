@@ -45,6 +45,11 @@ public class RestMainAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "main_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         return channel -> client.execute(MainAction.INSTANCE, new MainRequest(), new RestBuilderListener<MainResponse>(channel) {
             @Override

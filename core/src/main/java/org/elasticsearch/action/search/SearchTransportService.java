@@ -98,14 +98,14 @@ public class SearchTransportService extends AbstractComponent {
             }, SearchFreeContextResponse::new));
     }
 
-    public void sendFreeContext(DiscoveryNode node, long contextId, final ActionListener<SearchFreeContextResponse> listener) {
-        transportService.sendRequest(node, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
-            new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
+    public void sendFreeContext(Transport.Connection connection, long contextId, final ActionListener<SearchFreeContextResponse> listener) {
+        transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
     }
 
-    public void sendClearAllScrollContexts(DiscoveryNode node, final ActionListener<TransportResponse> listener) {
-        transportService.sendRequest(node, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, TransportRequest.Empty.INSTANCE,
-            new ActionListenerResponseHandler<>(listener, () -> TransportResponse.Empty.INSTANCE));
+    public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
+        transportService.sendRequest(connection, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, TransportRequest.Empty.INSTANCE,
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, () -> TransportResponse.Empty.INSTANCE));
     }
 
     public void sendExecuteDfs(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
@@ -145,15 +145,15 @@ public class SearchTransportService extends AbstractComponent {
             new ActionListenerResponseHandler<>(listener, QuerySearchResult::new));
     }
 
-    public void sendExecuteScrollQuery(DiscoveryNode node, final InternalScrollSearchRequest request, SearchTask task,
+    public void sendExecuteScrollQuery(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
                                        final SearchActionListener<ScrollQuerySearchResult> listener) {
-        transportService.sendChildRequest(transportService.getConnection(node), QUERY_SCROLL_ACTION_NAME, request, task,
+        transportService.sendChildRequest(connection, QUERY_SCROLL_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, ScrollQuerySearchResult::new));
     }
 
-    public void sendExecuteScrollFetch(DiscoveryNode node, final InternalScrollSearchRequest request, SearchTask task,
+    public void sendExecuteScrollFetch(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
                                        final SearchActionListener<ScrollQueryFetchSearchResult> listener) {
-        transportService.sendChildRequest(transportService.getConnection(node), QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
+        transportService.sendChildRequest(connection, QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, ScrollQueryFetchSearchResult::new));
     }
 
@@ -162,9 +162,9 @@ public class SearchTransportService extends AbstractComponent {
         sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);
     }
 
-    public void sendExecuteFetchScroll(DiscoveryNode node, final ShardFetchRequest request, SearchTask task,
+    public void sendExecuteFetchScroll(Transport.Connection connection, final ShardFetchRequest request, SearchTask task,
                                        final SearchActionListener<FetchSearchResult> listener) {
-        sendExecuteFetch(transportService.getConnection(node), FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
+        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
     }
 
     private void sendExecuteFetch(Transport.Connection connection, String action, final ShardFetchRequest request, SearchTask task,

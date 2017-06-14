@@ -35,8 +35,6 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
-import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
-import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -74,6 +72,7 @@ public final class AnalysisRegistry implements Closeable {
                             Map<String, AnalysisProvider<TokenizerFactory>> tokenizers,
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers,
                             Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers,
+                            Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
                             Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
                             Map<String, PreConfiguredTokenizer> preConfiguredTokenizers) {
         this.environment = environment;
@@ -82,7 +81,7 @@ public final class AnalysisRegistry implements Closeable {
         this.tokenizers = unmodifiableMap(tokenizers);
         this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
-        prebuiltAnalysis = new PrebuiltAnalysis(preConfiguredTokenFilters, preConfiguredTokenizers);
+        prebuiltAnalysis = new PrebuiltAnalysis(preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers);
     }
 
     /**
@@ -180,7 +179,7 @@ public final class AnalysisRegistry implements Closeable {
 
     public Map<String, CharFilterFactory> buildCharFilterFactories(IndexSettings indexSettings) throws IOException {
         final Map<String, Settings> charFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_CHAR_FILTER);
-        return buildMapping(Component.CHAR_FILTER, indexSettings, charFiltersSettings, charFilters, prebuiltAnalysis.charFilterFactories);
+        return buildMapping(Component.CHAR_FILTER, indexSettings, charFiltersSettings, charFilters, prebuiltAnalysis.preConfiguredCharFilterFactories);
     }
 
     public Map<String, AnalyzerProvider<?>> buildAnalyzerFactories(IndexSettings indexSettings) throws IOException {
@@ -397,13 +396,13 @@ public final class AnalysisRegistry implements Closeable {
         final Map<String, AnalysisModule.AnalysisProvider<AnalyzerProvider<?>>> analyzerProviderFactories;
         final Map<String, ? extends AnalysisProvider<TokenFilterFactory>> preConfiguredTokenFilters;
         final Map<String, ? extends AnalysisProvider<TokenizerFactory>> preConfiguredTokenizers;
-        final Map<String, AnalysisModule.AnalysisProvider<CharFilterFactory>> charFilterFactories;
+        final Map<String, ? extends AnalysisProvider<CharFilterFactory>> preConfiguredCharFilterFactories;
 
         private PrebuiltAnalysis(
+                Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
                 Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
                 Map<String, PreConfiguredTokenizer> preConfiguredTokenizers) {
             Map<String, PreBuiltAnalyzerProviderFactory> analyzerProviderFactories = new HashMap<>();
-            Map<String, PreBuiltCharFilterFactoryFactory> charFilterFactories = new HashMap<>();
 
             // Analyzers
             for (PreBuiltAnalyzers preBuiltAnalyzerEnum : PreBuiltAnalyzers.values()) {
@@ -411,22 +410,14 @@ public final class AnalysisRegistry implements Closeable {
                 analyzerProviderFactories.put(name, new PreBuiltAnalyzerProviderFactory(name, AnalyzerScope.INDICES, preBuiltAnalyzerEnum.getAnalyzer(Version.CURRENT)));
             }
 
-            // Char Filters
-            for (PreBuiltCharFilters preBuiltCharFilter : PreBuiltCharFilters.values()) {
-                String name = preBuiltCharFilter.name().toLowerCase(Locale.ROOT);
-                charFilterFactories.put(name, new PreBuiltCharFilterFactoryFactory(preBuiltCharFilter.getCharFilterFactory(Version.CURRENT)));
-            }
-            // Char filter aliases
-            charFilterFactories.put("htmlStrip", new PreBuiltCharFilterFactoryFactory(PreBuiltCharFilters.HTML_STRIP.getCharFilterFactory(Version.CURRENT)));
-
             this.analyzerProviderFactories = Collections.unmodifiableMap(analyzerProviderFactories);
-            this.charFilterFactories = Collections.unmodifiableMap(charFilterFactories);
+            this.preConfiguredCharFilterFactories = preConfiguredCharFilters;
             this.preConfiguredTokenFilters = preConfiguredTokenFilters;
             this.preConfiguredTokenizers = preConfiguredTokenizers;
         }
 
         public AnalysisModule.AnalysisProvider<CharFilterFactory> getCharFilterFactory(String name) {
-            return charFilterFactories.get(name);
+            return preConfiguredCharFilterFactories.get(name);
         }
 
         public AnalysisModule.AnalysisProvider<TokenFilterFactory> getTokenFilterFactory(String name) {

@@ -34,6 +34,70 @@
     - match:  { tokens.0.token: foo bar! }
 
 ---
+"porterstem":
+    - do:
+        indices.analyze:
+          body:
+            text:      This is troubled
+            tokenizer: standard
+            filter:    [porter_stem]
+    - length: { tokens: 3 }
+    - match:  { tokens.2.token: troubl }
+    - match:  { tokens.2.position: 2 }
+
+---
+"keywordmarker":
+    - do:
+        indices.analyze:
+          body:
+            text:      This is troubled
+            tokenizer: standard
+            filter:
+              - type: keyword_marker
+                keywords: troubled
+              - type: porter_stem
+    - length: { tokens: 3 }
+    - match:  { tokens.2.token: troubled }
+    - match:  { tokens.2.position: 2 }
+
+---
+"snowball":
+    - do:
+        indices.analyze:
+          body:
+            text:      This is troubled
+            tokenizer: standard
+            filter:    [snowball]
+    - length: { tokens: 3 }
+    - match:  { tokens.2.token: troubl }
+    - match:  { tokens.2.position: 2 }
+
+    - do:
+        indices.analyze:
+          body:
+            explain:   true
+            text:      This is troubled
+            tokenizer: standard
+            filter:    [snowball]
+    - length: { detail.tokenfilters.0.tokens: 3 }
+    - match:  { detail.tokenfilters.0.tokens.2.token: troubl }
+    - match:  { detail.tokenfilters.0.tokens.2.position: 2 }
+    - is_true: detail.tokenfilters.0.tokens.2.bytes
+    - match: { detail.tokenfilters.0.tokens.2.positionLength: 1 }
+    - match: { detail.tokenfilters.0.tokens.2.keyword: false }
+
+---
+"trim":
+    - do:
+        indices.analyze:
+          body:
+            text:      Foo Bar !
+            tokenizer: keyword
+            filter:    [trim]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: Foo Bar !  }
+
+---
 "word_delimiter":
     - do:
         indices.analyze:

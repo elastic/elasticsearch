@@ -477,7 +477,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     case FAILURE:
                         final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
                         assert failure.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO : "seq no must be assigned";
-                        operationResult = executeFailureNoOpOnReplica(failure, replica);
+                        operationResult = executeFailureNoOpOnReplica(failure, primaryTerm, replica);
                         assert operationResult != null : "operation result must never be null when primary response has no failure";
                         location = syncOperationResultOrThrow(operationResult, location);
                         break;
@@ -673,9 +673,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return replica.delete(delete);
     }
 
-    private static Engine.NoOpResult executeFailureNoOpOnReplica(BulkItemResponse.Failure primaryFailure, IndexShard replica) throws IOException {
-        final Engine.NoOp noOp = replica.prepareMarkingSeqNoAsNoOp(
-                primaryFailure.getSeqNo(), primaryFailure.getMessage());
+    private static Engine.NoOpResult executeFailureNoOpOnReplica(BulkItemResponse.Failure primaryFailure, long primaryTerm,
+                                                                 IndexShard replica) throws IOException {
+        final Engine.NoOp noOp = replica.prepareMarkingSeqNoAsNoOpOnReplica(
+                primaryFailure.getSeqNo(), primaryTerm, primaryFailure.getMessage());
         return replica.markSeqNoAsNoOp(noOp);
     }
 

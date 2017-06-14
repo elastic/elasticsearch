@@ -81,4 +81,12 @@ public class SeqNoPrimaryContext implements Writeable {
         }
     }
 
+    @Override
+    public String toString() {
+        return "SeqNoPrimaryContext{" +
+                "inSyncLocalCheckpoints=" + inSyncLocalCheckpoints +
+                ", trackingLocalCheckpoints=" + trackingLocalCheckpoints +
+                '}';
+    }
+
 }

@@ -61,4 +61,10 @@ public class PrimaryContext implements Writeable {
         seqNoPrimaryContext.writeTo(out);
     }
 
+    @Override
+    public String toString() {
+        return "PrimaryContext{" +
+                "seqNoPrimaryContext=" + seqNoPrimaryContext +
+                '}';
+    }
 }

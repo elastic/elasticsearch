@@ -84,4 +84,12 @@ public class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
         primaryContext.writeTo(out);
     }
 
+    @Override
+    public String toString() {
+        return "RecoveryHandoffPrimaryContextRequest{" +
+                "recoveryId=" + recoveryId +
+                ", shardId=" + shardId +
+                ", primaryContext=" + primaryContext +
+                '}';
+    }
 }

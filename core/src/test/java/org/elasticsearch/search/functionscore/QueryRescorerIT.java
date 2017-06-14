@@ -294,8 +294,8 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits().length, equalTo(4));
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().getMaxScore(), equalTo(searchResponse.getHits().getHits()[0].getScore()));
-        assertFirstHit(searchResponse, hasId("6"));
-        assertSecondHit(searchResponse, hasId("1"));
+        assertFirstHit(searchResponse, hasId("1"));
+        assertSecondHit(searchResponse, hasId("6"));
         assertThirdHit(searchResponse, hasId("3"));
         assertFourthHit(searchResponse, hasId("2"));
     }

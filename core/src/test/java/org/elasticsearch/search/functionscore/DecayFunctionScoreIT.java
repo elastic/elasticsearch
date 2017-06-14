@@ -273,14 +273,14 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
                 .setId("1")
                 .setIndex("test")
                 .setSource(
-                        jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 11).field("lon", 21).endObject()
+                        jsonBuilder().startObject().field("test", "value value").startObject("loc").field("lat", 11).field("lon", 21).endObject()
                                 .endObject()));
         indexBuilders.add(client().prepareIndex()
                 .setType("type1")
                 .setId("2")
                 .setIndex("test")
                 .setSource(
-                        jsonBuilder().startObject().field("test", "value value").startObject("loc").field("lat", 11).field("lon", 20)
+                        jsonBuilder().startObject().field("test", "value").startObject("loc").field("lat", 11).field("lon", 20)
                                 .endObject().endObject()));
         indexRandom(true, false, indexBuilders); // force no dummy docs
 
@@ -297,10 +297,19 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         SearchResponse sr = response.actionGet();
         SearchHits sh = sr.getHits();
         assertThat(sh.getTotalHits(), equalTo((long) (2)));
-        assertThat(sh.getAt(0).getId(), isOneOf("1"));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
         assertThat(sh.getAt(1).getId(), equalTo("2"));
 
         // Test Exp
+        response = client().search(
+                searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
+                        searchSource().query(termQuery("test", "value"))));
+        sr = response.actionGet();
+        sh = sr.getHits();
+        assertThat(sh.getTotalHits(), equalTo((long) (2)));
+        assertThat(sh.getAt(0).getId(), equalTo("1"));
+        assertThat(sh.getAt(1).getId(), equalTo("2"));
+
         response = client().search(
                 searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().query(

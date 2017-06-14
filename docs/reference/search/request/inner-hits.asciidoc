@@ -137,26 +137,26 @@ An example of a response snippet that could be generated from the above search r
   ...,
   "hits": {
     "total": 1,
-    "max_score": 0.9651416,
+    "max_score": 1.0444683,
     "hits": [
       {
         "_index": "test",
         "_type": "doc",
         "_id": "1",
-        "_score": 0.9651416,
+        "_score": 1.0444683,
         "_source": ...,
         "inner_hits": {
           "comments": { <1>
             "hits": {
               "total": 1,
-              "max_score": 0.9651416,
+              "max_score": 1.0444683,
               "hits": [
                 {
                   "_nested": {
                     "field": "comments",
                     "offset": 1
                   },
-                  "_score": 0.9651416,
+                  "_score": 1.0444683,
                   "_source": {
                     "author": "nik9000",
                     "text": "words words words"
@@ -263,26 +263,26 @@ Response not included in text but tested for completeness sake.
   ...,
   "hits": {
     "total": 1,
-    "max_score": 0.9651416,
+    "max_score": 1.0444683,
     "hits": [
       {
         "_index": "test",
         "_type": "doc",
         "_id": "1",
-        "_score": 0.9651416,
+        "_score": 1.0444683,
         "_source": ...,
         "inner_hits": {
           "comments": { <1>
             "hits": {
               "total": 1,
-              "max_score": 0.9651416,
+              "max_score": 1.0444683,
               "hits": [
                 {
                   "_nested": {
                     "field": "comments",
                     "offset": 1
                   },
-                  "_score": 0.9651416,
+                  "_score": 1.0444683,
                   "fields": {
                     "comments.text": [
                       "words words words"

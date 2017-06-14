@@ -1,4 +1,3 @@
-[role="xpack"]
 [[xpack-api]]
 = {xpack} APIs
 
@@ -7,14 +6,13 @@
 {xpack} exposes a wide range of REST APIs to manage and monitor its features.
 
 * <<info-api, Info API>>
-//* <<security-api, Security APIs>>
-//* <<watcher-api, Watcher APIs>>
-//* <<graph-api, Graph APIs>>
-//* <<ml-apis, Machine Learning APIs>>
-//* <<ml-api-definitions, Definitions>>
+* <<security-api, Security APIs>>
+* <<watcher-api, Watcher APIs>>
+* <<graph-api, Graph APIs>>
+* <<ml-apis, Machine Learning APIs>>
+* <<ml-api-definitions, Definitions>>
 --
 
-[role="xpack"]
 [[info-api]]
 == Info API
 
@@ -115,10 +113,10 @@ GET /_xpack?human=false
 ------------------------------------------------------------
 // CONSOLE
 
-//include::security.asciidoc[]
+include::security.asciidoc[]
 
-//include::watcher.asciidoc[]
+include::watcher.asciidoc[]
 
-//include::graph.asciidoc[]
-//include::ml-api.asciidoc[]
-//include::defs.asciidoc[]
+include::graph.asciidoc[]
+include::ml-api.asciidoc[]
+include::defs.asciidoc[]

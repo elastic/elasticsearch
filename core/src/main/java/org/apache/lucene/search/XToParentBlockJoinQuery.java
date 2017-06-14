@@ -66,7 +66,6 @@ import org.apache.lucene.util.BitSet;
  * <p>See {@link org.apache.lucene.search.join} for an
  * overview. </p>
  *
- * @lucene.experimental
  */
 public class XToParentBlockJoinQuery extends Query {
 

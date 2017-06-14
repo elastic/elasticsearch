@@ -3,7 +3,6 @@ setup:
      cluster.health:
         wait_for_status: yellow
         wait_for_nodes: 2
-        timeout: 25s
 
 ---
 "Test old cluster datafeed":

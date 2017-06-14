@@ -7,7 +7,6 @@ setup:
         # replicas, for example monitoring-data-*.
         wait_for_status: yellow
         wait_for_nodes: 2
-        timeout: 25s
 
 ---
 "Index data and search on the mixed cluster":

@@ -1,12 +1,6 @@
 ---
 "Create user and role":
   - do:
-     cluster.health:
-        wait_for_status: green
-        wait_for_nodes: 2
-        timeout: 25s
-
-  - do:
      xpack.security.put_user:
        username: "native_user"
        body:  >
@@ -50,7 +44,6 @@
       cluster.health:
         index: ".security"
         wait_for_active_shards: 2 # 1 primary and 1 replica since we have two nodes
-        timeout: 25s
 
 ---
 "default password migration":

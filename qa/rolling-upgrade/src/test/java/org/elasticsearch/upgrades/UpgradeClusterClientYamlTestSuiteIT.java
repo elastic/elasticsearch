@@ -13,6 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
@@ -86,6 +87,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends SecurityClusterClientYa
         String token = "Basic " + Base64.getEncoder().encodeToString("elastic:changeme".getBytes(StandardCharsets.UTF_8));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
+                // we increase the timeout here to 90 seconds to handle long waits for a green
+                // cluster health. the waits for green need to be longer than a minute to
+                // account for delayed shards
+                .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "90s")
+                .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
                 .build();
     }
 

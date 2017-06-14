@@ -4,7 +4,8 @@
      cluster.health:
         wait_for_status: green
         wait_for_nodes: 2
-        timeout: 25s
+        # wait for long enough that we give delayed unassigned shards to stop being delayed
+        timeout: 70s
         level: shards
 
  - do:

@@ -27,22 +27,16 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-
-import static org.elasticsearch.common.Strings.cleanPath;
 
 /**
  * The environment of where things exists.
@@ -100,14 +94,14 @@ public class Environment {
     public Environment(Settings settings) {
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
-            homeFile = PathUtils.get(cleanPath(PATH_HOME_SETTING.get(settings)));
+            homeFile = PathUtils.get(PATH_HOME_SETTING.get(settings)).normalize();
         } else {
             throw new IllegalStateException(PATH_HOME_SETTING.getKey() + " is not configured");
         }
 
         // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
         if (PATH_CONF_SETTING.exists(settings) || DEFAULT_PATH_CONF_SETTING.exists(settings)) {
-            configFile = PathUtils.get(cleanPath(PATH_CONF_SETTING.get(settings)));
+            configFile = PathUtils.get(PATH_CONF_SETTING.get(settings)).normalize();
         } else {
             configFile = homeFile.resolve("config");
         }
@@ -128,7 +122,7 @@ public class Environment {
             dataWithClusterFiles = new Path[]{homeFile.resolve("data").resolve(clusterName.value())};
         }
         if (PATH_SHARED_DATA_SETTING.exists(settings)) {
-            sharedDataFile = PathUtils.get(cleanPath(PATH_SHARED_DATA_SETTING.get(settings)));
+            sharedDataFile = PathUtils.get(PATH_SHARED_DATA_SETTING.get(settings)).normalize();
         } else {
             sharedDataFile = null;
         }
@@ -144,13 +138,13 @@ public class Environment {
 
         // this is trappy, Setting#get(Settings) will get a fallback setting yet return false for Settings#exists(Settings)
         if (PATH_LOGS_SETTING.exists(settings) || DEFAULT_PATH_LOGS_SETTING.exists(settings)) {
-            logsFile = PathUtils.get(cleanPath(PATH_LOGS_SETTING.get(settings)));
+            logsFile = PathUtils.get(PATH_LOGS_SETTING.get(settings)).normalize();
         } else {
             logsFile = homeFile.resolve("logs");
         }
 
         if (PIDFILE_SETTING.exists(settings)) {
-            pidFile = PathUtils.get(cleanPath(PIDFILE_SETTING.get(settings)));
+            pidFile = PathUtils.get(PIDFILE_SETTING.get(settings)).normalize();
         } else {
             pidFile = null;
         }

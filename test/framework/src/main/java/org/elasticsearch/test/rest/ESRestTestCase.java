@@ -32,6 +32,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -67,6 +68,8 @@ import static java.util.Collections.unmodifiableList;
 public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
+    public static final String CLIENT_RETRY_TIMEOUT = "client.retry.timeout";
+    public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
 
     /**
      * Convert the entity from a {@link Response} into a map of maps.
@@ -337,6 +340,17 @@ public abstract class ESRestTestCase extends ESTestCase {
                 defaultHeaders[i++] = new BasicHeader(entry.getKey(), entry.getValue());
             }
             builder.setDefaultHeaders(defaultHeaders);
+        }
+
+        final String requestTimeoutString = settings.get(CLIENT_RETRY_TIMEOUT);
+        if (requestTimeoutString != null) {
+            final TimeValue maxRetryTimeout = TimeValue.parseTimeValue(requestTimeoutString, CLIENT_RETRY_TIMEOUT);
+            builder.setMaxRetryTimeoutMillis(Math.toIntExact(maxRetryTimeout.getMillis()));
+        }
+        final String socketTimeoutString = settings.get(CLIENT_SOCKET_TIMEOUT);
+        if (socketTimeoutString != null) {
+            final TimeValue socketTimeout = TimeValue.parseTimeValue(socketTimeoutString, CLIENT_SOCKET_TIMEOUT);
+            builder.setRequestConfigCallback(conf -> conf.setSocketTimeout(Math.toIntExact(socketTimeout.getMillis())));
         }
         return builder.build();
     }

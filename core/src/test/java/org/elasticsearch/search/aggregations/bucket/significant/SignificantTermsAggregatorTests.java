@@ -107,24 +107,14 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                                                    // single segment with
                                                    // predictable docIds
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
-            for (int i = 0; i < 10; i++) {
-                Document doc = new Document();
-                StringBuilder text = new StringBuilder("common ");
-                if (i % 2 == 0) {
-                    text.append("odd ");
-                } else {
-                    text.append("even ");
-                }
-
-                doc.add(new Field("text", text.toString(), textFieldType));
-                String json = "{ \"text\" : \"" + text.toString() + "\" }";
-                doc.add(new StoredField("_source", new BytesRef(json)));
-
-                w.addDocument(doc);
-            }
+            addMixedTextDocs(textFieldType, w);
 
             SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text", null).field("text");
             sigAgg.executionHint(randomExecutionHint());
+            if (randomBoolean()) {
+                // Use a background filter which just happens to be same scope as whole-index.
+                sigAgg.backgroundFilter(QueryBuilders.termsQuery("text",  "common"));
+            }
 
             SignificantTermsAggregationBuilder sigNumAgg = new SignificantTermsAggregationBuilder("sig_number", null).field("long_field");
             sigNumAgg.executionHint(randomExecutionHint());
@@ -159,6 +149,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 String evenStrings[] = new String[] {"even", "regular"};
                 
                 sigAgg.includeExclude(new IncludeExclude(oddStrings, evenStrings));
+                sigAgg.significanceHeuristic(SignificanceHeuristicTests.getRandomSignificanceheuristic());
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
                 assertNotNull(terms.getBucketByKey("odd"));
                 assertNull(terms.getBucketByKey("weird"));
@@ -237,6 +228,60 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             }
         }
     }
+    
+    /**
+     * Uses the significant terms aggregation on an index with unmapped field
+     */
+    public void testUnmapped() throws IOException {
+        TextFieldType textFieldType = new TextFieldType();
+        textFieldType.setName("text");
+        textFieldType.setFielddata(true);
+        textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
+
+        IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
+        indexWriterConfig.setMaxBufferedDocs(100);
+        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a
+                                                   // single segment with
+                                                   // predictable docIds
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
+            addMixedTextDocs(textFieldType, w);
+
+            // Attempt aggregation on unmapped field
+            SignificantTermsAggregationBuilder sigAgg = new SignificantTermsAggregationBuilder("sig_text", null).field("unmapped_field");
+            sigAgg.executionHint(randomExecutionHint());
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                assertEquals("test expects a single segment", 1, reader.leaves().size());
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                // Search "odd"
+                SignificantTerms terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
+
+                assertNull(terms.getBucketByKey("even"));
+                assertNull(terms.getBucketByKey("common"));
+                assertNull(terms.getBucketByKey("odd"));
+
+            }
+        }
+    }  
+
+    private void addMixedTextDocs(TextFieldType textFieldType, IndexWriter w) throws IOException {
+        for (int i = 0; i < 10; i++) {
+            Document doc = new Document();
+            StringBuilder text = new StringBuilder("common ");
+            if (i % 2 == 0) {
+                text.append("odd ");
+            } else {
+                text.append("even ");
+            }
+
+            doc.add(new Field("text", text.toString(), textFieldType));
+            String json = "{ \"text\" : \"" + text.toString() + "\" }";
+            doc.add(new StoredField("_source", new BytesRef(json)));
+
+            w.addDocument(doc);
+        }
+    }    
 
     private void addFields(Document doc, List<Field> createFields) {
         for (Field field : createFields) {

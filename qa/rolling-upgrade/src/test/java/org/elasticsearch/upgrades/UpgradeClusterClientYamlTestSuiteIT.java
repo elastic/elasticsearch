@@ -55,6 +55,7 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
             // increase the timeout so that we can actually see the result of failed cluster health
             // calls that have a default timeout of 30s
             .put(ESRestTestCase.CLIENT_RETRY_TIMEOUT, "40s")
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "40s")
             .build();
     }
 }

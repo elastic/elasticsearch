@@ -349,6 +349,9 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start non ml node, but that will hold the indices
         logger.info("Start non ml node:");
+        internalCluster().startNode(Settings.builder()
+                .put("node.data", true)
+                .put(MachineLearning.ML_ENABLED.getKey(), false));
         ensureStableCluster(1);
         logger.info("Starting ml node");
         String mlNode = internalCluster().startNode(Settings.builder()

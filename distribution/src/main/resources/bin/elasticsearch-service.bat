@@ -38,13 +38,13 @@ if errorlevel 1 (
 
 if errorlevel 1 goto x86
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
-set SERVICE_ID=elasticsearch-service-x64
+if "%SERVICE_ID%" == "" set SERVICE_ID=elasticsearch-service-x64
 set ARCH=64-bit
 goto checkExe
 
 :x86
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x86.exe
-set SERVICE_ID=elasticsearch-service-x86
+if "%SERVICE_ID%" == "" set SERVICE_ID=elasticsearch-service-x86
 set ARCH=32-bit
 
 :checkExe

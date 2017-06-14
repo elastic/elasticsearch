@@ -27,7 +27,6 @@ versions << [
 ]
 
 dependencies {
-  compile "commons-io:commons-io:${versions.commonsio}"
   compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
   compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"

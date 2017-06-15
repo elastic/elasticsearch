@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.ElectMasterService;
@@ -37,7 +36,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.test.disruption.NetworkDisruption;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDelay;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -161,12 +159,9 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
 
         internalCluster().stopRandomNonMasterNode();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
-            }
+        assertBusy(() -> {
+            ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            assertThat(state1.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
         });
 
         logger.info("--> starting the previous master node again...");
@@ -408,12 +403,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         latch.await();
 
         assertThat(failure.get(), instanceOf(Discovery.FailedToCommitClusterStateException.class));
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(masterClusterService.state().nodes().getMasterNode(), nullValue());
-            }
-        });
+        assertBusy(() -> assertThat(masterClusterService.state().nodes().getMasterNode(), nullValue()));
 
         partition.stopDisrupting();
 

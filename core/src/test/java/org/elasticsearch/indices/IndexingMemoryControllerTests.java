@@ -406,14 +406,11 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         imc.forceCheck();
 
         // We must assertBusy because the writeIndexingBufferAsync is done in background (REFRESH) thread pool:
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try (Engine.Searcher s2 = shard.acquireSearcher("index")) {
-                    // 100 buffered deletes will easily exceed our 1 KB indexing buffer so it should trigger a write:
-                    final long indexingBufferBytes2 = shard.getIndexBufferRAMBytesUsed();
-                    assertTrue(indexingBufferBytes2 < indexingBufferBytes1);
-                }
+        assertBusy(() -> {
+            try (Engine.Searcher s2 = shard.acquireSearcher("index")) {
+                // 100 buffered deletes will easily exceed our 1 KB indexing buffer so it should trigger a write:
+                final long indexingBufferBytes2 = shard.getIndexBufferRAMBytesUsed();
+                assertTrue(indexingBufferBytes2 < indexingBufferBytes1);
             }
         });
     }

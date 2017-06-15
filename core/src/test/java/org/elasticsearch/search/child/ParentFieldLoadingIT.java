@@ -30,9 +30,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -131,25 +131,22 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
                 .get();
         assertAcked(putMappingResponse);
         Index test = resolveIndex("test");
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterState clusterState = internalCluster().clusterService().state();
-                ShardRouting shardRouting = clusterState.routingTable().index("test").shard(0).getShards().get(0);
-                String nodeName = clusterState.getNodes().get(shardRouting.currentNodeId()).getName();
+        assertBusy(() -> {
+            ClusterState clusterState = internalCluster().clusterService().state();
+            ShardRouting shardRouting = clusterState.routingTable().index("test").shard(0).getShards().get(0);
+            String nodeName = clusterState.getNodes().get(shardRouting.currentNodeId()).getName();
 
-                boolean verified = false;
-                IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-                IndexService indexService = indicesService.indexService(test);
-                if (indexService != null) {
-                    MapperService mapperService = indexService.mapperService();
-                    DocumentMapper documentMapper = mapperService.documentMapper("child");
-                    if (documentMapper != null) {
-                        verified = documentMapper.parentFieldMapper().fieldType().eagerGlobalOrdinals();
-                    }
+            boolean verified = false;
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+            IndexService indexService = indicesService.indexService(test);
+            if (indexService != null) {
+                MapperService mapperService = indexService.mapperService();
+                DocumentMapper documentMapper = mapperService.documentMapper("child");
+                if (documentMapper != null) {
+                    verified = documentMapper.parentFieldMapper().fieldType().eagerGlobalOrdinals();
                 }
-                assertTrue(verified);
             }
+            assertTrue(verified);
         });
 
         // Need to add a new doc otherwise the refresh doesn't trigger a new searcher

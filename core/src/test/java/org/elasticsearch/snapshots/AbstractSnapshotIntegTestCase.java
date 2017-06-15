@@ -189,18 +189,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void assertBusyPendingTasks(final String taskPrefix, final int expectedCount) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                PendingClusterTasksResponse tasks = client().admin().cluster().preparePendingClusterTasks().get();
-                int count = 0;
-                for(PendingClusterTask task : tasks) {
-                    if (task.getSource().toString().startsWith(taskPrefix)) {
-                        count++;
-                    }
+        assertBusy(() -> {
+            PendingClusterTasksResponse tasks = client().admin().cluster().preparePendingClusterTasks().get();
+            int count = 0;
+            for(PendingClusterTask task : tasks) {
+                if (task.getSource().toString().startsWith(taskPrefix)) {
+                    count++;
                 }
-                assertThat(count, greaterThanOrEqualTo(expectedCount));
             }
+            assertThat(count, greaterThanOrEqualTo(expectedCount));
         }, 1, TimeUnit.MINUTES);
     }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteResponse;
@@ -632,16 +631,13 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         final String node3 = internalCluster().startNode(nodeSettings);
         nodes.add(node3);
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
-                ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-                RoutingNodes nodes = resp.getState().getRoutingNodes();
-                for (RoutingNode node : nodes) {
-                    logger.info("--> node has {} shards (needs at least 2)", node.numberOfOwningShards());
-                    assertThat("at least 2 shards on node", node.numberOfOwningShards(), greaterThanOrEqualTo(2));
-                }
+        assertBusy(() -> {
+            client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
+            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+            RoutingNodes nodes1 = resp.getState().getRoutingNodes();
+            for (RoutingNode node : nodes1) {
+                logger.info("--> node has {} shards (needs at least 2)", node.numberOfOwningShards());
+                assertThat("at least 2 shards on node", node.numberOfOwningShards(), greaterThanOrEqualTo(2));
             }
         });
         ensureYellow(IDX);
@@ -693,16 +689,13 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     /** wait until none of the nodes have shards allocated on them */
     private void assertNoShardsOn(final List<String> nodeList) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-                RoutingNodes nodes = resp.getState().getRoutingNodes();
-                for (RoutingNode node : nodes) {
-                    logger.info("--> node {} has {} shards", node.node().getName(), node.numberOfOwningShards());
-                    if (nodeList.contains(node.node().getName())) {
-                        assertThat("no shards on node", node.numberOfOwningShards(), equalTo(0));
-                    }
+        assertBusy(() -> {
+            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+            RoutingNodes nodes = resp.getState().getRoutingNodes();
+            for (RoutingNode node : nodes) {
+                logger.info("--> node {} has {} shards", node.node().getName(), node.numberOfOwningShards());
+                if (nodeList.contains(node.node().getName())) {
+                    assertThat("no shards on node", node.numberOfOwningShards(), equalTo(0));
                 }
             }
         }, 1, TimeUnit.MINUTES);
@@ -710,16 +703,13 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     /** wait until the node has the specified number of shards allocated on it */
     private void assertShardCountOn(final String nodeName, final int shardCount) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-                RoutingNodes nodes = resp.getState().getRoutingNodes();
-                for (RoutingNode node : nodes) {
-                    logger.info("--> node {} has {} shards", node.node().getName(), node.numberOfOwningShards());
-                    if (nodeName.equals(node.node().getName())) {
-                        assertThat(node.numberOfOwningShards(), equalTo(shardCount));
-                    }
+        assertBusy(() -> {
+            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+            RoutingNodes nodes = resp.getState().getRoutingNodes();
+            for (RoutingNode node : nodes) {
+                logger.info("--> node {} has {} shards", node.node().getName(), node.numberOfOwningShards());
+                if (nodeName.equals(node.node().getName())) {
+                    assertThat(node.numberOfOwningShards(), equalTo(shardCount));
                 }
             }
         }, 1, TimeUnit.MINUTES);

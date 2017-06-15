@@ -265,17 +265,13 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         logger.info("--> waiting for recovery to start both on source and target");
         final Index index = resolveIndex(INDEX_NAME);
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-
-                IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeA);
-                assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsSource(),
-                        equalTo(1));
-                indicesService = internalCluster().getInstance(IndicesService.class, nodeB);
-                assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsTarget(),
-                        equalTo(1));
-            }
+        assertBusy(() -> {
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeA);
+            assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsSource(),
+                    equalTo(1));
+            indicesService = internalCluster().getInstance(IndicesService.class, nodeB);
+            assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsTarget(),
+                    equalTo(1));
         });
 
         logger.info("--> request recoveries");
@@ -314,19 +310,16 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         logger.info("--> checking throttling increases");
         final long finalNodeAThrottling = nodeAThrottling;
         final long finalNodeBThrottling = nodeBThrottling;
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
-                assertThat(statsResponse.getNodes(), hasSize(2));
-                for (NodeStats nodeStats : statsResponse.getNodes()) {
-                    final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
-                    if (nodeStats.getNode().getName().equals(nodeA)) {
-                        assertThat("node A throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeAThrottling));
-                    }
-                    if (nodeStats.getNode().getName().equals(nodeB)) {
-                        assertThat("node B throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeBThrottling));
-                    }
+        assertBusy(() -> {
+            NodesStatsResponse statsResponse1 = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
+            assertThat(statsResponse1.getNodes(), hasSize(2));
+            for (NodeStats nodeStats : statsResponse1.getNodes()) {
+                final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
+                if (nodeStats.getNode().getName().equals(nodeA)) {
+                    assertThat("node A throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeAThrottling));
+                }
+                if (nodeStats.getNode().getName().equals(nodeB)) {
+                    assertThat("node B throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeBThrottling));
                 }
             }
         });

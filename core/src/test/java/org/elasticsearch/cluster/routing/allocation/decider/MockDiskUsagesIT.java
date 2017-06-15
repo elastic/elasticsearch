@@ -57,12 +57,9 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         List<String> nodes = internalCluster().startNodes(3);
 
         // Wait for all 3 nodes to be up
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().get();
-                assertThat(resp.getNodes().size(), equalTo(3));
-            }
+        assertBusy(() -> {
+            NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().get();
+            assertThat(resp.getNodes().size(), equalTo(3));
         });
 
         // Start with all nodes at 50% usage
@@ -86,13 +83,10 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         ensureGreen("test");
 
         // Block until the "fake" cluster info is retrieved at least once
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterInfo info = cis.getClusterInfo();
-                logger.info("--> got: {} nodes", info.getNodeLeastAvailableDiskUsages().size());
-                assertThat(info.getNodeLeastAvailableDiskUsages().size(), greaterThan(0));
-            }
+        assertBusy(() -> {
+            ClusterInfo info = cis.getClusterInfo();
+            logger.info("--> got: {} nodes", info.getNodeLeastAvailableDiskUsages().size());
+            assertThat(info.getNodeLeastAvailableDiskUsages().size(), greaterThan(0));
         });
 
         final List<String> realNodeNames = new ArrayList<>();
@@ -113,21 +107,18 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // Retrieve the count of shards on each node
         final Map<String, Integer> nodesToShardCount = new HashMap<>();
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-                Iterator<RoutingNode> iter = resp.getState().getRoutingNodes().iterator();
-                while (iter.hasNext()) {
-                    RoutingNode node = iter.next();
-                    logger.info("--> node {} has {} shards",
-                            node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-                    nodesToShardCount.put(node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-                }
-                assertThat("node1 has 5 shards", nodesToShardCount.get(realNodeNames.get(0)), equalTo(5));
-                assertThat("node2 has 5 shards", nodesToShardCount.get(realNodeNames.get(1)), equalTo(5));
-                assertThat("node3 has 0 shards", nodesToShardCount.get(realNodeNames.get(2)), equalTo(0));
+        assertBusy(() -> {
+            ClusterStateResponse resp12 = client().admin().cluster().prepareState().get();
+            Iterator<RoutingNode> iter12 = resp12.getState().getRoutingNodes().iterator();
+            while (iter12.hasNext()) {
+                RoutingNode node = iter12.next();
+                logger.info("--> node {} has {} shards",
+                        node.nodeId(), resp12.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
+                nodesToShardCount.put(node.nodeId(), resp12.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
             }
+            assertThat("node1 has 5 shards", nodesToShardCount.get(realNodeNames.get(0)), equalTo(5));
+            assertThat("node2 has 5 shards", nodesToShardCount.get(realNodeNames.get(1)), equalTo(5));
+            assertThat("node3 has 0 shards", nodesToShardCount.get(realNodeNames.get(2)), equalTo(0));
         });
 
         // Update the disk usages so one node is now back under the high watermark
@@ -138,21 +129,18 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // Retrieve the count of shards on each node
         nodesToShardCount.clear();
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-                Iterator<RoutingNode> iter = resp.getState().getRoutingNodes().iterator();
-                while (iter.hasNext()) {
-                    RoutingNode node = iter.next();
-                    logger.info("--> node {} has {} shards",
-                            node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-                    nodesToShardCount.put(node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-                }
-                assertThat("node1 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(0)), greaterThanOrEqualTo(3));
-                assertThat("node2 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(1)), greaterThanOrEqualTo(3));
-                assertThat("node3 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(2)), greaterThanOrEqualTo(3));
+        assertBusy(() -> {
+            ClusterStateResponse resp1 = client().admin().cluster().prepareState().get();
+            Iterator<RoutingNode> iter1 = resp1.getState().getRoutingNodes().iterator();
+            while (iter1.hasNext()) {
+                RoutingNode node = iter1.next();
+                logger.info("--> node {} has {} shards",
+                        node.nodeId(), resp1.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
+                nodesToShardCount.put(node.nodeId(), resp1.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
             }
+            assertThat("node1 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(0)), greaterThanOrEqualTo(3));
+            assertThat("node2 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(1)), greaterThanOrEqualTo(3));
+            assertThat("node3 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(2)), greaterThanOrEqualTo(3));
         });
     }
 }

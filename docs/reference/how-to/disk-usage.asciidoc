@@ -158,3 +158,27 @@ on disk usage. In particular, integers should be stored using an integer type
 stored in a `scaled_float` if appropriate or in the smallest type that fits the
 use-case: using `float` over `double`, or `half_float` over `float` will help
 save storage.
+
+[float]
+=== Use index sorting to colocate similar documents
+
+Elasticsearch compresses multiple documents at once in order to improve the
+overall compression ratio. For instance it is very common that documents share
+the same field names, and quite common that they share some field values,
+especially on fields that have a low cardinality or a zipfian distribution.
+
+Documents that are compressed together are documents that are colocated in the
+index, which is something that can be controled using
+<<index-modules-index-sorting,index sorting>>. For instance, say you are
+storing tweets and users in the same index. Then sorting by document type
+(tweet / user) will make it much more likely to compress whole blocks of
+documents that only contain tweets or users. And this will improve the
+compression ratio since those documents from the same type usually have the
+same structure.
+
+[float]
+=== Put fields in the same order in documents
+
+Due to the fact that multiple documents are compressed together into blocks,
+it is more likely to find longer duplicate strings in those `_source` documents
+if fields always occur in the same order.

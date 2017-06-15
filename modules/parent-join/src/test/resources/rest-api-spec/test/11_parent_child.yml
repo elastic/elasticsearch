@@ -10,7 +10,8 @@ setup:
                 properties:
                   join_field:
                     type: join
-                    parent: child
+                    relations:
+                      parent: child
 
 ---
 "Parent/child inner hits":

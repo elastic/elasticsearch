@@ -8,7 +8,7 @@ setup:
           mappings:
             doc:
               properties:
-                join_field: { "type": "join", "parent": "child", "child": "grand_child" }
+                join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
 
   - do:
       index:
@@ -107,8 +107,8 @@ setup:
 ---
 "Test parent_id query":
     - skip:
-        version: " - 5.99.99"
-        reason:  parent-join was added in 6.0
+        version: " - 5.5.99"
+        reason:  parent-join was added in 5.6.
 
     - do:
         search:

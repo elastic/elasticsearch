@@ -59,6 +59,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasParentQuery;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -88,16 +89,38 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
-        mapperService.merge(TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(TYPE,
-                "join_field", "type=join," + PARENT_DOC + "=" + CHILD_DOC,
-                STRING_FIELD_NAME, "type=text",
-                STRING_FIELD_NAME_2, "type=keyword",
-                INT_FIELD_NAME, "type=integer",
-                DOUBLE_FIELD_NAME, "type=double",
-                BOOLEAN_FIELD_NAME, "type=boolean",
-                DATE_FIELD_NAME, "type=date",
-                OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
+            .startObject("join_field")
+                .field("type", "join")
+                .startObject("relations")
+                    .field(PARENT_DOC, CHILD_DOC)
+                .endObject()
+            .endObject()
+            .startObject(STRING_FIELD_NAME)
+                .field("type", "text")
+            .endObject()
+                .startObject(STRING_FIELD_NAME_2)
+            .field("type", "keyword")
+            .endObject()
+            .startObject(INT_FIELD_NAME)
+                .field("type", "integer")
+            .endObject()
+            .startObject(DOUBLE_FIELD_NAME)
+                .field("type", "double")
+            .endObject()
+            .startObject(BOOLEAN_FIELD_NAME)
+                .field("type", "boolean")
+            .endObject()
+            .startObject(DATE_FIELD_NAME)
+                .field("type", "date")
+            .endObject()
+            .startObject(OBJECT_FIELD_NAME)
+                .field("type", "object")
+            .endObject()
+            .endObject().endObject().endObject();
+
+        mapperService.merge(TYPE,
+            new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     /**

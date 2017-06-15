@@ -99,7 +99,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         XContentBuilder mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
             .startObject("join_field")
                 .field("type", "join")
-                .startObject("relation")
+                .startObject("relations")
                     .field(PARENT_DOC, CHILD_DOC)
                 .endObject()
             .endObject()

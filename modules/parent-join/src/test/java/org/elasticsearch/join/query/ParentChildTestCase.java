@@ -101,7 +101,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
                 relationMap.put(relations[i], children[0]);
             }
         }
-        joinField.put("relation", relationMap);
+        joinField.put("relations", relationMap);
         fields.put(joinFieldName, joinField);
         return Collections.singletonMap("properties", fields);
     }

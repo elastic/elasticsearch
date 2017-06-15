@@ -184,8 +184,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                     iterator.remove();
                     continue;
                 }
-                if ("relation".equals(entry.getKey())) {
-                    Map<String, Object> relations = XContentMapValues.nodeMapValue(entry.getValue(), "relation");
+                if ("relations".equals(entry.getKey())) {
+                    Map<String, Object> relations = XContentMapValues.nodeMapValue(entry.getValue(), "relations");
                     for (Iterator<Map.Entry<String, Object>> relIt = relations.entrySet().iterator(); relIt.hasNext(); ) {
                         Map.Entry<String, Object> relation = relIt.next();
                         final String parent = relation.getKey();
@@ -435,7 +435,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
         builder.field("eager_global_ordinals", eagerGlobalOrdinals);
-        builder.startObject("relation");
+        builder.startObject("relations");
         for (ParentIdFieldMapper field : parentIdFields) {
             if (field.getChildren().size() == 1) {
                 builder.field(field.getParentName(), field.getChildren().iterator().next());

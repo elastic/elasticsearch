@@ -76,7 +76,7 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
         XContentBuilder mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
             .startObject("join_field")
                 .field("type", "join")
-                .startObject("relation")
+                .startObject("relations")
                     .field("parent", "child")
                 .endObject()
             .endObject()

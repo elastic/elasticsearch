@@ -87,7 +87,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         XContentBuilder mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
             .startObject("join_field")
                 .field("type", "join")
-                .startObject("relation")
+                .startObject("relations")
                     .field(PARENT_DOC, CHILD_DOC)
                 .endObject()
             .endObject()

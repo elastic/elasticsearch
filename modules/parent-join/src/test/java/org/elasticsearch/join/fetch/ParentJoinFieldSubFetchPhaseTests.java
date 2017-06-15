@@ -49,7 +49,7 @@ public class ParentJoinFieldSubFetchPhaseTests extends ESSingleNodeTestCase {
             .startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
-                    .startObject("relation")
+                    .startObject("relations")
                         .field("parent", "child")
                         .field("child", "grand_child")
                         .field("product", "item")

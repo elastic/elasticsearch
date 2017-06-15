@@ -32,10 +32,10 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -63,6 +63,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -95,17 +96,42 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         similarity = randomFrom("classic", "BM25");
-        mapperService.merge(TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(TYPE,
-                "join_field", "type=join," + PARENT_DOC + "=" + CHILD_DOC,
-                STRING_FIELD_NAME, "type=text",
-                STRING_FIELD_NAME_2, "type=keyword",
-                "custom_string", "type=text,similarity=" + similarity,
-                INT_FIELD_NAME, "type=integer",
-                DOUBLE_FIELD_NAME, "type=double",
-                BOOLEAN_FIELD_NAME, "type=boolean",
-                DATE_FIELD_NAME, "type=date",
-                OBJECT_FIELD_NAME, "type=object"
-        ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("doc").startObject("properties")
+            .startObject("join_field")
+                .field("type", "join")
+                .startObject("relation")
+                    .field(PARENT_DOC, CHILD_DOC)
+                .endObject()
+            .endObject()
+            .startObject(STRING_FIELD_NAME)
+                .field("type", "text")
+            .endObject()
+            .startObject(STRING_FIELD_NAME_2)
+                .field("type", "keyword")
+            .endObject()
+            .startObject(INT_FIELD_NAME)
+                .field("type", "integer")
+            .endObject()
+            .startObject(DOUBLE_FIELD_NAME)
+                .field("type", "double")
+            .endObject()
+            .startObject(BOOLEAN_FIELD_NAME)
+            .field("type", "boolean")
+            .endObject()
+            .startObject(DATE_FIELD_NAME)
+                .field("type", "date")
+            .endObject()
+            .startObject(OBJECT_FIELD_NAME)
+                .field("type", "object")
+            .endObject()
+            .startObject("custom_string")
+                .field("type", "text")
+                .field("similarity", similarity)
+            .endObject()
+            .endObject().endObject().endObject();
+
+        mapperService.merge(TYPE,
+            new CompressedXContent(mapping.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
     }
 
     /**

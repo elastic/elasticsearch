@@ -8,7 +8,7 @@ setup:
           mappings:
             doc:
               properties:
-                join_field: { "type": "join", "parent": "child", "child": "grand_child" }
+                join_field: { "type": "join", "relation": { "parent": "child", "child": "grand_child" } }
 
   - do:
       index:

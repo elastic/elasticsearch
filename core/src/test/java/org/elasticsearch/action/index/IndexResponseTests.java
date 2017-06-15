@@ -33,9 +33,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.action.support.replication.ReplicationResponseTests.assertShardInfo;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class IndexResponseTests extends ESTestCase {
 
@@ -57,16 +59,40 @@ public class IndexResponseTests extends ESTestCase {
     }
 
     public void testToAndFromXContent() throws IOException {
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    /**
+     * This test adds random fields and objects to the xContent rendered out to
+     * ensure we can parse it back to be forward compatible with additions to
+     * the xContent
+     */
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         final Tuple<IndexResponse, IndexResponse> tuple = randomIndexResponse();
         IndexResponse indexResponse = tuple.v1();
         IndexResponse expectedIndexResponse = tuple.v2();
 
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
-        BytesReference indexResponseBytes = toShuffledXContent(indexResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(indexResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
+        BytesReference mutated;
+        if (addRandomFields) {
+            // The ShardInfo.Failure's exception is rendered out in a "reason" object. We shouldn't add anything random there
+            // because exception rendering and parsing are very permissive: any extra object or field would be rendered as
+            // a exception custom metadata and be parsed back as a custom header, making it impossible to compare the results
+            // in this test.
+            Predicate<String> excludeFilter = path -> path.contains("reason");
+            mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+        } else {
+            mutated = originalBytes;
+        }
         IndexResponse parsedIndexResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), indexResponseBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             parsedIndexResponse = IndexResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }

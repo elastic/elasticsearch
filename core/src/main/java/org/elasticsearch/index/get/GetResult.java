@@ -304,11 +304,15 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
                 } else if (FIELDS.equals(currentFieldName)) {
                     while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         GetField getField = GetField.fromXContent(parser);
-                        fields.put(getField.getName(), getField);
+                        if (getField != null) {
+                            fields.put(getField.getName(), getField);
+                        }
                     }
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren(); // skip potential inner objects for forward compatibility
                 }
+            } else {
+                parser.skipChildren(); // skip potential inner arrays for forward compatibility
             }
         }
         return new GetResult(index, type, id, version, found, source, fields);

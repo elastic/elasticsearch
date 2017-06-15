@@ -40,11 +40,13 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.action.DocWriteResponse.Result.NOT_FOUND;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 public class UpdateResponseTests extends ESTestCase {
 
@@ -81,16 +83,43 @@ public class UpdateResponseTests extends ESTestCase {
     }
 
     public void testToAndFromXContent() throws IOException {
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    /**
+     * This test adds random fields and objects to the xContent rendered out to
+     * ensure we can parse it back to be forward compatible with additions to
+     * the xContent
+     */
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
         final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse(xContentType);
         UpdateResponse updateResponse = tuple.v1();
         UpdateResponse expectedUpdateResponse = tuple.v2();
 
         boolean humanReadable = randomBoolean();
-        BytesReference updateResponseBytes = toShuffledXContent(updateResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(updateResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
+        BytesReference mutated;
+        if (addRandomFields) {
+            // - The ShardInfo.Failure's exception is rendered out in a "reason" object. We shouldn't add anything random there
+            // because exception rendering and parsing are very permissive: any extra object or field would be rendered as
+            // a exception custom metadata and be parsed back as a custom header, making it impossible to compare the results
+            // in this test.
+            // - Thet GetResult's "_source" and "fields" just consists of key/value pairs, we shouldn't add anything random there.
+            // It is already randomized in the randomGetResult() method anyway.
+            Predicate<String> excludeFilter = path -> path.contains("reason") || path.contains("get.fields")
+                    || path.contains("get._source") || path.endsWith("get");
+            mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+        } else {
+            mutated = originalBytes;
+        }
         UpdateResponse parsedUpdateResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), updateResponseBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             parsedUpdateResponse = UpdateResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }

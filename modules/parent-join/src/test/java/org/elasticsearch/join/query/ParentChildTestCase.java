@@ -84,6 +84,39 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
         return createIndexRequest(index, type, id, parentId, source);
     }
 
+    public static Map<String, Object> buildParentJoinFieldMappingFromSimplifiedDef(String joinFieldName,
+                                                                                   boolean eagerGlobalOrdinals,
+                                                                                   String... relations) {
+        Map<String, Object> fields = new HashMap<>();
+
+        Map<String, Object> joinField = new HashMap<>();
+        joinField.put("type", "join");
+        joinField.put("eager_global_ordinals", eagerGlobalOrdinals);
+        Map<String, Object> relationMap = new HashMap<>();
+        for (int i = 0; i < relations.length; i+=2) {
+            String[] children = relations[i+1].split(",");
+            if (children.length > 1) {
+                relationMap.put(relations[i], children);
+            } else {
+                relationMap.put(relations[i], children[0]);
+            }
+        }
+        joinField.put("relations", relationMap);
+        fields.put(joinFieldName, joinField);
+        return Collections.singletonMap("properties", fields);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> addFieldMappings(Map<String, Object> map, String... fields) {
+        Map<String, Object> propsMap = (Map<String, Object>) map.get("properties");
+        for (int i = 0; i < fields.length; i+=2) {
+            String field = fields[i];
+            String type = fields[i + 1];
+            propsMap.put(field, Collections.singletonMap("type", type));
+        }
+        return map;
+    }
+
     private IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Map<String, Object> source) {
         String name = type;
         if (legacy() == false) {

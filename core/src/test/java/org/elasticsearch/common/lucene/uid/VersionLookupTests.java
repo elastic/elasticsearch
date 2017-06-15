@@ -56,21 +56,21 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(new Document());
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
-        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment, IdFieldMapper.NAME);
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
         // found doc
-        DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"));
+        DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), segment);
         assertNotNull(result);
         assertEquals(87, result.version);
         assertEquals(0, result.docId);
         // not found doc
-        assertNull(lookup.lookupVersion(new BytesRef("7")));
+        assertNull(lookup.lookupVersion(new BytesRef("7"), segment));
         // deleted doc
         writer.deleteDocuments(new Term(IdFieldMapper.NAME, "6"));
         reader.close();
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().get(0);
-        lookup = new PerThreadIDVersionAndSeqNoLookup(segment, IdFieldMapper.NAME);
-        assertNull(lookup.lookupVersion(new BytesRef("6")));
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
+        assertNull(lookup.lookupVersion(new BytesRef("6"), segment));
         reader.close();
         writer.close();
         dir.close();
@@ -91,9 +91,9 @@ public class VersionLookupTests extends ESTestCase {
         writer.addDocument(new Document());
         DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
-        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment, IdFieldMapper.NAME);
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
         // return the last doc when there are duplicates
-        DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"));
+        DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), segment);
         assertNotNull(result);
         assertEquals(87, result.version);
         assertEquals(1, result.docId);
@@ -102,8 +102,8 @@ public class VersionLookupTests extends ESTestCase {
         reader.close();
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().get(0);
-        lookup = new PerThreadIDVersionAndSeqNoLookup(segment, IdFieldMapper.NAME);
-        result = lookup.lookupVersion(new BytesRef("6"));
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
+        result = lookup.lookupVersion(new BytesRef("6"), segment);
         assertNotNull(result);
         assertEquals(87, result.version);
         assertEquals(1, result.docId);
@@ -112,8 +112,8 @@ public class VersionLookupTests extends ESTestCase {
         reader.close();
         reader = DirectoryReader.open(writer);
         segment = reader.leaves().get(0);
-        lookup = new PerThreadIDVersionAndSeqNoLookup(segment, IdFieldMapper.NAME);
-        assertNull(lookup.lookupVersion(new BytesRef("6")));
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
+        assertNull(lookup.lookupVersion(new BytesRef("6"), segment));
         reader.close();
         writer.close();
         dir.close();

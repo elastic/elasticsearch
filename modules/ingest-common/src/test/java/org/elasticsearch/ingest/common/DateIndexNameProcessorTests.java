@@ -32,7 +32,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 public class DateIndexNameProcessorTests extends ESTestCase {
 
     public void testJodaPattern() throws Exception {
-        Function<String, DateTime> function = DateFormat.Joda.getFunction("yyyy-MM-dd'T'HH:mm:ss.SSSZ", DateTimeZone.UTC, Locale.ROOT);
+        Function<String, DateTime> function = DateFormat.Joda.getFunction(DateTime::new, "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+            DateTimeZone.UTC, Locale.ROOT);
         DateIndexNameProcessor processor = new DateIndexNameProcessor(
                 "_tag", "_field", Collections.singletonList(function), DateTimeZone.UTC,
                 "events-", "y", "yyyyMMdd"
@@ -45,7 +46,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
     }
 
     public void testTAI64N()throws Exception {
-        Function<String, DateTime> function = DateFormat.Tai64n.getFunction(null, DateTimeZone.UTC, null);
+        Function<String, DateTime> function = DateFormat.Tai64n.getFunction(null, null, DateTimeZone.UTC, null);
         DateIndexNameProcessor dateProcessor = new DateIndexNameProcessor("_tag", "_field", Collections.singletonList(function),
                 DateTimeZone.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null,
@@ -55,7 +56,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
     }
 
     public void testUnixMs()throws Exception {
-        Function<String, DateTime> function = DateFormat.UnixMs.getFunction(null, DateTimeZone.UTC, null);
+        Function<String, DateTime> function = DateFormat.UnixMs.getFunction(null, null, DateTimeZone.UTC, null);
         DateIndexNameProcessor dateProcessor = new DateIndexNameProcessor("_tag", "_field", Collections.singletonList(function),
                 DateTimeZone.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null,
@@ -65,7 +66,7 @@ public class DateIndexNameProcessorTests extends ESTestCase {
     }
 
     public void testUnix()throws Exception {
-        Function<String, DateTime> function = DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null);
+        Function<String, DateTime> function = DateFormat.Unix.getFunction(null, null, DateTimeZone.UTC, null);
         DateIndexNameProcessor dateProcessor = new DateIndexNameProcessor("_tag", "_field", Collections.singletonList(function),
                 DateTimeZone.UTC, "events-", "m", "yyyyMMdd");
         IngestDocument document = new IngestDocument("_index", "_type", "_id", null, null,

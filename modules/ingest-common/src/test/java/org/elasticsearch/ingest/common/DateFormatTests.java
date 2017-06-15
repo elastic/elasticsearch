@@ -28,13 +28,15 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class DateFormatTests extends ESTestCase {
 
     public void testParseJoda() {
-        Function<String, DateTime> jodaFunction = DateFormat.Joda.getFunction("MMM dd HH:mm:ss Z",
+        Supplier<DateTime> currentTimeSupplier = () -> new DateTime(2019, 10, 23, 8, 40);
+        Function<String, DateTime> jodaFunction = DateFormat.Joda.getFunction(currentTimeSupplier, "MMM dd HH:mm:ss Z",
                 DateTimeZone.forOffsetHours(-8), Locale.ENGLISH);
         assertThat(Instant.ofEpochMilli(jodaFunction.apply("Nov 24 01:29:01 -0800").getMillis())
                         .atZone(ZoneId.of("GMT-8"))
@@ -43,24 +45,27 @@ public class DateFormatTests extends ESTestCase {
     }
 
     public void testParseUnixMs() {
-        assertThat(DateFormat.UnixMs.getFunction(null, DateTimeZone.UTC, null).apply("1000500").getMillis(), equalTo(1000500L));
+        assertThat(DateFormat.UnixMs.getFunction(null, null, DateTimeZone.UTC, null)
+            .apply("1000500").getMillis(), equalTo(1000500L));
     }
 
     public void testParseUnix() {
-        assertThat(DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null).apply("1000.5").getMillis(), equalTo(1000500L));
+        assertThat(DateFormat.Unix.getFunction(null, null, DateTimeZone.UTC, null)
+            .apply("1000.5").getMillis(), equalTo(1000500L));
     }
 
     public void testParseUnixWithMsPrecision() {
-        assertThat(DateFormat.Unix.getFunction(null, DateTimeZone.UTC, null).apply("1495718015").getMillis(), equalTo(1495718015000L));
+        assertThat(DateFormat.Unix.getFunction(null, null, DateTimeZone.UTC, null)
+            .apply("1495718015").getMillis(), equalTo(1495718015000L));
     }
 
     public void testParseISO8601() {
-        assertThat(DateFormat.Iso8601.getFunction(null, DateTimeZone.UTC, null).apply("2001-01-01T00:00:00-0800").getMillis(),
-                equalTo(978336000000L));
+        assertThat(DateFormat.Iso8601.getFunction(null, null, DateTimeZone.UTC, null)
+                .apply("2001-01-01T00:00:00-0800").getMillis(), equalTo(978336000000L));
     }
 
     public void testParseISO8601Failure() {
-        Function<String, DateTime> function = DateFormat.Iso8601.getFunction(null, DateTimeZone.UTC, null);
+        Function<String, DateTime> function = DateFormat.Iso8601.getFunction(null, null, DateTimeZone.UTC, null);
         try {
             function.apply("2001-01-0:00-0800");
             fail("parse should have failed");
@@ -72,7 +77,7 @@ public class DateFormatTests extends ESTestCase {
     public void testTAI64NParse() {
         String input = "4000000050d506482dbdf024";
         String expected = "2012-12-22T03:00:46.767+02:00";
-        assertThat(DateFormat.Tai64n.getFunction(null, DateTimeZone.forOffsetHours(2), null)
+        assertThat(DateFormat.Tai64n.getFunction(null, null, DateTimeZone.forOffsetHours(2), null)
                 .apply((randomBoolean() ? "@" : "") + input).toString(), equalTo(expected));
     }
 

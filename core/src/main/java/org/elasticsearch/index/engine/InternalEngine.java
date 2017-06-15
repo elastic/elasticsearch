@@ -1859,7 +1859,7 @@ public class InternalEngine extends Engine {
         }
         final TranslogDeletionPolicy translogDeletionPolicy = translog.getDeletionPolicy();
         final IndexSettings indexSettings = engineConfig.getIndexSettings();
-        translogDeletionPolicy.setMaxRetentionAgeInMillis(indexSettings.getTranslogRetentionAge().getMillis());
+        translogDeletionPolicy.setRetentionAgeInMillis(indexSettings.getTranslogRetentionAge().getMillis());
         translogDeletionPolicy.setRetentionSizeInBytes(indexSettings.getTranslogRetentionSize().getBytes());
     }
 

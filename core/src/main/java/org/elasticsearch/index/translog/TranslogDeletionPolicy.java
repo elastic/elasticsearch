@@ -42,11 +42,11 @@ public class TranslogDeletionPolicy {
 
     private long retentionSizeInBytes;
 
-    private long maxRetentionAgeInMillis;
+    private long retentionAgeInMillis;
 
-    public TranslogDeletionPolicy(long retentionSizeInBytes, long maxRetentionAgeInMillis) {
+    public TranslogDeletionPolicy(long retentionSizeInBytes, long retentionAgeInMillis) {
         this.retentionSizeInBytes = retentionSizeInBytes;
-        this.maxRetentionAgeInMillis = maxRetentionAgeInMillis;
+        this.retentionAgeInMillis = retentionAgeInMillis;
     }
 
     public synchronized void setMinTranslogGenerationForRecovery(long newGen) {
@@ -61,8 +61,8 @@ public class TranslogDeletionPolicy {
         retentionSizeInBytes = bytes;
     }
 
-    public synchronized void setMaxRetentionAgeInMillis(long ageInMillis) {
-        maxRetentionAgeInMillis = ageInMillis;
+    public synchronized void setRetentionAgeInMillis(long ageInMillis) {
+        retentionAgeInMillis = ageInMillis;
     }
 
     /**
@@ -101,12 +101,14 @@ public class TranslogDeletionPolicy {
      */
     synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException {
         long minByView = getMinTranslogGenRequiredByViews();
-        long minByAge = getMinTranslogGenByAge(readers, writer, maxRetentionAgeInMillis, currentTime());
+        long minByAge = getMinTranslogGenByAge(readers, writer, retentionAgeInMillis, currentTime());
         long minBySize = getMinTranslogGenBySize(readers, writer, retentionSizeInBytes);
-        long minByAgeAndSize = Math.max(minByAge, minBySize);
-        if (minByAgeAndSize == Long.MIN_VALUE) {
+        final long minByAgeAndSize;
+        if (minBySize == Long.MIN_VALUE && minByAge == Long.MIN_VALUE) {
             // both size and age are disabled;
             minByAgeAndSize = Long.MAX_VALUE;
+        } else {
+            minByAgeAndSize = Math.max(minByAge, minBySize);
         }
         return Math.min(minByAgeAndSize, Math.min(minByView, minTranslogGenerationForRecovery));
     }

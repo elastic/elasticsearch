@@ -112,12 +112,22 @@ public final class IndexSettings {
         Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB), Property.Dynamic,
             Property.IndexScope);
 
-    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
-        Setting.byteSizeSetting("index.translog.retention.size", new ByteSizeValue(-1, ByteSizeUnit.MB), Property.Dynamic,
+    /**
+     * Controls how long translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted. A longer retention policy is useful to increase
+     * the chance of ops based recoveries.
+     **/
+    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
+        Setting.timeSetting("index.translog.retention.age", TimeValue.timeValueMillis(-1), TimeValue.timeValueMillis(-1), Property.Dynamic,
             Property.IndexScope);
 
-    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
-        Setting.timeSetting("index.translog.retention.age", TimeValue.timeValueHours(-1), TimeValue.timeValueMillis(-1), Property.Dynamic,
+    /**
+     * Controls how many translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted. Keeping more files is useful to increase
+     * the chance of ops based recoveries.
+     **/
+    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
+        Setting.byteSizeSetting("index.translog.retention.size", new ByteSizeValue(-1, ByteSizeUnit.MB), Property.Dynamic,
             Property.IndexScope);
 
     /**
@@ -278,7 +288,6 @@ public final class IndexSettings {
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         translogRetentionAge = scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING);
         translogRetentionSize = scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
-        flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();

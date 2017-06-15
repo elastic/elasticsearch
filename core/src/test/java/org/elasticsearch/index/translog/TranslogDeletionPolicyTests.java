@@ -128,7 +128,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             long size = allGens.stream().skip(selectedReader).map(BaseTranslogReader::sizeInBytes).reduce(Long::sum).get();
             selectedReader = randomIntBetween(0, allGens.size() - 1);
             long committedGen = allGens.get(selectedReader).generation;
-            deletionPolicy.setMaxRetentionAgeInMillis(maxAge);
+            deletionPolicy.setRetentionAgeInMillis(maxAge);
             deletionPolicy.setRetentionSizeInBytes(size);
             assertMinGenRequired(deletionPolicy, readersAndWriter, Math.max(selectedGenerationByAge, selectedGenerationBySize));
             // make a new policy as committed gen can't go backwards (for now)
@@ -145,14 +145,14 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
                     Math.min(committedGen, viewGen),
                     Math.max(selectedGenerationByAge, selectedGenerationBySize)));
             // disable age
-            deletionPolicy.setMaxRetentionAgeInMillis(-1);
+            deletionPolicy.setRetentionAgeInMillis(-1);
             assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(Math.min(committedGen, viewGen), selectedGenerationBySize));
             // disable size
-            deletionPolicy.setMaxRetentionAgeInMillis(maxAge);
+            deletionPolicy.setRetentionAgeInMillis(maxAge);
             deletionPolicy.setRetentionSizeInBytes(-1);
             assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(Math.min(committedGen, viewGen), selectedGenerationByAge));
             // disable both
-            deletionPolicy.setMaxRetentionAgeInMillis(-1);
+            deletionPolicy.setRetentionAgeInMillis(-1);
             deletionPolicy.setRetentionSizeInBytes(-1);
             assertMinGenRequired(deletionPolicy, readersAndWriter, Math.min(committedGen, viewGen));
         } finally {

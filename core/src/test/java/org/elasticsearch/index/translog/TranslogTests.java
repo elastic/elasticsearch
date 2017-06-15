@@ -2124,6 +2124,8 @@ public class TranslogTests extends ESTestCase {
                     // fair enough
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
+                } catch (RuntimeException ex) {
+                    assertEquals(ex.getMessage(), "simulated");
                 } finally {
                     Checkpoint checkpoint = Translog.readCheckpoint(config.getTranslogPath());
                     if (checkpoint.numOps == unsynced.size() + syncedDocs.size()) {

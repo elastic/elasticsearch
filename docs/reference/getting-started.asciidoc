@@ -1010,7 +1010,7 @@ To start with, this example groups all the accounts by state, and then returns t
 --------------------------------------------------
 GET /bank/_search
 {
-  "size": 0,
+  "size": 10,
   "aggs": {
     "group_by_state": {
       "terms": {

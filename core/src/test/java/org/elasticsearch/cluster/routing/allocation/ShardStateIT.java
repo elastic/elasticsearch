@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -50,7 +51,7 @@ public class ShardStateIT extends ESIntegTestCase {
         logger.info("--> waiting for a yellow index");
         // JDK 9 type inference gets confused, so we have to help the
         // type inference
-        assertBusy(((Runnable) () -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(),
+        assertBusy(((CheckedRunnable<Exception>) () -> assertThat(client().admin().cluster().prepareHealth().get().getStatus(),
                 equalTo(ClusterHealthStatus.YELLOW))));
 
         final long term0 = shard == 0 ? 2 : 1;

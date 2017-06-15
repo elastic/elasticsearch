@@ -270,12 +270,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         refresh();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0L));
-            }
-        });
+        assertBusy(() -> assertThat(client().admin().indices().prepareStats("idx").setRequestCache(true).get().getTotal().getRequestCache().getMemorySizeInBytes(), equalTo(0L)));
 
         for (int i = 0; i < 10; i++) {
             assertThat(client().prepareSearch("idx").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0).get().getHits().getTotalHits(), equalTo((long) numDocs));

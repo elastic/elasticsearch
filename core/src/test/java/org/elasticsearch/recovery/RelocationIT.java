@@ -58,7 +58,6 @@ import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -386,17 +385,14 @@ public class RelocationIT extends ESIntegTestCase {
                 .setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
 
         logger.info("--> wait for all replica shards to be removed, on all nodes");
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                for (String node : internalCluster().getNodeNames()) {
-                    if (node.equals(p_node)) {
-                        continue;
-                    }
-                    ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
-                    assertThat(node + " indicates assigned replicas",
-                            state.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
+        assertBusy(() -> {
+            for (String node : internalCluster().getNodeNames()) {
+                if (node.equals(p_node)) {
+                    continue;
                 }
+                ClusterState state = client(node).admin().cluster().prepareState().setLocal(true).get().getState();
+                assertThat(node + " indicates assigned replicas",
+                        state.getRoutingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
             }
         });
 
@@ -405,20 +401,17 @@ public class RelocationIT extends ESIntegTestCase {
             NodeEnvironment nodeEnvironment = internalCluster().getInstance(NodeEnvironment.class, node);
             for (final Path shardLoc : nodeEnvironment.availableShardPaths(new ShardId(indexName, "_na_", 0))) {
                 if (Files.exists(shardLoc)) {
-                    assertBusy(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                Files.walkFileTree(shardLoc, new SimpleFileVisitor<Path>() {
-                                    @Override
-                                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                                        assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
-                                        return FileVisitResult.CONTINUE;
-                                    }
-                                });
-                            } catch (IOException e) {
-                                throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
-                            }
+                    assertBusy(() -> {
+                        try {
+                            Files.walkFileTree(shardLoc, new SimpleFileVisitor<Path>() {
+                                @Override
+                                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                                    assertThat("found a temporary recovery file: " + file, file.getFileName().toString(), not(startsWith("recovery.")));
+                                    return FileVisitResult.CONTINUE;
+                                }
+                            });
+                        } catch (IOException e) {
+                            throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
                         }
                     });
                 }

@@ -376,12 +376,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // allocation filtering may not have immediate effect
         // TODO: we should add an easier to do this. It's too much of a song and dance..
         Index index = resolveIndex("test");
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertTrue(internalCluster().getInstance(IndicesService.class, node4).hasIndex(index));
-            }
-        });
+        assertBusy(() -> assertTrue(internalCluster().getInstance(IndicesService.class, node4).hasIndex(index)));
 
         // wait for 4 active shards - we should have lost one shard
         assertFalse(client().admin().cluster().prepareHealth().setWaitForActiveShards(4).get().isTimedOut());

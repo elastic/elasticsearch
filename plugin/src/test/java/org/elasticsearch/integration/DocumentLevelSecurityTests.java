@@ -35,6 +35,8 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -57,6 +59,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -652,10 +655,28 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         verifyParentChild();
     }
 
-    public void testParentChild_joinField() {
+    public void testParentChild_joinField() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("properties")
+                    .startObject("join_field")
+                        .field("type", "join")
+                        .startObject("relations")
+                            .field("parent", "child")
+                        .endObject()
+                    .endObject()
+                    .startObject("field1")
+                      .field("type", "text")
+                    .endObject()
+                    .startObject("field2")
+                      .field("type", "text")
+                    .endObject()
+                    .startObject("field3")
+                      .field("type", "text")
+                    .endObject()
+                .endObject()
+                .endObject();
         assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child", "field1", "type=text", "field2", "type=text",
-                        "field3", "type=text"));
+                .addMapping("doc", mapping));
         ensureGreen();
 
         // index simple data

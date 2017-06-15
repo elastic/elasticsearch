@@ -27,6 +27,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -50,6 +52,7 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -1310,9 +1313,19 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         verifyParentChild();
     }
 
-    public void testParentChild_joinField() {
+    public void testParentChild_joinField() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+              .startObject("properties")
+                  .startObject("join_field")
+                      .field("type", "join")
+                      .startObject("relations")
+                          .field("parent", "child")
+                      .endObject()
+                  .endObject()
+              .endObject()
+              .endObject();
         assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+              .addMapping("doc", mapping));
         ensureGreen();
 
         // index simple data

@@ -78,6 +78,13 @@ class DefaultS3OutputStream extends S3OutputStream {
 
     @Override
     public void flush(byte[] bytes, int off, int len, boolean closing) throws IOException {
+        SocketAccess.doPrivilegedIOException(() -> {
+            flushPriveleged(bytes, off, len, closing);
+            return null;
+        });
+    }
+
+    private void flushPriveleged(byte[] bytes, int off, int len, boolean closing) throws IOException {
         if (len > MULTIPART_MAX_SIZE.getBytes()) {
             throw new IOException("Unable to upload files larger than " + MULTIPART_MAX_SIZE + " to Amazon S3");
         }

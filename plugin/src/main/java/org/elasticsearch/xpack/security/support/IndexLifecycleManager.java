@@ -5,6 +5,19 @@
  */
 package org.elasticsearch.xpack.security.support;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -20,34 +33,22 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 
@@ -60,15 +61,20 @@ public class IndexLifecycleManager extends AbstractComponent {
     public static final String TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${security.template.version}");
 
+    private static final int MAX_MIGRATE_ATTEMPTS = 10;
+
     private final String indexName;
     private final String templateName;
     private final InternalClient client;
     private final IndexDataMigrator migrator;
+    private final ClusterService clusterService;
+    private final ThreadPool threadPool;
 
     private final AtomicBoolean templateCreationPending = new AtomicBoolean(false);
     private final AtomicBoolean updateMappingPending = new AtomicBoolean(false);
 
     private final AtomicReference<UpgradeState> migrateDataState = new AtomicReference<>(UpgradeState.NOT_STARTED);
+    private final AtomicInteger migrateDataAttempts = new AtomicInteger(0);
 
     private volatile boolean templateIsUpToDate;
     private volatile boolean indexExists;
@@ -85,16 +91,17 @@ public class IndexLifecycleManager extends AbstractComponent {
         void performUpgrade(@Nullable Version previousVersion, ActionListener<Boolean> listener);
     }
 
-    public static final IndexDataMigrator NULL_MIGRATOR =
-            (version, listener) -> listener.onResponse(false);
+    public static final IndexDataMigrator NULL_MIGRATOR =  (version, listener) -> listener.onResponse(false);
 
-    public IndexLifecycleManager(Settings settings, InternalClient client, String indexName,
-                                 String templateName, IndexDataMigrator migrator) {
+    public IndexLifecycleManager(Settings settings, InternalClient client, ClusterService clusterService, ThreadPool threadPool,
+                                 String indexName, String templateName, IndexDataMigrator migrator) {
         super(settings);
         this.client = client;
         this.indexName = indexName;
         this.templateName = templateName;
         this.migrator = migrator;
+        this.clusterService = clusterService;
+        this.threadPool = threadPool;
     }
 
     public boolean isTemplateUpToDate() {
@@ -139,15 +146,20 @@ public class IndexLifecycleManager extends AbstractComponent {
 
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
-        this.indexExists = resolveConcreteIndex(indexName, event.state().metaData()) != null;
+        processClusterState(state);
+    }
+
+    private void processClusterState(ClusterState state) {
+        assert state != null;
+        this.indexExists = resolveConcreteIndex(indexName, state.metaData()) != null;
         this.indexAvailable = checkIndexAvailable(state);
         this.templateIsUpToDate = TemplateUtils.checkTemplateExistsAndIsUpToDate(templateName,
             SECURITY_VERSION_STRING, state, logger);
         this.mappingIsUpToDate = checkIndexMappingUpToDate(state);
         this.canWriteToIndex = templateIsUpToDate && mappingIsUpToDate;
-        this.mappingVersion = oldestIndexMappingVersion(event.state());
+        this.mappingVersion = oldestIndexMappingVersion(state);
 
-        if (event.localNodeMaster()) {
+        if (state.nodes().isLocalNodeElectedMaster()) {
             if (templateIsUpToDate == false) {
                 updateTemplate();
             }
@@ -233,7 +245,7 @@ public class IndexLifecycleManager extends AbstractComponent {
             final List<IndexMetaData> indices = aliasOrIndex.getIndices();
             if (aliasOrIndex.isAlias() && indices.size() > 1) {
                 throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " +
-                    indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList()));
+                        indices.stream().map(imd -> imd.getIndex().getName()).collect(Collectors.toList()));
             }
             return indices.get(0);
         }
@@ -280,10 +292,21 @@ public class IndexLifecycleManager extends AbstractComponent {
                 @Override
                 public void onFailure(Exception e) {
                     migrateDataState.set(UpgradeState.FAILED);
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage(
-                                    "failed to upgrade security [{}] data from version [{}] ",
-                                    indexName, previousVersion),
+                    final int attempts = migrateDataAttempts.incrementAndGet();
+                    logger.error(new ParameterizedMessage(
+                                    "failed to upgrade security [{}] data from version [{}] (Attempt {} of {})",
+                                    indexName, previousVersion, attempts, MAX_MIGRATE_ATTEMPTS),
                             e);
+                    if (attempts < MAX_MIGRATE_ATTEMPTS) {
+                        // The first retry is (1^5)ms = 1ms
+                        // The last retry is (9^5)ms = 59s
+                        final TimeValue retry = TimeValue.timeValueMillis((long) Math.pow(attempts, 5));
+                        logger.info("Will attempt upgrade again in {}", retry);
+                        threadPool.schedule(retry, ThreadPool.Names.SAME, IndexLifecycleManager.this::retryDataMigration);
+                    } else {
+                        logger.error("Security migration has failed after {} attempts. Restart the master node to try again.",
+                                MAX_MIGRATE_ATTEMPTS);
+                    }
                 }
 
                 @Override
@@ -297,6 +320,12 @@ public class IndexLifecycleManager extends AbstractComponent {
                 andThen.run();
             }
             return false;
+        }
+    }
+
+    private void retryDataMigration() {
+        if (migrateDataState.compareAndSet(UpgradeState.FAILED, UpgradeState.NOT_STARTED)) {
+            processClusterState(clusterService.state());
         }
     }
 

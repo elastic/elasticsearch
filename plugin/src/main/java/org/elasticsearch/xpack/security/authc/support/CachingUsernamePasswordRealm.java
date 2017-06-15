@@ -100,9 +100,22 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             }, listener::onFailure));
         } else if (userWithHash.hasHash()) {
             if (userWithHash.verify(token.credentials())) {
-                logger.debug("realm [{}] authenticated user [{}], with roles [{}]", name(), token.principal(),
-                        userWithHash.user.roles());
-                listener.onResponse(userWithHash.user);
+                if (userWithHash.user.enabled()) {
+                    User user = userWithHash.user;
+                    logger.debug("realm [{}] authenticated user [{}], with roles [{}]", name(), token.principal(), user.roles());
+                    listener.onResponse(user);
+                } else {
+                    // We successfully authenticated, but the cached user is disabled.
+                    // Reload the primary record to check whether the user is still disabled
+                    cache.invalidate(token.principal());
+                    doAuthenticateAndCache(token, ActionListener.wrap((user) -> {
+                        if (user != null) {
+                            logger.debug("realm [{}] authenticated user [{}] (enabled:{}), with roles [{}]", name(), token.principal(),
+                                   user.enabled(), user.roles());
+                        }
+                        listener.onResponse(user);
+                    }, listener::onFailure));
+                }
             } else {
                 cache.invalidate(token.principal());
                 doAuthenticateAndCache(token, ActionListener.wrap((user) -> {

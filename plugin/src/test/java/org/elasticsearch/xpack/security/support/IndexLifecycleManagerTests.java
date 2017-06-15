@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.support;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -31,7 +32,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -41,9 +44,13 @@ import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.NULL_MIGRATOR;
 import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.TEMPLATE_VERSION_PATTERN;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.notNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -56,12 +63,16 @@ public class IndexLifecycleManagerTests extends ESTestCase {
     private IndexLifecycleManager manager;
     private IndexLifecycleManager.IndexDataMigrator migrator;
     private Map<Action<?, ?, ?>, Map<ActionRequest, ActionListener<?>>> actions;
+    private ThreadPool threadPool;
+    private ClusterService clusterService;
 
     @Before
     public void setUpManager() {
         final Client mockClient = mock(Client.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
+        threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+
+        clusterService = mock(ClusterService.class);
 
         actions = new LinkedHashMap<>();
         final InternalClient client = new InternalClient(Settings.EMPTY, threadPool, mockClient) {
@@ -77,7 +88,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
             }
         };
         migrator = NULL_MIGRATOR;
-        manager = new IndexLifecycleManager(Settings.EMPTY, client, INDEX_NAME, TEMPLATE_NAME,
+        manager = new IndexLifecycleManager(Settings.EMPTY, client, clusterService, threadPool, INDEX_NAME, TEMPLATE_NAME,
                 // Wrap the migrator in a lambda so that individual tests can override the migrator implementation.
                 (previousVersion, listener) -> migrator.performUpgrade(previousVersion, listener)
         );
@@ -143,6 +154,72 @@ public class IndexLifecycleManagerTests extends ESTestCase {
         assertCompleteState(true);
     }
 
+    public void testRetryDataMigration() throws IOException {
+        assertInitialState();
+
+        AtomicReference<ActionListener<Boolean>> migrationListenerRef = new AtomicReference<>(null);
+        migrator = (version, listener) -> migrationListenerRef.set(listener);
+
+        ClusterState.Builder clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME + "-v512");
+        markShardsAvailable(clusterStateBuilder);
+        manager.clusterChanged(event(clusterStateBuilder));
+
+        assertTemplateAndMappingOutOfDate(true, false, IndexLifecycleManager.UpgradeState.IN_PROGRESS);
+
+        actions.get(PutIndexTemplateAction.INSTANCE).values().forEach(
+                l -> ((ActionListener<PutIndexTemplateResponse>) l).onResponse(new PutIndexTemplateResponse(true) {
+                })
+        );
+        actions.get(PutIndexTemplateAction.INSTANCE).clear();
+
+        clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME, TEMPLATE_NAME + "-v512");
+        markShardsAvailable(clusterStateBuilder);
+        when(clusterService.state()).thenReturn(clusterStateBuilder.build());
+
+        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.IN_PROGRESS);
+
+        AtomicReference<Runnable> scheduled = new AtomicReference<>(null);
+        when(threadPool.schedule(any(TimeValue.class), Mockito.eq(ThreadPool.Names.SAME), any(Runnable.class))).thenAnswer(invocation -> {
+            final Runnable runnable = (Runnable) invocation.getArguments()[2];
+            scheduled.set(runnable);
+            return null;
+        });
+
+
+        migrationListenerRef.get().onFailure(new RuntimeException("Migration Failed #1"));
+        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.FAILED);
+        assertThat(scheduled.get(), notNullValue());
+
+        scheduled.get().run();
+        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.IN_PROGRESS);
+        scheduled.set(null);
+
+        migrationListenerRef.get().onFailure(new RuntimeException("Migration Failed #2"));
+        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.FAILED);
+        assertThat(scheduled.get(), notNullValue());
+
+        actions.getOrDefault(PutIndexTemplateAction.INSTANCE, Collections.emptyMap()).clear();
+        scheduled.get().run();
+        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.IN_PROGRESS);
+        scheduled.set(null);
+
+        migrationListenerRef.get().onResponse(false);
+        assertTemplateAndMappingOutOfDate(false, true, IndexLifecycleManager.UpgradeState.COMPLETE);
+
+        actions.get(PutMappingAction.INSTANCE).values().forEach(
+                l -> ((ActionListener<PutMappingResponse>) l).onResponse(new PutMappingResponse(true) {
+                })
+        );
+
+        assertTemplateAndMappingOutOfDate(false, false, IndexLifecycleManager.UpgradeState.COMPLETE);
+
+        clusterStateBuilder = createClusterState(INDEX_NAME, TEMPLATE_NAME);
+        markShardsAvailable(clusterStateBuilder);
+        manager.clusterChanged(event(clusterStateBuilder));
+
+        assertCompleteState(true);
+    }
+
     private void assertInitialState() {
         assertThat(manager.indexExists(), Matchers.equalTo(false));
         assertThat(manager.isAvailable(), Matchers.equalTo(false));
@@ -190,7 +267,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
 
         if (templateUpdatePending) {
             final Map<ActionRequest, ActionListener<?>> requests = actions.get(PutIndexTemplateAction.INSTANCE);
-            assertThat(requests, Matchers.notNullValue());
+            assertThat(requests, notNullValue());
             assertThat(requests.size(), Matchers.equalTo(1));
             final ActionRequest request = requests.keySet().iterator().next();
             assertThat(request, Matchers.instanceOf(PutIndexTemplateRequest.class));
@@ -199,7 +276,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
 
         if (mappingUpdatePending) {
             final Map<ActionRequest, ActionListener<?>> requests = actions.get(PutMappingAction.INSTANCE);
-            assertThat(requests, Matchers.notNullValue());
+            assertThat(requests, notNullValue());
             assertThat(requests.size(), Matchers.equalTo(1));
             final ActionRequest request = requests.keySet().iterator().next();
             assertThat(request, Matchers.instanceOf(PutMappingRequest.class));
@@ -228,8 +305,13 @@ public class IndexLifecycleManagerTests extends ESTestCase {
     }
 
     public static ClusterState.Builder createClusterState(String indexName, String templateName) throws IOException {
+        return createClusterState(indexName, templateName, templateName);
+    }
+
+    private static ClusterState.Builder createClusterState(String indexName, String templateName, String buildMappingFrom)
+            throws IOException {
         IndexTemplateMetaData.Builder templateBuilder = getIndexTemplateMetaData(templateName);
-        IndexMetaData.Builder indexMeta = getIndexMetadata(indexName, templateName);
+        IndexMetaData.Builder indexMeta = getIndexMetadata(indexName, buildMappingFrom);
 
         MetaData.Builder metaDataBuilder = new MetaData.Builder();
         metaDataBuilder.put(templateBuilder);

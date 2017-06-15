@@ -18,14 +18,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -181,6 +184,35 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken(user, pass2), future);
         future.actionGet();
+
+        assertThat(realm.authInvocationCounter.intValue(), is(2));
+    }
+
+    public void testCacheDisabledUser() {
+        AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings);
+        realm.setUsersEnabled(false);
+
+        String user = "testUser";
+        SecureString password = new SecureString("password");
+
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, password), future);
+        assertThat(future.actionGet().enabled(), equalTo(false));
+
+        assertThat(realm.authInvocationCounter.intValue(), is(1));
+
+        realm.setUsersEnabled(true);
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, password), future);
+        future.actionGet();
+        assertThat(future.actionGet().enabled(), equalTo(true));
+
+        assertThat(realm.authInvocationCounter.intValue(), is(2));
+
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, password), future);
+        future.actionGet();
+        assertThat(future.actionGet().enabled(), equalTo(true));
 
         assertThat(realm.authInvocationCounter.intValue(), is(2));
     }
@@ -439,6 +471,8 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         public final AtomicInteger authInvocationCounter = new AtomicInteger(0);
         public final AtomicInteger lookupInvocationCounter = new AtomicInteger(0);
 
+        private boolean usersEnabled = true;
+
         AlwaysAuthenticateCachingRealm(Settings globalSettings) {
             this(new RealmConfig("always-test", Settings.EMPTY, globalSettings, new ThreadContext(Settings.EMPTY)));
         }
@@ -447,10 +481,15 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             super("always", config);
         }
 
+        void setUsersEnabled(boolean usersEnabled) {
+            this.usersEnabled = usersEnabled;
+        }
+
         @Override
         protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
             authInvocationCounter.incrementAndGet();
-            listener.onResponse(new User(token.principal(), new String[] { "testRole1", "testRole2" }));
+            final User user = new User(token.principal(), new String[] { "testRole1", "testRole2" }, null, null, emptyMap(), usersEnabled);
+            listener.onResponse(user);
         }
 
         @Override

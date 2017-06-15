@@ -83,7 +83,7 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
                 final GroupedActionListener<Void> countDownListener = new GroupedActionListener<>(
                     ActionListener.wrap(r -> listener.onResponse(true), listener::onFailure), tasks.size(), emptyList()
                 );
-                logger.info("Performing {} security migration task(s)", tasks.size());
+                logger.info("Performing {} security migration task(s) from version {}", tasks.size(), previousVersion);
                 tasks.forEach(t -> t.accept(previousVersion, countDownListener));
             }
         } catch (Exception e) {
@@ -111,7 +111,9 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
      * installs but problematic for already-locked-down upgrades.
      */
     private boolean isNewUser(@Nullable Version previousVersion, BuiltinUserInfo info) {
-        return previousVersion != null && previousVersion.before(info.getDefinedSince());
+        return previousVersion != null
+                && previousVersion.before(info.getDefinedSince())
+                && previousVersion.onOrAfter(Version.V_5_0_0);
     }
 
     private void createUserAsDisabled(BuiltinUserInfo info, @Nullable Version previousVersion, ActionListener<Void> listener) {
@@ -151,7 +153,9 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
      * does the right thing.
      */
     private boolean shouldConvertDefaultPasswords(@Nullable Version previousVersion) {
-        return previousVersion != null && previousVersion.before(Version.V_6_0_0_alpha1);
+        return previousVersion != null
+                && previousVersion.before(Version.V_6_0_0_alpha1)
+                && previousVersion.onOrAfter(Version.V_5_0_0);
     }
 
     @SuppressWarnings("unused")

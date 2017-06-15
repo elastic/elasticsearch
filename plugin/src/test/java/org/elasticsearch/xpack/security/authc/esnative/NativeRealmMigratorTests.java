@@ -158,6 +158,10 @@ public class NativeRealmMigratorTests extends ESTestCase {
         verifyUpgrade(randomFrom(Version.V_6_0_0_alpha1), null, false);
     }
 
+    public void testNoChangeOnUpgradeFromV5alpha1() throws Exception {
+        verifyUpgrade(randomFrom(Version.V_5_0_0_alpha1), null, false);
+    }
+
     public void testDisableLogstashBeatsAndConvertPasswordsOnUpgradeFromVersionPriorToV5_2() throws Exception {
         this.reservedUsers = Collections.singletonMap(
                 KibanaUser.NAME,

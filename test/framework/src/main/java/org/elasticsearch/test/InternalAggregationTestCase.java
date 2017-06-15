@@ -328,11 +328,15 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         }
         BytesReference mutated;
         if (addRandomFields) {
-            /**
-             * - we don't add to the root object because it should only contain the named aggregation to test
-             * - we don't want to insert into the "meta" object, because we pass on everything we find there
-             * - we don't want to directly insert anything random into "buckets" objects, they are used with "keyed" aggregations and contain
-             *   named bucket objects. Any new named object on this level should also be a bucket and be parsed as such.
+            /*
+             * - we don't add to the root object because it should only contain
+             * the named aggregation to test - we don't want to insert into the
+             * "meta" object, because we pass on everything we find there
+             *
+             * - we don't want to directly insert anything random into "buckets"
+             * objects, they are used with "keyed" aggregations and contain
+             * named bucket objects. Any new named object on this level should
+             * also be a bucket and be parsed as such.
              */
             Predicate<String> basicExcludes = path -> path.isEmpty() || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
                     || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName());
@@ -346,6 +350,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, parsedAggregation::set);
 
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

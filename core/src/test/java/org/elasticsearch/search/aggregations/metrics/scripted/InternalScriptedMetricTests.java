@@ -189,6 +189,6 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
 
     @Override
     protected Predicate<String> excludePathsFromXContentInsertion() {
-        return path -> path.endsWith(CommonFields.VALUE.getPreferredName());
+        return path -> path.contains(CommonFields.VALUE.getPreferredName());
     }
 }

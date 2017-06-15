@@ -248,7 +248,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    public long serverOpen() {
+    public long getNumOpenServerConnections() {
         return 1;
     }
 

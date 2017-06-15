@@ -50,6 +50,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.metrics.CounterMetric;
+import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -180,6 +181,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private final AtomicLong requestIdGenerator = new AtomicLong();
     private final CounterMetric numHandshakes = new CounterMetric();
     private static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
+
+    private final MeanMetric rxMetric = new MeanMetric();
+    private final MeanMetric txMetric = new MeanMetric();
 
     public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -1102,6 +1106,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private void internalSendMessage(Channel targetChannel, BytesReference message, NotifyOnceListener<Channel> listener) {
         try {
             sendMessage(targetChannel, message, listener);
+            txMetric.inc(message.length());
         } catch (Exception ex) {
             // call listener to ensure that any resources are released
             listener.onFailure(ex);
@@ -1324,7 +1329,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     public final void messageReceived(BytesReference reference, Channel channel, String profileName,
                                       InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {
         final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-        transportServiceAdapter.addBytesReceived(totalMessageSize);
+        rxMetric.inc(totalMessageSize);
         // we have additional bytes to read, outside of the header
         boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
         StreamInput streamIn = reference.streamInput();
@@ -1700,5 +1705,16 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     final int getNumConnectedNodes() {
         return connectedNodes.size();
+    }
+
+    /**
+     * Returns count of currently open connections
+     */
+    protected abstract long getNumOpenServerConnections();
+
+    @Override
+    public final TransportStats getStats() {
+        return new TransportStats(
+            getNumOpenServerConnections(), rxMetric.count(), rxMetric.sum(), txMetric.count(), txMetric.sum());
     }
 }

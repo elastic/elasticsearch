@@ -28,6 +28,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
@@ -219,6 +220,10 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      */
     public synchronized void updateAllocationIdsFromMaster(
             final long applyingClusterStateVersion, final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
+        if (applyingClusterStateVersion < clusterStateVersion) {
+            return;
+        }
+
         clusterStateVersion = applyingClusterStateVersion;
 
         // remove shards whose allocation ID no longer exists
@@ -318,6 +323,15 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          *
          * In both cases, no calls to update the local checkpoint for such shards will be made. This case is safe too.
          */
+
+        if (primaryContext.clusterStateVersion() > clusterStateVersion) {
+            final Set<String> activeAllocationIds =
+                    new HashSet<>(Arrays.asList(primaryContext.inSyncLocalCheckpoints().keys().toArray(String.class)));
+            final Set<String> initializingAllocationIds =
+                    new HashSet<>(Arrays.asList(primaryContext.trackingLocalCheckpoints().keys().toArray(String.class)));
+            updateAllocationIdsFromMaster(primaryContext.clusterStateVersion(), activeAllocationIds, initializingAllocationIds);
+        }
+
         for (final ObjectLongCursor<String> cursor : primaryContext.inSyncLocalCheckpoints()) {
             updateLocalCheckpoint(cursor.key, cursor.value);
             assert cursor.value >= globalCheckpoint

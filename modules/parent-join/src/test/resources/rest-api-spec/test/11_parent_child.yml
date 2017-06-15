@@ -16,8 +16,8 @@ setup:
 ---
 "Parent/child inner hits":
     - skip:
-        version: " - 5.6.99"
-        reason:  parent-join was added in 5.6. Disabled BWC tests until https://github.com/elastic/elasticsearch/pull/25248 is merged
+        version: " - 5.5.99"
+        reason:  parent-join was added in 5.6.
 
     - do:
         index:

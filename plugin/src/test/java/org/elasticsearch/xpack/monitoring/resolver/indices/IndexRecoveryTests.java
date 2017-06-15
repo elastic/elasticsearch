@@ -54,15 +54,12 @@ public class IndexRecoveryTests extends MonitoringIntegTestCase {
             client().prepareIndex(INDEX_PREFIX + i, "foo").setSource("field1", "value1").get();
         }
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                flush();
-                refresh();
+        assertBusy(() -> {
+            flush();
+            refresh();
 
-                RecoveryResponse recoveries = client().admin().indices().prepareRecoveries().get();
-                assertThat(recoveries.hasRecoveries(), is(true));
-            }
+            RecoveryResponse recoveries = client().admin().indices().prepareRecoveries().get();
+            assertThat(recoveries.hasRecoveries(), is(true));
         });
 
         updateMonitoringInterval(3L, TimeUnit.SECONDS);

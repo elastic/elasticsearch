@@ -55,16 +55,13 @@ public class IndicesStatsTests extends MonitoringIntegTestCase {
         }
 
         logger.debug("--> wait for indices stats collector to collect stats for all primaries shards");
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                flush();
-                refresh();
+        assertBusy(() -> {
+            flush();
+            refresh();
 
-                for (int i = 0; i < nbIndices; i++) {
-                    IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();
-                    assertThat(indicesStats.getPrimaries().getDocs().getCount(), greaterThan(0L));
-                }
+            for (int i = 0; i < nbIndices; i++) {
+                IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();
+                assertThat(indicesStats.getPrimaries().getDocs().getCount(), greaterThan(0L));
             }
         });
 

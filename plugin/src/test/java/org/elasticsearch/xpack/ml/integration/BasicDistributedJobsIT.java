@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -426,7 +427,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         }
     }
 
-    private Runnable checkAllJobsAreAssignedAndOpened(int numJobs) {
+    private CheckedRunnable<Exception> checkAllJobsAreAssignedAndOpened(int numJobs) {
         return () -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             PersistentTasksCustomMetaData tasks = state.metaData().custom(PersistentTasksCustomMetaData.TYPE);

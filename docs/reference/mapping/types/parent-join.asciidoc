@@ -5,7 +5,7 @@ The `join` datatype is a special field that creates
 parent/child relation within documents of the same index.
 This field defines a set of possible relations within the documents,
 each relation being a parent name and a child name.
-A parent/child relation can be defined as follow:
+A parent/child relation can be defined as follows:
 
 [source,js]
 --------------------------------------------------
@@ -375,7 +375,17 @@ PUT my_index
 <1> `my_parent` is parent of `my_child` and `another_child`
 <2> `another_child` is parent of `grand_child
 
-Indexing a great child document requires a `routing` value equals
+The mapping above represents the following tree:
+
+                          my_parent
+                          /    \
+                         /      \
+                     my_child  another_child
+                                   |
+                                   |
+                              grand_child
+
+Indexing a grand child document requires a `routing` value equals
 to the grand-parent (the greater parent of the lineage):
 
 

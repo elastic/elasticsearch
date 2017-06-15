@@ -179,7 +179,8 @@ public class ParsedRange extends ParsedMultiBucketAggregation<ParsedRange.Parsed
                         bucket.toAsString = parser.text();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, aggregations);
+                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
+                            aggregations::add);
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

@@ -25,8 +25,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
@@ -121,13 +121,12 @@ public final class XContentParserUtils {
      * @param parser      the current {@link XContentParser}
      * @param delimiter   the delimiter to use to splits the field's name
      * @param objectClass the object class of the object to parse
-     * @param objects     a list of objects the parsed one will be added to
+     * @param consumer    something to consume the parsed object
      * @param <T>         the type of the object to parse
-     * @return the parsed object
      * @throws IOException if anything went wrong during parsing or if the type or name cannot be derived
      *                     from the field's name
      */
-    public static <T> void parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass, List<T> objects)
+    public static <T> void parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass, Consumer<T> consumer)
             throws IOException {
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
         String currentFieldName = parser.currentName();
@@ -136,7 +135,7 @@ public final class XContentParserUtils {
             if (position > 0) {
                 String type = currentFieldName.substring(0, position);
                 String name = currentFieldName.substring(position + 1);
-                objects.add(parser.namedObject(objectClass, type, name));
+                consumer.accept(parser.namedObject(objectClass, type, name));
                 return;
             }
         }

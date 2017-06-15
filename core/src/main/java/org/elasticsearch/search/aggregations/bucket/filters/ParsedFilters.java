@@ -131,7 +131,8 @@ public class ParsedFilters extends ParsedMultiBucketAggregation<ParsedFilters.Pa
                         bucket.setDocCount(parser.longValue());
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, aggregations);
+                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
+                            aggregations::add);
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

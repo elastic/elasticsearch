@@ -133,7 +133,7 @@ public class Aggregations implements Iterable<Aggregation>, ToXContent {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_OBJECT) {
-                parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, aggregations);
+                parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, aggregations::add);
             }
         }
         return new Aggregations(aggregations);

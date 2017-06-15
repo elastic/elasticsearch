@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -69,7 +70,7 @@ public class XContentParserUtilsTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
 
             NamedXContentRegistry.UnknownNamedObjectException e = expectThrows(NamedXContentRegistry.UnknownNamedObjectException.class,
-                    () -> parseTypedKeysObject(parser, delimiter, Boolean.class, new ArrayList<>()));
+                    () -> parseTypedKeysObject(parser, delimiter, Boolean.class, a -> {}));
             assertEquals("Unknown Boolean [type]", e.getMessage());
             assertEquals("type", e.getName());
             assertEquals("java.lang.Boolean", e.getCategoryClass());
@@ -87,18 +88,16 @@ public class XContentParserUtilsTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
 
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-            List<Long> parsedLong = new ArrayList<>();
-            parseTypedKeysObject(parser, delimiter, Long.class, parsedLong);
+            SetOnce<Long> parsedLong = new SetOnce<>();
+            parseTypedKeysObject(parser, delimiter, Long.class, parsedLong::set);
             assertNotNull(parsedLong);
-            assertEquals(1, parsedLong.size());
-            assertEquals(longValue, parsedLong.get(0).longValue());
+            assertEquals(longValue, parsedLong.get().longValue());
 
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-            List<Boolean> parsedBoolean = new ArrayList<>();
-            parseTypedKeysObject(parser, delimiter, Boolean.class, parsedBoolean);
+            SetOnce<Boolean> parsedBoolean = new SetOnce<>();
+            parseTypedKeysObject(parser, delimiter, Boolean.class, parsedBoolean::set);
             assertNotNull(parsedBoolean);
-            assertEquals(1, parsedBoolean.size());
-            assertEquals(boolValue, parsedBoolean.get(0));
+            assertEquals(boolValue, parsedBoolean.get());
 
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
         }

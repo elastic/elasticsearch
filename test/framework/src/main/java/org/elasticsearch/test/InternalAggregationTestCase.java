@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -341,29 +342,29 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             mutated = originalBytes;
         }
 
-        Aggregation parsedAggregation;
+        SetOnce<Aggregation> parsedAggregation = new SetOnce<>();
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            List<Aggregation> aggregations = new ArrayList<>();
-            XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, aggregations);
-            parsedAggregation = aggregations.get(0);
+            XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, parsedAggregation::set);
 
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
 
-            assertEquals(aggregation.getName(), parsedAggregation.getName());
-            assertEquals(aggregation.getMetaData(), parsedAggregation.getMetaData());
+            Aggregation agg = parsedAggregation.get();
+            assertEquals(aggregation.getName(), agg.getName());
+            assertEquals(aggregation.getMetaData(), agg.getMetaData());
 
-            assertTrue(parsedAggregation instanceof ParsedAggregation);
-            assertEquals(aggregation.getType(), parsedAggregation.getType());
+            assertTrue(agg instanceof ParsedAggregation);
+            assertEquals(aggregation.getType(), agg.getType());
+
+            BytesReference parsedBytes = toXContent(agg, xContentType, params, humanReadable);
+            assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+
+            return (P) agg;
         }
 
-        BytesReference parsedBytes = toXContent(parsedAggregation, xContentType, params, humanReadable);
-        assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
-
-        return (P) parsedAggregation;
     }
 
     /**

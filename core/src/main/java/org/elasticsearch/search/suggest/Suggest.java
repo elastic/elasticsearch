@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -390,13 +391,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         @SuppressWarnings("unchecked")
         public static Suggestion<? extends Entry<? extends Option>> fromXContent(XContentParser parser) throws IOException {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-            List<Suggestion> suggestions = new ArrayList<>();
-            XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Suggestion.class, suggestions);
-            if (suggestions.isEmpty() == false) {
-                return suggestions.get(0);
-            } else {
-                return null;
-            }
+            SetOnce<Suggestion> suggestion = new SetOnce<>();
+            XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Suggestion.class, suggestion::set);
+            return suggestion.get();
         }
 
         protected static <E extends Suggestion.Entry<?>> void parseEntries(XContentParser parser, Suggestion<E> suggestion,

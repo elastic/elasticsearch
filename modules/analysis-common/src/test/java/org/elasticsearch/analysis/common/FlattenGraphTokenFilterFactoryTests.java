@@ -17,9 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
-
-import java.io.IOException;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CannedTokenStream;
 import org.apache.lucene.analysis.Token;
@@ -29,6 +27,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+
+import java.io.IOException;
 
 public class FlattenGraphTokenFilterFactoryTests extends ESTokenStreamTestCase {
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
@@ -30,6 +30,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
+import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -52,7 +54,8 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
         for (String tokenChars : Arrays.asList("letters", "number", "DIRECTIONALITY_UNDEFINED")) {
-            final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", tokenChars).build();
+            final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3)
+                .put("token_chars", tokenChars).build();
             try {
                 new NGramTokenizerFactory(indexProperties, null, name, settings).create();
                 fail();
@@ -61,7 +64,8 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
             }
         }
         for (String tokenChars : Arrays.asList("letter", " digit ", "punctuation", "DIGIT", "CoNtRoL", "dash_punctuation")) {
-            final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", tokenChars).build();
+            final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3)
+                .put("token_chars", tokenChars).build();
             indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
 
             new NGramTokenizerFactory(indexProperties, null, name, settings).create();
@@ -73,8 +77,10 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         final Index index = new Index("test", "_na_");
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
-        final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 4).putArray("token_chars", new String[0]).build();
-        Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
+        final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 4)
+            .putArray("token_chars", new String[0]).build();
+        Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings)
+            .create();
         tokenizer.setReader(new StringReader("1.34"));
         assertTokenStreamContents(tokenizer, new String[] {"1.", "1.3", "1.34", ".3", ".34", "34"});
     }
@@ -84,12 +90,15 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         final Index index = new Index("test", "_na_");
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
-        Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit").build();
-        Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
+        Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3)
+            .put("token_chars", "letter,digit").build();
+        Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings)
+            .create();
         tokenizer.setReader(new StringReader("Åbc déf g\uD801\uDC00f "));
         assertTokenStreamContents(tokenizer,
                 new String[] {"Åb", "Åbc", "bc", "dé", "déf", "éf", "g\uD801\uDC00", "g\uD801\uDC00f", "\uD801\uDC00f"});
-        settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit,punctuation,whitespace,symbol").build();
+        settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3)
+            .put("token_chars", "letter,digit,punctuation,whitespace,symbol").build();
         tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
         tokenizer.setReader(new StringReader(" a!$ 9"));
         assertTokenStreamContents(tokenizer,
@@ -102,12 +111,15 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit").build();
-        Tokenizer tokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
+        Tokenizer tokenizer =
+            new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
         tokenizer.setReader(new StringReader("Åbc déf g\uD801\uDC00f "));
         assertTokenStreamContents(tokenizer,
                 new String[] {"Åb", "Åbc", "dé", "déf", "g\uD801\uDC00", "g\uD801\uDC00f"});
-        settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit,punctuation,whitespace,symbol").build();
-        tokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
+        settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3)
+            .put("token_chars", "letter,digit,punctuation,whitespace,symbol").build();
+        tokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings)
+            .create();
         tokenizer.setReader(new StringReader(" a!$ 9"));
         assertTokenStreamContents(tokenizer,
                 new String[] {" a", " a!"});
@@ -128,7 +140,9 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
             Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
             Tokenizer tokenizer = new MockTokenizer();
             tokenizer.setReader(new StringReader("foo bar"));
-            TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create(tokenizer);
+            TokenStream edgeNGramTokenFilter =
+                new EdgeNGramTokenFilterFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings)
+                    .create(tokenizer);
             if (reverse) {
                 assertThat(edgeNGramTokenFilter, instanceOf(ReverseStringFilter.class));
             } else {

@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -97,7 +98,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
         try {
             final int selectedReader = randomIntBetween(0, allGens.size() - 1);
             final long selectedGeneration = allGens.get(selectedReader).generation;
-            long maxAge = now - allGens.get(selectedReader).getCreationTimeInMillis();
+            long maxAge = now - allGens.get(selectedReader).getLastModifiedTime();
             assertThat(TranslogDeletionPolicy.getMinTranslogGenByAge(readersAndWriter.v1(), readersAndWriter.v2(), maxAge, now),
                 equalTo(selectedGeneration));
             assertThat(TranslogDeletionPolicy.getMinTranslogGenByAge(readersAndWriter.v1(), readersAndWriter.v2(), -1, now),
@@ -121,7 +122,7 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             deletionPolicy.setMinTranslogGenerationForRecovery(Long.MAX_VALUE);
             int selectedReader = randomIntBetween(0, allGens.size() - 1);
             final long selectedGenerationByAge = allGens.get(selectedReader).generation;
-            long maxAge = now - allGens.get(selectedReader).getCreationTimeInMillis();
+            long maxAge = now - allGens.get(selectedReader).getLastModifiedTime();
             selectedReader = randomIntBetween(0, allGens.size() - 1);
             final long selectedGenerationBySize = allGens.get(selectedReader).generation;
             long size = allGens.stream().skip(selectedReader).map(BaseTranslogReader::sizeInBytes).reduce(Long::sum).get();
@@ -162,11 +163,11 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
     }
 
     private void assertMinGenRequired(TranslogDeletionPolicy deletionPolicy, Tuple<List<TranslogReader>, TranslogWriter> readersAndWriter,
-                                      long expectedGen) {
+                                      long expectedGen) throws IOException {
         assertThat(deletionPolicy.minTranslogGenRequired(readersAndWriter.v1(), readersAndWriter.v2()), equalTo(expectedGen));
     }
 
-    private Tuple<List<TranslogReader>, TranslogWriter> createReadersAndWriter(long now) throws IOException {
+    private Tuple<List<TranslogReader>, TranslogWriter> createReadersAndWriter(final long now) throws IOException {
         final Path tempDir = createTempDir();
         Files.createFile(tempDir.resolve(Translog.CHECKPOINT_FILE_NAME));
         TranslogWriter writer = null;
@@ -174,11 +175,16 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
         final int numberOfReaders = randomIntBetween(0, 10);
         for (long gen = 1; gen <= numberOfReaders + 1; gen++) {
             if (writer != null) {
-                readers.add(writer.closeIntoReader());
+                final TranslogReader reader = Mockito.spy(writer.closeIntoReader());
+                Mockito.doReturn(writer.getLastModifiedTime()).when(reader).getLastModifiedTime();
+                readers.add(reader);
             }
             writer = TranslogWriter.create(new ShardId("index", "uuid", 0), "translog_uuid", gen,
-                tempDir.resolve(Translog.getFilename(gen)), FileChannel::open, TranslogConfig.DEFAULT_BUFFER_SIZE, () -> 1L, 1L, () -> 1L,
-                now - (numberOfReaders - gen + 1) * 1000);
+                tempDir.resolve(Translog.getFilename(gen)), FileChannel::open, TranslogConfig.DEFAULT_BUFFER_SIZE, () -> 1L, 1L, () -> 1L
+            );
+            writer = Mockito.spy(writer);
+            Mockito.doReturn(now - (numberOfReaders - gen + 1) * 1000).when(writer).getLastModifiedTime();
+
             byte[] bytes = new byte[4];
             ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
 

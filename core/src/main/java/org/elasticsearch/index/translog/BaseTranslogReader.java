@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -35,10 +36,8 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
     protected final FileChannel channel;
     protected final Path path;
     protected final long firstOperationOffset;
-    private final long creationTimeInMillis;
 
-    public BaseTranslogReader(long generation, FileChannel channel, Path path, long firstOperationOffset, long creationTimeInMillis) {
-        this.creationTimeInMillis = creationTimeInMillis;
+    public BaseTranslogReader(long generation, FileChannel channel, Path path, long firstOperationOffset) {
         assert Translog.parseIdFromFileName(path) == generation : "generation mismatch. Path: " + Translog.parseIdFromFileName(path) + " but generation: " + generation;
 
         this.generation = generation;
@@ -124,7 +123,7 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         return path;
     }
 
-    public long getCreationTimeInMillis() {
-        return creationTimeInMillis;
+    public long getLastModifiedTime() throws IOException {
+        return Files.getLastModifiedTime(path).toMillis();
     }
 }

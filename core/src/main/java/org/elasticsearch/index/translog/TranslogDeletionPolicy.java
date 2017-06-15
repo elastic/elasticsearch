@@ -21,6 +21,7 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.Counter;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,7 +99,7 @@ public class TranslogDeletionPolicy {
      * @param readers current translog readers
      * @param writer  current translog writer
      */
-    synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) {
+    synchronized long minTranslogGenRequired(List<TranslogReader> readers, TranslogWriter writer) throws IOException {
         long minByView = getMinTranslogGenRequiredByViews();
         long minByAge = getMinTranslogGenByAge(readers, writer, maxRetentionAgeInMillis, currentTime());
         long minBySize = getMinTranslogGenBySize(readers, writer, retentionSizeInBytes);
@@ -125,12 +126,15 @@ public class TranslogDeletionPolicy {
         }
     }
 
-    static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now) {
+    static long getMinTranslogGenByAge(List<TranslogReader> readers, TranslogWriter writer, long maxRetentionAgeInMillis, long now)
+        throws IOException {
         if (maxRetentionAgeInMillis >= 0) {
-            BaseTranslogReader firstNonExpired = readers.stream().map(r -> (BaseTranslogReader) r).filter(
-                r -> now - r.getCreationTimeInMillis() <= maxRetentionAgeInMillis
-            ).findFirst().orElse(writer);
-            return firstNonExpired.getGeneration();
+            for (TranslogReader reader: readers) {
+                if (now - reader.getLastModifiedTime() <= maxRetentionAgeInMillis) {
+                    return reader.getGeneration();
+                }
+            }
+            return writer.getGeneration();
         } else {
             return Long.MIN_VALUE;
         }

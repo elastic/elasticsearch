@@ -52,8 +52,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     public static final String TRANSLOG_CODEC = "translog";
     public static final int VERSION_CHECKSUMS = 1;
     public static final int VERSION_CHECKPOINTS = 2; // since 2.0 we have checkpoints?
-    public static final int VERSION_TIMESTAMPS = 3; // since 6.0 we track timestamp of file creation
-    public static final int VERSION = VERSION_TIMESTAMPS;
+    public static final int VERSION = VERSION_CHECKPOINTS;
 
     private final ShardId shardId;
     private final ChannelFactory channelFactory;
@@ -87,9 +86,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final FileChannel channel,
         final Path path,
         final ByteSizeValue bufferSize,
-        final long creationTimeInMillis,
         final LongSupplier globalCheckpointSupplier, LongSupplier minTranslogGenerationSupplier) throws IOException {
-        super(initialCheckpoint.generation, channel, path, channel.position(), creationTimeInMillis);
+        super(initialCheckpoint.generation, channel, path, channel.position());
         assert initialCheckpoint.offset == channel.position() :
             "initial checkpoint offset [" + initialCheckpoint.offset + "] is different than current channel poistion ["
                 + channel.position() + "]";
@@ -112,32 +110,18 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     static int getHeaderLength(int uuidLength) {
-        return CodecUtil.headerLength(TRANSLOG_CODEC) + uuidLength + Integer.BYTES + Long.BYTES;
+        return CodecUtil.headerLength(TRANSLOG_CODEC) + uuidLength + Integer.BYTES;
     }
 
-    static void writeHeader(OutputStreamDataOutput out, BytesRef ref, long creationTimeInMillis) throws IOException {
+    static void writeHeader(OutputStreamDataOutput out, BytesRef ref) throws IOException {
         CodecUtil.writeHeader(out, TRANSLOG_CODEC, VERSION);
         out.writeInt(ref.length);
         out.writeBytes(ref.bytes, ref.offset, ref.length);
-        out.writeLong(creationTimeInMillis);
-    }
-    public static TranslogWriter create(
-        ShardId shardId,
-        String translogUUID,
-        long fileGeneration,
-        Path file,
-        ChannelFactory channelFactory,
-        ByteSizeValue bufferSize,
-        final LongSupplier globalCheckpointSupplier,
-        final long initialMinTranslogGen,
-        final LongSupplier minTranslogGenerationSupplier) throws IOException {
-        return create(shardId, translogUUID, fileGeneration, file, channelFactory, bufferSize, globalCheckpointSupplier,
-            initialMinTranslogGen, minTranslogGenerationSupplier, System.currentTimeMillis());
     }
 
-    static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
-        ByteSizeValue bufferSize, final LongSupplier globalCheckpointSupplier, final long initialMinTranslogGen,
-        final LongSupplier minTranslogGenerationSupplier, final long creationTimeInMillis) throws IOException {
+    public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
+                                        ByteSizeValue bufferSize, final LongSupplier globalCheckpointSupplier, final long initialMinTranslogGen,
+                                        final LongSupplier minTranslogGenerationSupplier) throws IOException {
         final BytesRef ref = new BytesRef(translogUUID);
         final int firstOperationOffset = getHeaderLength(ref.length);
         final FileChannel channel = channelFactory.open(file);
@@ -145,13 +129,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             // This OutputStreamDataOutput is intentionally not closed because
             // closing it will close the FileChannel
             final OutputStreamDataOutput out = new OutputStreamDataOutput(java.nio.channels.Channels.newOutputStream(channel));
-            writeHeader(out, ref, creationTimeInMillis);
+            writeHeader(out, ref);
             channel.force(true);
             final Checkpoint checkpoint =
                     Checkpoint.emptyTranslogCheckpoint(firstOperationOffset, fileGeneration, globalCheckpointSupplier.getAsLong(),
                         initialMinTranslogGen);
             writeCheckpoint(channelFactory, file.getParent(), checkpoint);
-            return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize, creationTimeInMillis,
+            return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize,
                 globalCheckpointSupplier, minTranslogGenerationSupplier);
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -305,7 +289,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 }
                 if (closed.compareAndSet(false, true)) {
                     return
-                        new TranslogReader(getLastSyncedCheckpoint(), channel, path, getFirstOperationOffset(), getCreationTimeInMillis());
+                        new TranslogReader(getLastSyncedCheckpoint(), channel, path, getFirstOperationOffset());
                 } else {
                     throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]", tragedy);
                 }

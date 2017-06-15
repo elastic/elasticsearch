@@ -57,11 +57,9 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
      * @param channel              the translog file channel to open a translog reader against
      * @param path                 the path to the translog
      * @param firstOperationOffset the offset to the first operation
-     * @param creationTimeInMillis creation time of the translog file
      */
-    TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final long firstOperationOffset,
-                   long creationTimeInMillis) {
-        super(checkpoint.generation, channel, path, firstOperationOffset, creationTimeInMillis);
+    TranslogReader(final Checkpoint checkpoint, final FileChannel channel, final Path path, final long firstOperationOffset) {
+        super(checkpoint.generation, channel, path, firstOperationOffset);
         this.length = checkpoint.offset;
         this.totalOperations = checkpoint.numOps;
         this.checkpoint = checkpoint;
@@ -117,7 +115,6 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                     case TranslogWriter.VERSION_CHECKSUMS:
                         throw new IllegalStateException("pre-2.0 translog found [" + path + "]");
                     case TranslogWriter.VERSION_CHECKPOINTS:
-                    case TranslogWriter.VERSION_TIMESTAMPS:
                         assert path.getFileName().toString().endsWith(Translog.TRANSLOG_FILE_SUFFIX) : "new file ends with old suffix: " + path;
                         assert checkpoint.numOps >= 0 : "expected at least 0 operation but got: " + checkpoint.numOps;
                         assert checkpoint.offset <= channel.size() : "checkpoint is inconsistent with channel length: " + channel.size() + " " + checkpoint;
@@ -134,16 +131,8 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                                             " this translog file belongs to a different translog. path:" + path);
                         }
                         final long firstOperationOffset;
-                        final long creationTimeInMillis;
-                        if (version == TranslogWriter.VERSION_TIMESTAMPS) {
-                            creationTimeInMillis = headerStream.readLong();
-                            firstOperationOffset = ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) +
-                                Integer.BYTES + Long.BYTES;
-                        } else {
-                            firstOperationOffset = ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) + Integer.BYTES;
-                            creationTimeInMillis = Long.MAX_VALUE;
-                        }
-                        return new TranslogReader(checkpoint, channel, path, firstOperationOffset, creationTimeInMillis);
+                        firstOperationOffset = ref.length + CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC) + Integer.BYTES;
+                        return new TranslogReader(checkpoint, channel, path, firstOperationOffset);
 
                     default:
                         throw new TranslogCorruptedException("No known translog stream version: " + version + " path:" + path);

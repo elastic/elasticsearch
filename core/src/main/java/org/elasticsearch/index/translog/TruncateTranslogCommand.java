@@ -183,7 +183,7 @@ public class TruncateTranslogCommand extends EnvironmentAwareCommand {
         final BytesRef translogRef = new BytesRef(translogUUID);
         try (FileChannel fc = FileChannel.open(filename, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
                 OutputStreamDataOutput out = new OutputStreamDataOutput(Channels.newOutputStream(fc))) {
-            TranslogWriter.writeHeader(out, translogRef, System.currentTimeMillis());
+            TranslogWriter.writeHeader(out, translogRef);
             fc.force(true);
         }
         return TranslogWriter.getHeaderLength(translogRef.length);

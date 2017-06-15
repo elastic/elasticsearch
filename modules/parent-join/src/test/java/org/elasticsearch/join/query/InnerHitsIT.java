@@ -532,8 +532,8 @@ public class InnerHitsIT extends ParentChildTestCase {
                 .addMapping("child_type", "_parent", "type=parent_type", "nested_type", "type=nested"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent_type", "child_type"),
-                    "nested_type", "nested")));
+                .addMapping("doc", addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                    "parent_type", "child_type"), "nested_type", "nested")));
         }
         createIndexRequest("test", "parent_type", "1", null, "key", "value").get();
         createIndexRequest("test", "child_type", "2", "1", "nested_type", Collections.singletonMap("key", "value")).get();

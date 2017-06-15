@@ -18,18 +18,15 @@
  */
 package org.elasticsearch.index.replication;
 
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -45,7 +42,6 @@ import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;

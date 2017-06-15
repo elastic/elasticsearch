@@ -120,8 +120,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     public static TranslogWriter create(ShardId shardId, String translogUUID, long fileGeneration, Path file, ChannelFactory channelFactory,
-                                        ByteSizeValue bufferSize, final LongSupplier globalCheckpointSupplier, final long initialMinTranslogGen,
-                                        final LongSupplier minTranslogGenerationSupplier) throws IOException {
+                                        ByteSizeValue bufferSize, final LongSupplier globalCheckpointSupplier,
+                                        final long initialMinTranslogGen, final LongSupplier minTranslogGenerationSupplier)
+        throws IOException {
         final BytesRef ref = new BytesRef(translogUUID);
         final int firstOperationOffset = getHeaderLength(ref.length);
         final FileChannel channel = channelFactory.open(file);
@@ -131,9 +132,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             final OutputStreamDataOutput out = new OutputStreamDataOutput(java.nio.channels.Channels.newOutputStream(channel));
             writeHeader(out, ref);
             channel.force(true);
-            final Checkpoint checkpoint =
-                    Checkpoint.emptyTranslogCheckpoint(firstOperationOffset, fileGeneration, globalCheckpointSupplier.getAsLong(),
-                        initialMinTranslogGen);
+            final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(firstOperationOffset, fileGeneration,
+                globalCheckpointSupplier.getAsLong(), initialMinTranslogGen);
             writeCheckpoint(channelFactory, file.getParent(), checkpoint);
             return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize,
                 globalCheckpointSupplier, minTranslogGenerationSupplier);
@@ -288,8 +288,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     throw e;
                 }
                 if (closed.compareAndSet(false, true)) {
-                    return
-                        new TranslogReader(getLastSyncedCheckpoint(), channel, path, getFirstOperationOffset());
+                    return new TranslogReader(getLastSyncedCheckpoint(), channel, path, getFirstOperationOffset());
                 } else {
                     throw new AlreadyClosedException("translog [" + getGeneration() + "] is already closed (path [" + path + "]", tragedy);
                 }

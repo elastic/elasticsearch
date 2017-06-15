@@ -57,7 +57,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -96,7 +95,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
-import org.elasticsearch.index.seqno.SeqNoPrimaryContext;
+import org.elasticsearch.index.seqno.PrimaryContext;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -531,7 +530,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyPrimary();
         assert shardRouting.relocating() : "primary context can only be obtained from a relocating primary but was " + shardRouting;
         assert !shardRouting.isRelocationTarget() : "primary context can only be obtained from relocation source but was " + shardRouting;
-        return new PrimaryContext(getEngine().seqNoService().seqNoPrimaryContext());
+        return getEngine().seqNoService().primaryContext();
     }
 
     public IndexShardState state() {
@@ -1626,14 +1625,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
      *
-     * @param seqNoPrimaryContext the sequence number context
+     * @param primaryContext the sequence number context
      */
-    public void updateAllocationIdsFromPrimaryContext(final SeqNoPrimaryContext seqNoPrimaryContext) {
+    public void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
         verifyPrimary();
         assert shardRouting.isRelocationTarget();
         final Engine engine = getEngineOrNull();
         if (engine != null) {
-            engine.seqNoService().updateAllocationIdsFromPrimaryContext(seqNoPrimaryContext);
+            engine.seqNoService().updateAllocationIdsFromPrimaryContext(primaryContext);
         }
     }
 

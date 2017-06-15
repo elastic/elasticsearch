@@ -249,22 +249,22 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     }
 
     /**
-     * Get the sequence number primary context for the shard. This includes the state of the global checkpoint tracker.
+     * Get the primary context for the shard. This includes the state of the global checkpoint tracker.
      *
-     * @return the sequence number primary context
+     * @return the primary context
      */
-    synchronized SeqNoPrimaryContext seqNoPrimaryContext() {
+    synchronized PrimaryContext primaryContext() {
         final ObjectLongMap<String> inSyncLocalCheckpoints = new ObjectLongHashMap<>(this.inSyncLocalCheckpoints);
         final ObjectLongMap<String> trackingLocalCheckpoints = new ObjectLongHashMap<>(this.trackingLocalCheckpoints);
-        return new SeqNoPrimaryContext(inSyncLocalCheckpoints, trackingLocalCheckpoints);
+        return new PrimaryContext(inSyncLocalCheckpoints, trackingLocalCheckpoints);
     }
 
     /**
      * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
      *
-     * @param seqNoPrimaryContext the sequence number context
+     * @param primaryContext the primary context
      */
-    synchronized void updateAllocationIdsFromPrimaryContext(final SeqNoPrimaryContext seqNoPrimaryContext) {
+    synchronized void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
         /*
          * We are gathered here today to witness the relocation handoff transferring knowledge from the relocation source to the relocation
          * target. We need to consider the possibility that the version of the cluster state on the relocation source when the primary
@@ -312,7 +312,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          *
          * In both cases, no calls to update the local checkpoint for such shards will be made. This case is safe too.
          */
-        for (final ObjectLongCursor<String> cursor : seqNoPrimaryContext.inSyncLocalCheckpoints()) {
+        for (final ObjectLongCursor<String> cursor : primaryContext.inSyncLocalCheckpoints()) {
             updateLocalCheckpoint(cursor.key, cursor.value);
             assert cursor.value >= globalCheckpoint
                     : "local checkpoint [" + cursor.value + "] violates being at least the global checkpoint [" + globalCheckpoint + "]";
@@ -327,7 +327,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             }
         }
 
-        for (final ObjectLongCursor<String> cursor : seqNoPrimaryContext.trackingLocalCheckpoints()) {
+        for (final ObjectLongCursor<String> cursor : primaryContext.trackingLocalCheckpoints()) {
             updateLocalCheckpoint(cursor.key, cursor.value);
         }
     }

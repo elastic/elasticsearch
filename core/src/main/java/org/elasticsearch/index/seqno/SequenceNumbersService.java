@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.seqno;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -179,10 +177,10 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     /**
      * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
      *
-     * @param seqNoPrimaryContext the sequence number context
+     * @param primaryContext the sequence number context
      */
-    public void updateAllocationIdsFromPrimaryContext(final SeqNoPrimaryContext seqNoPrimaryContext) {
-        globalCheckpointTracker.updateAllocationIdsFromPrimaryContext(seqNoPrimaryContext);
+    public void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
+        globalCheckpointTracker.updateAllocationIdsFromPrimaryContext(primaryContext);
     }
 
     /**
@@ -195,12 +193,12 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
-     * Get the sequence number primary context for the shard. This includes the state of the global checkpoint tracker.
+     * Get the primary context for the shard. This includes the state of the global checkpoint tracker.
      *
-     * @return the sequence number primary context
+     * @return the primary context
      */
-    public SeqNoPrimaryContext seqNoPrimaryContext() {
-        return globalCheckpointTracker.seqNoPrimaryContext();
+    public PrimaryContext primaryContext() {
+        return globalCheckpointTracker.primaryContext();
     }
 
 }

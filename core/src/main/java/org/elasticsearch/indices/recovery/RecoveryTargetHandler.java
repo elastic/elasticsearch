@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.shard.PrimaryContext;
+import org.elasticsearch.index.seqno.PrimaryContext;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;

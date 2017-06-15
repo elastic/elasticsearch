@@ -32,7 +32,7 @@ import java.io.IOException;
  * Represents the sequence number component of the primary context. This is the knowledge on the primary of the in-sync and initializing
  * shards and their local checkpoints.
  */
-public class SeqNoPrimaryContext implements Writeable {
+public class PrimaryContext implements Writeable {
 
     private ObjectLongMap<String> inSyncLocalCheckpoints;
 
@@ -46,12 +46,12 @@ public class SeqNoPrimaryContext implements Writeable {
         return trackingLocalCheckpoints;
     }
 
-    public SeqNoPrimaryContext(final ObjectLongMap<String> inSyncLocalCheckpoints, final ObjectLongMap<String> trackingLocalCheckpoints) {
+    public PrimaryContext(final ObjectLongMap<String> inSyncLocalCheckpoints, final ObjectLongMap<String> trackingLocalCheckpoints) {
         this.inSyncLocalCheckpoints = inSyncLocalCheckpoints;
         this.trackingLocalCheckpoints = trackingLocalCheckpoints;
     }
 
-    public SeqNoPrimaryContext(StreamInput in) throws IOException {
+    public PrimaryContext(final StreamInput in) throws IOException {
         inSyncLocalCheckpoints = readMap(in);
         trackingLocalCheckpoints = readMap(in);
     }

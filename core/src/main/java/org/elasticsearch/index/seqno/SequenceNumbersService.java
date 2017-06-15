@@ -21,6 +21,7 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Set;

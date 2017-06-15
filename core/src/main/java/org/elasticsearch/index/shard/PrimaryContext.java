@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.seqno;
+package org.elasticsearch.index.shard;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;

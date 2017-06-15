@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashSet;

@@ -9,7 +9,7 @@ Elasticsearch is provided in the following package formats:
 The `zip` and `tar.gz` packages are suitable for installation on any system
 and are the easiest choice for getting started with Elasticsearch on most systems.
 +
-<<zip-targz>>
+<<zip-targz>> or <<zip-windows>>
 
 `deb`::
 
@@ -55,6 +55,8 @@ Ansible:: https://github.com/elastic/ansible-elasticsearch[ansible-elasticsearch
 
 
 include::install/zip-targz.asciidoc[]
+
+include::install/zip-windows.asciidoc[]
 
 include::install/deb.asciidoc[]
 

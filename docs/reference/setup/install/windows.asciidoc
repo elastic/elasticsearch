@@ -5,7 +5,7 @@ Elasticsearch can be installed on Windows using the `.msi` package.  This can
 install Elasticsearch as a Windows service or allow it to be run manually using
 the included `elasticsearch.exe` executable.
 
-TIP: Elasticsearch has historically been installed on Windows using the <<zip-targz, .zip>> archive.
+TIP: Elasticsearch has historically been installed on Windows using the <<zip-windows, .zip>> archive.
 You can continue using the `.zip` approach if you prefer.
 
 The latest stable version of Elasticsearch can be found on the
@@ -42,24 +42,8 @@ aside panel with additional information for each input:
 [[msi-installer-help]]
 image::images/msi_installer/msi_installer_help.png[]
 
-Within the first screen, select the deployment directories for 
-
-[horizontal]
-Installation directory:: 
-
-  defaults to `%PROGRAMFILES%\Elastic\Elasticsearch`
-
-Data directory:: 
-
-  defaults to `%ALLUSERSPROFILE%\Elastic\Elasticsearch\data`
-
-Configuration directory:: 
-
-  defaults to `%ALLUSERSPROFILE%\Elastic\Elasticsearch\config`
-
-Logs directory:: 
-
-  defaults to `%ALLUSERSPROFILE%\Elastic\Elasticsearch\logs`
+Within the first screen, select the directory for the installation. In addition, select directories for where
+data, logs and configuration will reside or <<msi-command-line-options,roll with the default locations>>:
 
 [[msi-installer-locations]]
 image::images/msi_installer/msi_installer_locations.png[]
@@ -368,7 +352,7 @@ The following configuration step allows certain configuration options to be chan
 image::images/msi_installer/msi_installer_upgrade_configuration.png[]
 
 Finally, the plugins step allows currently installed plugins to be upgraded or removed, and 
-for plugins not currently installed, to be installed:
+for plugins not currently installed, to be downloaded and installed:
 
 [[msi-installer-upgrade-plugins]]
 image::images/msi_installer/msi_installer_upgrade_plugins.png[]

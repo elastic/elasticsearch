@@ -43,6 +43,8 @@ import java.util.Set;
  */
 public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
+    private long clusterStateVersion;
+
     /*
      * This map holds the last known local checkpoint for every active shard and initializing shard copies that has been brought up to speed
      * through recovery. These shards are treated as valid copies and participate in determining the global checkpoint. This map is keyed by
@@ -211,11 +213,14 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     /**
      * Notifies the service of the current allocation ids in the cluster state. This method trims any shards that have been removed.
      *
-     * @param activeAllocationIds       the allocation IDs of the currently active shard copies
-     * @param initializingAllocationIds the allocation IDs of the currently initializing shard copies
+     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
+     * @param activeAllocationIds         the allocation IDs of the currently active shard copies
+     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
      */
     public synchronized void updateAllocationIdsFromMaster(
-            final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
+            final long applyingClusterStateVersion, final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
+        clusterStateVersion = applyingClusterStateVersion;
+
         // remove shards whose allocation ID no longer exists
         inSyncLocalCheckpoints.removeAll(a -> !activeAllocationIds.contains(a) && !initializingAllocationIds.contains(a));
 
@@ -257,7 +262,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     synchronized PrimaryContext primaryContext() {
         final ObjectLongMap<String> inSyncLocalCheckpoints = new ObjectLongHashMap<>(this.inSyncLocalCheckpoints);
         final ObjectLongMap<String> trackingLocalCheckpoints = new ObjectLongHashMap<>(this.trackingLocalCheckpoints);
-        return new PrimaryContext(inSyncLocalCheckpoints, trackingLocalCheckpoints);
+        return new PrimaryContext(clusterStateVersion, inSyncLocalCheckpoints, trackingLocalCheckpoints);
     }
 
     /**

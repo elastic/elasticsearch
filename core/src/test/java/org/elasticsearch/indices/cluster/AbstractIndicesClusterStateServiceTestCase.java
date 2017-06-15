@@ -319,6 +319,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
      * Mock for {@link IndexShard}
      */
     protected class MockIndexShard implements IndicesClusterStateService.Shard {
+        private volatile long clusterStateVersion;
         private volatile ShardRouting shardRouting;
         private volatile RecoveryState recoveryState;
         private volatile Set<String> activeAllocationIds;
@@ -368,7 +369,9 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public void updateAllocationIdsFromMaster(Set<String> activeAllocationIds, Set<String> initializingAllocationIds) {
+        public void updateAllocationIdsFromMaster(
+                long applyingClusterStateVersion, Set<String> activeAllocationIds, Set<String> initializingAllocationIds) {
+            this.clusterStateVersion = applyingClusterStateVersion;
             this.activeAllocationIds = activeAllocationIds;
             this.initializingAllocationIds = initializingAllocationIds;
         }

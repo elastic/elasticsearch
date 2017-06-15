@@ -166,13 +166,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     /**
      * Notifies the service of the current allocation IDs in the cluster state. See
-     * {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(Set, Set)} for details.
+     * {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(long, Set, Set)} for details.
      *
-     * @param activeAllocationIds       the allocation IDs of the currently active shard copies
-     * @param initializingAllocationIds the allocation IDs of the currently initializing shard copies
+     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
+     * @param activeAllocationIds         the allocation IDs of the currently active shard copies
+     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
      */
-    public void updateAllocationIdsFromMaster(final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
-        globalCheckpointTracker.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+    public void updateAllocationIdsFromMaster(
+            final long applyingClusterStateVersion, final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
+        globalCheckpointTracker.updateAllocationIdsFromMaster(applyingClusterStateVersion, activeAllocationIds, initializingAllocationIds);
     }
 
     /**

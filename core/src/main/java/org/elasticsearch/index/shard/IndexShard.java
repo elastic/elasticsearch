@@ -1606,18 +1606,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Notifies the service of the current allocation IDs in the cluster state. See
-     * {@link org.elasticsearch.index.seqno.GlobalCheckpointTracker#updateAllocationIdsFromMaster(Set, Set)}
+     * {@link org.elasticsearch.index.seqno.GlobalCheckpointTracker#updateAllocationIdsFromMaster(long, Set, Set)}
      * for details.
      *
-     * @param activeAllocationIds       the allocation IDs of the currently active shard copies
-     * @param initializingAllocationIds the allocation IDs of the currently initializing shard copies
+     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
+     * @param activeAllocationIds         the allocation IDs of the currently active shard copies
+     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
      */
-    public void updateAllocationIdsFromMaster(final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
+    public void updateAllocationIdsFromMaster(
+            final long applyingClusterStateVersion, final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
         verifyPrimary();
         final Engine engine = getEngineOrNull();
         // if the engine is not yet started, we are not ready yet and can just ignore this
         if (engine != null) {
-            engine.seqNoService().updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+            engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, activeAllocationIds, initializingAllocationIds);
         }
     }
 

@@ -79,6 +79,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
     }
 
     public void testGlobalCheckpointUpdate() {
+        final long initialClusterStateVersion = randomNonNegativeLong();
         Map<String, Long> allocations = new HashMap<>();
         Map<String, Long> activeWithCheckpoints = randomAllocationsWithLocalCheckpoints(0, 5);
         Set<String> active = new HashSet<>(activeWithCheckpoints.keySet());
@@ -107,7 +108,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
             logger.info("  - [{}], local checkpoint [{}], [{}]", aId, allocations.get(aId), type);
         });
 
-        tracker.updateAllocationIdsFromMaster(active, initializing);
+        tracker.updateAllocationIdsFromMaster(initialClusterStateVersion, active, initializing);
         initializing.forEach(aId -> markAllocationIdAsInSyncQuietly(tracker, aId, tracker.getGlobalCheckpoint()));
         allocations.keySet().forEach(aId -> tracker.updateLocalCheckpoint(aId, allocations.get(aId)));
 
@@ -130,7 +131,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
 
         Set<String> newActive = new HashSet<>(active);
         newActive.add(extraId);
-        tracker.updateAllocationIdsFromMaster(newActive, initializing);
+        tracker.updateAllocationIdsFromMaster(initialClusterStateVersion + 1, newActive, initializing);
 
         // now notify for the new id
         tracker.updateLocalCheckpoint(extraId, minLocalCheckpointAfterUpdates + 1 + randomInt(4));
@@ -146,6 +147,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         assigned.putAll(active);
         assigned.putAll(initializing);
         tracker.updateAllocationIdsFromMaster(
+                randomNonNegativeLong(),
                 active.keySet(),
                 initializing.keySet());
         randomSubsetOf(initializing.keySet()).forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
@@ -166,7 +168,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
     public void testMissingInSyncIdsPreventAdvance() {
         final Map<String, Long> active = randomAllocationsWithLocalCheckpoints(0, 5);
         final Map<String, Long> initializing = randomAllocationsWithLocalCheckpoints(1, 5);
-        tracker.updateAllocationIdsFromMaster(active.keySet(), initializing.keySet());
+        tracker.updateAllocationIdsFromMaster(randomNonNegativeLong(), active.keySet(), initializing.keySet());
         initializing.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
         randomSubsetOf(randomInt(initializing.size() - 1),
             initializing.keySet()).forEach(aId -> tracker.updateLocalCheckpoint(aId, initializing.get(aId)));
@@ -184,7 +186,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final Map<String, Long> active = randomAllocationsWithLocalCheckpoints(1, 5);
         final Map<String, Long> initializing = randomAllocationsWithLocalCheckpoints(1, 5);
         final Map<String, Long> nonApproved = randomAllocationsWithLocalCheckpoints(1, 5);
-        tracker.updateAllocationIdsFromMaster(active.keySet(), initializing.keySet());
+        tracker.updateAllocationIdsFromMaster(randomNonNegativeLong(), active.keySet(), initializing.keySet());
         initializing.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
         nonApproved.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
 
@@ -196,6 +198,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
     }
 
     public void testInSyncIdsAreRemovedIfNotValidatedByMaster() {
+        final long initialClusterStateVersion = randomNonNegativeLong();
         final Map<String, Long> activeToStay = randomAllocationsWithLocalCheckpoints(1, 5);
         final Map<String, Long> initializingToStay = randomAllocationsWithLocalCheckpoints(1, 5);
         final Map<String, Long> activeToBeRemoved = randomAllocationsWithLocalCheckpoints(1, 5);
@@ -211,7 +214,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         if (randomBoolean()) {
             allocations.putAll(initializingToBeRemoved);
         }
-        tracker.updateAllocationIdsFromMaster(active, initializing);
+        tracker.updateAllocationIdsFromMaster(initialClusterStateVersion, active, initializing);
         if (randomBoolean()) {
             initializingToStay.keySet().forEach(k -> markAllocationIdAsInSyncQuietly(tracker, k, tracker.getGlobalCheckpoint()));
         } else {
@@ -223,11 +226,11 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
 
         // now remove shards
         if (randomBoolean()) {
-            tracker.updateAllocationIdsFromMaster(activeToStay.keySet(), initializingToStay.keySet());
+            tracker.updateAllocationIdsFromMaster(initialClusterStateVersion + 1, activeToStay.keySet(), initializingToStay.keySet());
             allocations.forEach((aid, ckp) -> tracker.updateLocalCheckpoint(aid, ckp + 10L));
         } else {
             allocations.forEach((aid, ckp) -> tracker.updateLocalCheckpoint(aid, ckp + 10L));
-            tracker.updateAllocationIdsFromMaster(activeToStay.keySet(), initializingToStay.keySet());
+            tracker.updateAllocationIdsFromMaster(initialClusterStateVersion + 2, activeToStay.keySet(), initializingToStay.keySet());
         }
 
         final long checkpoint = Stream.concat(activeToStay.values().stream(), initializingToStay.values().stream())
@@ -243,7 +246,8 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final AtomicBoolean complete = new AtomicBoolean();
         final String inSyncAllocationId =randomAlphaOfLength(16);
         final String trackingAllocationId = randomAlphaOfLength(16);
-        tracker.updateAllocationIdsFromMaster(Collections.singleton(inSyncAllocationId), Collections.singleton(trackingAllocationId));
+        tracker.updateAllocationIdsFromMaster(
+                randomNonNegativeLong(), Collections.singleton(inSyncAllocationId), Collections.singleton(trackingAllocationId));
         tracker.updateLocalCheckpoint(inSyncAllocationId, globalCheckpoint);
         final Thread thread = new Thread(() -> {
             try {
@@ -291,7 +295,8 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final AtomicBoolean interrupted = new AtomicBoolean();
         final String inSyncAllocationId = randomAlphaOfLength(16);
         final String trackingAllocationId = randomAlphaOfLength(32);
-        tracker.updateAllocationIdsFromMaster(Collections.singleton(inSyncAllocationId), Collections.singleton(trackingAllocationId));
+        tracker.updateAllocationIdsFromMaster(
+                randomNonNegativeLong(), Collections.singleton(inSyncAllocationId), Collections.singleton(trackingAllocationId));
         tracker.updateLocalCheckpoint(inSyncAllocationId, globalCheckpoint);
         final Thread thread = new Thread(() -> {
             try {
@@ -329,6 +334,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
     }
 
     public void testUpdateAllocationIdsFromMaster() throws Exception {
+        final long initialClusterStateVersion = randomNonNegativeLong();
         final int numberOfActiveAllocationsIds = randomIntBetween(2, 16);
         final Set<String> activeAllocationIds =
                 IntStream.range(0, numberOfActiveAllocationsIds).mapToObj(i -> randomAlphaOfLength(16)).collect(Collectors.toSet());
@@ -343,7 +349,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                         }
                     } while (true);
                 }).collect(Collectors.toSet());
-        tracker.updateAllocationIdsFromMaster(activeAllocationIds, initializingIds);
+        tracker.updateAllocationIdsFromMaster(initialClusterStateVersion, activeAllocationIds, initializingIds);
 
         // first we assert that the in-sync and tracking sets are set up correctly
         assertTrue(activeAllocationIds.stream().allMatch(a -> tracker.inSyncLocalCheckpoints.containsKey(a)));
@@ -364,7 +370,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final List<String> removingInitializingAllocationIds = randomSubsetOf(initializingIds);
         final Set<String> newInitializingAllocationIds =
                 initializingIds.stream().filter(a -> !removingInitializingAllocationIds.contains(a)).collect(Collectors.toSet());
-        tracker.updateAllocationIdsFromMaster(newActiveAllocationIds, newInitializingAllocationIds);
+        tracker.updateAllocationIdsFromMaster(initialClusterStateVersion + 1, newActiveAllocationIds, newInitializingAllocationIds);
         assertTrue(newActiveAllocationIds.stream().allMatch(a -> tracker.inSyncLocalCheckpoints.containsKey(a)));
         assertTrue(removingActiveAllocationIds.stream().noneMatch(a -> tracker.inSyncLocalCheckpoints.containsKey(a)));
         assertTrue(newInitializingAllocationIds.stream().allMatch(a -> tracker.trackingLocalCheckpoints.containsKey(a)));
@@ -376,7 +382,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
          */
         newActiveAllocationIds.add(randomAlphaOfLength(32));
         newInitializingAllocationIds.add(randomAlphaOfLength(64));
-        tracker.updateAllocationIdsFromMaster(newActiveAllocationIds, newInitializingAllocationIds);
+        tracker.updateAllocationIdsFromMaster(initialClusterStateVersion + 2, newActiveAllocationIds, newInitializingAllocationIds);
         assertTrue(newActiveAllocationIds.stream().allMatch(a -> tracker.inSyncLocalCheckpoints.containsKey(a)));
         assertTrue(
                 newActiveAllocationIds
@@ -416,7 +422,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         // using a different length than we have been using above ensures that we can not collide with a previous allocation ID
         final String newSyncingAllocationId = randomAlphaOfLength(128);
         newInitializingAllocationIds.add(newSyncingAllocationId);
-        tracker.updateAllocationIdsFromMaster(newActiveAllocationIds, newInitializingAllocationIds);
+        tracker.updateAllocationIdsFromMaster(initialClusterStateVersion + 3, newActiveAllocationIds, newInitializingAllocationIds);
         final CyclicBarrier barrier = new CyclicBarrier(2);
         final Thread thread = new Thread(() -> {
             try {
@@ -450,7 +456,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
          * the in-sync set even if we receive a cluster state update that does not reflect this.
          *
          */
-        tracker.updateAllocationIdsFromMaster(newActiveAllocationIds, newInitializingAllocationIds);
+        tracker.updateAllocationIdsFromMaster(initialClusterStateVersion + 4, newActiveAllocationIds, newInitializingAllocationIds);
         assertFalse(tracker.trackingLocalCheckpoints.containsKey(newSyncingAllocationId));
         assertTrue(tracker.inSyncLocalCheckpoints.containsKey(newSyncingAllocationId));
     }
@@ -471,7 +477,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
 
         final String active = randomAlphaOfLength(16);
         final String initializing = randomAlphaOfLength(32);
-        tracker.updateAllocationIdsFromMaster(Collections.singleton(active), Collections.singleton(initializing));
+        tracker.updateAllocationIdsFromMaster(randomNonNegativeLong(), Collections.singleton(active), Collections.singleton(initializing));
 
         final CyclicBarrier barrier = new CyclicBarrier(4);
 

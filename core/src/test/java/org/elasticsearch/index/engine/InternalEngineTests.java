@@ -2019,7 +2019,10 @@ public class InternalEngineTests extends ESTestCase {
             initialEngine = engine;
             initialEngine
                 .seqNoService()
-                .updateAllocationIdsFromMaster(new HashSet<>(Arrays.asList("primary", "replica")), Collections.emptySet());
+                .updateAllocationIdsFromMaster(
+                        randomNonNegativeLong(),
+                        new HashSet<>(Arrays.asList("primary", "replica")),
+                        Collections.emptySet());
             for (int op = 0; op < opCount; op++) {
                 final String id;
                 // mostly index, sometimes delete

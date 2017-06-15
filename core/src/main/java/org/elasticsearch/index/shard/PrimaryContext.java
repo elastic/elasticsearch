@@ -34,6 +34,12 @@ import java.io.IOException;
  */
 public class PrimaryContext implements Writeable {
 
+    private long clusterStateVersion;
+
+    public long clusterStateVersion() {
+        return clusterStateVersion;
+    }
+
     private ObjectLongMap<String> inSyncLocalCheckpoints;
 
     public ObjectLongMap<String> inSyncLocalCheckpoints() {
@@ -46,12 +52,17 @@ public class PrimaryContext implements Writeable {
         return trackingLocalCheckpoints;
     }
 
-    public PrimaryContext(final ObjectLongMap<String> inSyncLocalCheckpoints, final ObjectLongMap<String> trackingLocalCheckpoints) {
+    public PrimaryContext(
+            final long clusterStateVersion,
+            final ObjectLongMap<String> inSyncLocalCheckpoints,
+            final ObjectLongMap<String> trackingLocalCheckpoints) {
+        this.clusterStateVersion = clusterStateVersion;
         this.inSyncLocalCheckpoints = inSyncLocalCheckpoints;
         this.trackingLocalCheckpoints = trackingLocalCheckpoints;
     }
 
     public PrimaryContext(final StreamInput in) throws IOException {
+        clusterStateVersion = in.readVLong();
         inSyncLocalCheckpoints = readMap(in);
         trackingLocalCheckpoints = readMap(in);
     }
@@ -69,6 +80,7 @@ public class PrimaryContext implements Writeable {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
+        out.writeVLong(clusterStateVersion);
         writeMap(out, inSyncLocalCheckpoints);
         writeMap(out, trackingLocalCheckpoints);
     }
@@ -83,8 +95,9 @@ public class PrimaryContext implements Writeable {
 
     @Override
     public String toString() {
-        return "SeqNoPrimaryContext{" +
-                "inSyncLocalCheckpoints=" + inSyncLocalCheckpoints +
+        return "PrimaryContext{" +
+                "clusterStateVersion=" + clusterStateVersion +
+                ", inSyncLocalCheckpoints=" + inSyncLocalCheckpoints +
                 ", trackingLocalCheckpoints=" + trackingLocalCheckpoints +
                 '}';
     }

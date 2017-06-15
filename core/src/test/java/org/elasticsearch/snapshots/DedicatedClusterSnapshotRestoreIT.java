@@ -208,19 +208,16 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         Client client = client();
         createIndex("test-idx");
         logger.info("--> add custom persistent metadata");
-        updateClusterState(new ClusterStateUpdater() {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                ClusterState.Builder builder = ClusterState.builder(currentState);
-                MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
-                metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("before_snapshot_s"));
-                metadataBuilder.putCustom(NonSnapshottableMetadata.TYPE, new NonSnapshottableMetadata("before_snapshot_ns"));
-                metadataBuilder.putCustom(SnapshottableGatewayMetadata.TYPE, new SnapshottableGatewayMetadata("before_snapshot_s_gw"));
-                metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("before_snapshot_ns_gw"));
-                metadataBuilder.putCustom(SnapshotableGatewayNoApiMetadata.TYPE, new SnapshotableGatewayNoApiMetadata("before_snapshot_s_gw_noapi"));
-                builder.metaData(metadataBuilder);
-                return builder.build();
-            }
+        updateClusterState(currentState -> {
+            ClusterState.Builder builder = ClusterState.builder(currentState);
+            MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
+            metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("before_snapshot_s"));
+            metadataBuilder.putCustom(NonSnapshottableMetadata.TYPE, new NonSnapshottableMetadata("before_snapshot_ns"));
+            metadataBuilder.putCustom(SnapshottableGatewayMetadata.TYPE, new SnapshottableGatewayMetadata("before_snapshot_s_gw"));
+            metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("before_snapshot_ns_gw"));
+            metadataBuilder.putCustom(SnapshotableGatewayNoApiMetadata.TYPE, new SnapshotableGatewayNoApiMetadata("before_snapshot_s_gw_noapi"));
+            builder.metaData(metadataBuilder);
+            return builder.build();
         });
 
         logger.info("--> create repository");
@@ -235,27 +232,24 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
 
         logger.info("--> change custom persistent metadata");
-        updateClusterState(new ClusterStateUpdater() {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                ClusterState.Builder builder = ClusterState.builder(currentState);
-                MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
-                if (randomBoolean()) {
-                    metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("after_snapshot_s"));
-                } else {
-                    metadataBuilder.removeCustom(SnapshottableMetadata.TYPE);
-                }
-                metadataBuilder.putCustom(NonSnapshottableMetadata.TYPE, new NonSnapshottableMetadata("after_snapshot_ns"));
-                if (randomBoolean()) {
-                    metadataBuilder.putCustom(SnapshottableGatewayMetadata.TYPE, new SnapshottableGatewayMetadata("after_snapshot_s_gw"));
-                } else {
-                    metadataBuilder.removeCustom(SnapshottableGatewayMetadata.TYPE);
-                }
-                metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("after_snapshot_ns_gw"));
-                metadataBuilder.removeCustom(SnapshotableGatewayNoApiMetadata.TYPE);
-                builder.metaData(metadataBuilder);
-                return builder.build();
+        updateClusterState(currentState -> {
+            ClusterState.Builder builder = ClusterState.builder(currentState);
+            MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
+            if (randomBoolean()) {
+                metadataBuilder.putCustom(SnapshottableMetadata.TYPE, new SnapshottableMetadata("after_snapshot_s"));
+            } else {
+                metadataBuilder.removeCustom(SnapshottableMetadata.TYPE);
             }
+            metadataBuilder.putCustom(NonSnapshottableMetadata.TYPE, new NonSnapshottableMetadata("after_snapshot_ns"));
+            if (randomBoolean()) {
+                metadataBuilder.putCustom(SnapshottableGatewayMetadata.TYPE, new SnapshottableGatewayMetadata("after_snapshot_s_gw"));
+            } else {
+                metadataBuilder.removeCustom(SnapshottableGatewayMetadata.TYPE);
+            }
+            metadataBuilder.putCustom(NonSnapshottableGatewayMetadata.TYPE, new NonSnapshottableGatewayMetadata("after_snapshot_ns_gw"));
+            metadataBuilder.removeCustom(SnapshotableGatewayNoApiMetadata.TYPE);
+            builder.metaData(metadataBuilder);
+            return builder.build();
         });
 
         logger.info("--> delete repository");
@@ -510,15 +504,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-2")
                     .setIndices("test-idx-all", "test-idx-none", "test-idx-some")
                     .setWaitForCompletion(false).setPartial(true).execute().actionGet();
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap-2").get();
-                    List<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
-                    assertEquals(snapshotStatuses.size(), 1);
-                    logger.trace("current snapshot status [{}]", snapshotStatuses.get(0));
-                    assertTrue(snapshotStatuses.get(0).getState().completed());
-                }
+            assertBusy(() -> {
+                SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap-2").get();
+                List<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
+                assertEquals(snapshotStatuses.size(), 1);
+                logger.trace("current snapshot status [{}]", snapshotStatuses.get(0));
+                assertTrue(snapshotStatuses.get(0).getState().completed());
             }, 1, TimeUnit.MINUTES);
             SnapshotsStatusResponse snapshotsStatusResponse = client().admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-snap-2").get();
             List<SnapshotStatus> snapshotStatuses = snapshotsStatusResponse.getSnapshots();
@@ -531,15 +522,12 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
             // There is slight delay between snapshot being marked as completed in the cluster state and on the file system
             // After it was marked as completed in the cluster state - we need to check if it's completed on the file system as well
-            assertBusy(new Runnable() {
-                @Override
-                public void run() {
-                    GetSnapshotsResponse response = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").get();
-                    assertThat(response.getSnapshots().size(), equalTo(1));
-                    SnapshotInfo snapshotInfo = response.getSnapshots().get(0);
-                    assertTrue(snapshotInfo.state().completed());
-                    assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
-                }
+            assertBusy(() -> {
+                GetSnapshotsResponse response = client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap-2").get();
+                assertThat(response.getSnapshots().size(), equalTo(1));
+                SnapshotInfo snapshotInfo = response.getSnapshots().get(0);
+                assertTrue(snapshotInfo.state().completed());
+                assertEquals(SnapshotState.PARTIAL, snapshotInfo.state());
             }, 1, TimeUnit.MINUTES);
         } else {
             logger.info("checking snapshot completion using wait_for_completion flag");

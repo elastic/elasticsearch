@@ -90,13 +90,13 @@ The above request will yield the following response:
   },
   "hits": {
     "total": 1,
-    "max_score": 0.5716521,
+    "max_score": 0.5753642,
     "hits": [
       { <1>
         "_index": "my-index",
         "_type": "doc",
         "_id": "1",
-        "_score": 0.5716521,
+        "_score": 0.5753642,
         "_source": {
           "query": {
             "match": {
@@ -291,13 +291,13 @@ This will yield the following response.
   },
   "hits": {
     "total": 2,
-    "max_score": 0.5446649,
+    "max_score": 0.5753642,
     "hits": [
       {
         "_index": "my-index",
         "_type": "doc",
         "_id": "4",
-        "_score": 0.5446649,
+        "_score": 0.5753642,
         "_source": {
           "query": {
             "match": {
@@ -315,7 +315,7 @@ This will yield the following response.
         "_index": "my-index",
         "_type": "doc",
         "_id": "3",
-        "_score": 0.5446649,
+        "_score": 0.5753642,
         "_source": {
           "query": {
             "match": {

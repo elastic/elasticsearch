@@ -26,7 +26,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.core.IsNull;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -280,14 +282,10 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getTerm(), equalTo("troubled"));
         String[] expectedAttributesKey = {
             "bytes",
+            "termFrequency",
             "positionLength"};
-        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().size(), equalTo(expectedAttributesKey.length));
-        Object extendedAttribute;
-
-        for (String key : expectedAttributesKey) {
-            extendedAttribute = analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().get(key);
-            assertThat(extendedAttribute, notNullValue());
-        }
+        assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getAttributes().keySet(),
+                equalTo(new HashSet<>(Arrays.asList(expectedAttributesKey))));
     }
 
     public void testDetailAnalyzeWithMultiValues() throws Exception {

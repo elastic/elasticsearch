@@ -43,11 +43,20 @@ import java.io.IOException;
  *  not thread safe, so it is the caller's job to create and use one
  *  instance of this per thread.  Do not use this if a term may appear
  *  in more than one document!  It will only return the first one it
- *  finds. */
-
+ *  finds.
+ *  This class uses live docs, so it should be cached based on the
+ *  {@link org.apache.lucene.index.IndexReader#getReaderCacheHelper() reader cache helper}
+ *  rather than the {@link LeafReader#getCoreCacheHelper() core cache helper}.
+ */
 final class PerThreadIDVersionAndSeqNoLookup {
     // TODO: do we really need to store all this stuff? some if it might not speed up anything.
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
+
+    /** The {@link LeafReaderContext} that needs to be looked up. */
+    private final LeafReaderContext context;
+    /** Live docs of the context, cached to avoid the cost of ensureOpen() on every
+     *  segment for every index operation. */
+    private final Bits liveDocs;
 
     /** terms enum for uid field */
     final String uidField;
@@ -62,7 +71,10 @@ final class PerThreadIDVersionAndSeqNoLookup {
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
+    PerThreadIDVersionAndSeqNoLookup(LeafReaderContext context, String uidField) throws IOException {
+        this.context = context;
+        final LeafReader reader = context.reader();
+        this.liveDocs = reader.getLiveDocs();
         this.uidField = uidField;
         Fields fields = reader.fields();
         Terms terms = fields.terms(uidField);
@@ -80,11 +92,11 @@ final class PerThreadIDVersionAndSeqNoLookup {
     }
 
     /** Return null if id is not found. */
-    public DocIdAndVersion lookupVersion(BytesRef id, Bits liveDocs, LeafReaderContext context)
+    public DocIdAndVersion lookupVersion(BytesRef id)
         throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, liveDocs);
+        int docID = getDocID(id);
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final NumericDocValues versions = context.reader().getNumericDocValues(VersionFieldMapper.NAME);
@@ -104,7 +116,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * returns the internal lucene doc id for the given id bytes.
      * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
      * */
-    private int getDocID(BytesRef id, Bits liveDocs) throws IOException {
+    private int getDocID(BytesRef id) throws IOException {
         if (termsEnum.seekExact(id)) {
             int docID = DocIdSetIterator.NO_MORE_DOCS;
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
@@ -122,10 +134,8 @@ final class PerThreadIDVersionAndSeqNoLookup {
     }
 
     /** Return null if id is not found. */
-    DocIdAndSeqNo lookupSeqNo(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
-        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
-            "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id, liveDocs);
+    DocIdAndSeqNo lookupSeqNo(BytesRef id) throws IOException {
+        int docID = getDocID(id);
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
             long seqNo;
@@ -137,20 +147,6 @@ final class PerThreadIDVersionAndSeqNoLookup {
             return new DocIdAndSeqNo(docID, seqNo, context);
         } else {
             return null;
-        }
-    }
-
-    /**
-     * returns 0 if the primary term is not found.
-     *
-     * Note that 0 is an illegal primary term. See {@link org.elasticsearch.cluster.metadata.IndexMetaData#primaryTerm(int)}
-     **/
-    long lookUpPrimaryTerm(int docID, LeafReader reader) throws IOException {
-        NumericDocValues primaryTerms = reader.getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
-        if (primaryTerms != null && primaryTerms.advanceExact(docID)) {
-            return primaryTerms.longValue();
-        } else {
-            return 0;
         }
     }
 }

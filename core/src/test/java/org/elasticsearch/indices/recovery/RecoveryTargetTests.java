@@ -157,12 +157,7 @@ public class RecoveryTargetTests extends ESTestCase {
         Timer lastRead = streamer.serializeDeserialize();
         final long time = lastRead.time();
         assertThat(time, lessThanOrEqualTo(timer.time()));
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat("timer timer should progress compared to captured one ", time, lessThan(timer.time()));
-            }
-        });
+        assertBusy(() -> assertThat("timer timer should progress compared to captured one ", time, lessThan(timer.time())));
         assertThat("captured time shouldn't change", lastRead.time(), equalTo(time));
 
         if (randomBoolean()) {

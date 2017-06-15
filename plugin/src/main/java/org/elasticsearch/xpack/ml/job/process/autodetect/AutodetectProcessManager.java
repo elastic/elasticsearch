@@ -58,7 +58,6 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
@@ -128,8 +127,8 @@ public class AutodetectProcessManager extends AbstractComponent {
         if (numJobs != 0) {
             logger.info("Closing [{}] jobs, because [{}]", numJobs, reason);
 
-            for (Map.Entry<Long, AutodetectCommunicator> entry : autoDetectCommunicatorByJob.entrySet()) {
-                closeJob(entry.getValue().getJobTask(), false, reason);
+            for (AutodetectCommunicator communicator : autoDetectCommunicatorByJob.values()) {
+                closeJob(communicator.getJobTask(), false, reason);
             }
         }
     }
@@ -262,13 +261,16 @@ public class AutodetectProcessManager extends AbstractComponent {
                         communicator.writeJobInputHeader();
                         setJobState(jobTask, JobState.OPENED);
                     } catch (Exception e1) {
-                        if (e1 instanceof ElasticsearchStatusException) {
-                            logger.info(e1.getMessage());
-                        } else {
-                            String msg = String.format(Locale.ROOT, "[%s] exception while opening job", jobId);
-                            logger.error(msg, e1);
+                        // No need to log here as the persistent task framework will log it
+                        try {
+                            // Don't leave a partially initialised process hanging around
+                            AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobTask.getAllocationId());
+                            if (communicator != null) {
+                                communicator.killProcess(false, false);
+                            }
+                        } finally {
+                            setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
                         }
-                        setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
                     }
                 }
             });

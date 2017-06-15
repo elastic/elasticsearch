@@ -11,18 +11,15 @@ import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -107,9 +104,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         int numFields = outFieldIndexes.size();
         String[] record = new String[numFields];
 
-        Iterator<Map.Entry<String, Integer>> itr = outFieldIndexes.entrySet().iterator();
-        while (itr.hasNext()) {
-            Map.Entry<String, Integer> entry = itr.next();
+        for (Map.Entry<String, Integer> entry : outFieldIndexes.entrySet()) {
             record[entry.getValue()] = entry.getKey();
         }
 
@@ -210,15 +205,12 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
      * Time is the first field and the last is the control field
      */
     protected final Map<String, Integer> outputFieldIndexes() {
-        Map<String, Integer> fieldIndexes = new HashMap<String, Integer>();
+        Map<String, Integer> fieldIndexes = new HashMap<>();
 
         // time field
         fieldIndexes.put(dataDescription.getTimeField(), TIME_FIELD_OUT_INDEX);
 
         int index = TIME_FIELD_OUT_INDEX + 1;
-        List<String> analysisFields = analysisConfig.analysisFields();
-        Collections.sort(analysisFields);
-
         for (String field : analysisConfig.analysisFields()) {
             fieldIndexes.put(field, index++);
         }

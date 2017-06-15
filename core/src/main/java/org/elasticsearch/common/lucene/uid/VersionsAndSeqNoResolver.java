@@ -50,6 +50,10 @@ public final class VersionsAndSeqNoResolver {
 
     private static PerThreadIDVersionAndSeqNoLookup[] getLookupState(IndexReader reader, String uidField) throws IOException {
         // We cache on the top level
+        // This means cache entries have a shorter lifetime, maybe as low as 1s with the
+        // default refresh interval and a steady indexing rate, but on the other hand it
+        // proved to be cheaper than having to perform a CHM and a TL get for every segment.
+        // See https://github.com/elastic/elasticsearch/pull/19856.
         IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper();
         CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> ctl = lookupStates.get(cacheHelper.getKey());
         if (ctl == null) {

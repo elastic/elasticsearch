@@ -6,6 +6,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
@@ -155,7 +156,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     @Override
     public Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(xpackPluginClass(),
-                Netty4Plugin.class, ReindexPlugin.class);
+                Netty4Plugin.class, ReindexPlugin.class, CommonAnalysisPlugin.class);
     }
 
     @Override

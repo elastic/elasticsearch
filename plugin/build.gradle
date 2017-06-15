@@ -89,6 +89,7 @@ dependencies {
   testCompile 'org.slf4j:slf4j-api:1.6.2'
   testCompile project(path: ':modules:reindex', configuration: 'runtime')
   testCompile project(path: ':modules:parent-join', configuration: 'runtime')
+  testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
 }
 
 // make LicenseSigner available for testing signed licenses

@@ -23,7 +23,7 @@ users should stop relying on this functionality.
 [float]
 === Checking if indices exist
 
-The endpoint ``/{index}`` with the verb `HEAD` can be used to check if an index
+The endpoint `/{index}` with the verb `HEAD` can be used to check if an index
 matching `index` exists (`index` can be a comma-delimited list of index names or
 index patterns). This verb behaved differently than `GET` on the same endpoint
 in two ways. The first is that sending the same request to `GET` and `HEAD`

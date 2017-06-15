@@ -73,7 +73,7 @@ public final class VersionsAndSeqNoResolver {
         if (lookupState == null) {
             lookupState = new PerThreadIDVersionAndSeqNoLookup[reader.leaves().size()];
             for (LeafReaderContext leaf : reader.leaves()) {
-                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf, uidField);
+                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), uidField);
             }
             ctl.set(lookupState);
         }
@@ -132,8 +132,9 @@ public final class VersionsAndSeqNoResolver {
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments
         for (int i = leaves.size() - 1; i >= 0; i--) {
-            PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaves.get(i).ord];
-            DocIdAndVersion result = lookup.lookupVersion(term.bytes());
+            final LeafReaderContext leaf = leaves.get(i);
+            PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), leaf);
             if (result != null) {
                 return result;
             }
@@ -153,8 +154,9 @@ public final class VersionsAndSeqNoResolver {
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments
         for (int i = leaves.size() - 1; i >= 0; i--) {
-            PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaves.get(i).ord];
-            DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes());
+            final LeafReaderContext leaf = leaves.get(i);
+            PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes(), leaf);
             if (result != null) {
                 return result;
             }

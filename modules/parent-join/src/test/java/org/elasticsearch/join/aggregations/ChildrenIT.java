@@ -73,8 +73,9 @@ public class ChildrenIT extends ParentChildTestCase {
         } else {
             assertAcked(
                 prepareCreate("test")
-                    .addMapping("doc", "category", "type=keyword", "join_field", "type=join,article=comment",
-                        "commenter", "type=keyword")
+                    .addMapping("doc",
+                        addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "article", "comment"),
+                            "commenter", "keyword", "category", "keyword"))
             );
         }
 
@@ -248,7 +249,9 @@ public class ChildrenIT extends ParentChildTestCase {
         } else {
             assertAcked(
                     prepareCreate(indexName)
-                            .addMapping("doc", "join_field", "type=join,parent=child", "count", "type=long")
+                        .addMapping("doc",
+                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child"),
+                                "name", "keyword"))
             );
         }
 
@@ -325,10 +328,12 @@ public class ChildrenIT extends ParentChildTestCase {
         } else {
             assertAcked(
                     prepareCreate(indexName)
-                            .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
-                            .addMapping("doc", "join_field", "type=join," + masterType + "=" + childType, "brand", "type=text",
-                                    "name", "type=keyword", "material", "type=text", "color", "type=keyword", "size", "type=keyword")
+                        .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
+                        .addMapping("doc",
+                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                                masterType, childType),
+                                "brand", "text", "name", "keyword", "material", "text", "color", "keyword", "size", "keyword"))
             );
         }
 
@@ -400,8 +405,10 @@ public class ChildrenIT extends ParentChildTestCase {
         } else {
             assertAcked(
                     prepareCreate(indexName)
-                            .addMapping("doc", "join_field", "type=join," + grandParentType + "=" + parentType + "," +
-                                    parentType + "=" + childType, "name", "type=keyword")
+                        .addMapping("doc",
+                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                                grandParentType, parentType, parentType, childType),
+                                "name", "keyword"))
             );
         }
 
@@ -449,8 +456,10 @@ public class ChildrenIT extends ParentChildTestCase {
         } else {
             assertAcked(
                     prepareCreate("index")
-                            .addMapping("doc", "join_field", "type=join,parentType=childType", "name", "type=keyword",
-                                    "town", "type=keyword", "age", "type=integer")
+                        .addMapping("doc",
+                            addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                                "parentType", "childType"),
+                                "name", "keyword", "town", "keyword", "age", "integer"))
             );
         }
         List<IndexRequestBuilder> requests = new ArrayList<>();

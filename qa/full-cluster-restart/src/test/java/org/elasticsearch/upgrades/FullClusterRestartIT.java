@@ -19,7 +19,6 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.ParseException;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -32,19 +31,23 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -54,14 +57,24 @@ import static org.hamcrest.Matchers.containsString;
  * with {@code tests.is_old_cluster} set to {@code false}.
  */
 public class FullClusterRestartIT extends ESRestTestCase {
-    private static final String REPO = "/_snapshot/repo";
-
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
     private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1);
 
+    private String index;
+
+    @Before
+    public void setIndex() {
+        index = getTestName().toLowerCase(Locale.ROOT);
+    }
+
     @Override
     protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveSnapshotsUponCompletion() {
         return true;
     }
 
@@ -71,7 +84,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
     }
 
     public void testSearch() throws Exception {
-        String index = getTestName().toLowerCase(Locale.ROOT);
+        int count;
         if (runningAgainstOldCluster) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
             mappingsAndSettings.startObject();
@@ -103,8 +116,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
             client().performRequest("PUT", "/" + index, Collections.emptyMap(),
                 new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
 
-            int numDocs = randomIntBetween(2000, 3000);
-            indexRandomDocuments(index, numDocs, true, i -> {
+            count = randomIntBetween(2000, 3000);
+            indexRandomDocuments(count, true, true, i -> {
                 return JsonXContent.contentBuilder().startObject()
                 .field("string", randomAlphaOfLength(10))
                 .field("int", randomInt(100))
@@ -115,48 +128,215 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 // TODO a binary field
                 .endObject();
             });
-            logger.info("Refreshing [{}]", index);
-            client().performRequest("POST", "/" + index + "/_refresh");
+            refresh();
+        } else {
+            count = countOfIndexedRandomDocuments();
         }
-        assertBasicSearchWorks(index);
+        assertBasicSearchWorks(count);
+        assertAllSearchWorks(count);
+        assertBasicAggregationWorks(count);
+        assertRealtimeGetWorks(count);
     }
 
-    void assertBasicSearchWorks(String index) throws IOException {
+    public void testNewReplicasWork() throws Exception {
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 0);
+                mappingsAndSettings.endObject();
+            }
+            {
+                mappingsAndSettings.startObject("mappings");
+                mappingsAndSettings.startObject("doc");
+                mappingsAndSettings.startObject("properties");
+                {
+                    mappingsAndSettings.startObject("field");
+                    mappingsAndSettings.field("type", "text");
+                    mappingsAndSettings.endObject();
+                }
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
+                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+
+            int numDocs = randomIntBetween(2000, 3000);
+            indexRandomDocuments(numDocs, true, false, i -> {
+                return JsonXContent.contentBuilder().startObject()
+                    .field("field", "value")
+                    .endObject();
+            });
+            logger.info("Refreshing [{}]", index);
+            client().performRequest("POST", "/" + index + "/_refresh");
+        } else {
+            final int numReplicas = 1;
+            final long startTime = System.currentTimeMillis();
+            logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, index);
+            String requestBody = "{ \"index\": { \"number_of_replicas\" : " + numReplicas + " }}";
+            Response response = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
+                new StringEntity(requestBody, ContentType.APPLICATION_JSON));
+            assertEquals(200, response.getStatusLine().getStatusCode());
+
+            Map<String, String> params = new HashMap<>();
+            params.put("timeout", "2m");
+            params.put("wait_for_status", "green");
+            params.put("wait_for_no_relocating_shards", "true");
+            params.put("wait_for_events", "languid");
+            Map<String, Object> healthRsp = toMap(client().performRequest("GET", "/_cluster/health/" + index, params));
+            assertEquals("green", healthRsp.get("status"));
+            assertFalse((Boolean) healthRsp.get("timed_out"));
+
+            logger.debug("--> index [{}] is green, took [{}] ms", index, (System.currentTimeMillis() - startTime));
+            Map<String, Object> recoverRsp = toMap(client().performRequest("GET", "/" + index + "/_recovery"));
+            logger.debug("--> recovery status:\n{}", recoverRsp);
+
+            Map<String, Object> responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
+                Collections.singletonMap("preference", "_primary")));
+            assertNoFailures(responseBody);
+            int foundHits1 = (int) XContentMapValues.extractValue("hits.total", responseBody);
+
+            responseBody = toMap(client().performRequest("GET", "/" + index + "/_search",
+                Collections.singletonMap("preference", "_replica")));
+            assertNoFailures(responseBody);
+            int foundHits2 = (int) XContentMapValues.extractValue("hits.total", responseBody);
+            assertEquals(foundHits1, foundHits2);
+            // TODO: do something more with the replicas! index?
+        }
+    }
+
+    void assertBasicSearchWorks(int count) throws IOException {
         logger.info("--> testing basic search");
         Map<String, Object> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
         assertNoFailures(response);
-        int numDocs1 = (int) XContentMapValues.extractValue("hits.total", response);
-        logger.info("Found {} in old index", numDocs1);
+        int numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        logger.info("Found {} in old index", numDocs);
+        assertEquals(count, numDocs);
 
         logger.info("--> testing basic search with sort");
         String searchRequestBody = "{ \"sort\": [{ \"int\" : \"asc\" }]}";
         response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
             new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
         assertNoFailures(response);
-        int numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
-        assertEquals(numDocs1, numDocs2);
+        numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(count, numDocs);
 
         logger.info("--> testing exists filter");
         searchRequestBody = "{ \"query\": { \"exists\" : {\"field\": \"string\"} }}";
         response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
             new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
         assertNoFailures(response);
-        numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
-        assertEquals(numDocs1, numDocs2);
+        numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(count, numDocs);
 
         searchRequestBody = "{ \"query\": { \"exists\" : {\"field\": \"field.with.dots\"} }}";
         response = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
             new StringEntity(searchRequestBody, ContentType.APPLICATION_JSON)));
         assertNoFailures(response);
-        numDocs2 = (int) XContentMapValues.extractValue("hits.total", response);
-        assertEquals(numDocs1, numDocs2);
+        numDocs = (int) XContentMapValues.extractValue("hits.total", response);
+        assertEquals(count, numDocs);
+    }
+
+    void assertAllSearchWorks(int count) throws IOException {
+        logger.info("--> testing _all search");
+        Map<String, Object>  searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search"));
+        assertNoFailures(searchRsp);
+        int totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
+        assertEquals(count, totalHits);
+        Map<?, ?> bestHit = (Map<?, ?>) ((List)(XContentMapValues.extractValue("hits.hits", searchRsp))).get(0);
+
+        // Make sure there are payloads and they are taken into account for the score
+        // the 'string' field has a boost of 4 in the mappings so it should get a payload boost
+        String stringValue = (String) XContentMapValues.extractValue("_source.string", bestHit);
+        assertNotNull(stringValue);
+        String type = (String) bestHit.get("_type");
+        String id = (String) bestHit.get("_id");
+        String requestBody = "{ \"query\": { \"match_all\" : {} }}";
+        String explanation = toStr(client().performRequest("GET", "/" + index + "/" + type + "/" + id,
+                Collections.emptyMap(), new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
+        assertFalse("Could not find payload boost in explanation\n" + explanation, explanation.contains("payloadBoost"));
+
+        // Make sure the query can run on the whole index
+        searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search",
+                Collections.singletonMap("explain", "true"), new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
+        assertNoFailures(searchRsp);
+        totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
+        assertEquals(count, totalHits);
+    }
+
+    void assertBasicAggregationWorks(int count) throws IOException {
+        // histogram on a long
+        String requestBody = "{ \"aggs\": { \"histo\" : {\"histogram\" : {\"field\": \"int\", \"interval\": 10}} }}";
+        Map<?, ?> searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
+                new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
+        assertNoFailures(searchRsp);
+        List<?> histoBuckets = (List<?>) XContentMapValues.extractValue("aggregations.histo.buckets", searchRsp);
+        long totalCount = 0;
+        for (Object entry : histoBuckets) {
+            Map<?, ?> bucket = (Map<?, ?>) entry;
+            totalCount += (Integer) bucket.get("doc_count");
+        }
+        int totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
+        assertEquals(totalHits, totalCount);
+
+        // terms on a boolean
+        requestBody = "{ \"aggs\": { \"bool_terms\" : {\"terms\" : {\"field\": \"bool\"}} }}";
+        searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
+                new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
+        List<?> termsBuckets = (List<?>) XContentMapValues.extractValue("aggregations.bool_terms.buckets", searchRsp);
+        totalCount = 0;
+        for (Object entry : termsBuckets) {
+            Map<?, ?> bucket = (Map<?, ?>) entry;
+            totalCount += (Integer) bucket.get("doc_count");
+        }
+        totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
+        assertEquals(totalHits, totalCount);
+    }
+
+    void assertRealtimeGetWorks(int count) throws IOException {
+        String requestBody = "{ \"index\": { \"refresh_interval\" : -1 }}";
+        Response response = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
+                new StringEntity(requestBody, ContentType.APPLICATION_JSON));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        requestBody = "{ \"query\": { \"match_all\" : {} }}";
+        Map<String, Object> searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
+                new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
+        Map<?, ?> hit = (Map<?, ?>) ((List)(XContentMapValues.extractValue("hits.hits", searchRsp))).get(0);
+        String docId = (String) hit.get("_id");
+
+        requestBody = "{ \"doc\" : { \"foo\": \"bar\"}}";
+        response = client().performRequest("POST", "/" + index + "/doc/" + docId + "/_update", Collections.emptyMap(),
+                new StringEntity(requestBody, ContentType.APPLICATION_JSON));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        Map<String, Object> getRsp = toMap(client().performRequest("GET", "/" + index + "/doc/" + docId));
+        Map<?, ?> source = (Map<?, ?>) getRsp.get("_source");
+        assertTrue("doc does not contain 'foo' key: " + source, source.containsKey("foo"));
+
+        requestBody = "{ \"index\": { \"refresh_interval\" : \"1s\" }}";
+        response = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
+                new StringEntity(requestBody, ContentType.APPLICATION_JSON));
+        assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, EntityUtils.toString(response.getEntity()), false);
+        return toMap(EntityUtils.toString(response.getEntity()));
     }
 
-    static void assertNoFailures(Map<String, Object> response) {
+    static Map<String, Object> toMap(String response) throws IOException {
+        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
+    }
+
+    static String toStr(Response response) throws IOException {
+        return EntityUtils.toString(response.getEntity());
+    }
+
+    static void assertNoFailures(Map<?, ?> response) {
         int failed = (int) XContentMapValues.extractValue("_shards.failed", response);
         assertEquals(0, failed);
     }
@@ -165,7 +345,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
      * Tests that a single document survives. Super basic smoke test.
      */
     public void testSingleDoc() throws IOException {
-        String docLocation = "/" + getTestName().toLowerCase(Locale.ROOT) + "/doc/1";
+        String docLocation = "/" + index + "/doc/1";
         String doc = "{\"test\": \"test\"}";
 
         if (runningAgainstOldCluster) {
@@ -173,14 +353,14 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     new StringEntity(doc, ContentType.APPLICATION_JSON));
         }
 
-        assertThat(EntityUtils.toString(client().performRequest("GET", docLocation).getEntity()), containsString(doc));
+        assertThat(toStr(client().performRequest("GET", docLocation)), containsString(doc));
     }
 
-    public void testRandomDocumentsAndSnapshot() throws IOException {
-        String testName = getTestName().toLowerCase(Locale.ROOT);
-        String index = testName + "_data";
-        String infoDocument = "/" + testName + "_info/doc/info";
-
+    /**
+     * Tests recovery of an index with or without a translog and the
+     * statistics we gather about that.
+     */
+    public void testRecovery() throws IOException {
         int count;
         boolean shouldHaveTranslog;
         if (runningAgainstOldCluster) {
@@ -189,110 +369,51 @@ public class FullClusterRestartIT extends ESRestTestCase {
              * an index without a translog so we randomize whether
              * or not we have one. */
             shouldHaveTranslog = randomBoolean();
-            logger.info("Creating {} documents", count);
-            indexRandomDocuments(index, count, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
-            createSnapshot();
+
+            indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
             // Explicitly flush so we're sure to have a bunch of documents in the Lucene index
             client().performRequest("POST", "/_flush");
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
-                indexRandomDocuments(index, count / 10, false /* Flushing here would invalidate the whole thing....*/,
+                indexRandomDocuments(count / 10, false /* Flushing here would invalidate the whole thing....*/, false,
                     i -> jsonBuilder().startObject().field("field", "value").endObject());
             }
-
-            // Record how many documents we built so we can compare later
-            XContentBuilder infoDoc = JsonXContent.contentBuilder().startObject();
-            infoDoc.field("count", count);
-            infoDoc.field("should_have_translog", shouldHaveTranslog);
-            infoDoc.endObject();
-            client().performRequest("PUT", infoDocument, singletonMap("refresh", "true"),
-                    new StringEntity(infoDoc.string(), ContentType.APPLICATION_JSON));
+            saveInfoDocument("should_have_translog", Boolean.toString(shouldHaveTranslog));
         } else {
-            // Load the number of documents that were written to the old cluster
-            String doc = EntityUtils.toString(
-                    client().performRequest("GET", infoDocument, singletonMap("filter_path", "_source")).getEntity());
-            Matcher m = Pattern.compile("\"count\":(\\d+)").matcher(doc);
-            assertTrue(doc, m.find());
-            count = Integer.parseInt(m.group(1));
-            m = Pattern.compile("\"should_have_translog\":(true|false)").matcher(doc);
-            assertTrue(doc, m.find());
-            shouldHaveTranslog = Booleans.parseBoolean(m.group(1));
+            count = countOfIndexedRandomDocuments();
+            shouldHaveTranslog = Booleans.parseBoolean(loadInfoDocument("should_have_translog"));
         }
 
         // Count the documents in the index to make sure we have as many as we put there
-        String countResponse = EntityUtils.toString(
-                client().performRequest("GET", "/" + index + "/_search", singletonMap("size", "0")).getEntity());
+        String countResponse = toStr(client().performRequest("GET", "/" + index + "/_search", singletonMap("size", "0")));
         assertThat(countResponse, containsString("\"total\":" + count));
 
         if (false == runningAgainstOldCluster) {
-            assertTranslogRecoveryStatistics(index, shouldHaveTranslog);
-        }
-
-        restoreSnapshot(index, count);
-
-        // TODO finish adding tests for the things in OldIndexBackwardsCompatibilityIT
-    }
-
-    // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
-
-    private void indexRandomDocuments(String index, int count, boolean flushAllowed,
-                                      CheckedFunction<Integer, XContentBuilder, IOException> docSupplier) throws IOException {
-        for (int i = 0; i < count; i++) {
-            logger.debug("Indexing document [{}]", i);
-            client().performRequest("POST", "/" + index + "/doc/" + i, emptyMap(),
-                    new StringEntity(docSupplier.apply(i).string(), ContentType.APPLICATION_JSON));
-            if (rarely()) {
-                logger.info("Refreshing [{}]", index);
-                client().performRequest("POST", "/" + index + "/_refresh");
+            boolean restoredFromTranslog = false;
+            boolean foundPrimary = false;
+            Map<String, String> params = new HashMap<>();
+            params.put("h", "index,shard,type,stage,translog_ops_recovered");
+            params.put("s", "index,shard,type");
+            String recoveryResponse = toStr(client().performRequest("GET", "/_cat/recovery/" + index, params));
+            for (String line : recoveryResponse.split("\n")) {
+                // Find the primaries
+                foundPrimary = true;
+                if (false == line.contains("done") && line.contains("existing_store")) {
+                    continue;
+                }
+                /* Mark if we see a primary that looked like it restored from the translog.
+                 * Not all primaries will look like this all the time because we modify
+                 * random documents when we want there to be a translog and they might
+                 * not be spread around all the shards. */
+                Matcher m = Pattern.compile("(\\d+)$").matcher(line);
+                assertTrue(line, m.find());
+                int translogOps = Integer.parseInt(m.group(1));
+                if (translogOps > 0) {
+                    restoredFromTranslog = true;
+                }
             }
-            if (flushAllowed && rarely()) {
-                logger.info("Flushing [{}]", index);
-                client().performRequest("POST", "/" + index + "/_flush");
-            }
-        }
-    }
-
-    private void createSnapshot() throws IOException {
-        XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject(); {
-            repoConfig.field("type", "fs");
-            repoConfig.startObject("settings"); {
-                repoConfig.field("compress", randomBoolean());
-                repoConfig.field("location", System.getProperty("tests.path.repo"));
-            }
-            repoConfig.endObject();
-        }
-        repoConfig.endObject();
-        client().performRequest("PUT", REPO, emptyMap(), new StringEntity(repoConfig.string(), ContentType.APPLICATION_JSON));
-
-        client().performRequest("PUT", REPO + "/snap", singletonMap("wait_for_completion", "true"));
-    }
-
-    private void assertTranslogRecoveryStatistics(String index, boolean shouldHaveTranslog) throws ParseException, IOException {
-        boolean restoredFromTranslog = false;
-        boolean foundPrimary = false;
-        Map<String, String> params = new HashMap<>();
-        params.put("h", "index,shard,type,stage,translog_ops_recovered");
-        params.put("s", "index,shard,type");
-        String recoveryResponse = EntityUtils.toString(client().performRequest("GET", "/_cat/recovery/" + index, params).getEntity());
-        for (String line : recoveryResponse.split("\n")) {
-            // Find the primaries
-            foundPrimary = true;
-            if (false == line.contains("done") && line.contains("existing_store")) {
-                continue;
-            }
-            /* Mark if we see a primary that looked like it restored from the translog.
-             * Not all primaries will look like this all the time because we modify
-             * random documents when we want there to be a translog and they might
-             * not be spread around all the shards. */
-            Matcher m = Pattern.compile("(\\d+)$").matcher(line);
-            assertTrue(line, m.find());
-            int translogOps = Integer.parseInt(m.group(1));
-            if (translogOps > 0) {
-                restoredFromTranslog = true;
-            }
-        }
-        assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
-        assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
+            assertTrue("expected to find a primary but didn't\n" + recoveryResponse, foundPrimary);
+            assertEquals("mismatch while checking for translog recovery\n" + recoveryResponse, shouldHaveTranslog, restoredFromTranslog);
 
         String currentLuceneVersion = Version.CURRENT.luceneVersion.toString();
         String bwcLuceneVersion = oldClusterVersion.luceneVersion.toString();
@@ -302,8 +423,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
             params.clear();
             params.put("h", "prirep,shard,index,version");
             params.put("s", "prirep,shard,index");
-            String segmentsResponse = EntityUtils.toString(
-                    client().performRequest("GET", "/_cat/segments/" + index, params).getEntity());
+            String segmentsResponse = toStr(
+                    client().performRequest("GET", "/_cat/segments/" + index, params));
             for (String line : segmentsResponse.split("\n")) {
                 if (false == line.startsWith("p")) {
                     continue;
@@ -320,11 +441,46 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 }
             }
             assertNotEquals("expected at least 1 current segment after translog recovery", 0, numCurrentVersion);
-            assertNotEquals("expected at least 1 old segment", 0, numBwcVersion);
+            assertNotEquals("expected at least 1 old segment", 0, numBwcVersion);}
         }
     }
 
-    private void restoreSnapshot(String index, int count) throws ParseException, IOException {
+    public void testSnapshotRestore() throws IOException {
+        int count;
+        if (runningAgainstOldCluster) {
+            count = between(200, 300);
+            indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+
+            // Create the repo and the snapshot
+            XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject(); {
+                repoConfig.field("type", "fs");
+                repoConfig.startObject("settings"); {
+                    repoConfig.field("compress", randomBoolean());
+                    repoConfig.field("location", System.getProperty("tests.path.repo"));
+                }
+                repoConfig.endObject();
+            }
+            repoConfig.endObject();
+            client().performRequest("PUT", "/_snapshot/repo", emptyMap(),
+                    new StringEntity(repoConfig.string(), ContentType.APPLICATION_JSON));
+
+            XContentBuilder snapshotConfig = JsonXContent.contentBuilder().startObject(); {
+                snapshotConfig.field("indices", index);
+            }
+            snapshotConfig.endObject();
+            client().performRequest("PUT", "/_snapshot/repo/snap", singletonMap("wait_for_completion", "true"),
+                    new StringEntity(snapshotConfig.string(), ContentType.APPLICATION_JSON));
+
+            // Refresh the index so the count doesn't fail
+            refresh();
+        } else {
+            count = countOfIndexedRandomDocuments();
+        }
+
+        // Count the documents in the index to make sure we have as many as we put there
+        String countResponse = toStr(client().performRequest("GET", "/" + index + "/_search", singletonMap("size", "0")));
+        assertThat(countResponse, containsString("\"total\":" + count));
+
         if (false == runningAgainstOldCluster) {
             /* Remove any "restored" indices from the old cluster run of this test.
              * We intentionally don't remove them while running this against the
@@ -333,25 +489,76 @@ public class FullClusterRestartIT extends ESRestTestCase {
             client().performRequest("DELETE", "/restored_*");
         }
 
-        if (runningAgainstOldCluster) {
-            // TODO restoring the snapshot seems to fail! This seems like a bug.
-            XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
-            restoreCommand.field("include_global_state", false);
-            restoreCommand.field("indices", index);
-            restoreCommand.field("rename_pattern", index);
-            restoreCommand.field("rename_replacement", "restored_" + index);
-            restoreCommand.endObject();
-            client().performRequest("POST", REPO + "/snap/_restore", singletonMap("wait_for_completion", "true"),
-                    new StringEntity(restoreCommand.string(), ContentType.APPLICATION_JSON));
+        // Check the metadata, especially the version
+        String response = toStr(client().performRequest("GET", "/_snapshot/repo/_all", singletonMap("verbose", "true")));
+        Map<String, Object> map = toMap(response);
+        assertEquals(response, singletonList("snap"), XContentMapValues.extractValue("snapshots.snapshot", map));
+        assertEquals(response, singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", map));
+        assertEquals(response, singletonList(oldClusterVersion.toString()), XContentMapValues.extractValue("snapshots.version", map));
 
-            String countResponse = EntityUtils.toString(
-                    client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")).getEntity());
+        XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
+        restoreCommand.field("include_global_state", randomBoolean());
+        restoreCommand.field("indices", index);
+        restoreCommand.field("rename_pattern", index);
+        restoreCommand.field("rename_replacement", "restored_" + index);
+        restoreCommand.endObject();
+        client().performRequest("POST", "/_snapshot/repo/snap/_restore", singletonMap("wait_for_completion", "true"),
+                new StringEntity(restoreCommand.string(), ContentType.APPLICATION_JSON));
+
+             countResponse = toStr(
+                    client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")));
             assertThat(countResponse, containsString("\"total\":" + count));
         }
 
+    // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
+
+    private void indexRandomDocuments(int count, boolean flushAllowed, boolean saveInfo,
+                                      CheckedFunction<Integer, XContentBuilder, IOException> docSupplier) throws IOException {
+        logger.info("Indexing {} random documents", count);
+        for (int i = 0; i < count; i++) {
+            logger.debug("Indexing document [{}]", i);
+            client().performRequest("POST", "/" + index + "/doc/" + i, emptyMap(),
+                    new StringEntity(docSupplier.apply(i).string(), ContentType.APPLICATION_JSON));
+            if (rarely()) {
+                refresh();
+            }
+            if (flushAllowed && rarely()) {
+                logger.debug("Flushing [{}]", index);
+                client().performRequest("POST", "/" + index + "/_flush");
+            }
+        }
+        if (saveInfo) {
+            saveInfoDocument("count", Integer.toString(count));
+        }
+    }
+
+    private int countOfIndexedRandomDocuments() throws IOException {
+        return Integer.parseInt(loadInfoDocument("count"));
+    }
+
+    private void saveInfoDocument(String type, String value) throws IOException {
+        XContentBuilder infoDoc = JsonXContent.contentBuilder().startObject();
+        infoDoc.field("value", value);
+        infoDoc.endObject();
+        // Only create the first version so we know how many documents are created when the index is first created
+        Map<String, String> params = singletonMap("op_type", "create");
+        client().performRequest("PUT", "/info/doc/" + index + "_" + type, params,
+                new StringEntity(infoDoc.string(), ContentType.APPLICATION_JSON));
+    }
+
+    private String loadInfoDocument(String type) throws IOException {
+        String doc = toStr(client().performRequest("GET", "/info/doc/" + index + "_" + type, singletonMap("filter_path", "_source")));
+        Matcher m = Pattern.compile("\"value\":\"(.+)\"").matcher(doc);
+        assertTrue(doc, m.find());
+        return m.group(1);
     }
 
     private Object randomLenientBoolean() {
         return randomFrom(new Object[] {"off", "no", "0", 0, "false", false, "on", "yes", "1", 1, "true", true});
+    }
+
+    private void refresh() throws IOException {
+        logger.debug("Refreshing [{}]", index);
+        client().performRequest("POST", "/" + index + "/_refresh");
     }
 }

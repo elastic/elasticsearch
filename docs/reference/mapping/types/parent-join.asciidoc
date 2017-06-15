@@ -3,7 +3,7 @@
 
 The `join` datatype is a special field that creates
 parent/child relation within documents of the same index.
-This field defines a set of possible relations within the documents,
+This `relations` section defines a set of possible relations within the documents,
 each relation being a parent name and a child name.
 A parent/child relation can be defined as follows:
 
@@ -16,7 +16,9 @@ PUT my_index
       "properties": {
         "my_join_field": { <1>
           "type": "join",
-          "my_parent": "my_child" <2>
+          "relations": {
+            "my_parent": "my_child" <2>
+          }
         }
       }
     }
@@ -303,7 +305,9 @@ PUT my_index
       "properties": {
         "my_join_field": {
           "type": "join",
-          "my_parent": "my_child",
+          "relations": {
+             "my_parent": "my_child"
+          },
           "eager_global_ordinals": false
         }
       }
@@ -340,7 +344,9 @@ PUT my_index
       "properties": {
         "my_join_field": {
           "type": "join",
-          "my_parent": ["my_child", "another_child"]  <1>
+          "relations": {
+            "my_parent": ["my_child", "another_child"]  <1>
+          }
         }
       }
     }
@@ -362,8 +368,10 @@ PUT my_index
       "properties": {
         "my_join_field": {
           "type": "join",
-          "my_parent": ["my_child", "another_child"],  <1>
-          "another_child": "grand_child" <2>
+          "relations": {
+            "my_parent": ["my_child", "another_child"],  <1>
+            "another_child": "grand_child" <2>
+          }
         }
       }
     }

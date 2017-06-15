@@ -50,7 +50,9 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
-                    .field("parent", "child")
+                    .startObject("relations")
+                        .field("parent", "child")
+                    .endObject()
                 .endObject()
             .endObject()
             .endObject().string();
@@ -97,8 +99,10 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
-                    .field("parent", "child")
-                    .field("child", "grand_child")
+                    .startObject("relations")
+                        .field("parent", "child")
+                        .field("child", "grand_child")
+                    .endObject()
                 .endObject()
             .endObject()
             .endObject().string();
@@ -176,8 +180,10 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("properties")
             .startObject("join_field")
                 .field("type", "join")
-                .field("parent", "child")
-                .array("child", "grand_child1", "grand_child2")
+                .startObject("relations")
+                    .field("parent", "child")
+                    .array("child", "grand_child1", "grand_child2")
+                .endObject()
             .endObject()
             .endObject().endObject().string();
         IndexService indexService = createIndex("test");
@@ -189,7 +195,9 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             final String updateMapping = XContentFactory.jsonBuilder().startObject().startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
-                    .array("child", "grand_child1", "grand_child2")
+                    .startObject("relations")
+                        .array("child", "grand_child1", "grand_child2")
+                    .endObject()
                 .endObject()
                 .endObject().endObject().string();
             IllegalStateException exc = expectThrows(IllegalStateException.class,
@@ -202,8 +210,10 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             final String updateMapping = XContentFactory.jsonBuilder().startObject().startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
-                    .field("parent", "child")
-                    .field("child", "grand_child1")
+                    .startObject("relations")
+                        .field("parent", "child")
+                        .field("child", "grand_child1")
+                    .endObject()
                 .endObject()
                 .endObject().endObject().string();
             IllegalStateException exc = expectThrows(IllegalStateException.class,
@@ -216,9 +226,11 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             final String updateMapping = XContentFactory.jsonBuilder().startObject().startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
-                    .field("uber_parent", "parent")
-                    .field("parent", "child")
-                    .array("child", "grand_child1", "grand_child2")
+                    .startObject("relations")
+                        .field("uber_parent", "parent")
+                        .field("parent", "child")
+                        .array("child", "grand_child1", "grand_child2")
+                    .endObject()
                 .endObject()
                 .endObject().endObject().string();
             IllegalStateException exc = expectThrows(IllegalStateException.class,
@@ -230,10 +242,12 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
         {
             final String updateMapping = XContentFactory.jsonBuilder().startObject().startObject("properties")
                 .startObject("join_field")
-                .field("type", "join")
-                .field("parent", "child")
-                .array("child", "grand_child1", "grand_child2")
-                .field("grand_child2", "grand_grand_child")
+                    .field("type", "join")
+                    .startObject("relations")
+                        .field("parent", "child")
+                        .array("child", "grand_child1", "grand_child2")
+                        .field("grand_child2", "grand_grand_child")
+                    .endObject()
                 .endObject()
                 .endObject().endObject().string();
             IllegalStateException exc = expectThrows(IllegalStateException.class,
@@ -246,8 +260,10 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             final String updateMapping = XContentFactory.jsonBuilder().startObject().startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
-                    .array("parent", "child", "child2")
-                    .array("child", "grand_child1", "grand_child2")
+                    .startObject("relations")
+                        .array("parent", "child", "child2")
+                        .array("child", "grand_child1", "grand_child2")
+                    .endObject()
                 .endObject()
                 .endObject().endObject().string();
             docMapper = indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
@@ -264,9 +280,11 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             final String updateMapping = XContentFactory.jsonBuilder().startObject().startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
-                    .array("parent", "child", "child2")
-                    .array("child", "grand_child1", "grand_child2")
-                    .array("other", "child_other1", "child_other2")
+                    .startObject("relations")
+                        .array("parent", "child", "child2")
+                        .array("child", "grand_child1", "grand_child2")
+                        .array("other", "child_other1", "child_other2")
+                    .endObject()
                 .endObject()
                 .endObject().endObject().string();
             docMapper = indexService.mapperService().merge("type", new CompressedXContent(updateMapping),
@@ -288,7 +306,9 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties")
                     .startObject("join_field")
                         .field("type", "join")
-                        .field("parent", "child")
+                        .startObject("relations")
+                            .field("parent", "child")
+                        .endObject()
                     .endObject()
                 .endObject()
             .endObject()
@@ -308,7 +328,9 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("fields")
                     .startObject("join_field")
                         .field("type", "join")
-                        .field("parent", "child")
+                        .startObject("relations")
+                            .field("parent", "child")
+                        .endObject()
                     .endObject()
                 .endObject()
             .endObject()
@@ -328,12 +350,16 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties")
                     .startObject("join_field")
                         .field("type", "join")
-                        .field("parent", "child")
-                        .field("child", "grand_child")
+                        .startObject("relations")
+                            .field("parent", "child")
+                            .field("child", "grand_child")
+                        .endObject()
                     .endObject()
                     .startObject("another_join_field")
                         .field("type", "join")
-                        .field("product", "item")
+                        .startObject("relations")
+                            .field("product", "item")
+                        .endObject()
                     .endObject()
                 .endObject()
                 .endObject().string();
@@ -347,8 +373,10 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties")
                     .startObject("join_field")
                         .field("type", "join")
-                        .field("parent", "child")
-                        .field("child", "grand_child")
+                        .startObject("relations")
+                            .field("parent", "child")
+                            .field("child", "grand_child")
+                        .endObject()
                     .endObject()
                 .endObject()
                 .endObject().string();
@@ -372,8 +400,10 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
                 .startObject("join_field")
                     .field("type", "join")
-                    .field("parent", "child")
-                    .field("child", "grand_child")
+                    .startObject("relations")
+                        .field("parent", "child")
+                        .field("child", "grand_child")
+                    .endObject()
                 .endObject()
             .endObject()
             .endObject().string();
@@ -392,12 +422,14 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("join_field")
                     .field("type", "join")
                     .field("eager_global_ordinals", false)
-                    .field("parent", "child")
-                    .field("child", "grand_child")
+                    .startObject("relations")
+                        .field("parent", "child")
+                        .field("child", "grand_child")
+                    .endObject()
                 .endObject()
             .endObject()
             .endObject().string();
-        docMapper = service.mapperService().merge("type", new CompressedXContent(mapping),
+        service.mapperService().merge("type", new CompressedXContent(mapping),
             MapperService.MergeReason.MAPPING_UPDATE, false);
         assertFalse(service.mapperService().fullName("join_field").eagerGlobalOrdinals());
         assertNotNull(service.mapperService().fullName("join_field#parent"));

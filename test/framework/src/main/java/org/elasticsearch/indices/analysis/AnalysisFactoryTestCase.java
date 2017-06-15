@@ -262,6 +262,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("daterecognizer",            Void.class)
         // for token filters that generate bad offsets, which are now rejected since Lucene 7
         .put("fixbrokenoffsets",          Void.class)
+        // should we expose it, or maybe think about higher level integration of the
+        // fake term frequency feature (LUCENE-7854)
+        .put("delimitedtermfrequency",    Void.class)
 
         .immutableMap();
 

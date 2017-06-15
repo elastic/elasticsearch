@@ -30,11 +30,54 @@ public class FactoryTests extends ScriptTestCase {
 
     protected Collection<ScriptContext<?>> scriptContexts() {
         Collection<ScriptContext<?>> contexts = super.scriptContexts();
+        contexts.add(StatefulFactoryTestScript.CONTEXT);
         contexts.add(FactoryTestScript.CONTEXT);
         contexts.add(EmptyTestScript.CONTEXT);
         contexts.add(TemplateScript.CONTEXT);
 
         return contexts;
+    }
+
+    public abstract static class StatefulFactoryTestScript {
+        private final int x;
+        private final int y;
+
+        public StatefulFactoryTestScript(int x, int y, int a, int b) {
+            this.x = x*a;
+            this.y = y*b;
+        }
+
+        public int getX() {
+            return x;
+        }
+
+        public int getY() {
+            return y*2;
+        }
+
+        public static final String[] PARAMETERS = new String[] {"test"};
+        public abstract Object execute(int test);
+
+        public interface StatefulFactory {
+            StatefulFactoryTestScript newInstance(int a, int b);
+        }
+
+        public interface Factory {
+            StatefulFactory newFactory(int x, int y);
+        }
+
+        public static final ScriptContext<StatefulFactoryTestScript.Factory> CONTEXT =
+            new ScriptContext<>("test", StatefulFactoryTestScript.Factory.class);
+    }
+
+    public void testStatefulFactory() {
+        StatefulFactoryTestScript.Factory factory = scriptEngine.compile(
+            "stateful_factory_test", "test + x + y", StatefulFactoryTestScript.CONTEXT, Collections.emptyMap());
+        StatefulFactoryTestScript.StatefulFactory statefulFactory = factory.newFactory(1, 2);
+        StatefulFactoryTestScript script = statefulFactory.newInstance(3, 4);
+        assertEquals(22, script.execute(3));
+        statefulFactory.newInstance(5, 6);
+        assertEquals(26, script.execute(7));
     }
 
     public abstract static class FactoryTestScript {

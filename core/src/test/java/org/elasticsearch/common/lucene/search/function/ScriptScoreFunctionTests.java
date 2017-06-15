@@ -44,7 +44,7 @@ public class ScriptScoreFunctionTests extends ESTestCase {
             }
             
             @Override
-            public boolean needsScores() {
+            public boolean needs_score() {
                 return false;
             }
         });

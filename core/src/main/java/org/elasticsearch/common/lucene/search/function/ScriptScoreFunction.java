@@ -119,7 +119,7 @@ public class ScriptScoreFunction extends ScoreFunction {
 
     @Override
     public boolean needsScores() {
-        return script.needsScores();
+        return script.needs_score();
     }
 
     @Override

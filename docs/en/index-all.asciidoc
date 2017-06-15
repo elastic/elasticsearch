@@ -1,0 +1,11 @@
+[[elasticsearch-reference]]
+= Elasticsearch Reference
+
+:include-xpack:         true
+
+:es-repo-dir:           {docdir}/../../../../elasticsearch/docs
+:es-test-dir:           {docdir}/../../../../elasticsearch/docs/src/test
+:plugins-examples-dir:  {docdir}/../../../../elasticsearch/plugins/examples
+
+include::Versions.asciidoc[]
+include::index-shared.asciidoc[]

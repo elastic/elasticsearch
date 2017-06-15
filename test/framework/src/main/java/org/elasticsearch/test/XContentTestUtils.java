@@ -195,23 +195,20 @@ public final class XContentTestUtils {
             }
         }
 
-        try (XContentParser parser = createParser(NamedXContentRegistry.EMPTY, xContent, contentType)) {
-            Supplier<Object> value = () -> {
-                List<Object> randomValues = RandomObjects.randomStoredFieldValues(random, contentType).v1();
+        Supplier<Object> value = () -> {
+            List<Object> randomValues = RandomObjects.randomStoredFieldValues(random, contentType).v1();
+            if (random.nextBoolean()) {
+                return randomValues.get(0);
+            } else {
                 if (random.nextBoolean()) {
-                    return randomValues.get(0);
+                    return randomValues.stream().collect(Collectors.toMap(obj -> randomAsciiOfLength(random, 10), obj -> obj));
                 } else {
-                    if (random.nextBoolean()) {
-                        return randomValues.stream().collect(Collectors.toMap(obj -> randomAsciiOfLength(random, 10), obj -> obj));
-                    } else {
-                        return randomValues;
-                    }
+                    return randomValues;
                 }
-            };
-            return XContentTestUtils
-                    .insertIntoXContent(contentType.xContent(), xContent, insertPaths, () -> randomAsciiOfLength(random, 10), value)
-                    .bytes();
-        }
+            }
+        };
+        return XContentTestUtils
+                .insertIntoXContent(contentType.xContent(), xContent, insertPaths, () -> randomAsciiOfLength(random, 10), value).bytes();
     }
 
     /**

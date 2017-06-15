@@ -82,12 +82,9 @@ public class Netty4ScheduledPingTests extends ESTestCase {
         serviceA.connectToNode(nodeB);
         serviceB.connectToNode(nodeA);
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(nettyA.getPing().getSuccessfulPings(), greaterThan(100L));
-                assertThat(nettyB.getPing().getSuccessfulPings(), greaterThan(100L));
-            }
+        assertBusy(() -> {
+            assertThat(nettyA.getPing().getSuccessfulPings(), greaterThan(100L));
+            assertThat(nettyB.getPing().getSuccessfulPings(), greaterThan(100L));
         });
         assertThat(nettyA.getPing().getFailedPings(), equalTo(0L));
         assertThat(nettyB.getPing().getFailedPings(), equalTo(0L));

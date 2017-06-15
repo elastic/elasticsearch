@@ -24,6 +24,7 @@ import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.Snippet;
 import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.apache.lucene.search.uhighlight.CustomPassageFormatter;
+import org.apache.lucene.search.uhighlight.CustomSeparatorBreakIterator;
 import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
@@ -96,9 +97,7 @@ public class UnifiedHighlighter implements Highlighter {
                 // breaks the text on, so we don't lose the distinction between the different values of a field and we
                 // get back a snippet per value
                 String fieldValue = mergeFieldValues(fieldValues, MULTIVAL_SEP_CHAR);
-                org.apache.lucene.search.postingshighlight.CustomSeparatorBreakIterator breakIterator =
-                    new org.apache.lucene.search.postingshighlight
-                        .CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
+                CustomSeparatorBreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
                 highlighter =
                     new CustomUnifiedHighlighter(searcher, analyzer, mapperHighlighterEntry.passageFormatter,
                         field.fieldOptions().boundaryScannerLocale(), breakIterator, fieldValue,

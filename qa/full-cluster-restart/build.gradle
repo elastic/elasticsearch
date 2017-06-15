@@ -79,14 +79,18 @@ for (Version version : indexCompatVersions) {
     dependsOn = [upgradedClusterTest]
   }
 
-  bwcTest.dependsOn(versionBwcTest)
+  if (project.bwc_tests_enabled == false) {
+    bwcTest.dependsOn(versionBwcTest)
+  }
 }
 
 test.enabled = false // no unit tests for rolling upgrades, only the rest integration test
 
 // basic integ tests includes testing bwc against the most recent version
 task integTest {
-  dependsOn = ["v${indexCompatVersions[-1]}#bwcTest"]
+  if (project.bwc_tests_enabled) {
+    dependsOn = ["v${indexCompatVersions[-1]}#bwcTest"]
+  }
 }
 
 check.dependsOn(integTest)

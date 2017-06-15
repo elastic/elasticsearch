@@ -172,10 +172,6 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         }
     }
 
-    boolean hasUpdatesInProgress() {
-        return updatesInProgress.get() > 0;
-    }
-
     Tuple<Map<String, BytesReference>, Set<String>> calculateTemplateChanges(ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
         // collect current templates
         Map<String, IndexTemplateMetaData> existingMap = new HashMap<>();

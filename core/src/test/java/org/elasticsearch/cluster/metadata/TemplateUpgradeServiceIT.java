@@ -20,16 +20,24 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -48,12 +56,26 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         static final Setting<Boolean> UPDATE_TEMPLATE_ENABLED =
             Setting.boolSetting("tests.update_template_enabled", false, Setting.Property.NodeScope);
 
+        // This setting is used to simulate cluster state updates
+        static final Setting<Integer> UPDATE_TEMPLATE_DUMMY_SETTING =
+            Setting.intSetting("tests.update_template_count", 0, Setting.Property.NodeScope, Setting.Property.Dynamic);
+
         protected final Logger logger;
         protected final Settings settings;
 
         public TestPlugin(Settings settings) {
             this.logger = Loggers.getLogger(getClass(), settings);
             this.settings = settings;
+        }
+
+        @Override
+        public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
+                                                   ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                                   NamedXContentRegistry xContentRegistry) {
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
+                logger.debug("the template dummy setting was updated to {}", integer);
+            });
+            return super.createComponents(client, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry);
         }
 
         @Override
@@ -72,7 +94,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return Collections.singletonList(UPDATE_TEMPLATE_ENABLED);
+            return Arrays.asList(UPDATE_TEMPLATE_ENABLED, UPDATE_TEMPLATE_DUMMY_SETTING);
         }
     }
 
@@ -85,8 +107,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             .setPatterns(Collections.singletonList("*")).get());
         assertAcked(client().admin().indices().preparePutTemplate("test_removed_template").setOrder(1)
             .setPatterns(Collections.singletonList("*")).get());
-        String upgradeNode = internalCluster().startNode(Settings.builder()
-            .put(nodeSettings(0)).put(TestPlugin.UPDATE_TEMPLATE_ENABLED.getKey(), true));
+        internalCluster().startNode(Settings.builder().put(nodeSettings(0)).put(TestPlugin.UPDATE_TEMPLATE_ENABLED.getKey(), true));
         // Waiting for the templates to be updated by the newly added node
 
         assertBusy(() -> {
@@ -122,15 +143,19 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             assertTrue(dummyFound);
         });
 
-        // Wait for upgradeNode to finish all updates
-        TemplateUpgradeService service = internalCluster().getInstance(TemplateUpgradeService.class, upgradeNode);
-        assertBusy(() -> assertFalse(service.hasUpdatesInProgress()));
-
         // Wipe out all templates
         assertAcked(client().admin().indices().prepareDeleteTemplate("test_*").get());
 
+        AtomicInteger updateCount = new AtomicInteger();
         // Make sure all templates are recreated correctly
         assertBusy(() -> {
+            logger.info("checking....");
+            // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
+            // so we need to simulate updates to make sure the template upgrade kicks in
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+                Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
+            ).get());
+
             List<IndexTemplateMetaData> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates.size(), equalTo(2));
             boolean addedFound = false;

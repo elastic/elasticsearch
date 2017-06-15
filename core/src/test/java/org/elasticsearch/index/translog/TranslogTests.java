@@ -2335,11 +2335,7 @@ public class TranslogTests extends ESTestCase {
             }
             translog.getDeletionPolicy().setRetentionAgeInMillis(randomBoolean() ? 100 : -1);
             assertBusy(() -> {
-                try {
-                    translog.trimUnreferencedReaders();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                translog.trimUnreferencedReaders();
                 for (int i = 0; i < rolls; i++) {
                     assertFileDeleted(translog, generation + i);
                 }

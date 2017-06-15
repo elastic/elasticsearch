@@ -55,15 +55,41 @@ public class FactoryTests extends ScriptTestCase {
             return y*2;
         }
 
+        public int getC() {
+            return -1;
+        }
+
+        public int getD() {
+            return 2;
+        }
+
         public static final String[] PARAMETERS = new String[] {"test"};
         public abstract Object execute(int test);
 
+        public abstract boolean needsTest();
+        public abstract boolean needsNothing();
+        public abstract boolean needsX();
+        public abstract boolean needsC();
+        public abstract boolean needsD();
+
         public interface StatefulFactory {
             StatefulFactoryTestScript newInstance(int a, int b);
+
+            boolean needsTest();
+            boolean needsNothing();
+            boolean needsX();
+            boolean needsC();
+            boolean needsD();
         }
 
         public interface Factory {
             StatefulFactory newFactory(int x, int y);
+
+            boolean needsTest();
+            boolean needsNothing();
+            boolean needsX();
+            boolean needsC();
+            boolean needsD();
         }
 
         public static final ScriptContext<StatefulFactoryTestScript.Factory> CONTEXT =
@@ -72,12 +98,27 @@ public class FactoryTests extends ScriptTestCase {
 
     public void testStatefulFactory() {
         StatefulFactoryTestScript.Factory factory = scriptEngine.compile(
-            "stateful_factory_test", "test + x + y", StatefulFactoryTestScript.CONTEXT, Collections.emptyMap());
+            "stateful_factory_test", "test + x + y + d", StatefulFactoryTestScript.CONTEXT, Collections.emptyMap());
         StatefulFactoryTestScript.StatefulFactory statefulFactory = factory.newFactory(1, 2);
         StatefulFactoryTestScript script = statefulFactory.newInstance(3, 4);
-        assertEquals(22, script.execute(3));
+        assertEquals(24, script.execute(3));
         statefulFactory.newInstance(5, 6);
-        assertEquals(26, script.execute(7));
+        assertEquals(28, script.execute(7));
+        assertEquals(true, script.needsTest());
+        assertEquals(false, script.needsNothing());
+        assertEquals(true, script.needsX());
+        assertEquals(false, script.needsC());
+        assertEquals(true, script.needsD());
+        assertEquals(true, statefulFactory.needsTest());
+        assertEquals(false, statefulFactory.needsNothing());
+        assertEquals(true, statefulFactory.needsX());
+        assertEquals(false, statefulFactory.needsC());
+        assertEquals(true, statefulFactory.needsD());
+        assertEquals(true, factory.needsTest());
+        assertEquals(false, factory.needsNothing());
+        assertEquals(true, factory.needsX());
+        assertEquals(false, factory.needsC());
+        assertEquals(true, factory.needsD());
     }
 
     public abstract static class FactoryTestScript {
@@ -96,6 +137,9 @@ public class FactoryTests extends ScriptTestCase {
 
         public interface Factory {
             FactoryTestScript newInstance(Map<String, Object> params);
+
+            boolean needsTest();
+            boolean needsNothing();
         }
 
         public static final ScriptContext<FactoryTestScript.Factory> CONTEXT =
@@ -111,6 +155,8 @@ public class FactoryTests extends ScriptTestCase {
         script = factory.newInstance(Collections.singletonMap("test", 3));
         assertEquals(5, script.execute(2));
         assertEquals(2, script.execute(-1));
+        assertEquals(true, factory.needsTest());
+        assertEquals(false, factory.needsNothing());
     }
 
     public abstract static class EmptyTestScript {

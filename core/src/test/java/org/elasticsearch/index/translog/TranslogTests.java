@@ -2299,7 +2299,14 @@ public class TranslogTests extends ESTestCase {
         assertEquals("my_id", serializedDelete.id());
     }
 
-    public void testRollGeneration() throws IOException {
+    public void testRollGeneration() throws Exception {
+        // make sure we keep some files around
+        final boolean longRetention = randomBoolean();
+        if (longRetention) {
+            translog.getDeletionPolicy().setRetentionAgeInMillis(3600 * 1000);
+        } else {
+            translog.getDeletionPolicy().setRetentionAgeInMillis(-1);
+        }
         final long generation = translog.currentFileGeneration();
         final int rolls = randomIntBetween(1, 16);
         int totalOperations = 0;
@@ -2322,8 +2329,26 @@ public class TranslogTests extends ESTestCase {
         commit(translog, generation + rolls);
         assertThat(translog.currentFileGeneration(), equalTo(generation + rolls ));
         assertThat(translog.totalOperations(), equalTo(0));
-        for (int i = 0; i < rolls; i++) {
-            assertFileDeleted(translog, generation + i);
+        if (longRetention) {
+            for (int i = 0; i <= rolls; i++) {
+                assertFileIsPresent(translog, generation + i);
+            }
+            translog.getDeletionPolicy().setRetentionAgeInMillis(randomBoolean() ? 100 : -1);
+            assertBusy(() -> {
+                try {
+                    translog.trimUnreferencedReaders();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                for (int i = 0; i < rolls; i++) {
+                    assertFileDeleted(translog, generation + i);
+                }
+            });
+        } else {
+            // immediate cleanup
+            for (int i = 0; i < rolls; i++) {
+                assertFileDeleted(translog, generation + i);
+            }
         }
         assertFileIsPresent(translog, generation + rolls);
     }

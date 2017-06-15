@@ -373,7 +373,7 @@ PUT my_index
 // CONSOLE
 
 <1> `my_parent` is parent of `my_child` and `another_child`
-<2> `another_child` is parent of `grand_child
+<2> `another_child` is parent of `grand_child`
 
 The mapping above represents the following tree:
 

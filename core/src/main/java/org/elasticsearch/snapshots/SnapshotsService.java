@@ -1183,7 +1183,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         @Override
                         public void onSnapshotCompletion(Snapshot completedSnapshot, SnapshotInfo snapshotInfo) {
                             if (completedSnapshot.equals(snapshot)) {
-                                logger.trace("deleted snapshot completed - deleting files");
+                                logger.debug("deleted snapshot completed - deleting files");
                                 removeListener(this);
                                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() ->
                                     deleteSnapshot(completedSnapshot.getRepository(), completedSnapshot.getSnapshotId().getName(),
@@ -1217,7 +1217,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         }
                     });
                 } else {
-                    logger.trace("deleted snapshot is not running - deleting files");
+                    logger.debug("deleted snapshot is not running - deleting files");
                     deleteSnapshotFromRepository(snapshot, listener, repositoryStateId);
                 }
             }

@@ -20,6 +20,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -167,8 +168,11 @@ public final class RepositoryData {
     public RepositoryData removeSnapshot(final SnapshotId snapshotId) {
         List<SnapshotId> newSnapshotIds = snapshotIds
                                               .stream()
-                                              .filter(id -> snapshotId.equals(id) == false)
+                                              .filter(id -> !snapshotId.equals(id))
                                               .collect(Collectors.toList());
+        if (newSnapshotIds.size() == snapshotIds.size()) {
+            throw new ResourceNotFoundException("Attempting to remove non-existent snapshot [{}] from repository data", snapshotId);
+        }
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
         for (final IndexId indexId : indices.values()) {
             Set<SnapshotId> set;

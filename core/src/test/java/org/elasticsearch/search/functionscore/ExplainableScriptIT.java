@@ -83,7 +83,7 @@ public class ExplainableScriptIT extends ESIntegTestCase {
                             return new MyScript(lookup.doc().getLeafDocLookup(context));
                         }
                         @Override
-                        public boolean needsScores() {
+                        public boolean needs_score() {
                             return false;
                         }
                     };

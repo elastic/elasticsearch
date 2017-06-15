@@ -24,16 +24,44 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.net.ServerSocket;
 import java.util.Locale;
 
 public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
+
+    private static ServerSocket socket;
+
+    @BeforeClass
+    public static void openPort() throws IOException {
+        System.out.println("openPort()");
+        socket = new ServerSocket(9200);
+        new Thread(() -> {
+            while (!socket.isClosed()) {
+                try {
+                    socket.accept();
+                    System.out.println("accept!");
+                } catch (IOException e) {
+                    System.out.println(e);
+                }
+            }
+        }).start();
+    }
+
     protected BlobStore newBlobStore() throws IOException {
         MockAmazonS3 client = new MockAmazonS3();
         String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
 
         return new S3BlobStore(Settings.EMPTY, client, bucket, false,
             new ByteSizeValue(10, ByteSizeUnit.MB), "public-read-write", "standard");
+    }
+
+    @AfterClass
+    public static void closePort() throws IOException {
+        System.out.println("closePort()");
+        socket.close();
     }
 }

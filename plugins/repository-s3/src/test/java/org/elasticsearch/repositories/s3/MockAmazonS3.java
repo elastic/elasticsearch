@@ -40,6 +40,7 @@ import com.amazonaws.util.Base64;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.Socket;
 import java.security.DigestInputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -54,6 +55,17 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     // length of the input data is 100 bytes
     private byte[] byteCounter = new byte[100];
 
+
+    private void openSocket() {
+        try {
+            Socket socket = new Socket("localhost", 9200);
+            socket.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
     @Override
     public boolean doesBucketExist(String bucket) {
         return true;
@@ -63,6 +75,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     public ObjectMetadata getObjectMetadata(
             GetObjectMetadataRequest getObjectMetadataRequest)
             throws AmazonClientException, AmazonServiceException {
+        openSocket();
         String blobName = getObjectMetadataRequest.getKey();
 
         if (!blobs.containsKey(blobName)) {
@@ -75,6 +88,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public PutObjectResult putObject(PutObjectRequest putObjectRequest)
             throws AmazonClientException, AmazonServiceException {
+        openSocket();
         String blobName = putObjectRequest.getKey();
         DigestInputStream stream = (DigestInputStream) putObjectRequest.getInputStream();
 
@@ -95,6 +109,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public S3Object getObject(GetObjectRequest getObjectRequest)
             throws AmazonClientException, AmazonServiceException {
+        openSocket();
         // in ESBlobStoreContainerTestCase.java, the prefix is empty,
         // so the key and blobName are equivalent to each other
         String blobName = getObjectRequest.getKey();
@@ -114,6 +129,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public ObjectListing listObjects(ListObjectsRequest listObjectsRequest)
             throws AmazonClientException, AmazonServiceException {
+        openSocket();
         MockObjectListing list = new MockObjectListing();
         list.setTruncated(false);
 
@@ -147,6 +163,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public CopyObjectResult copyObject(CopyObjectRequest copyObjectRequest)
             throws AmazonClientException, AmazonServiceException {
+        openSocket();
         String sourceBlobName = copyObjectRequest.getSourceKey();
         String targetBlobName = copyObjectRequest.getDestinationKey();
 
@@ -167,6 +184,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public void deleteObject(DeleteObjectRequest deleteObjectRequest)
             throws AmazonClientException, AmazonServiceException {
+        openSocket();
         String blobName = deleteObjectRequest.getKey();
 
         if (!blobs.containsKey(blobName)) {

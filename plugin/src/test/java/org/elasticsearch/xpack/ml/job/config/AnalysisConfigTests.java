@@ -11,6 +11,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.RecordWriter;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
@@ -564,6 +565,20 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         analysisConfig.setCategorizationFilters(Arrays.asList("foo", "bar"));
 
         analysisConfig.build();
+    }
+
+    public void testVerify_GivenFieldIsControlField() {
+        AnalysisConfig.Builder analysisConfig = createValidConfig();
+        if (randomBoolean()) {
+            analysisConfig.setSummaryCountFieldName(RecordWriter.CONTROL_FIELD_NAME);
+        } else {
+            analysisConfig.setCategorizationFieldName(RecordWriter.CONTROL_FIELD_NAME);
+        }
+
+        ElasticsearchException e = ESTestCase.expectThrows(ElasticsearchException.class, analysisConfig::build);
+
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME, RecordWriter.CONTROL_FIELD_NAME,
+                RecordWriter.CONTROL_FIELD_NAME), e.getMessage());
     }
 
     public void testVerify_OverlappingBuckets() {

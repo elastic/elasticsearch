@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -455,7 +454,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
                 Detector.Builder builder = new Detector.Builder(origDetector);
                 builder.setDetectorIndex(detectorIndex++);
                 sequentialIndexDetectors.add(builder.build());
-            };
+            }
             this.detectors = sequentialIndexDetectors;
         }
 
@@ -523,8 +522,8 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
             }
 
             verifyDetectorAreDefined();
-            verifyFieldName(summaryCountFieldName);
-            verifyFieldName(categorizationFieldName);
+            Detector.Builder.verifyFieldName(summaryCountFieldName);
+            Detector.Builder.verifyFieldName(categorizationFieldName);
 
             verifyMlCategoryIsUsedWhenCategorizationFieldNameIsSet();
             verifyCategorizationFilters();
@@ -658,10 +657,10 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
             }
         }
 
-        private static boolean checkDetectorsHavePartitionFields(List<Detector> detectors) {
+        private static void checkDetectorsHavePartitionFields(List<Detector> detectors) {
             for (Detector detector : detectors) {
                 if (!Strings.isNullOrEmpty(detector.getPartitionFieldName())) {
-                    return true;
+                    return;
                 }
             }
             throw ExceptionsHelper.badRequestException(Messages.getMessage(
@@ -673,27 +672,6 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
                 throw ExceptionsHelper.badRequestException(Messages.getMessage(
                         Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_CANNOT_USE_INFLUENCERS));
             }
-        }
-
-        /**
-         * Check that the characters used in a field name will not cause problems.
-         *
-         * @param field The field name to be validated
-         */
-        public static void verifyFieldName(String field) throws ElasticsearchParseException {
-            if (field != null && containsInvalidChar(field)) {
-                throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME_CHARS, field, Detector.PROHIBITED));
-            }
-        }
-
-        private static boolean containsInvalidChar(String field) {
-            for (Character ch : Detector.PROHIBITED_FIELDNAME_CHARACTERS) {
-                if (field.indexOf(ch) >= 0) {
-                    return true;
-                }
-            }
-            return field.chars().anyMatch(Character::isISOControl);
         }
 
         private static boolean isValidRegex(String exp) {

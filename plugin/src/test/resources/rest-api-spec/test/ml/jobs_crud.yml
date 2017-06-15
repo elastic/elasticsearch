@@ -692,3 +692,35 @@
             "data_description" : {
             }
           }
+
+---
+"Test put job with time field in analysis_config":
+
+  - do:
+      catch: /illegal_argument_exception/
+      xpack.ml.put_job:
+        job_id: jobs-crud-time-field-in-analysis_config
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"rare","by_field_name":"@timestamp"}]
+            },
+            "data_description" : {
+                "time_field":"@timestamp"
+            }
+          }
+
+  - do:
+      catch: /data_description.time_field may not be used in the analysis_config/
+      xpack.ml.put_job:
+        job_id: jobs-crud-time-field-in-analysis_config
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"mean","field_name":"time"}]
+            },
+            "data_description" : {}
+          }
+

@@ -394,6 +394,19 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertThat(e.getMessage(), equalTo("A data_description must be set"));
     }
 
+    public void testBuilder_givenTimeFieldInAnalysisConfig() {
+        DataDescription.Builder dataDescriptionBuilder = new DataDescription.Builder();
+        // field name used here matches what's in createAnalysisConfig()
+        dataDescriptionBuilder.setTimeField("client");
+
+        Job.Builder jobBuilder = new Job.Builder("time-field-in-analysis-config");
+        jobBuilder.setAnalysisConfig(createAnalysisConfig());
+        jobBuilder.setDataDescription(dataDescriptionBuilder);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, jobBuilder::build);
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(Messages.JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG)));
+    }
+
     public void testGetCompatibleJobTypes_givenVersionBefore_V_5_4() {
         assertThat(Job.getCompatibleJobTypes(Version.V_5_0_0).isEmpty(), is(true));
         assertThat(Job.getCompatibleJobTypes(Version.V_5_3_0).isEmpty(), is(true));

@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.RecordWriter;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 import org.junit.Assert;
 
@@ -112,6 +113,22 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
 
         Detector detector = builder.build();
         assertEquals(new HashSet<>(Arrays.asList("list1", "list2")), detector.extractReferencedFilters());
+    }
+
+    public void testInvalid_GivenFieldIsControlField() {
+        Detector.Builder detector = new Detector.Builder("mean", "field");
+        if (randomBoolean()) {
+            detector.setByFieldName(RecordWriter.CONTROL_FIELD_NAME);
+        } else if (randomBoolean()) {
+            detector.setOverFieldName(RecordWriter.CONTROL_FIELD_NAME);
+        } else {
+            detector.setPartitionFieldName(RecordWriter.CONTROL_FIELD_NAME);
+        }
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class , detector::build);
+
+        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME, RecordWriter.CONTROL_FIELD_NAME,
+                RecordWriter.CONTROL_FIELD_NAME), e.getMessage());
     }
 
     private Detector.Builder createDetector() {

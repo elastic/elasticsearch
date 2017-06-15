@@ -930,6 +930,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_DATA_DESCRIPTION));
             }
 
+            checkTimeFieldNotInAnalysisConfig(dataDescription, analysisConfig);
+
             checkValidBackgroundPersistInterval();
             checkValueNotLessThan(0, RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
             checkValueNotLessThan(0, MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
@@ -1000,6 +1002,12 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 TimeUtils.checkMultiple(backgroundPersistInterval, TimeUnit.SECONDS, BACKGROUND_PERSIST_INTERVAL);
                 checkValueNotLessThan(MIN_BACKGROUND_PERSIST_INTERVAL.getSeconds(), BACKGROUND_PERSIST_INTERVAL.getPreferredName(),
                         backgroundPersistInterval.getSeconds());
+            }
+        }
+
+        static void checkTimeFieldNotInAnalysisConfig(DataDescription dataDescription, AnalysisConfig analysisConfig) {
+            if (analysisConfig.analysisFields().contains(dataDescription.getTimeField())) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG));
             }
         }
     }

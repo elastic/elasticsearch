@@ -81,8 +81,9 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
             if (tokenFilter == null) {
                 throw new IllegalArgumentException("Custom Analyzer [" + name() + "] failed to find filter under name [" + tokenFilterName + "]");
             }
+            // no need offsetGap for tokenize synonyms
             tokenFilter = checkAndApplySynonymFilter(tokenFilter, tokenizerName, tokenizer, tokenFilterList, charFiltersList,
-                positionIncrementGap, offsetGap, this.environment);
+                positionIncrementGap, this.environment);
             tokenFilterList.add(tokenFilter);
         }
 
@@ -97,7 +98,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
     public static TokenFilterFactory checkAndApplySynonymFilter(TokenFilterFactory tokenFilter, String tokenizerName, TokenizerFactory tokenizer,
                                                                 List<TokenFilterFactory> tokenFilterList,
                                                                 List<CharFilterFactory> charFiltersList,
-                                                                int positionIncrementGap, int offsetGap, Environment env) {
+                                                                int positionIncrementGap, Environment env) {
         if (tokenFilter instanceof SynonymGraphTokenFilterFactory) {
             List<TokenFilterFactory> tokenFiltersListForSynonym = new ArrayList<>(tokenFilterList);
 
@@ -105,7 +106,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
                     charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                     tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
                     positionIncrementGap,
-                    offsetGap)){
+                    -1)){
                 tokenFilter = ((SynonymGraphTokenFilterFactory) tokenFilter).createPerAnalyzerSynonymGraphFactory(analyzer, env);
             }
 
@@ -115,7 +116,7 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
                     charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                     tokenFiltersListForSynonym.toArray(new TokenFilterFactory[tokenFiltersListForSynonym.size()]),
                     positionIncrementGap,
-                    offsetGap)) {
+                    -1)) {
                 tokenFilter = ((SynonymTokenFilterFactory) tokenFilter).createPerAnalyzerSynonymFactory(analyzer, env);
             }
         }

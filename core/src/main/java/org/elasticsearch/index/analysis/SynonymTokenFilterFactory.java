@@ -41,6 +41,10 @@ import java.util.List;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
+    /**
+     * @deprecated this property only works with tokenizer property
+     */
+    @Deprecated
     protected final boolean ignoreCase;
     protected final String format;
     protected final boolean expand;
@@ -53,11 +57,19 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
         this.ignoreCase =
             settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false, deprecationLogger);
+        if (settings.get("ignore_case") != null) {
+            deprecationLogger.deprecated(
+                "This tokenize synonyms with whatever tokenizer and token filters appear before it in the chain. " +
+                "If you need ignore case with this filter, you should set lowercase filter before this");
+        }
+
         this.expand =
             settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "expand", true, deprecationLogger);
 
         // for backward compatibility
         if (indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_alpha3)) {
+            deprecationLogger.deprecated(
+                "This filter tokenize synonyms with whatever tokenizer and token filters appear before it in the chain.");
             String tokenizerName = settings.get("tokenizer", "whitespace");
             AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =
                 analysisRegistry.getTokenizerProvider(tokenizerName, indexSettings);
@@ -115,6 +127,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     }
 
     // for backward compatibility
+    /**
+     * @deprecated This filter tokenize synonyms with whatever tokenizer and token filters appear before it in the chain in 6.0.
+     */
+    @Deprecated
     protected final TokenizerFactory tokenizerFactory;
 
     public class Factory implements TokenFilterFactory{

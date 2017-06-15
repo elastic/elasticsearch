@@ -39,8 +39,7 @@ class RecoveryHandoffPrimaryContextRequest extends TransportRequest {
     /**
      * Initialize an empty request (used to serialize into when reading from a stream).
      */
-    @SuppressWarnings("WeakerAccess")
-    public RecoveryHandoffPrimaryContextRequest() {
+    RecoveryHandoffPrimaryContextRequest() {
     }
 
     /**

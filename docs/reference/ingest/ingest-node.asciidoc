@@ -1454,6 +1454,32 @@ second (index starts at zero) pattern in `patterns` to match.
 This trace metadata enables debugging which of the patterns matched. This information is stored in the ingest
 metadata and will not be indexed.
 
+[[grok-processor-rest-get]]
+==== Retrieving patterns from REST endpoint
+
+The Grok Processor comes packaged with its own REST endpoint for retrieving which patterns the processor is packaged with.
+
+[source,js]
+--------------------------------------------------
+GET _ingest/processor/grok
+--------------------------------------------------
+// CONSOLE
+
+The above request will return a response body containing a key-value representation of the built-in patterns dictionary.
+
+[source,js]
+--------------------------------------------------
+{
+  "patterns" : {
+    "BACULA_CAPACITY" : "%{INT}{1,3}(,%{INT}{3})*",
+    "PATH" : "(?:%{UNIXPATH}|%{WINPATH})",
+    ...
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+This can be useful to reference as the built-in patterns change across versions.
+
 [[gsub-processor]]
 === Gsub Processor
 Converts a string field by applying a regular expression and a replacement.
@@ -1463,10 +1489,12 @@ If the field is not a string, the processor will throw an exception.
 .Gsub Options
 [options="header"]
 |======
-| Name          | Required  | Default  | Description
-| `field`       | yes       | -        | The field to apply the replacement to
-| `pattern`     | yes       | -        | The pattern to be replaced
-| `replacement` | yes       | -        | The string to replace the matching patterns with
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to apply the replacement to
+| `pattern`         | yes       | -        | The pattern to be replaced
+| `replacement`     | yes       | -        | The string to replace the matching patterns with
+| `target_field`    | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
+| `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
 [source,js]
@@ -1490,9 +1518,10 @@ Throws an error when the field is not an array.
 .Join Options
 [options="header"]
 |======
-| Name          | Required  | Default  | Description
-| `field`       | yes       | -        | The field to be separated
-| `separator`   | yes       | -        | The separator character
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to be separated
+| `separator`       | yes       | -        | The separator character
+| `target_field`    | no        | `field`  | The field to assign the joined value to, by default `field` is updated in-place
 |======
 
 [source,js]
@@ -1621,6 +1650,7 @@ For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`
 | `value_split`    | yes       | -        | Regex pattern to use for splitting the key from the value within a key-value pair
 | `target_field`   | no        | `null`   | The field to insert the extracted keys into. Defaults to the root of the document
 | `include_keys`   | no        | `null`   | List of keys to filter and insert into document. Defaults to including all keys
+| `exclude_keys`   | no        | `null`   | List of keys to exclude from document
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
@@ -1635,6 +1665,7 @@ Converts a string to its lowercase equivalent.
 |======
 | Name             | Required  | Default  | Description
 | `field`          | yes       | -        | The field to make lowercase
+| `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 
@@ -1650,21 +1681,35 @@ Converts a string to its lowercase equivalent.
 
 [[remove-processor]]
 === Remove Processor
-Removes an existing field. If the field doesn't exist, an exception will be thrown.
+Removes existing fields. If one field doesn't exist, an exception will be thrown.
 
 [[remove-options]]
 .Remove Options
 [options="header"]
 |======
 | Name      | Required  | Default  | Description
-| `field`   | yes       | -        | The field to be removed
+| `field`   | yes       | -        | Fields to be removed
 |======
+
+Here is an example to remove a single field:
 
 [source,js]
 --------------------------------------------------
 {
   "remove": {
     "field": "foo"
+  }
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+To remove multiple fields, you can use the following query:
+
+[source,js]
+--------------------------------------------------
+{
+  "remove": {
+    "field": ["foo", "bar"]
   }
 }
 --------------------------------------------------
@@ -1729,7 +1774,7 @@ numeric fields `field_a` and `field_b` multiplied by the parameter param_c:
 {
   "script": {
     "lang": "painless",
-    "inline": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
+    "source": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
     "params": {
       "param_c": 10
     }
@@ -1738,6 +1783,63 @@ numeric fields `field_a` and `field_b` multiplied by the parameter param_c:
 --------------------------------------------------
 // NOTCONSOLE
 
+It is possible to use the Script Processor to manipulate document metadata like `_index` and `_type` during
+ingestion. Here is an example of an Ingest Pipeline that renames the index and type to `my_index` no matter what
+was provided in the original index request:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/my_index
+{
+    "description": "use index:my_index and type:my_type",
+    "processors": [
+      {
+        "script": {
+          "source": " ctx._index = 'my_index'; ctx._type = 'my_type' "
+        }
+      }
+    ]
+}
+--------------------------------------------------
+// CONSOLE
+
+Using the above pipeline, we can attempt to index a document into the `any_index` index.
+
+[source,js]
+--------------------------------------------------
+PUT any_index/any_type/1?pipeline=my_index
+{
+  "message": "text"
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+The response from the above index request:
+
+[source,js]
+--------------------------------------------------
+{
+  "_index": "my_index",
+  "_type": "my_type",
+  "_id": "1",
+  "_version": 1,
+  "result": "created",
+  "_shards": {
+    "total": 2,
+    "successful": 1,
+    "failed": 0
+  },
+  "_seq_no": 0,
+  "_primary_term": 1,
+  "created": true
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+In the above response, you can see that our document was actually indexed into `my_index` instead of
+`any_index`. This type of manipulation is often convenient in pipelines that have various branches of transformation,
+and depending on the progress made, indexed into different indices.
 
 [[set-processor]]
 === Set Processor
@@ -1776,6 +1878,7 @@ Splits a field into an array using a separator character. Only works on string f
 | Name              | Required  | Default  | Description
 | `field`           | yes       | -        | The field to split
 | `separator`       | yes       | -        | A regex which matches the separator, eg `,` or `\s+`
+| `target_field`    | no        | `field`  | The field to assign the split value to, by default `field` is updated in-place
 | `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
@@ -1801,9 +1904,10 @@ Throws an error when the field is not an array.
 .Sort Options
 [options="header"]
 |======
-| Name    | Required  | Default  | Description
-| `field` | yes       | -        | The field to be sorted
-| `order` | no        | `"asc"`  | The sort order to use. Accepts `"asc"` or `"desc"`.
+| Name              | Required  | Default  | Description
+| `field`           | yes       | -        | The field to be sorted
+| `order`           | no        | `"asc"`  | The sort order to use. Accepts `"asc"` or `"desc"`.
+| `target_field`    | no        | `field`  | The field to assign the sorted value to, by default `field` is updated in-place
 |======
 
 [source,js]
@@ -1829,6 +1933,7 @@ NOTE: This only works on leading and trailing whitespace.
 |======
 | Name              | Required  | Default  | Description
 | `field`           | yes       | -        | The string-valued field to trim whitespace from
+| `target_field`    | no        | `field`  | The field to assign the trimmed value to, by default `field` is updated in-place
 | `ignore_missing`  | no        | `false`  | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
@@ -1852,6 +1957,7 @@ Converts a string to its uppercase equivalent.
 |======
 | Name             | Required  | Default  | Description
 | `field`          | yes       | -        | The field to make uppercase
+| `target_field`   | no        | `field`  | The field to assign the converted value to, by default `field` is updated in-place
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 |======
 

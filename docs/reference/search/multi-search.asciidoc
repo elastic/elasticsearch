@@ -103,9 +103,9 @@ also provides support for templates. Submit them like follows:
 -----------------------------------------------
 GET _msearch/template
 {"index" : "twitter"}
-{ "inline" : "{ \"query\": { \"match\": { \"message\" : \"{{keywords}}\" } } } }", "params": { "query_type": "match", "keywords": "some message" } }
+{ "source" : "{ \"query\": { \"match\": { \"message\" : \"{{keywords}}\" } } } }", "params": { "query_type": "match", "keywords": "some message" } }
 {"index" : "twitter"}
-{ "inline" : "{ \"query\": { \"match_{{template}}\": {} } }", "params": { "template": "all" } }
+{ "source" : "{ \"query\": { \"match_{{template}}\": {} } }", "params": { "template": "all" } }
 -----------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
@@ -155,6 +155,6 @@ GET _msearch/template
 { "id": "my_template_1", "params": { "query_string": "some message" } }
 {"index" : "main"}
 { "id": "my_template_2", "params": { "field": "user", "value": "test" } }
-----------------------------------------------
+-----------------------------------------------
 // CONSOLE
 // TEST[continued]

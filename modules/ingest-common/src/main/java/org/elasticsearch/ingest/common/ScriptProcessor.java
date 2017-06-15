@@ -19,14 +19,15 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 
@@ -70,8 +71,8 @@ public final class ScriptProcessor extends AbstractProcessor {
      */
     @Override
     public void execute(IngestDocument document) {
-        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.INGEST);
-        ExecutableScript executableScript = scriptService.executable(compiledScript, script.getParams());
+        ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.INGEST_CONTEXT);
+        ExecutableScript executableScript = factory.newInstance(script.getParams());
         executableScript.setNextVar("ctx",  document.getSourceAndMetadata());
         executableScript.run();
     }
@@ -86,6 +87,8 @@ public final class ScriptProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
+        private final Logger logger = ESLoggerFactory.getLogger(Factory.class);
+        private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
 
         private final ScriptService scriptService;
 
@@ -98,18 +101,25 @@ public final class ScriptProcessor extends AbstractProcessor {
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
             String lang = readOptionalStringProperty(TYPE, processorTag, config, "lang");
-            String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");
+            String source = readOptionalStringProperty(TYPE, processorTag, config, "source");
             String id = readOptionalStringProperty(TYPE, processorTag, config, "id");
             Map<String, ?> params = readOptionalMap(TYPE, processorTag, config, "params");
 
-            boolean containsNoScript = !hasLength(id) && !hasLength(inline);
-            if (containsNoScript) {
-                throw newConfigurationException(TYPE, processorTag, null, "Need [id] or [inline] parameter to refer to scripts");
+            if (source == null) {
+                source = readOptionalStringProperty(TYPE, processorTag, config, "inline");
+                if (source != null) {
+                    deprecationLogger.deprecated("Specifying script source with [inline] is deprecated, use [source] instead.");
+                }
             }
 
-            boolean moreThanOneConfigured = Strings.hasLength(id) && Strings.hasLength(inline);
+            boolean containsNoScript = !hasLength(id) && !hasLength(source);
+            if (containsNoScript) {
+                throw newConfigurationException(TYPE, processorTag, null, "Need [id] or [source] parameter to refer to scripts");
+            }
+
+            boolean moreThanOneConfigured = Strings.hasLength(id) && Strings.hasLength(source);
             if (moreThanOneConfigured) {
-                throw newConfigurationException(TYPE, processorTag, null, "Only one of [id] or [inline] may be configured");
+                throw newConfigurationException(TYPE, processorTag, null, "Only one of [id] or [source] may be configured");
             }
 
             if (lang == null) {
@@ -122,9 +132,9 @@ public final class ScriptProcessor extends AbstractProcessor {
 
             final Script script;
             String scriptPropertyUsed;
-            if (Strings.hasLength(inline)) {
-                script = new Script(INLINE, lang, inline, (Map<String, Object>)params);
-                scriptPropertyUsed = "inline";
+            if (Strings.hasLength(source)) {
+                script = new Script(INLINE, lang, source, (Map<String, Object>)params);
+                scriptPropertyUsed = "source";
             } else if (Strings.hasLength(id)) {
                 script = new Script(STORED, lang, id, (Map<String, Object>)params);
                 scriptPropertyUsed = "id";
@@ -134,7 +144,7 @@ public final class ScriptProcessor extends AbstractProcessor {
 
             // verify script is able to be compiled before successfully creating processor.
             try {
-                scriptService.compile(script, ScriptContext.INGEST);
+                scriptService.compile(script, ExecutableScript.INGEST_CONTEXT);
             } catch (ScriptException e) {
                 throw newConfigurationException(TYPE, processorTag, scriptPropertyUsed, e);
             }

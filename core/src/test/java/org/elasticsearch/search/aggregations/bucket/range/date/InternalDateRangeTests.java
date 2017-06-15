@@ -50,7 +50,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
                 dateTime -> dateTime.plusHours(1), dateTime -> dateTime.plusDays(1), dateTime -> dateTime.plusMonths(1), dateTime ->
                         dateTime.plusYears(1));
 
-        final int numRanges = randomIntBetween(1, 10);
+        final int numRanges = randomNumberOfBuckets();
         final List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
 
         DateTime date = new DateTime(DateTimeZone.UTC);
@@ -60,17 +60,18 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
             double from = date.getMillis();
             date = interval.apply(date);
             double to = date.getMillis();
-            listOfRanges.add(Tuple.tuple(from, to));
             if (to > end) {
                 end = to;
             }
-        }
-        if (randomBoolean()) {
-            final int randomOverlaps = randomIntBetween(1, 5);
-            for (int i = 0; i < randomOverlaps; i++) {
+
+            if (randomBoolean()) {
+                listOfRanges.add(Tuple.tuple(from, to));
+            } else {
+                // Add some overlapping range
                 listOfRanges.add(Tuple.tuple(start, randomDoubleBetween(start, end, false)));
             }
         }
+        Collections.shuffle(listOfRanges, random());
         dateRanges = Collections.unmodifiableList(listOfRanges);
     }
 

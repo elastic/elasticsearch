@@ -58,6 +58,11 @@ public class RestTermVectorsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "document_term_vectors_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("type"), request.param("id"));
         if (request.hasContentOrSourceParam()) {

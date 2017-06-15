@@ -80,8 +80,10 @@ public final class ShardSearchStats implements SearchOperationListener {
         computeStats(searchContext, statsHolder -> {
             if (searchContext.hasOnlySuggest()) {
                 statsHolder.suggestCurrent.dec();
+                assert statsHolder.suggestCurrent.count() >= 0;
             } else {
                 statsHolder.queryCurrent.dec();
+                assert statsHolder.queryCurrent.count() >= 0;
             }
         });
     }
@@ -92,9 +94,11 @@ public final class ShardSearchStats implements SearchOperationListener {
             if (searchContext.hasOnlySuggest()) {
                 statsHolder.suggestMetric.inc(tookInNanos);
                 statsHolder.suggestCurrent.dec();
+                assert statsHolder.suggestCurrent.count() >= 0;
             } else {
                 statsHolder.queryMetric.inc(tookInNanos);
                 statsHolder.queryCurrent.dec();
+                assert statsHolder.queryCurrent.count() >= 0;
             }
         });
     }
@@ -114,6 +118,7 @@ public final class ShardSearchStats implements SearchOperationListener {
         computeStats(searchContext, statsHolder -> {
             statsHolder.fetchMetric.inc(tookInNanos);
             statsHolder.fetchCurrent.dec();
+            assert statsHolder.fetchCurrent.count() >= 0;
         });
     }
 
@@ -174,6 +179,7 @@ public final class ShardSearchStats implements SearchOperationListener {
     @Override
     public void onFreeScrollContext(SearchContext context) {
         totalStats.scrollCurrent.dec();
+        assert totalStats.scrollCurrent.count() >= 0;
         totalStats.scrollMetric.inc(System.nanoTime() - context.getOriginNanoTime());
     }
 

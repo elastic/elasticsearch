@@ -53,6 +53,7 @@ import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
@@ -87,7 +88,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
                 .build();
         Map<String, Function<Map<String, Object>, Object>> scripts = Collections.singletonMap("dummy", p -> null);
         ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
-        scriptService = new ScriptService(baseSettings, Collections.singletonMap(engine.getType(), engine), ScriptContext.BUILTINS);
+        scriptService = new ScriptService(baseSettings, Collections.singletonMap(engine.getType(), engine), ScriptModule.CORE_CONTEXTS);
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());

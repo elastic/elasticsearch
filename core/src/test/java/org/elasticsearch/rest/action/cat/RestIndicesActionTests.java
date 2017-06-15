@@ -58,6 +58,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -74,7 +75,8 @@ public class RestIndicesActionTests extends ESTestCase {
 
     public void testBuildTable() {
         final Settings settings = Settings.EMPTY;
-        final RestController restController = new RestController(settings, Collections.emptySet(), null, null, null);
+        UsageService usageService = new UsageService(settings);
+        final RestController restController = new RestController(settings, Collections.emptySet(), null, null, null, usageService);
         final RestIndicesAction action = new RestIndicesAction(settings, restController, new IndexNameExpressionResolver(settings));
 
         // build a (semi-)random table

@@ -41,6 +41,11 @@ public class RestDeleteAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "document_delete_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteRequest deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
         deleteRequest.routing(request.param("routing"));

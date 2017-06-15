@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
@@ -179,7 +180,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
 
         } else if (request.tokenizer() != null) {
             final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
-            TokenizerFactory tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers, analysisRegistry, environment);
+            Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
+                        analysisRegistry, environment);
 
             TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
             tokenFilterFactories = getTokenFilterFactories(request, indexSettings, analysisRegistry, environment, tokenFilterFactories);
@@ -187,7 +189,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
             charFilterFactories = getCharFilterFactories(request, indexSettings, analysisRegistry, environment, charFilterFactories);
 
-            analyzer = new CustomAnalyzer(tokenizerFactory, charFilterFactories, tokenFilterFactories);
+            analyzer = new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(), charFilterFactories, tokenFilterFactories);
             closeAnalyzer = true;
         } else if (analyzer == null) {
             if (indexAnalyzers == null) {
@@ -325,7 +327,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                         tokenFilterFactories[tokenFilterIndex].name(), tokenFiltersTokenListCreator[tokenFilterIndex].getArrayTokens());
                 }
             }
-            detailResponse = new DetailAnalyzeResponse(charFilteredLists, new DetailAnalyzeResponse.AnalyzeTokenList(tokenizerFactory.name(), tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
+            detailResponse = new DetailAnalyzeResponse(charFilteredLists, new DetailAnalyzeResponse.AnalyzeTokenList(
+                    customAnalyzer.getTokenizerName(), tokenizerTokenListCreator.getArrayTokens()), tokenFilterLists);
         } else {
             String name;
             if (analyzer instanceof NamedAnalyzer) {
@@ -551,8 +554,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         return tokenFilterFactories;
     }
 
-    private static TokenizerFactory parseTokenizerFactory(AnalyzeRequest request, IndexAnalyzers indexAnalzyers,
+    private static Tuple<String, TokenizerFactory> parseTokenizerFactory(AnalyzeRequest request, IndexAnalyzers indexAnalzyers,
                                                           AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
+        String name;
         TokenizerFactory tokenizerFactory;
         final AnalyzeRequest.NameOrDefinition tokenizer = request.tokenizer();
         // parse anonymous settings
@@ -568,6 +572,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 throw new IllegalArgumentException("failed to find global tokenizer under [" + tokenizerTypeName + "]");
             }
             // Need to set anonymous "name" of tokenizer
+            name = "_anonymous_tokenizer";
             tokenizerFactory = tokenizerFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenizer", settings);
         } else {
             AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory;
@@ -576,18 +581,20 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 if (tokenizerFactoryFactory == null) {
                     throw new IllegalArgumentException("failed to find global tokenizer under [" + tokenizer.name + "]");
                 }
+                name = tokenizer.name;
                 tokenizerFactory = tokenizerFactoryFactory.get(environment, tokenizer.name);
             } else {
                 tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(tokenizer.name, indexAnalzyers.getIndexSettings());
                 if (tokenizerFactoryFactory == null) {
                     throw new IllegalArgumentException("failed to find tokenizer under [" + tokenizer.name + "]");
                 }
+                name = tokenizer.name;
                 tokenizerFactory = tokenizerFactoryFactory.get(indexAnalzyers.getIndexSettings(), environment, tokenizer.name,
                     AnalysisRegistry.getSettingsFromIndexSettings(indexAnalzyers.getIndexSettings(),
                         AnalysisRegistry.INDEX_ANALYSIS_TOKENIZER + "." + tokenizer.name));
             }
         }
-        return tokenizerFactory;
+        return new Tuple<>(name, tokenizerFactory);
     }
 
     private static IndexSettings getNaIndexSettings(Settings settings) {

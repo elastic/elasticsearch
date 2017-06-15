@@ -31,7 +31,7 @@ import org.elasticsearch.painless.FeatureTest;
 import org.elasticsearch.painless.GenericElasticsearchScript;
 import org.elasticsearch.painless.Locals.Variable;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.ScriptInterface;
+import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.Operation;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.test.ESTestCase;
@@ -898,11 +898,11 @@ public class NodeToStringTests extends ESTestCase {
     }
 
     private SSource walk(String code) {
-        ScriptInterface scriptInterface = new ScriptInterface(definition, GenericElasticsearchScript.class);
+        ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, GenericElasticsearchScript.class);
         CompilerSettings compilerSettings = new CompilerSettings();
         compilerSettings.setRegexesEnabled(true);
         try {
-            return Walker.buildPainlessTree(scriptInterface, getTestName(), code, compilerSettings,
+            return Walker.buildPainlessTree(scriptClassInfo, getTestName(), code, compilerSettings,
                     definition, null);
         } catch (Exception e) {
             throw new AssertionError("Failed to compile: " + code, e);

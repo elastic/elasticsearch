@@ -2016,12 +2016,9 @@ public final class InternalTestCluster extends TestCluster {
                 // in an assertBusy loop, so it will try for 10 seconds and
                 // fail if it never reached 0
                 try {
-                    assertBusy(new Runnable() {
-                        @Override
-                        public void run() {
-                            CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-                            assertThat("Request breaker not reset to 0 on node: " + name, reqBreaker.getUsed(), equalTo(0L));
-                        }
+                    assertBusy(() -> {
+                        CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
+                        assertThat("Request breaker not reset to 0 on node: " + name, reqBreaker.getUsed(), equalTo(0L));
                     });
                 } catch (Exception e) {
                     fail("Exception during check for request breaker reset to 0: " + e);

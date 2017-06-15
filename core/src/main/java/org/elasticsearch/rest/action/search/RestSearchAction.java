@@ -67,6 +67,11 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "search_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         request.withContentOrSourceParamParserOrNull(parser ->
@@ -190,6 +195,10 @@ public class RestSearchAction extends BaseRestHandler {
 
         if (request.hasParam("track_scores")) {
             searchSourceBuilder.trackScores(request.paramAsBoolean("track_scores", false));
+        }
+
+        if (request.hasParam("track_total_hits")) {
+            searchSourceBuilder.trackTotalHits(request.paramAsBoolean("track_total_hits", true));
         }
 
         String sSorts = request.param("sort");

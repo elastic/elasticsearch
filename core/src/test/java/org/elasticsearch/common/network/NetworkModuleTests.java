@@ -101,6 +101,10 @@ public class NetworkModuleTests extends ModuleTestCase {
         }
         @Override
         public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException { return channel -> {}; }
+        @Override
+        public String getName() {
+            return "FakeRestHandler";
+        }
     }
 
     static class FakeCatRestHandler extends AbstractCatAction {
@@ -114,6 +118,10 @@ public class NetworkModuleTests extends ModuleTestCase {
         @Override
         protected Table getTableWithHeader(RestRequest request) {
             return null;
+        }
+        @Override
+        public String getName() {
+            return "FakeCatRestHandler";
         }
     }
 

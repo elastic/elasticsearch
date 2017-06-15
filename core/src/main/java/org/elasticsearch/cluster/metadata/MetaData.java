@@ -243,7 +243,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
      *
      * @param aliases         The names of the index aliases to find
      * @param concreteIndices The concrete indexes the index aliases must point to order to be returned.
-     * @return the found index aliases grouped by index
+     * @return a map of index to a list of alias metadata, the list corresponding to a concrete index will be empty if no aliases are
+     * present for that index
      */
     public ImmutableOpenMap<String, List<AliasMetaData>> findAliases(final String[] aliases, String[] concreteIndices) {
         assert aliases != null;
@@ -273,8 +274,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                         return o1.alias().compareTo(o2.alias());
                     }
                 });
-                mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
+            mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
         }
         return mapBuilder.build();
     }

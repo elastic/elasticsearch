@@ -25,25 +25,18 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.io.UTF8StreamWriter;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.GeneralScriptException;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.script.TemplateScript;
 
 import java.io.Reader;
 import java.io.StringWriter;
-import java.lang.ref.SoftReference;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -67,17 +60,22 @@ public final class MustacheScriptEngine implements ScriptEngine {
      * @return a compiled template object for later execution.
      * */
     @Override
-    public Object compile(String templateName, String templateSource, Map<String, String> params) {
-        final MustacheFactory factory = createMustacheFactory(params);
+    public <T> T compile(String templateName, String templateSource, ScriptContext<T> context, Map<String, String> options) {
+        if (context.instanceClazz.equals(TemplateScript.class) == false) {
+            throw new IllegalArgumentException("mustache engine does not know how to handle context [" + context.name + "]");
+        }
+        final MustacheFactory factory = createMustacheFactory(options);
         Reader reader = new FastStringReader(templateSource);
-        return factory.compile(reader, "query-template");
+        Mustache template = factory.compile(reader, "query-template");
+        TemplateScript.Factory compiled = params -> new MustacheExecutableScript(template, params);
+        return context.factoryClazz.cast(compiled);
     }
 
-    private CustomMustacheFactory createMustacheFactory(Map<String, String> params) {
-        if (params == null || params.isEmpty() || params.containsKey(Script.CONTENT_TYPE_OPTION) == false) {
+    private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {
+        if (options == null || options.isEmpty() || options.containsKey(Script.CONTENT_TYPE_OPTION) == false) {
             return new CustomMustacheFactory();
         }
-        return new CustomMustacheFactory(params.get(Script.CONTENT_TYPE_OPTION));
+        return new CustomMustacheFactory(options.get(Script.CONTENT_TYPE_OPTION));
     }
 
     @Override
@@ -85,54 +83,32 @@ public final class MustacheScriptEngine implements ScriptEngine {
         return NAME;
     }
 
-    @Override
-    public ExecutableScript executable(CompiledScript compiledScript,
-            @Nullable Map<String, Object> vars) {
-        return new MustacheExecutableScript(compiledScript, vars);
-    }
-
-    @Override
-    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup,
-            @Nullable Map<String, Object> vars) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void close() {
-        // Nothing to do here
-    }
-
     /**
      * Used at query execution time by script service in order to execute a query template.
      * */
-    private class MustacheExecutableScript implements ExecutableScript {
-        /** Compiled template object wrapper. */
-        private CompiledScript template;
-        /** Parameters to fill above object with. */
-        private Map<String, Object> vars;
+    private class MustacheExecutableScript extends TemplateScript {
+        /** Factory template. */
+        private Mustache template;
+
+        private Map<String, Object> params;
 
         /**
          * @param template the compiled template object wrapper
-         * @param vars the parameters to fill above object with
          **/
-        MustacheExecutableScript(CompiledScript template, Map<String, Object> vars) {
+        MustacheExecutableScript(Mustache template, Map<String, Object> params) {
+            super(params);
             this.template = template;
-            this.vars = vars == null ? Collections.emptyMap() : vars;
+            this.params = params;
         }
 
         @Override
-        public void setNextVar(String name, Object value) {
-            this.vars.put(name, value);
-        }
-
-        @Override
-        public Object run() {
+        public String execute() {
             final StringWriter writer = new StringWriter();
             try {
                 // crazy reflection here
                 SpecialPermission.check();
                 AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                    ((Mustache) template.compiled()).execute(writer, vars);
+                    template.execute(writer, params);
                     return null;
                 });
             } catch (Exception e) {

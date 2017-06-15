@@ -48,7 +48,7 @@ public class LongTermsTests extends InternalTermsTestCase {
         DocValueFormat format = randomNumericDocValueFormat();
         long otherDocCount = 0;
         List<LongTerms.Bucket> buckets = new ArrayList<>();
-        final int numBuckets = randomInt(shardSize);
+        final int numBuckets = randomNumberOfBuckets();
         Set<Long> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
             long term = randomValueOtherThanMany(l -> terms.add(l) == false, random()::nextLong);

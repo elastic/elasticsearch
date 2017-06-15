@@ -116,11 +116,12 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return config;
     }
 
-    private static SearchScript createScript(Script script, QueryShardContext context) {
+    private static SearchScript.LeafFactory createScript(Script script, QueryShardContext context) {
         if (script == null) {
             return null;
         } else {
-            return context.getSearchScript(script, ScriptContext.AGGS);
+            SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.AGGS_CONTEXT);
+            return factory.newFactory(script.getParams(), context.lookup());
         }
     }
 
@@ -137,7 +138,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
 
     private final ValuesSourceType valueSourceType;
     private FieldContext fieldContext;
-    private SearchScript script;
+    private SearchScript.LeafFactory script;
     private ValueType scriptValueType;
     private boolean unmapped = false;
     private DocValueFormat format = DocValueFormat.RAW;
@@ -156,7 +157,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return fieldContext;
     }
 
-    public SearchScript script() {
+    public SearchScript.LeafFactory script() {
         return script;
     }
 
@@ -173,7 +174,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
         return this;
     }
 
-    public ValuesSourceConfig<VS> script(SearchScript script) {
+    public ValuesSourceConfig<VS> script(SearchScript.LeafFactory script) {
         this.script = script;
         return this;
     }

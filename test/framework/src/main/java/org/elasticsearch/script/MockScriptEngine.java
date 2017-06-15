@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -67,7 +66,7 @@ public class MockScriptEngine implements ScriptEngine {
     }
 
     @Override
-    public Object compile(String name, String source, Map<String, String> params) {
+    public <T> T compile(String name, String source, ScriptContext<T> context, Map<String, String> params) {
         // Scripts are always resolved using the script's source. For inline scripts, it's easy because they don't have names and the
         // source is always provided. For stored and file scripts, the source of the script must match the key of a predefined script.
         Function<Map<String, Object>, Object> script = scripts.get(source);
@@ -75,23 +74,28 @@ public class MockScriptEngine implements ScriptEngine {
             throw new IllegalArgumentException("No pre defined script matching [" + source + "] for script with name [" + name + "], " +
                     "did you declare the mocked script?");
         }
-        return new MockCompiledScript(name, params, source, script);
-    }
-
-    @Override
-    public ExecutableScript executable(CompiledScript compiledScript, @Nullable Map<String, Object> vars) {
-        MockCompiledScript compiled = (MockCompiledScript) compiledScript.compiled();
-        return compiled.createExecutableScript(vars);
-    }
-
-    @Override
-    public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        MockCompiledScript compiled = (MockCompiledScript) compiledScript.compiled();
-        return compiled.createSearchScript(vars, lookup);
-    }
-
-    @Override
-    public void close() throws IOException {
+        MockCompiledScript mockCompiled = new MockCompiledScript(name, params, source, script);
+        if (context.instanceClazz.equals(SearchScript.class)) {
+            SearchScript.Factory factory = mockCompiled::createSearchScript;
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
+            ExecutableScript.Factory factory = mockCompiled::createExecutableScript;
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(TemplateScript.class)) {
+            TemplateScript.Factory factory = vars -> {
+                // TODO: need a better way to implement all these new contexts
+                // this is just a shim to act as an executable script just as before
+                ExecutableScript execScript = mockCompiled.createExecutableScript(vars);
+                    return new TemplateScript(vars) {
+                        @Override
+                        public String execute() {
+                            return (String) execScript.run();
+                        }
+                    };
+                };
+            return context.factoryClazz.cast(factory);
+        }
+        throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
     }
 
     public class MockCompiledScript {
@@ -125,7 +129,7 @@ public class MockScriptEngine implements ScriptEngine {
             return new MockExecutableScript(context, script != null ? script : ctx -> source);
         }
 
-        public SearchScript createSearchScript(Map<String, Object> params, SearchLookup lookup) {
+        public SearchScript.LeafFactory createSearchScript(Map<String, Object> params, SearchLookup lookup) {
             Map<String, Object> context = new HashMap<>();
             if (options != null) {
                 context.putAll(options); // TODO: remove this once scripts know to look for options under options key
@@ -160,7 +164,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
     }
 
-    public class MockSearchScript implements SearchScript {
+    public class MockSearchScript implements SearchScript.LeafFactory {
 
         private final Function<Map<String, Object>, Object> script;
         private final Map<String, Object> vars;
@@ -173,7 +177,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         @Override
-        public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+        public SearchScript newInstance(LeafReaderContext context) throws IOException {
             LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
 
             Map<String, Object> ctx = new HashMap<>(leafLookup.asMap());
@@ -181,7 +185,7 @@ public class MockScriptEngine implements ScriptEngine {
                 ctx.putAll(vars);
             }
 
-            return new LeafSearchScript() {
+            return new SearchScript(vars, lookup, context) {
                 @Override
                 public Object run() {
                     return script.apply(ctx);
@@ -211,17 +215,11 @@ public class MockScriptEngine implements ScriptEngine {
                 public void setDocument(int doc) {
                     leafLookup.setDocument(doc);
                 }
-
-                @Override
-                public void setSource(Map<String, Object> source) {
-                    leafLookup.source().setSource(source);
-                }
-
             };
         }
 
         @Override
-        public boolean needsScores() {
+        public boolean needs_score() {
             return true;
         }
     }

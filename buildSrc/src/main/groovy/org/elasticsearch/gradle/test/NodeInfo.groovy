@@ -111,10 +111,7 @@ class NodeInfo {
         homeDir = homeDir(baseDir, config.distribution, nodeVersion)
         confDir = confDir(baseDir, config.distribution, nodeVersion)
         if (config.dataDir != null) {
-            if (config.numNodes != 1) {
-                throw new IllegalArgumentException("Cannot set data dir for integ test with more than one node")
-            }
-            dataDir = config.dataDir
+            dataDir = "${config.dataDir(nodeNum)}"
         } else {
             dataDir = new File(homeDir, "data")
         }

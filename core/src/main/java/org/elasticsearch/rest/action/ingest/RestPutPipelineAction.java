@@ -40,6 +40,11 @@ public class RestPutPipelineAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "ingest_put_pipeline_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
         PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), sourceTuple.v2(), sourceTuple.v1());

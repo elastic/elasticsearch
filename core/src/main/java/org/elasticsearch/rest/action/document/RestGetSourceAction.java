@@ -52,6 +52,11 @@ public class RestGetSourceAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "document_get_source_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.operationThreaded(true);

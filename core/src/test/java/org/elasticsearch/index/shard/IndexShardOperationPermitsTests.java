@@ -25,20 +25,30 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class IndexShardOperationPermitsTests extends ESTestCase {
@@ -143,7 +153,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
         PlainActionFuture<Releasable> future = new PlainActionFuture<>();
-        try (Releasable releasable = blockAndWait()) {
+        try (Releasable ignored = blockAndWait()) {
             permits.acquire(future, ThreadPool.Names.GENERIC, true);
             assertFalse(future.isDone());
         }
@@ -184,7 +194,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
             }
         };
 
-        try (Releasable releasable = blockAndWait()) {
+        try (Releasable ignored = blockAndWait()) {
             // we preserve the thread context here so that we have a different context in the call to acquire than the context present
             // when the releasable is closed
             try (ThreadContext.StoredContext ignore = context.newStoredContext(false)) {
@@ -238,6 +248,202 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         };
     }
 
+    public void testAsyncBlockOperationsOperationWhileBlocked() throws InterruptedException {
+        final CountDownLatch blockAcquired = new CountDownLatch(1);
+        final CountDownLatch releaseBlock = new CountDownLatch(1);
+        final AtomicBoolean blocked = new AtomicBoolean();
+        permits.asyncBlockOperations(
+                30,
+                TimeUnit.MINUTES,
+                () -> {
+                    blocked.set(true);
+                    blockAcquired.countDown();
+                    releaseBlock.await();
+                },
+                e -> {
+                    throw new RuntimeException(e);
+                });
+        blockAcquired.await();
+        assertTrue(blocked.get());
+
+        // an operation that is submitted while there is a delay in place should be delayed
+        final CountDownLatch delayedOperation = new CountDownLatch(1);
+        final AtomicBoolean delayed = new AtomicBoolean();
+        final Thread thread = new Thread(() ->
+                permits.acquire(
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                delayed.set(true);
+                                releasable.close();
+                                delayedOperation.countDown();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+
+                            }
+                        },
+                        ThreadPool.Names.GENERIC,
+                        false));
+        thread.start();
+        assertFalse(delayed.get());
+        releaseBlock.countDown();
+        delayedOperation.await();
+        assertTrue(delayed.get());
+        thread.join();
+    }
+
+    public void testAsyncBlockOperationsOperationBeforeBlocked() throws InterruptedException, BrokenBarrierException {
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final CountDownLatch operationExecutingLatch = new CountDownLatch(1);
+        final CountDownLatch firstOperationLatch = new CountDownLatch(1);
+        final CountDownLatch firstOperationCompleteLatch = new CountDownLatch(1);
+        final Thread firstOperationThread =
+                new Thread(controlledAcquire(barrier, operationExecutingLatch, firstOperationLatch, firstOperationCompleteLatch));
+        firstOperationThread.start();
+
+        barrier.await();
+
+        operationExecutingLatch.await();
+
+        // now we will delay operations while the first operation is still executing (because it is latched)
+        final CountDownLatch blockedLatch = new CountDownLatch(1);
+        final AtomicBoolean onBlocked = new AtomicBoolean();
+        permits.asyncBlockOperations(
+                30,
+                TimeUnit.MINUTES,
+                () -> {
+                    onBlocked.set(true);
+                    blockedLatch.countDown();
+                }, e -> {
+                    throw new RuntimeException(e);
+                });
+
+        assertFalse(onBlocked.get());
+
+        // if we submit another operation, it should be delayed
+        final CountDownLatch secondOperationExecuting = new CountDownLatch(1);
+        final CountDownLatch secondOperationComplete = new CountDownLatch(1);
+        final AtomicBoolean secondOperation = new AtomicBoolean();
+        final Thread secondOperationThread = new Thread(() -> {
+                secondOperationExecuting.countDown();
+                permits.acquire(
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                secondOperation.set(true);
+                                releasable.close();
+                                secondOperationComplete.countDown();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        },
+                        ThreadPool.Names.GENERIC,
+                        false);
+        });
+        secondOperationThread.start();
+
+        secondOperationExecuting.await();
+        assertFalse(secondOperation.get());
+
+        firstOperationLatch.countDown();
+        firstOperationCompleteLatch.await();
+        blockedLatch.await();
+        assertTrue(onBlocked.get());
+
+        secondOperationComplete.await();
+        assertTrue(secondOperation.get());
+
+        firstOperationThread.join();
+        secondOperationThread.join();
+    }
+
+    public void testAsyncBlockOperationsRace() throws Exception {
+        // we racily submit operations and a delay, and then ensure that all operations were actually completed
+        final int operations = scaledRandomIntBetween(1, 64);
+        final CyclicBarrier barrier = new CyclicBarrier(1 + 1 + operations);
+        final CountDownLatch operationLatch = new CountDownLatch(1 + operations);
+        final Set<Integer> values = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < operations; i++) {
+            final int value = i;
+            final Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                permits.acquire(
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                values.add(value);
+                                releasable.close();
+                                operationLatch.countDown();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+
+                            }
+                        },
+                        ThreadPool.Names.GENERIC,
+                        false);
+            });
+            thread.start();
+            threads.add(thread);
+        }
+
+        final Thread blockingThread = new Thread(() -> {
+            try {
+                barrier.await();
+            } catch (final BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            permits.asyncBlockOperations(
+                    30,
+                    TimeUnit.MINUTES,
+                    () -> {
+                        values.add(operations);
+                        operationLatch.countDown();
+                    }, e -> {
+                        throw new RuntimeException(e);
+                    });
+        });
+        blockingThread.start();
+
+        barrier.await();
+
+        operationLatch.await();
+        for (final Thread thread : threads) {
+            thread.join();
+        }
+        blockingThread.join();
+
+        // check that all operations completed
+        for (int i = 0; i < operations; i++) {
+            assertTrue(values.contains(i));
+        }
+        assertTrue(values.contains(operations));
+        /*
+         * The block operation is executed on another thread and the operations can have completed before this thread has returned all the
+         * permits to the semaphore. We wait here until all generic threads are idle as an indication that all permits have been returned to
+         * the semaphore.
+         */
+        awaitBusy(() -> {
+            for (final ThreadPoolStats.Stats stats : threadPool.stats()) {
+                if (ThreadPool.Names.GENERIC.equals(stats.getName())) {
+                    return stats.getActive() == 0;
+                }
+            }
+            return false;
+        });
+    }
+
     public void testActiveOperationsCount() throws ExecutionException, InterruptedException {
         PlainActionFuture<Releasable> future1 = new PlainActionFuture<>();
         permits.acquire(future1, ThreadPool.Names.GENERIC, true);
@@ -267,4 +473,136 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         future3.get().close();
         assertThat(permits.getActiveOperationsCount(), equalTo(0));
     }
+
+    public void testAsyncBlockOperationsOnFailure() throws InterruptedException {
+        final AtomicReference<Exception> reference = new AtomicReference<>();
+        final CountDownLatch onFailureLatch = new CountDownLatch(1);
+        permits.asyncBlockOperations(
+                10,
+                TimeUnit.MINUTES,
+                () -> {
+                    throw new RuntimeException("simulated");
+                },
+                e -> {
+                    reference.set(e);
+                    onFailureLatch.countDown();
+                });
+        onFailureLatch.await();
+        assertThat(reference.get(), instanceOf(RuntimeException.class));
+        assertThat(reference.get(), hasToString(containsString("simulated")));
+    }
+
+    public void testTimeout() throws BrokenBarrierException, InterruptedException {
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final CountDownLatch operationExecutingLatch = new CountDownLatch(1);
+        final CountDownLatch operationLatch = new CountDownLatch(1);
+        final CountDownLatch operationCompleteLatch = new CountDownLatch(1);
+
+        final Thread thread = new Thread(controlledAcquire(barrier, operationExecutingLatch, operationLatch, operationCompleteLatch));
+        thread.start();
+
+        barrier.await();
+
+        operationExecutingLatch.await();
+
+        {
+            final TimeoutException e =
+                    expectThrows(TimeoutException.class, () -> permits.blockOperations(1, TimeUnit.MILLISECONDS, () -> {}));
+            assertThat(e, hasToString(containsString("timeout while blocking operations")));
+        }
+
+        {
+            final AtomicReference<Exception> reference = new AtomicReference<>();
+            final CountDownLatch onFailureLatch = new CountDownLatch(1);
+            permits.asyncBlockOperations(
+                    1,
+                    TimeUnit.MILLISECONDS,
+                    () -> {},
+                    e -> {
+                        reference.set(e);
+                        onFailureLatch.countDown();
+                    });
+            onFailureLatch.await();
+            assertThat(reference.get(), hasToString(containsString("timeout while blocking operations")));
+        }
+
+        operationLatch.countDown();
+
+        operationCompleteLatch.await();
+
+        thread.join();
+    }
+
+    public void testNoPermitsRemaining() throws InterruptedException {
+        permits.semaphore.tryAcquire(IndexShardOperationPermits.TOTAL_PERMITS, 1, TimeUnit.SECONDS);
+        final IllegalStateException e = expectThrows(
+                IllegalStateException.class,
+                () -> this.permits.acquire(
+                        new ActionListener<Releasable>() {
+                            @Override
+                            public void onResponse(Releasable releasable) {
+                                assert false;
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                assert false;
+                            }
+                        },
+                        ThreadPool.Names.GENERIC,
+                        false));
+        assertThat(e, hasToString(containsString("failed to obtain permit but operations are not delayed")));
+        permits.semaphore.release(IndexShardOperationPermits.TOTAL_PERMITS);
+    }
+
+    /**
+     * Returns an operation that acquires a permit and synchronizes in the following manner:
+     * <ul>
+     * <li>waits on the {@code barrier} before acquiring a permit</li>
+     * <li>counts down the {@code operationExecutingLatch} when it acquires the permit</li>
+     * <li>waits on the {@code operationLatch} before releasing the permit</li>
+     * <li>counts down the {@code operationCompleteLatch} after releasing the permit</li>
+     * </ul>
+     *
+     * @param barrier                 the barrier to wait on
+     * @param operationExecutingLatch the latch to countdown after acquiring the permit
+     * @param operationLatch          the latch to wait on before releasing the permit
+     * @param operationCompleteLatch  the latch to countdown after releasing the permit
+     * @return a controllable runnable that acquires a permit
+     */
+    private Runnable controlledAcquire(
+            final CyclicBarrier barrier,
+            final CountDownLatch operationExecutingLatch,
+            final CountDownLatch operationLatch,
+            final CountDownLatch operationCompleteLatch) {
+        return () -> {
+            try {
+                barrier.await();
+            } catch (final BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            permits.acquire(
+                    new ActionListener<Releasable>() {
+                        @Override
+                        public void onResponse(Releasable releasable) {
+                            operationExecutingLatch.countDown();
+                            try {
+                                operationLatch.await();
+                            } catch (final InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+                            releasable.close();
+                            operationCompleteLatch.countDown();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    },
+                    ThreadPool.Names.GENERIC,
+                    false);
+        };
+    }
+
 }

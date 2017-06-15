@@ -81,7 +81,6 @@ import org.elasticsearch.index.analysis.KStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.KeepTypesFilterFactory;
 import org.elasticsearch.index.analysis.KeepWordFilterFactory;
 import org.elasticsearch.index.analysis.KeywordAnalyzerProvider;
-import org.elasticsearch.index.analysis.KeywordMarkerTokenFilterFactory;
 import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
 import org.elasticsearch.index.analysis.LatvianAnalyzerProvider;
 import org.elasticsearch.index.analysis.LengthTokenFilterFactory;
@@ -101,8 +100,8 @@ import org.elasticsearch.index.analysis.PatternReplaceTokenFilterFactory;
 import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianAnalyzerProvider;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.PorterStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.PortugueseAnalyzerProvider;
+import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.ReverseTokenFilterFactory;
@@ -115,7 +114,6 @@ import org.elasticsearch.index.analysis.SerbianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.SimpleAnalyzerProvider;
 import org.elasticsearch.index.analysis.SnowballAnalyzerProvider;
-import org.elasticsearch.index.analysis.SnowballTokenFilterFactory;
 import org.elasticsearch.index.analysis.SoraniAnalyzerProvider;
 import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.SpanishAnalyzerProvider;
@@ -132,7 +130,6 @@ import org.elasticsearch.index.analysis.ThaiAnalyzerProvider;
 import org.elasticsearch.index.analysis.ThaiTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.analysis.TrimTokenFilterFactory;
 import org.elasticsearch.index.analysis.TruncateTokenFilterFactory;
 import org.elasticsearch.index.analysis.TurkishAnalyzerProvider;
 import org.elasticsearch.index.analysis.UAX29URLEmailTokenizerFactory;
@@ -177,11 +174,14 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
 
+        Map<String, PreConfiguredCharFilter> preConfiguredCharFilters = setupPreConfiguredCharFilters(plugins);
         Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
         Map<String, PreConfiguredTokenizer> preConfiguredTokenizers = setupPreConfiguredTokenizers(plugins);
 
-        analysisRegistry = new AnalysisRegistry(environment, charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers
-            .getRegistry(), analyzers.getRegistry(), normalizers.getRegistry(), preConfiguredTokenFilters, preConfiguredTokenizers);
+        analysisRegistry = new AnalysisRegistry(environment,
+                charFilters.getRegistry(), tokenFilters.getRegistry(), tokenizers.getRegistry(),
+                analyzers.getRegistry(), normalizers.getRegistry(),
+                preConfiguredCharFilters, preConfiguredTokenFilters, preConfiguredTokenizers);
     }
 
     HunspellService getHunspellService() {
@@ -212,7 +212,6 @@ public final class AnalysisModule {
         tokenFilters.register("length", LengthTokenFilterFactory::new);
         tokenFilters.register("lowercase", LowerCaseTokenFilterFactory::new);
         tokenFilters.register("uppercase", UpperCaseTokenFilterFactory::new);
-        tokenFilters.register("porter_stem", PorterStemTokenFilterFactory::new);
         tokenFilters.register("kstem", KStemTokenFilterFactory::new);
         tokenFilters.register("standard", StandardTokenFilterFactory::new);
         tokenFilters.register("nGram", NGramTokenFilterFactory::new);
@@ -223,10 +222,8 @@ public final class AnalysisModule {
         tokenFilters.register("min_hash", MinHashTokenFilterFactory::new);
         tokenFilters.register("unique", UniqueTokenFilterFactory::new);
         tokenFilters.register("truncate", requriesAnalysisSettings(TruncateTokenFilterFactory::new));
-        tokenFilters.register("trim", TrimTokenFilterFactory::new);
         tokenFilters.register("limit", LimitTokenCountFilterFactory::new);
         tokenFilters.register("common_grams", requriesAnalysisSettings(CommonGramsTokenFilterFactory::new));
-        tokenFilters.register("snowball", SnowballTokenFilterFactory::new);
         tokenFilters.register("stemmer", StemmerTokenFilterFactory::new);
         tokenFilters.register("delimited_payload_filter", DelimitedPayloadTokenFilterFactory::new);
         tokenFilters.register("elision", ElisionTokenFilterFactory::new);
@@ -244,7 +241,6 @@ public final class AnalysisModule {
         tokenFilters.register("french_stem", FrenchStemTokenFilterFactory::new);
         tokenFilters.register("german_stem", GermanStemTokenFilterFactory::new);
         tokenFilters.register("russian_stem", RussianStemTokenFilterFactory::new);
-        tokenFilters.register("keyword_marker", requriesAnalysisSettings(KeywordMarkerTokenFilterFactory::new));
         tokenFilters.register("stemmer_override", requriesAnalysisSettings(StemmerOverrideTokenFilterFactory::new));
         tokenFilters.register("arabic_normalization", ArabicNormalizationFilterFactory::new);
         tokenFilters.register("german_normalization", GermanNormalizationFilterFactory::new);
@@ -267,6 +263,19 @@ public final class AnalysisModule {
         tokenFilters.register("fingerprint", FingerprintTokenFilterFactory::new);
         tokenFilters.extractAndRegister(plugins, AnalysisPlugin::getTokenFilters);
         return tokenFilters;
+    }
+
+    static Map<String, PreConfiguredCharFilter> setupPreConfiguredCharFilters(List<AnalysisPlugin> plugins) {
+        NamedRegistry<PreConfiguredCharFilter> preConfiguredCharFilters = new NamedRegistry<>("pre-configured char_filter");
+
+        // No char filter are available in lucene-core so none are built in to Elasticsearch core
+
+        for (AnalysisPlugin plugin: plugins) {
+            for (PreConfiguredCharFilter filter : plugin.getPreConfiguredCharFilters()) {
+                preConfiguredCharFilters.register(filter.getName(), filter);
+            }
+        }
+        return unmodifiableMap(preConfiguredCharFilters.getRegistry());
     }
 
     static Map<String, PreConfiguredTokenFilter> setupPreConfiguredTokenFilters(List<AnalysisPlugin> plugins) {

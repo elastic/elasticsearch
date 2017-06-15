@@ -42,6 +42,11 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "ingest_simulate_pipeline_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
         SimulatePipelineRequest request = new SimulatePipelineRequest(sourceTuple.v2(), sourceTuple.v1());

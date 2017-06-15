@@ -32,7 +32,8 @@ import java.util.Base64;
 public class PutStoredScriptRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest("foo", "bar", new BytesArray("{}"), XContentType.JSON);
+        PutStoredScriptRequest storedScriptRequest =
+            new PutStoredScriptRequest("foo", "bar", "context", new BytesArray("{}"), XContentType.JSON);
 
         assertEquals(XContentType.JSON, storedScriptRequest.xContentType());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -44,6 +45,7 @@ public class PutStoredScriptRequestTests extends ESTestCase {
                 assertEquals(XContentType.JSON, serialized.xContentType());
                 assertEquals(storedScriptRequest.lang(), serialized.lang());
                 assertEquals(storedScriptRequest.id(), serialized.id());
+                assertEquals(storedScriptRequest.context(), serialized.context());
             }
         }
     }

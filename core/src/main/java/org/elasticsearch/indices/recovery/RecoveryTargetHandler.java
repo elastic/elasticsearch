@@ -56,7 +56,7 @@ public interface RecoveryTargetHandler {
      *
      * @return the local checkpoint on the target shard
      */
-    long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps);
+    long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException;
 
     /**
      * Notifies the target of the files it is going to receive

@@ -71,6 +71,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     private volatile long maxSeqNo;
 
     private final LongSupplier globalCheckpointSupplier;
+    private final LongSupplier minTranslogGenerationSupplier;
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);
     // lock order synchronized(syncLock) -> synchronized(this)
@@ -85,10 +86,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final FileChannel channel,
         final Path path,
         final ByteSizeValue bufferSize,
-        final LongSupplier globalCheckpointSupplier) throws IOException {
+        final LongSupplier globalCheckpointSupplier, LongSupplier minTranslogGenerationSupplier) throws IOException {
         super(initialCheckpoint.generation, channel, path, channel.position());
         this.shardId = shardId;
         this.channelFactory = channelFactory;
+        this.minTranslogGenerationSupplier = minTranslogGenerationSupplier;
         this.outputStream = new BufferedChannelOutputStream(java.nio.channels.Channels.newOutputStream(channel), bufferSize.bytesAsInt());
         this.lastSyncedCheckpoint = initialCheckpoint;
         this.totalOffset = initialCheckpoint.offset;
@@ -121,7 +123,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         Path file,
         ChannelFactory channelFactory,
         ByteSizeValue bufferSize,
-        final LongSupplier globalCheckpointSupplier) throws IOException {
+        final LongSupplier globalCheckpointSupplier,
+        final long initialMinTranslogGen,
+        final LongSupplier minTranslogGenerationSupplier) throws IOException {
         final BytesRef ref = new BytesRef(translogUUID);
         final int headerLength = getHeaderLength(ref.length);
         final FileChannel channel = channelFactory.open(file);
@@ -132,9 +136,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             writeHeader(out, ref);
             channel.force(true);
             final Checkpoint checkpoint =
-                    Checkpoint.emptyTranslogCheckpoint(headerLength, fileGeneration, globalCheckpointSupplier.getAsLong());
+                    Checkpoint.emptyTranslogCheckpoint(headerLength, fileGeneration, globalCheckpointSupplier.getAsLong(),
+                        initialMinTranslogGen);
             writeCheckpoint(channelFactory, file.getParent(), checkpoint);
-            return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize, globalCheckpointSupplier);
+            return new TranslogWriter(channelFactory, shardId, checkpoint, channel, file, bufferSize, globalCheckpointSupplier,
+                minTranslogGenerationSupplier);
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
             // file exists we remove it. We only apply this logic to the checkpoint.generation+1 any other file with a higher generation is an error condition
@@ -242,7 +248,9 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
      * checkpoint has not yet been fsynced
      */
     public boolean syncNeeded() {
-        return totalOffset != lastSyncedCheckpoint.offset || globalCheckpointSupplier.getAsLong() != lastSyncedCheckpoint.globalCheckpoint;
+        return totalOffset != lastSyncedCheckpoint.offset ||
+            globalCheckpointSupplier.getAsLong() != lastSyncedCheckpoint.globalCheckpoint ||
+            minTranslogGenerationSupplier.getAsLong() != lastSyncedCheckpoint.minTranslogGeneration;
     }
 
     @Override
@@ -330,6 +338,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     final long currentMinSeqNo;
                     final long currentMaxSeqNo;
                     final long currentGlobalCheckpoint;
+                    final long currentMinTranslogGeneration;
                     synchronized (this) {
                         ensureOpen();
                         try {
@@ -339,6 +348,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                             currentMinSeqNo = minSeqNo;
                             currentMaxSeqNo = maxSeqNo;
                             currentGlobalCheckpoint = globalCheckpointSupplier.getAsLong();
+                            currentMinTranslogGeneration = minTranslogGenerationSupplier.getAsLong();
                         } catch (Exception ex) {
                             try {
                                 closeWithTragicEvent(ex);
@@ -354,7 +364,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     try {
                         channel.force(false);
                         checkpoint =
-                            writeCheckpoint(channelFactory, offsetToSync, opsCounter, currentMinSeqNo, currentMaxSeqNo, currentGlobalCheckpoint, path.getParent(), generation);
+                            writeCheckpoint(channelFactory, offsetToSync, opsCounter, currentMinSeqNo, currentMaxSeqNo,
+                                currentGlobalCheckpoint, currentMinTranslogGeneration, path.getParent(), generation);
                     } catch (Exception ex) {
                         try {
                             closeWithTragicEvent(ex);
@@ -398,9 +409,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             long minSeqNo,
             long maxSeqNo,
             long globalCheckpoint,
+            long minTranslogGeneration,
             Path translogFile,
             long generation) throws IOException {
-        final Checkpoint checkpoint = new Checkpoint(syncPosition, numOperations, generation, minSeqNo, maxSeqNo, globalCheckpoint);
+        final Checkpoint checkpoint =
+            new Checkpoint(syncPosition, numOperations, generation, minSeqNo, maxSeqNo, globalCheckpoint, minTranslogGeneration);
         writeCheckpoint(channelFactory, translogFile, checkpoint);
         return checkpoint;
     }

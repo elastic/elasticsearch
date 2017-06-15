@@ -25,6 +25,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,7 +44,9 @@ public class RestNodesStatsActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        action = new RestNodesStatsAction(Settings.EMPTY, new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null));
+        UsageService usageService = new UsageService(Settings.EMPTY);
+        action = new RestNodesStatsAction(Settings.EMPTY,
+                new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null, usageService));
     }
 
     public void testUnrecognizedMetric() throws IOException {

@@ -92,7 +92,7 @@ GET /tweets/_search
 --------------------------------------------------
 // CONSOLE
 
-The structure of the external terms document can also include array of
+The structure of the external terms document can also include an array of
 inner objects, for example:
 
 [source,js]

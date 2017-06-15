@@ -49,7 +49,7 @@ public class StringTermsTests extends InternalTermsTestCase {
         DocValueFormat format = DocValueFormat.RAW;
         long otherDocCount = 0;
         List<StringTerms.Bucket> buckets = new ArrayList<>();
-        final int numBuckets = randomInt(shardSize);
+        final int numBuckets = randomNumberOfBuckets();
         Set<BytesRef> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
             BytesRef term = randomValueOtherThanMany(b -> terms.add(b) == false, () -> new BytesRef(randomAlphaOfLength(10)));

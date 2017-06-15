@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,9 +44,14 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
 
     private Map<String, ParsedBucket> bucketMap;
     protected long subsetSize;
+    protected long supersetSize;
 
     protected long getSubsetSize() {
         return subsetSize;
+    }
+
+    protected long getSupersetSize() {
+        return supersetSize;
     }
 
     @Override
@@ -68,6 +75,7 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(CommonFields.DOC_COUNT.getPreferredName(), subsetSize);
+        builder.field(InternalMappedSignificantTerms.BG_COUNT, supersetSize);
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (SignificantTerms.Bucket bucket : buckets) {
             bucket.toXContent(builder, params);
@@ -76,16 +84,31 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
         return builder;
     }
 
+    static <T extends ParsedSignificantTerms> T parseSignificantTermsXContent(final CheckedSupplier<T, IOException> aggregationSupplier,
+                                                                              final String name) throws IOException {
+        T aggregation = aggregationSupplier.get();
+        aggregation.setName(name);
+        for (ParsedBucket bucket : aggregation.buckets) {
+            bucket.subsetSize = aggregation.subsetSize;
+            bucket.supersetSize = aggregation.supersetSize;
+        }
+        return aggregation;
+    }
+
     static void declareParsedSignificantTermsFields(final ObjectParser<? extends ParsedSignificantTerms, Void> objectParser,
                                      final CheckedFunction<XContentParser, ParsedSignificantTerms.ParsedBucket, IOException> bucketParser) {
         declareMultiBucketAggregationFields(objectParser, bucketParser::apply, bucketParser::apply);
         objectParser.declareLong((parsedTerms, value) -> parsedTerms.subsetSize = value , CommonFields.DOC_COUNT);
+        objectParser.declareLong((parsedTerms, value) -> parsedTerms.supersetSize = value ,
+                new ParseField(InternalMappedSignificantTerms.BG_COUNT));
     }
 
     public abstract static class ParsedBucket extends ParsedMultiBucketAggregation.ParsedBucket implements SignificantTerms.Bucket {
 
         protected long subsetDf;
+        protected long subsetSize;
         protected long supersetDf;
+        protected long supersetSize;
         protected double score;
 
         @Override
@@ -110,12 +133,12 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
 
         @Override
         public long getSupersetSize() {
-            throw new UnsupportedOperationException();
+            return supersetSize;
         }
 
         @Override
         public long getSubsetSize() {
-            throw new UnsupportedOperationException();
+            return subsetSize;
         }
 
         @Override

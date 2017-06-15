@@ -41,6 +41,62 @@ setup:
   - is_false: test_index_2
 
 ---
+"Get aliases via /_all/_alias/":
+  - skip:
+      version: " - 5.99.99"
+      reason:  only requested indices are included in 6.x
+
+  - do:
+      indices.create:
+        index: myindex
+
+  - do:
+      indices.get_alias:
+        index: _all
+
+  - match: {test_index.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_blias: {}}
+  - match: {test_index_2.aliases.test_alias: {}}
+  - match: {test_index_2.aliases.test_blias: {}}
+  - match: {myindex.aliases: {}}
+
+---
+"Get aliases via /*/_alias/":
+  - skip:
+      version: " - 5.99.99"
+      reason:  only requested indices are included in 6.x
+
+  - do:
+      indices.create:
+        index: myindex
+
+  - do:
+      indices.get_alias:
+        index: "*"
+
+  - match: {test_index.aliases.test_alias: {}}
+  - match: {test_index.aliases.test_blias: {}}
+  - match: {test_index_2.aliases.test_alias: {}}
+  - match: {test_index_2.aliases.test_blias: {}}
+  - match: {myindex.aliases: {}}
+
+---
+"Get and index with no aliases via /{index}/_alias/":
+  - skip:
+      version: " - 5.99.99"
+      reason:  only requested indices are included in 6.x
+
+  - do:
+      indices.create:
+        index: myindex
+
+  - do:
+      indices.get_alias:
+        index: myindex
+
+  - match: {myindex.aliases: {}}
+
+---
 "Get specific alias via /{index}/_alias/{name}":
 
   - do:
@@ -78,7 +134,6 @@ setup:
 
 ---
 "Get aliases via /{index}/_alias/prefix*":
-
   - do:
       indices.get_alias:
         index: test_index
@@ -166,25 +221,51 @@ setup:
 
 
 ---
-"Non-existent alias on an existing index returns an empty body":
+"Non-existent alias on an existing index returns 404":
+  - skip:
+      version: " - 5.4.99"
+      reason: Previous versions did not 404 on missing aliases
 
   - do:
+      catch: missing
       indices.get_alias:
         index: test_index
         name: non-existent
 
-  - match: { '': {}}
+  - match: { 'status': 404}
+  - match: { 'error': 'alias [non-existent] missing' }
 
 ---
-"Existent and non-existent alias returns just the existing":
+"Existent and non-existent alias returns 404 and the existing alias":
+  - skip:
+      version: " - 5.4.99"
+      reason: Previous versions did not 404 on missing aliases
 
   - do:
+      catch: missing
       indices.get_alias:
         index: test_index
         name: test_alias,non-existent
 
-  - match: {test_index.aliases.test_alias: {}}
-  - is_false: test_index.aliases.non-existent
+  - match: { 'status': 404 }
+  - match: { 'error': 'alias [non-existent] missing' }
+  - match: { test_index.aliases.test_alias: { } }
+
+---
+"Existent and non-existent aliases returns 404 and the existing alias":
+  - skip:
+      version: " - 5.4.99"
+      reason: Previous versions did not 404 on missing aliases
+
+  - do:
+      catch: missing
+      indices.get_alias:
+        index: test_index
+        name: test_alias,non-existent,another-non-existent
+
+  - match: { 'status': 404 }
+  - match: { 'error': 'aliases [another-non-existent,non-existent] missing' }
+  - match: { test_index.aliases.test_alias: { } }
 
 ---
 "Getting alias on an non-existent index should return 404":

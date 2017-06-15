@@ -354,7 +354,7 @@ These are the linux flavors the Vagrantfile currently supports:
 * oel-6 aka Oracle Enterprise Linux 6
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12
-* opensuse-13
+* opensuse-42 aka Leap
 
 We're missing the following from the support matrix because there aren't high
 quality boxes available in vagrant atlas:

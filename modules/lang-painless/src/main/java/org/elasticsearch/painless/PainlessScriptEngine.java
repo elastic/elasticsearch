@@ -24,25 +24,33 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.painless.Compiler.Loader;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
+import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Opcodes;
+import org.objectweb.asm.Type;
+import org.objectweb.asm.commons.GeneratorAdapter;
 
-import java.io.IOException;
+import java.lang.invoke.MethodType;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
 import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.Permissions;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.painless.WriterConstants.OBJECT_TYPE;
 
 /**
  * Implementation of a ScriptEngine for the Painless language.
@@ -72,17 +80,32 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
     /**
      * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
-     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings)}.
+     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings, Collection)}.
      */
     private final CompilerSettings defaultCompilerSettings = new CompilerSettings();
+
+    private final Map<ScriptContext<?>, Compiler> contextsToCompilers;
 
     /**
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
-    public PainlessScriptEngine(final Settings settings) {
+    public PainlessScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
         super(settings);
+
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
+
+        Map<ScriptContext<?>, Compiler> contextsToCompilers = new HashMap<>();
+
+        for (ScriptContext<?> context : contexts) {
+            if (context.instanceClazz.equals(SearchScript.class) || context.instanceClazz.equals(ExecutableScript.class)) {
+                contextsToCompilers.put(context, new Compiler(GenericElasticsearchScript.class, Definition.BUILTINS));
+            } else {
+                contextsToCompilers.put(context, new Compiler(context.instanceClazz, Definition.BUILTINS));
+            }
+        }
+
+        this.contextsToCompilers = Collections.unmodifiableMap(contextsToCompilers);
     }
 
     /**
@@ -100,11 +123,225 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
     static final String INLINE_NAME = "<inline>";
 
     @Override
-    public Object compile(String scriptName, final String scriptSource, final Map<String, String> params) {
-        return compile(GenericElasticsearchScript.class, scriptName, scriptSource, params);
+    public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
+        if (context.instanceClazz.equals(SearchScript.class)) {
+            GenericElasticsearchScript painlessScript =
+                (GenericElasticsearchScript)compile(contextsToCompilers.get(context), scriptName, scriptSource, params);
+
+            SearchScript.Factory factory = (p, lookup) -> new SearchScript.LeafFactory() {
+                @Override
+                public SearchScript newInstance(final LeafReaderContext context) {
+                    return new ScriptImpl(painlessScript, p, lookup, context);
+                }
+                @Override
+                public boolean needs_score() {
+                    return painlessScript.needs_score();
+                }
+            };
+            return context.factoryClazz.cast(factory);
+        } else if (context.instanceClazz.equals(ExecutableScript.class)) {
+            GenericElasticsearchScript painlessScript =
+                (GenericElasticsearchScript)compile(contextsToCompilers.get(context), scriptName, scriptSource, params);
+
+            ExecutableScript.Factory factory = (p) -> new ScriptImpl(painlessScript, p, null, null);
+            return context.factoryClazz.cast(factory);
+        } else {
+            // Check we ourselves are not being called by unprivileged code.
+            SpecialPermission.check();
+
+            // Create our loader (which loads compiled code with no permissions).
+            final Loader loader = AccessController.doPrivileged(new PrivilegedAction<Loader>() {
+                @Override
+                public Loader run() {
+                    return new Loader(getClass().getClassLoader());
+                }
+            });
+
+            compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);
+
+            if (context.statefulFactoryClazz != null) {
+                return generateFactory(loader, context, generateStatefulFactory(loader, context));
+            } else {
+                return generateFactory(loader, context, WriterConstants.CLASS_TYPE);
+            }
+        }
     }
 
-    <T> T compile(Class<T> iface, String scriptName, final String scriptSource, final Map<String, String> params) {
+    /**
+     * Generates a stateful factory class that will return script instances.  Acts as a middle man between
+     * the {@link ScriptContext#factoryClazz} and the {@link ScriptContext#instanceClazz} when used so that
+     * the stateless factory can be used for caching and the stateful factory can act as a cache for new
+     * script instances.  Uses the newInstance method from a {@link ScriptContext#statefulFactoryClazz} to
+     * define the factory method to create new instances of the {@link ScriptContext#instanceClazz}.
+     * @param loader The {@link ClassLoader} that is used to define the factory class and script class.
+     * @param context The {@link ScriptContext}'s semantics are used to define the factory class.
+     * @param <T> The factory class.
+     * @return A factory class that will return script instances.
+     */
+    private <T> Type generateStatefulFactory(Loader loader, ScriptContext<T> context) {
+        int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
+        int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
+        String interfaceBase = Type.getType(context.statefulFactoryClazz).getInternalName();
+        String className = interfaceBase + "$StatefulFactory";
+        String classInterfaces[] = new String[] { interfaceBase };
+
+        ClassWriter writer = new ClassWriter(classFrames);
+        writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
+
+        Method newFactory = null;
+
+        for (Method method : context.factoryClazz.getMethods()) {
+            if ("newFactory".equals(method.getName())) {
+                newFactory = method;
+
+                break;
+            }
+        }
+
+        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+            writer.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL, "$arg" + count,
+                Type.getType(newFactory.getParameterTypes()[count]).getDescriptor(), null, null).visitEnd();
+        }
+
+        org.objectweb.asm.commons.Method base =
+            new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
+        org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method("<init>",
+            MethodType.methodType(void.class, newFactory.getParameterTypes()).toMethodDescriptorString());
+
+        GeneratorAdapter constructor = new GeneratorAdapter(Opcodes.ASM5, init,
+            writer.visitMethod(Opcodes.ACC_PUBLIC, init.getName(), init.getDescriptor(), null, null));
+        constructor.visitCode();
+        constructor.loadThis();
+        constructor.invokeConstructor(OBJECT_TYPE, base);
+
+        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+            constructor.loadThis();
+            constructor.loadArg(count);
+            constructor.putField(Type.getType(className), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+        }
+
+        constructor.returnValue();
+        constructor.endMethod();
+
+        Method newInstance = null;
+
+        for (Method method : context.statefulFactoryClazz.getMethods()) {
+            if ("newInstance".equals(method.getName())) {
+                newInstance = method;
+
+                break;
+            }
+        }
+
+        org.objectweb.asm.commons.Method instance = new org.objectweb.asm.commons.Method(newInstance.getName(),
+            MethodType.methodType(newInstance.getReturnType(), newInstance.getParameterTypes()).toMethodDescriptorString());
+
+        List<Class<?>> parameters = new ArrayList<>(Arrays.asList(newFactory.getParameterTypes()));
+        parameters.addAll(Arrays.asList(newInstance.getParameterTypes()));
+
+        org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method("<init>",
+            MethodType.methodType(void.class, parameters.toArray(new Class<?>[] {})).toMethodDescriptorString());
+
+        GeneratorAdapter adapter = new GeneratorAdapter(Opcodes.ASM5, instance,
+            writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
+                instance.getName(), instance.getDescriptor(), null, null));
+        adapter.visitCode();
+        adapter.newInstance(WriterConstants.CLASS_TYPE);
+        adapter.dup();
+
+        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+            adapter.loadThis();
+            adapter.getField(Type.getType(className), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+        }
+
+        adapter.loadArgs();
+        adapter.invokeConstructor(WriterConstants.CLASS_TYPE, constru);
+        adapter.returnValue();
+        adapter.endMethod();
+
+        writer.visitEnd();
+
+        loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
+
+        return Type.getType(className);
+    }
+
+    /**
+     * Generates a factory class that will return script instances or stateful factories.
+     * Uses the newInstance method from a {@link ScriptContext#factoryClazz} to define the factory method
+     * to create new instances of the {@link ScriptContext#instanceClazz} or uses the newFactory method
+     * to create new factories of the {@link ScriptContext#statefulFactoryClazz}.
+     * @param loader The {@link ClassLoader} that is used to define the factory class and script class.
+     * @param context The {@link ScriptContext}'s semantics are used to define the factory class.
+     * @param classType The type to be instaniated in the newFactory or newInstance method.  Depends
+     *                  on whether a {@link ScriptContext#statefulFactoryClazz} is specified.
+     * @param <T> The factory class.
+     * @return A factory class that will return script instances.
+     */
+    private <T> T generateFactory(Loader loader, ScriptContext<T> context, Type classType) {
+        int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
+        int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER| Opcodes.ACC_FINAL;
+        String interfaceBase = Type.getType(context.factoryClazz).getInternalName();
+        String className = interfaceBase + "$Factory";
+        String classInterfaces[] = new String[] { interfaceBase };
+
+        ClassWriter writer = new ClassWriter(classFrames);
+        writer.visit(WriterConstants.CLASS_VERSION, classAccess, className, null, OBJECT_TYPE.getInternalName(), classInterfaces);
+
+        org.objectweb.asm.commons.Method init =
+            new org.objectweb.asm.commons.Method("<init>", MethodType.methodType(void.class).toMethodDescriptorString());
+
+        GeneratorAdapter constructor = new GeneratorAdapter(Opcodes.ASM5, init,
+                writer.visitMethod(Opcodes.ACC_PUBLIC, init.getName(), init.getDescriptor(), null, null));
+        constructor.visitCode();
+        constructor.loadThis();
+        constructor.invokeConstructor(OBJECT_TYPE, init);
+        constructor.returnValue();
+        constructor.endMethod();
+
+        Method reflect = null;
+
+        for (Method method : context.factoryClazz.getMethods()) {
+            if ("newInstance".equals(method.getName())) {
+                reflect = method;
+
+                break;
+            } else if ("newFactory".equals(method.getName())) {
+                reflect = method;
+
+                break;
+            }
+        }
+
+        org.objectweb.asm.commons.Method instance = new org.objectweb.asm.commons.Method(reflect.getName(),
+            MethodType.methodType(reflect.getReturnType(), reflect.getParameterTypes()).toMethodDescriptorString());
+        org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method("<init>",
+            MethodType.methodType(void.class, reflect.getParameterTypes()).toMethodDescriptorString());
+
+        GeneratorAdapter adapter = new GeneratorAdapter(Opcodes.ASM5, instance,
+                writer.visitMethod(Opcodes.ACC_PUBLIC | Opcodes.ACC_FINAL,
+                                   instance.getName(), instance.getDescriptor(), null, null));
+        adapter.visitCode();
+        adapter.newInstance(classType);
+        adapter.dup();
+        adapter.loadArgs();
+        adapter.invokeConstructor(classType, constru);
+        adapter.returnValue();
+        adapter.endMethod();
+
+        writer.visitEnd();
+
+        Class<?> factory = loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
+
+        try {
+            return context.factoryClazz.cast(factory.getConstructor().newInstance());
+        } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
+            throw new IllegalStateException(
+                "An internal error occurred attempting to define the factory class [" + className + "].", exception);
+        }
+    }
+
+    Object compile(Compiler compiler, String scriptName, String source, Map<String, String> params, Object... args) {
         final CompilerSettings compilerSettings;
 
         if (params.isEmpty()) {
@@ -157,66 +394,81 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
 
         try {
             // Drop all permissions to actually compile the code itself.
-            return AccessController.doPrivileged(new PrivilegedAction<T>() {
+            return AccessController.doPrivileged(new PrivilegedAction<Object>() {
                 @Override
-                public T run() {
+                public Object run() {
                     String name = scriptName == null ? INLINE_NAME : scriptName;
-                    return Compiler.compile(loader, iface, name, scriptSource, compilerSettings);
+                    Constructor<?> constructor = compiler.compile(loader, name, source, compilerSettings);
+
+                    try {
+                        return constructor.newInstance(args);
+                    } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
+                        throw new IllegalStateException(
+                            "An internal error occurred attempting to define the script [" + name + "].", exception);
+                    }
                 }
             }, COMPILATION_CONTEXT);
         // Note that it is safe to catch any of the following errors since Painless is stateless.
         } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
-            throw convertToScriptException(scriptName == null ? scriptSource : scriptName, scriptSource, e);
+            throw convertToScriptException(scriptName == null ? source : scriptName, source, e);
         }
     }
 
-    /**
-     * Retrieve an {@link ExecutableScript} for later use.
-     * @param compiledScript A previously compiled script.
-     * @param vars The variables to be used in the script.
-     * @return An {@link ExecutableScript} with the currently specified variables.
-     */
-    @Override
-    public ExecutableScript executable(final CompiledScript compiledScript, final Map<String, Object> vars) {
-        return new ScriptImpl((GenericElasticsearchScript) compiledScript.compiled(), vars, null);
-    }
+    void compile(Compiler compiler, Loader loader, String scriptName, String source, Map<String, String> params) {
+        final CompilerSettings compilerSettings;
 
-    /**
-     * Retrieve a {@link SearchScript} for later use.
-     * @param compiledScript A previously compiled script.
-     * @param lookup The object that ultimately allows access to search fields.
-     * @param vars The variables to be used in the script.
-     * @return An {@link SearchScript} with the currently specified variables.
-     */
-    @Override
-    public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, final Map<String, Object> vars) {
-        return new SearchScript() {
-            /**
-             * Get the search script that will have access to search field values.
-             * @param context The LeafReaderContext to be used.
-             * @return A script that will have the search fields from the current context available for use.
-             */
-            @Override
-            public LeafSearchScript getLeafSearchScript(final LeafReaderContext context) throws IOException {
-                return new ScriptImpl((GenericElasticsearchScript) compiledScript.compiled(), vars, lookup.getLeafSearchLookup(context));
+        if (params.isEmpty()) {
+            // Use the default settings.
+            compilerSettings = defaultCompilerSettings;
+        } else {
+            // Use custom settings specified by params.
+            compilerSettings = new CompilerSettings();
+
+            // Except regexes enabled - this is a node level setting and can't be changed in the request.
+            compilerSettings.setRegexesEnabled(defaultCompilerSettings.areRegexesEnabled());
+
+            Map<String, String> copy = new HashMap<>(params);
+
+            String value = copy.remove(CompilerSettings.MAX_LOOP_COUNTER);
+            if (value != null) {
+                compilerSettings.setMaxLoopCounter(Integer.parseInt(value));
             }
 
-            /**
-             * Whether or not the score is needed.
-             */
-            @Override
-            public boolean needsScores() {
-                return ((GenericElasticsearchScript) compiledScript.compiled()).uses$_score();
+            value = copy.remove(CompilerSettings.PICKY);
+            if (value != null) {
+                compilerSettings.setPicky(Boolean.parseBoolean(value));
             }
-        };
-    }
 
-    /**
-     * Action taken when the engine is closed.
-     */
-    @Override
-    public void close() {
-        // Nothing to do.
+            value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
+            if (value != null) {
+                compilerSettings.setInitialCallSiteDepth(Integer.parseInt(value));
+            }
+
+            value = copy.remove(CompilerSettings.REGEX_ENABLED.getKey());
+            if (value != null) {
+                throw new IllegalArgumentException("[painless.regex.enabled] can only be set on node startup.");
+            }
+
+            if (!copy.isEmpty()) {
+                throw new IllegalArgumentException("Unrecognized compile-time parameter(s): " + copy);
+            }
+        }
+
+        try {
+            // Drop all permissions to actually compile the code itself.
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @Override
+                public Void run() {
+                    String name = scriptName == null ? INLINE_NAME : scriptName;
+                    compiler.compile(loader, name, source, compilerSettings);
+
+                    return null;
+                }
+            }, COMPILATION_CONTEXT);
+            // Note that it is safe to catch any of the following errors since Painless is stateless.
+        } catch (OutOfMemoryError | StackOverflowError | VerifyError | Exception e) {
+            throw convertToScriptException(scriptName == null ? source : scriptName, source, e);
+        }
     }
 
     private ScriptException convertToScriptException(String scriptName, String scriptSource, Throwable t) {

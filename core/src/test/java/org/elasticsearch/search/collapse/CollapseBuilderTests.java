@@ -26,30 +26,38 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CollapseBuilderTests extends AbstractWireSerializingTestCase {
+public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBuilder> {
     private static NamedWriteableRegistry namedWriteableRegistry;
     private static NamedXContentRegistry xContentRegistry;
 
@@ -67,17 +75,30 @@ public class CollapseBuilderTests extends AbstractWireSerializingTestCase {
     }
 
     public static CollapseBuilder randomCollapseBuilder() {
+        return randomCollapseBuilder(true);
+    }
+
+    public static CollapseBuilder randomCollapseBuilder(boolean multiInnerHits) {
         CollapseBuilder builder = new CollapseBuilder(randomAlphaOfLength(10));
         builder.setMaxConcurrentGroupRequests(randomIntBetween(1, 48));
-        if (randomBoolean()) {
+        int numInnerHits = randomIntBetween(0, multiInnerHits ? 5 : 1);
+        if (numInnerHits == 1) {
             InnerHitBuilder innerHit = InnerHitBuilderTests.randomInnerHits();
             builder.setInnerHits(innerHit);
+        } else if (numInnerHits > 1) {
+            List<InnerHitBuilder> innerHits = new ArrayList<>(numInnerHits);
+            for (int i = 0; i < numInnerHits; i++) {
+                innerHits.add(InnerHitBuilderTests.randomInnerHits());
+            }
+
+            builder.setInnerHits(innerHits);
         }
+
         return builder;
     }
 
     @Override
-    protected Writeable createTestInstance() {
+    protected CollapseBuilder createTestInstance() {
         return randomCollapseBuilder();
     }
 
@@ -175,6 +196,28 @@ public class CollapseBuilderTests extends AbstractWireSerializingTestCase {
             CollapseBuilder builder = new CollapseBuilder("field");
             SearchContextException exc = expectThrows(SearchContextException.class, () -> builder.build(context));
             assertEquals(exc.getMessage(), "unknown type for collapse field `field`, only keywords and numbers are accepted");
+        }
+    }
+
+    @Override
+    protected CollapseBuilder doParseInstance(XContentParser parser) throws IOException {
+        return CollapseBuilder.fromXContent(new QueryParseContext(parser));
+    }
+
+    /**
+     * Rewrite this test to disable xcontent shuffling on the highlight builder
+     */
+    public void testFromXContent() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            CollapseBuilder testInstance = createTestInstance();
+            XContentType xContentType = randomFrom(XContentType.values());
+            XContentBuilder builder = toXContent(testInstance, xContentType);
+            XContentBuilder shuffled = shuffleXContent(builder, "fields");
+            assertParsedInstance(xContentType, shuffled.bytes(), testInstance);
+            for (Map.Entry<String, CollapseBuilder> alternateVersion : getAlternateVersions().entrySet()) {
+                String instanceAsString = alternateVersion.getKey();
+                assertParsedInstance(XContentType.JSON, new BytesArray(instanceAsString), alternateVersion.getValue());
+            }
         }
     }
 }

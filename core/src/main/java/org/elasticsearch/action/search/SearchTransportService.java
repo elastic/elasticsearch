@@ -71,7 +71,6 @@ public class SearchTransportService extends AbstractComponent {
     public static final String QUERY_ACTION_NAME = "indices:data/read/search[phase/query]";
     public static final String QUERY_ID_ACTION_NAME = "indices:data/read/search[phase/query/id]";
     public static final String QUERY_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query/scroll]";
-    public static final String QUERY_FETCH_ACTION_NAME = "indices:data/read/search[phase/query+fetch]";
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
@@ -98,14 +97,14 @@ public class SearchTransportService extends AbstractComponent {
             }, SearchFreeContextResponse::new));
     }
 
-    public void sendFreeContext(DiscoveryNode node, long contextId, final ActionListener<SearchFreeContextResponse> listener) {
-        transportService.sendRequest(node, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
-            new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
+    public void sendFreeContext(Transport.Connection connection, long contextId, final ActionListener<SearchFreeContextResponse> listener) {
+        transportService.sendRequest(connection, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(contextId),
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, SearchFreeContextResponse::new));
     }
 
-    public void sendClearAllScrollContexts(DiscoveryNode node, final ActionListener<TransportResponse> listener) {
-        transportService.sendRequest(node, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, TransportRequest.Empty.INSTANCE,
-            new ActionListenerResponseHandler<>(listener, () -> TransportResponse.Empty.INSTANCE));
+    public void sendClearAllScrollContexts(Transport.Connection connection, final ActionListener<TransportResponse> listener) {
+        transportService.sendRequest(connection, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, TransportRequest.Empty.INSTANCE,
+            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, () -> TransportResponse.Empty.INSTANCE));
     }
 
     public void sendExecuteDfs(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
@@ -117,26 +116,11 @@ public class SearchTransportService extends AbstractComponent {
     public void sendExecuteQuery(Transport.Connection connection, final ShardSearchTransportRequest request, SearchTask task,
                                  final SearchActionListener<SearchPhaseResult> listener) {
         // we optimize this and expect a QueryFetchSearchResult if we only have a single shard in the search request
-        // this used to be the QUERY_AND_FETCH which doesn't exists anymore.
+        // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
-        if (connection.getVersion().before(Version.V_5_3_0) && fetchDocuments) {
-            // this is a BWC layer for pre 5.3 indices
-            if (request.scroll() != null) {
-                /**
-                 * This is needed for nodes pre 5.3 when the single shard optimization is used.
-                 * These nodes will set the last emitted doc only if the removed `query_and_fetch` search type is set
-                 * in the request. See {@link SearchType}.
-                 */
-                request.searchType(SearchType.QUERY_AND_FETCH);
-            }
-            // TODO this BWC layer can be removed once this is back-ported to 5.3
-            transportService.sendChildRequest(connection, QUERY_FETCH_ACTION_NAME, request, task,
-                new ActionListenerResponseHandler<>(listener, supplier));
-        } else {
-            transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
-                new ActionListenerResponseHandler<>(listener, supplier));
-        }
+        transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
+            new ActionListenerResponseHandler<>(listener, supplier));
     }
 
     public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,
@@ -145,15 +129,15 @@ public class SearchTransportService extends AbstractComponent {
             new ActionListenerResponseHandler<>(listener, QuerySearchResult::new));
     }
 
-    public void sendExecuteScrollQuery(DiscoveryNode node, final InternalScrollSearchRequest request, SearchTask task,
+    public void sendExecuteScrollQuery(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
                                        final SearchActionListener<ScrollQuerySearchResult> listener) {
-        transportService.sendChildRequest(transportService.getConnection(node), QUERY_SCROLL_ACTION_NAME, request, task,
+        transportService.sendChildRequest(connection, QUERY_SCROLL_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, ScrollQuerySearchResult::new));
     }
 
-    public void sendExecuteScrollFetch(DiscoveryNode node, final InternalScrollSearchRequest request, SearchTask task,
+    public void sendExecuteScrollFetch(Transport.Connection connection, final InternalScrollSearchRequest request, SearchTask task,
                                        final SearchActionListener<ScrollQueryFetchSearchResult> listener) {
-        transportService.sendChildRequest(transportService.getConnection(node), QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
+        transportService.sendChildRequest(connection, QUERY_FETCH_SCROLL_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(listener, ScrollQueryFetchSearchResult::new));
     }
 
@@ -162,9 +146,9 @@ public class SearchTransportService extends AbstractComponent {
         sendExecuteFetch(connection, FETCH_ID_ACTION_NAME, request, task, listener);
     }
 
-    public void sendExecuteFetchScroll(DiscoveryNode node, final ShardFetchRequest request, SearchTask task,
+    public void sendExecuteFetchScroll(Transport.Connection connection, final ShardFetchRequest request, SearchTask task,
                                        final SearchActionListener<FetchSearchResult> listener) {
-        sendExecuteFetch(transportService.getConnection(node), FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
+        sendExecuteFetch(connection, FETCH_ID_SCROLL_ACTION_NAME, request, task, listener);
     }
 
     private void sendExecuteFetch(Transport.Connection connection, String action, final ShardFetchRequest request, SearchTask task,
@@ -352,20 +336,6 @@ public class SearchTransportService extends AbstractComponent {
                 }
             });
         TransportActionProxy.registerProxyAction(transportService, QUERY_SCROLL_ACTION_NAME, ScrollQuerySearchResult::new);
-
-        // this is for BWC with 5.3 until the QUERY_AND_FETCH removal change has been back-ported to 5.x
-        // in 5.3 we will only execute a `indices:data/read/search[phase/query+fetch]` if the node is pre 5.3
-        // such that we can remove this after the back-port.
-        transportService.registerRequestHandler(QUERY_FETCH_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH,
-            new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {
-                @Override
-                public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel, Task task) throws Exception {
-                    assert request.numberOfShards() == 1 : "expected single shard request but got: " + request.numberOfShards();
-                    SearchPhaseResult result = searchService.executeQueryPhase(request, (SearchTask)task);
-                    channel.sendResponse(result);
-                }
-            });
-        TransportActionProxy.registerProxyAction(transportService, QUERY_FETCH_ACTION_NAME, QueryFetchSearchResult::new);
 
         transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<InternalScrollSearchRequest>() {

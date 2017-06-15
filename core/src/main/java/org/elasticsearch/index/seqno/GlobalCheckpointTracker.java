@@ -336,14 +336,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             updateLocalCheckpoint(cursor.key, cursor.value);
             assert cursor.value >= globalCheckpoint
                     : "local checkpoint [" + cursor.value + "] violates being at least the global checkpoint [" + globalCheckpoint + "]";
-            try {
-                markAllocationIdAsInSync(cursor.key, cursor.value);
-            } catch (final InterruptedException e) {
-                /*
-                 * Since the local checkpoint already exceeds the global checkpoint here, we never blocking waiting for advancement. This
-                 * means that we can never be interrupted. If we are bail, something is catastrophically wrong.
-                 */
-                throw new AssertionError(e);
+            if (trackingLocalCheckpoints.containsKey(cursor.key)) {
+                final long current = trackingLocalCheckpoints.remove(cursor.key);
+                inSyncLocalCheckpoints.put(cursor.key, current);
             }
         }
 

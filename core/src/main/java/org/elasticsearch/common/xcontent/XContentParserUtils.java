@@ -139,7 +139,8 @@ public final class XContentParserUtils {
                 return;
             }
         }
-        // this will only happen when the field name is empty or we don't find a delimiter
+        // If the field name is empty or we didn't find a delimiter we ignore
+        // the object for forward compatibility instead of throwing an error
         parser.skipChildren();
     }
 }

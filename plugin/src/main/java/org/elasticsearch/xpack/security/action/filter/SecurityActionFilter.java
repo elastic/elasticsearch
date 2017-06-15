@@ -13,15 +13,10 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
-import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -34,27 +29,18 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.privilege.HealthAndStatsPrivilege;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.support.Automatons;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
 
 public class SecurityActionFilter extends AbstractComponent implements ActionFilter {
 
@@ -63,33 +49,25 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
-    private final CryptoService cryptoService;
-    private final AuditTrail auditTrail;
     private final SecurityActionMapper actionMapper = new SecurityActionMapper();
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
     private final ThreadContext threadContext;
     private final SecurityContext securityContext;
     private final DestructiveOperations destructiveOperations;
-    private final ClusterService clusterService;
 
     @Inject
     public SecurityActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
-                                CryptoService cryptoService, AuditTrailService auditTrail, XPackLicenseState licenseState,
-                                Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
-                                SecurityContext securityContext, DestructiveOperations destructiveOperations,
-                                ClusterService clusterService) {
+                                XPackLicenseState licenseState, Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
+                                SecurityContext securityContext, DestructiveOperations destructiveOperations) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
-        this.cryptoService = cryptoService;
-        this.auditTrail = auditTrail;
         this.licenseState = licenseState;
         this.requestInterceptors = requestInterceptors;
         this.threadContext = threadPool.getThreadContext();
         this.securityContext = securityContext;
         this.destructiveOperations = destructiveOperations;
-        this.clusterService = clusterService;
     }
 
     @Override
@@ -108,17 +86,10 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
 
         if (licenseState.isAuthAllowed()) {
             final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
-            final Supplier<ThreadContext.StoredContext> toRestore = threadContext.newRestorableContext(true);
-            final ActionListener<ActionResponse> signingListener = new ContextPreservingActionListener<>(toRestore,
-                    ActionListener.wrap(r -> {
-                        try {
-                            listener.onResponse(sign(r));
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    }, listener::onFailure));
-            ActionListener<Void> authenticatedListener =
-                    ActionListener.wrap((aVoid) -> chain.proceed(task, action, request, signingListener), signingListener::onFailure);
+            final ActionListener<ActionResponse> contextPreservingListener =
+                    ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+            ActionListener<Void> authenticatedListener = ActionListener.wrap(
+                    (aVoid) -> chain.proceed(task, action, request, contextPreservingListener), contextPreservingListener::onFailure);
             try {
                 if (useSystemUser) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
@@ -182,107 +153,19 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                     (userRoles, runAsRoles) -> {
                         authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
                         final User user = authentication.getUser();
-                        ActionRequest unsignedRequest = unsign(user, securityAction, request);
 
                             /*
                              * We use a separate concept for code that needs to be run after authentication and authorization that could
                              * affect the running of the action. This is done to make it more clear of the state of the request.
                              */
                         for (RequestInterceptor interceptor : requestInterceptors) {
-                            if (interceptor.supports(unsignedRequest)) {
-                                interceptor.intercept(unsignedRequest, user);
+                            if (interceptor.supports(request)) {
+                                interceptor.intercept(request, user);
                             }
                         }
                         listener.onResponse(null);
                     });
             asyncAuthorizer.authorize(authzService);
         }
-    }
-
-    ActionRequest unsign(User user, String action, final ActionRequest request) {
-        try {
-            // In order to provide backwards compatibility with previous versions that always signed scroll ids
-            // we sign the scroll requests and do not allow unsigned requests until all of the nodes in the cluster
-            // have been upgraded to a version that does not sign scroll ids and instead relies improved scroll
-            // authorization. It is important to note that older versions do not actually sign if the system key
-            // does not exist so we need to take that into account as well.
-            // TODO Remove any signing from master!
-            final ClusterState state = clusterService.state();
-            final boolean signingRequired = state.nodes().getMinNodeVersion().before(Version.V_5_5_0) &&
-                    cryptoService.isSystemKeyPresent();
-            if (request instanceof SearchScrollRequest) {
-                SearchScrollRequest scrollRequest = (SearchScrollRequest) request;
-                String scrollId = scrollRequest.scrollId();
-                if (signingRequired) {
-                    if (cryptoService.isSigned(scrollId)) {
-                        scrollRequest.scrollId(cryptoService.unsignAndVerify(scrollId));
-                    } else {
-                        logger.error("scroll id [{}] is not signed but is expected to be. nodes [{}], minimum node version [{}]",
-                                scrollId, state.nodes(), state.nodes().getMinNodeVersion());
-                        // if we get a unsigned scroll request and not all nodes are up to date, then we cannot trust
-                        // this scroll id and reject it
-                        auditTrail.tamperedRequest(user, action, request);
-                        throw authorizationError("invalid request");
-                    }
-                } else if (cryptoService.isSigned(scrollId)) {
-                    // if signing isn't required we could still get a signed ID from an already running scroll or
-                    // a node that hasn't received the current cluster state that shows signing isn't required
-                    scrollRequest.scrollId(cryptoService.unsignAndVerify(scrollId));
-                }
-                // else the scroll id is fine on the request so don't do anything
-            } else if (request instanceof ClearScrollRequest) {
-                ClearScrollRequest clearScrollRequest = (ClearScrollRequest) request;
-                final boolean isClearAllScrollRequest = clearScrollRequest.scrollIds().contains("_all");
-                if (isClearAllScrollRequest == false) {
-                    List<String> signedIds = clearScrollRequest.scrollIds();
-                    List<String> unsignedIds = new ArrayList<>(signedIds.size());
-                    for (String signedId : signedIds) {
-                        if (signingRequired) {
-                            if (cryptoService.isSigned(signedId)) {
-                                unsignedIds.add(cryptoService.unsignAndVerify(signedId));
-                            } else {
-                                logger.error("scroll id [{}] is not signed but is expected to be. nodes [{}], minimum node version [{}]",
-                                        signedId, state.nodes(), state.nodes().getMinNodeVersion());
-                                // if we get a unsigned scroll request and not all nodes are up to date, then we cannot trust
-                                // this scroll id and reject it
-                                auditTrail.tamperedRequest(user, action, request);
-                                throw authorizationError("invalid request");
-                            }
-                        } else if (cryptoService.isSigned(signedId)) {
-                            // if signing isn't required we could still get a signed ID from an already running scroll or
-                            // a node that hasn't received the current cluster state that shows signing isn't required
-                            unsignedIds.add(cryptoService.unsignAndVerify(signedId));
-                        } else {
-                            // the id is not signed and we allow unsigned requests so just add it
-                            unsignedIds.add(signedId);
-                        }
-                    }
-                    clearScrollRequest.scrollIds(unsignedIds);
-                }
-            }
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            // this can happen when we decode invalid base64 or get a invalid scroll id
-            auditTrail.tamperedRequest(user, action, request);
-            throw authorizationError("invalid request. {}", e.getMessage());
-        }
-        return request;
-    }
-
-    private <Response extends ActionResponse> Response sign(Response response) throws IOException {
-        if (response instanceof SearchResponse) {
-            // In order to provide backwards compatibility with previous versions that always signed scroll ids
-            // we sign the scroll requests and do not allow unsigned requests until all of the nodes in the cluster
-            // have been upgraded to a version that supports unsigned scroll ids
-            final boolean sign = clusterService.state().nodes().getMinNodeVersion().before(Version.V_6_0_0_alpha2);
-
-            if (sign) {
-                SearchResponse searchResponse = (SearchResponse) response;
-                String scrollId = searchResponse.getScrollId();
-                if (scrollId != null && !cryptoService.isSigned(scrollId)) {
-                    searchResponse.scrollId(cryptoService.sign(scrollId));
-                }
-            }
-        }
-        return response;
     }
 }

@@ -20,7 +20,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class CryptoServiceTests extends ESTestCase {
     private Settings settings;
@@ -40,95 +39,6 @@ public class CryptoServiceTests extends ESTestCase {
                 .put("path.home", home)
                 .build();
         env = new Environment(settings);
-    }
-
-    public void testSigned() throws Exception {
-        CryptoService service = new CryptoService(settings, env);
-        String text = randomAlphaOfLength(10);
-        String signed = service.sign(text);
-        assertThat(service.isSigned(signed), is(true));
-    }
-
-    public void testSignAndUnsign() throws Exception {
-        CryptoService service = new CryptoService(settings, env);
-        String text = randomAlphaOfLength(10);
-        String signed = service.sign(text);
-        assertThat(text.equals(signed), is(false));
-        String text2 = service.unsignAndVerify(signed);
-        assertThat(text, equalTo(text2));
-    }
-
-    public void testSignAndUnsignNoKeyFile() throws Exception {
-        Files.delete(keyFile);
-        CryptoService service = new CryptoService(Settings.EMPTY, env);
-        final String text = randomAlphaOfLength(10);
-        String signed = service.sign(text);
-        assertThat(text, equalTo(signed));
-        String unsigned = service.unsignAndVerify(signed);
-        assertThat(unsigned, equalTo(text));
-    }
-
-    public void testTamperedSignature() throws Exception {
-        CryptoService service = new CryptoService(settings, env);
-        String text = randomAlphaOfLength(10);
-        String signed = service.sign(text);
-        int i = signed.indexOf("$$", 2);
-        int length = Integer.parseInt(signed.substring(2, i));
-        String fakeSignature = randomAlphaOfLength(length);
-        String fakeSignedText = "$$" + length + "$$" + fakeSignature + signed.substring(i + 2 + length);
-
-        try {
-            service.unsignAndVerify(fakeSignedText);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is(equalTo("tampered signed text")));
-            assertThat(e.getCause(), is(nullValue()));
-        }
-    }
-
-    public void testTamperedSignatureOneChar() throws Exception {
-        CryptoService service = new CryptoService(settings, env);
-        String text = randomAlphaOfLength(10);
-        String signed = service.sign(text);
-        int i = signed.indexOf("$$", 2);
-        int length = Integer.parseInt(signed.substring(2, i));
-        StringBuilder fakeSignature = new StringBuilder(signed.substring(i + 2, i + 2 + length));
-        fakeSignature.setCharAt(randomIntBetween(0, fakeSignature.length() - 1), randomAlphaOfLength(1).charAt(0));
-
-        String fakeSignedText = "$$" + length + "$$" + fakeSignature.toString() + signed.substring(i + 2 + length);
-
-        try {
-            service.unsignAndVerify(fakeSignedText);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is(equalTo("tampered signed text")));
-            assertThat(e.getCause(), is(nullValue()));
-        }
-    }
-
-    public void testTamperedSignatureLength() throws Exception {
-        CryptoService service = new CryptoService(settings, env);
-        String text = randomAlphaOfLength(10);
-        String signed = service.sign(text);
-        int i = signed.indexOf("$$", 2);
-        int length = Integer.parseInt(signed.substring(2, i));
-        String fakeSignature = randomAlphaOfLength(length);
-
-        // Smaller sig length
-        String fakeSignedText = "$$" + randomIntBetween(0, length - 1) + "$$" + fakeSignature + signed.substring(i + 2 + length);
-
-        try {
-            service.unsignAndVerify(fakeSignedText);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is(equalTo("tampered signed text")));
-        }
-
-        // Larger sig length
-        fakeSignedText = "$$" + randomIntBetween(length + 1, Integer.MAX_VALUE) + "$$" + fakeSignature + signed.substring(i + 2 + length);
-        try {
-            service.unsignAndVerify(fakeSignedText);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is(equalTo("tampered signed text")));
-            assertThat(e.getCause(), is(nullValue()));
-        }
     }
 
     public void testEncryptionAndDecryptionChars() throws Exception {

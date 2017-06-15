@@ -101,6 +101,7 @@ public class TribeUnitTests extends ESTestCase {
             .put(Environment.PATH_CONF_SETTING.getKey(), pathConf)
             .build();
         assertTribeNodeSuccessfullyCreated(settings);
+        assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
     }
 
     private static void assertTribeNodeSuccessfullyCreated(Settings extraSettings) throws Exception {

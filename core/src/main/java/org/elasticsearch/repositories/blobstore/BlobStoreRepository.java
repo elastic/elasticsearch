@@ -36,6 +36,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -412,8 +413,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             "its index folder.", metadata.name(), indexId), ioe);
                 }
             }
-        } catch (IOException ex) {
-            throw new RepositoryException(metadata.name(), "failed to update snapshot in repository", ex);
+        } catch (IOException | ElasticsearchException ex) {
+            throw new RepositoryException(metadata.name(), "failed to delete snapshot [" + snapshotId + "]", ex);
         }
     }
 
@@ -683,7 +684,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             snapshotsBytes = bStream.bytes();
         }
         // write the index file
-        writeAtomic(INDEX_FILE_PREFIX + Long.toString(newGen), snapshotsBytes);
+        final String indexBlob = INDEX_FILE_PREFIX + Long.toString(newGen);
+        logger.debug("Repository [{}] writing new index generational blob [{}]", metadata.name(), indexBlob);
+        writeAtomic(indexBlob, snapshotsBytes);
         // delete the N-2 index file if it exists, keep the previous one around as a backup
         if (isReadOnly() == false && newGen - 2 >= 0) {
             final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(newGen - 2);
@@ -701,6 +704,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (snapshotsBlobContainer.blobExists(INDEX_LATEST_BLOB)) {
             snapshotsBlobContainer.deleteBlob(INDEX_LATEST_BLOB);
         }
+        logger.debug("Repository [{}] updating index.latest with generation [{}]", metadata.name(), newGen);
         writeAtomic(INDEX_LATEST_BLOB, genBytes);
     }
 

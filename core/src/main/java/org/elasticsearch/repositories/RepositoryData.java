@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
@@ -189,8 +190,11 @@ public final class RepositoryData {
      */
     public RepositoryData removeSnapshot(final SnapshotId snapshotId) {
         Map<String, SnapshotId> newSnapshotIds = snapshotIds.values().stream()
-            .filter(id -> snapshotId.equals(id) == false)
+            .filter(id -> !snapshotId.equals(id))
             .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
+        if (newSnapshotIds.size() == snapshotIds.size()) {
+            throw new ElasticsearchException("Attempting to remove non-existent snapshot [{}] from repository data", snapshotId);
+        }
         Map<String, SnapshotState> newSnapshotStates = new HashMap<>(snapshotStates);
         newSnapshotStates.remove(snapshotId.getUUID());
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();

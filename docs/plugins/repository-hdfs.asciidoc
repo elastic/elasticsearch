@@ -81,8 +81,9 @@ The following settings are supported:
 ===== A Note on HDFS Availablility
 When you initialize a repository, its settings are persisted in the cluster state. When a node comes online, it will
 attempt to create all repositories for which it has settings. If your cluster has an HDFS repository configured, then
-all nodes in the cluster must be able to reach HDFS when starting. If not, then the node may fail to create the
-repository at start up. If this happens, you may need to remove and re-add the repository or restart the offending node.
+all nodes in the cluster must be able to reach HDFS when starting. If not, then the node will fail to initialize the
+repository at start up and the repository will be unusable. If this happens, you will need to remove and re-add the
+repository or restart the offending node.
 
 [[repository-hdfs-security]]
 ==== Hadoop Security

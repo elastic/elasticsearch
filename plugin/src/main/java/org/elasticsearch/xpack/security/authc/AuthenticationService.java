@@ -274,9 +274,10 @@ public class AuthenticationService extends AbstractComponent {
                             }
                             userListener.onResponse(user);
                         }, (ex) -> {
-                            logger.warn(new ParameterizedMessage(
-                                    "An unexpected error occurred while attempting to authenticate [{}] against realm [{}]",
-                                    authenticationToken.principal(), realm.name()), ex);
+                            logger.warn(
+                                    "An error occurred while attempting to authenticate [{}] against realm [{}] - {}",
+                                    authenticationToken.principal(), realm.name(), ex);
+                            logger.debug("Authentication failed due to exception", ex);
                             userListener.onFailure(ex);
                         }));
                     } else {

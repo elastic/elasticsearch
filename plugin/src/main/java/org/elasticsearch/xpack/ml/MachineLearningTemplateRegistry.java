@@ -46,7 +46,7 @@ public class MachineLearningTemplateRegistry extends AbstractComponent implement
     private final Client client;
     private final ThreadPool threadPool;
 
-    public static String [] TEMPLATE_NAMES = new String [] {Auditor.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
+    public static final String [] TEMPLATE_NAMES = new String [] {Auditor.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
             AnomalyDetectorsIndex.jobStateIndexName(), AnomalyDetectorsIndex.jobResultsIndexPrefix()};
 
     final AtomicBoolean putMlNotificationsIndexTemplateCheck = new AtomicBoolean(false);

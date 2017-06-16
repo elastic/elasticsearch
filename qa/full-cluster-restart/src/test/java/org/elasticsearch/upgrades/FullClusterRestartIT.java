@@ -34,6 +34,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -47,7 +48,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -60,6 +61,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
     private final Version oldClusterVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
     private final boolean supportsLenientBooleans = oldClusterVersion.onOrAfter(Version.V_6_0_0_alpha1);
+    private static final Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
 
     private String index;
 
@@ -108,6 +110,12 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     mappingsAndSettings.field("type", "text");
                     mappingsAndSettings.endObject();
                 }
+                {
+                    mappingsAndSettings.startObject("binary");
+                    mappingsAndSettings.field("type", "binary");
+                    mappingsAndSettings.field("store", "true");
+                    mappingsAndSettings.endObject();
+                }
                 mappingsAndSettings.endObject();
                 mappingsAndSettings.endObject();
                 mappingsAndSettings.endObject();
@@ -117,6 +125,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
 
             count = randomIntBetween(2000, 3000);
+            byte[] randomByteArray = new byte[16];
+            random().nextBytes(randomByteArray);
             indexRandomDocuments(count, true, true, i -> {
                 return JsonXContent.contentBuilder().startObject()
                 .field("string", randomAlphaOfLength(10))
@@ -125,7 +135,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 // be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
                 .field("bool", i > 0 && supportsLenientBooleans ? randomLenientBoolean() : randomBoolean())
                 .field("field.with.dots", randomAlphaOfLength(10))
-                // TODO a binary field
+                .field("binary", Base64.getEncoder().encodeToString(randomByteArray))
                 .endObject();
             });
             refresh();
@@ -134,8 +144,10 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
         assertBasicSearchWorks(count);
         assertAllSearchWorks(count);
-        assertBasicAggregationWorks(count);
-        assertRealtimeGetWorks(count);
+        assertBasicAggregationWorks();
+        assertRealtimeGetWorks();
+        assertUpgradeWorks();
+        assertStoredBinaryFields(count);
     }
 
     public void testNewReplicasWork() throws Exception {
@@ -209,6 +221,75 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * Search on an alias that contains illegal characters that would prevent it from being created after 5.1.0. It should still be
+     * search-able though.
+     */
+    public void testAliasWithBadName() throws Exception {
+        assumeTrue("Can only test bad alias name if old cluster is on 5.1.0 or before",
+            oldClusterVersion.before(VERSION_5_1_0_UNRELEASED));
+
+        int count;
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 0);
+                mappingsAndSettings.endObject();
+            }
+            {
+                mappingsAndSettings.startObject("mappings");
+                mappingsAndSettings.startObject("doc");
+                mappingsAndSettings.startObject("properties");
+                {
+                    mappingsAndSettings.startObject("key");
+                    mappingsAndSettings.field("type", "keyword");
+                    mappingsAndSettings.endObject();
+                }
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/" + index, Collections.emptyMap(),
+                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+
+            String aliasName = "%23" + index; // %23 == #
+            client().performRequest("PUT", "/" + index + "/_alias/" + aliasName);
+            Response response = client().performRequest("HEAD", "/" + index + "/_alias/" + aliasName);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+
+            count = randomIntBetween(32, 128);
+            indexRandomDocuments(count, true, true, i -> {
+                return JsonXContent.contentBuilder().startObject()
+                    .field("key", "value")
+                    .endObject();
+            });
+            refresh();
+        } else {
+            count = countOfIndexedRandomDocuments();
+        }
+
+        logger.error("clusterState=" + toMap(client().performRequest("GET", "/_cluster/state",
+            Collections.singletonMap("metric", "metadata"))));
+        // We can read from the alias just like we can read from the index.
+        String aliasName = "%23" + index; // %23 == #
+        Map<String, Object> searchRsp = toMap(client().performRequest("GET", "/" + aliasName + "/_search"));
+        int totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
+        assertEquals(count, totalHits);
+        if (runningAgainstOldCluster == false) {
+            // We can remove the alias.
+            Response response = client().performRequest("DELETE", "/" + index + "/_alias/" + aliasName);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+            // and check that it is gone:
+            response = client().performRequest("HEAD", "/" + index + "/_alias/" + aliasName);
+            assertEquals(404, response.getStatusLine().getStatusCode());
+        }
+    }
+
+
     void assertBasicSearchWorks(int count) throws IOException {
         logger.info("--> testing basic search");
         Map<String, Object> response = toMap(client().performRequest("GET", "/" + index + "/_search"));
@@ -268,7 +349,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertEquals(count, totalHits);
     }
 
-    void assertBasicAggregationWorks(int count) throws IOException {
+    void assertBasicAggregationWorks() throws IOException {
         // histogram on a long
         String requestBody = "{ \"aggs\": { \"histo\" : {\"histogram\" : {\"field\": \"int\", \"interval\": 10}} }}";
         Map<?, ?> searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
@@ -297,7 +378,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertEquals(totalHits, totalCount);
     }
 
-    void assertRealtimeGetWorks(int count) throws IOException {
+    void assertRealtimeGetWorks() throws IOException {
         String requestBody = "{ \"index\": { \"refresh_interval\" : -1 }}";
         Response response = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
                 new StringEntity(requestBody, ContentType.APPLICATION_JSON));
@@ -322,6 +403,74 @@ public class FullClusterRestartIT extends ESRestTestCase {
         response = client().performRequest("PUT", "/" + index + "/_settings", Collections.emptyMap(),
                 new StringEntity(requestBody, ContentType.APPLICATION_JSON));
         assertEquals(200, response.getStatusLine().getStatusCode());
+    }
+
+    void assertUpgradeWorks() throws Exception {
+        if (runningAgainstOldCluster) {
+            Map<String, Object> rsp = toMap(client().performRequest("GET", "/_upgrade"));
+            Map<?, ?> indexUpgradeStatus = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp);
+            int totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
+            assertThat(totalBytes, greaterThan(0));
+            int toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
+            assertEquals(0, toUpgradeBytes);
+        } else {
+            // Pre upgrade checks:
+            Map<String, Object> rsp = toMap(client().performRequest("GET", "/_upgrade"));
+            Map<?, ?> indexUpgradeStatus = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp);
+            int totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
+            assertThat(totalBytes, greaterThan(0));
+            int toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
+            assertThat(toUpgradeBytes, greaterThan(0));
+
+            // Upgrade segments:
+            Response r = client().performRequest("POST", "/" + index + "/_upgrade");
+            assertEquals(200, r.getStatusLine().getStatusCode());
+
+            // Post upgrade checks:
+            rsp = toMap(client().performRequest("GET", "/" + index + "/_upgrade"));
+            indexUpgradeStatus = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp);
+            totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
+            assertThat(totalBytes, greaterThan(0));
+            toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
+            assertEquals(0, toUpgradeBytes);
+
+            rsp = toMap(client().performRequest("GET", "/" + index + "/_segments"));
+            Map<?, ?> shards = (Map<?, ?>) XContentMapValues.extractValue("indices." + index + ".shards", rsp);
+            for (Object shard : shards.values()) {
+                List<?> shardSegments = (List<?>) shard;
+                for (Object shardSegment : shardSegments) {
+                    Map<?, ?> shardSegmentRsp = (Map<?, ?>) shardSegment;
+                    Map<?, ?> segments = (Map<?, ?>) shardSegmentRsp.get("segments");
+                    for (Object segment : segments.values()) {
+                        Map<?, ?> segmentRsp = (Map<?, ?>) segment;
+                        org.apache.lucene.util.Version luceneVersion =
+                            org.apache.lucene.util.Version.parse((String) segmentRsp.get("version"));
+                        assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.major, luceneVersion.major);
+                        assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.minor, luceneVersion.minor);
+                        assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.bugfix, luceneVersion.bugfix);
+                    }
+                }
+            }
+        }
+    }
+
+    void assertStoredBinaryFields(int count) throws Exception {
+        String requestBody = "{ \"query\": { \"match_all\" : {} }, \"size\": 100, \"stored_fields\": \"binary\"}";
+        Map<String, Object> rsp = toMap(client().performRequest("GET", "/" + index + "/_search",
+            Collections.emptyMap(), new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
+
+        int totalCount = (Integer) XContentMapValues.extractValue("hits.total", rsp);
+        assertEquals(count, totalCount);
+        List<?> hits = (List<?>) XContentMapValues.extractValue("hits.hits", rsp);
+        assertEquals(100, hits.size());
+        for (Object hit : hits) {
+            Map<?, ?> hitRsp = (Map<?, ?>) hit;
+            List<?> values = (List<?>) XContentMapValues.extractValue("fields.binary", hitRsp);
+            assertEquals(1, values.size());
+            String value = (String) values.get(0);
+            byte[] binaryValue = Base64.getDecoder().decode(value);
+            assertEquals("Unexpected string length [" + value + "]", 16, binaryValue.length);
+        }
     }
 
     static Map<String, Object> toMap(Response response) throws IOException {
@@ -490,7 +639,13 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
 
         // Check the metadata, especially the version
-        String response = toStr(client().performRequest("GET", "/_snapshot/repo/_all", singletonMap("verbose", "true")));
+        Map<String, String> params;
+        if (oldClusterVersion.onOrAfter(Version.V_5_5_0)) {
+            params = singletonMap("verbose", "true");
+        } else {
+            params = Collections.emptyMap();
+        }
+        String response = toStr(client().performRequest("GET", "/_snapshot/repo/_all", params));
         Map<String, Object> map = toMap(response);
         assertEquals(response, singletonList("snap"), XContentMapValues.extractValue("snapshots.snapshot", map));
         assertEquals(response, singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", map));

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
+import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -25,7 +26,11 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 
@@ -170,6 +175,21 @@ public class JobResultsPersisterTests extends ESTestCase {
         JobResultsPersister.Builder builder = persister.bulkPersisterBuilder(JOB_ID);
         builder.persistInfluencers(influencers).executeRequest();
         assertEquals(0, builder.getBulkRequest().numberOfActions());
+    }
+
+    public void testBulkRequestExecutesWhenReachMaxDocs() {
+        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+        Client client = mockClient(captor);
+        JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
+
+        JobResultsPersister.Builder bulkBuilder = persister.bulkPersisterBuilder("foo");
+        ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456);
+        for (int i=0; i<=JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
+            bulkBuilder.persistModelPlot(modelPlot);
+        }
+
+        verify(client, times(1)).bulk(any());
+        verifyNoMoreInteractions(client);
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})

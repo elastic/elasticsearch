@@ -191,7 +191,7 @@ public class AutoDetectResultProcessor {
         }
         ModelPlot modelPlot = result.getModelPlot();
         if (modelPlot != null) {
-            persister.persistModelPlot(modelPlot);
+            context.bulkResultsPersister.persistModelPlot(modelPlot);
         }
         ModelSizeStats modelSizeStats = result.getModelSizeStats();
         if (modelSizeStats != null) {

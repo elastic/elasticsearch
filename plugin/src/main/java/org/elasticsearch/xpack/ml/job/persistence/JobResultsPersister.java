@@ -94,29 +94,21 @@ public class JobResultsPersister extends AbstractComponent {
                 bucketWithoutRecords = new Bucket(bucket);
                 bucketWithoutRecords.setRecords(Collections.emptyList());
             }
-            try (XContentBuilder content = toXContentBuilder(bucketWithoutRecords)) {
-                String id = bucketWithoutRecords.getId();
-                logger.trace("[{}] ES API CALL: index bucket to index [{}] with ID [{}]", jobId, indexName, id);
+            String id = bucketWithoutRecords.getId();
+            logger.trace("[{}] ES API CALL: index bucket to index [{}] with ID [{}]", jobId, indexName, id);
+            indexResult(id, bucketWithoutRecords, "bucket");
 
-                bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
-
-                persistBucketInfluencersStandalone(jobId, bucketWithoutRecords.getBucketInfluencers());
-            } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising bucket", jobId), e);
-            }
+            persistBucketInfluencersStandalone(jobId, bucketWithoutRecords.getBucketInfluencers());
 
             return this;
         }
 
-        private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers) throws IOException {
+        private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers) {
             if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
-                    try (XContentBuilder content = toXContentBuilder(bucketInfluencer)) {
-                        // Need consistent IDs to ensure overwriting on renormalization
-                        String id = bucketInfluencer.getId();
-                        logger.trace("[{}] ES BULK ACTION: index bucket influencer to index [{}] with ID [{}]", jobId, indexName, id);
-                        bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
-                    }
+                    String id = bucketInfluencer.getId();
+                    logger.trace("[{}] ES BULK ACTION: index bucket influencer to index [{}] with ID [{}]", jobId, indexName, id);
+                    indexResult(id, bucketInfluencer, "bucket influencer");
                 }
             }
         }
@@ -128,17 +120,9 @@ public class JobResultsPersister extends AbstractComponent {
          * @return this
          */
         public Builder persistRecords(List<AnomalyRecord> records) {
-
-            try {
-                for (AnomalyRecord record : records) {
-                    try (XContentBuilder content = toXContentBuilder(record)) {
-                        String id = record.getId();
-                        logger.trace("[{}] ES BULK ACTION: index record to index [{}] with ID [{}]", jobId, indexName, id);
-                        bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
-                    }
-                }
-            } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising records", new Object [] {jobId}), e);
+            for (AnomalyRecord record : records) {
+                logger.trace("[{}] ES BULK ACTION: index record to index [{}] with ID [{}]", jobId, indexName, record.getId());
+                indexResult(record.getId(), record, "record");
             }
 
             return this;
@@ -152,19 +136,30 @@ public class JobResultsPersister extends AbstractComponent {
          * @return this
          */
         public Builder persistInfluencers(List<Influencer> influencers) {
-            try {
-                for (Influencer influencer : influencers) {
-                    try (XContentBuilder content = toXContentBuilder(influencer)) {
-                        String id = influencer.getId();
-                        logger.trace("[{}] ES BULK ACTION: index influencer to index [{}] with ID [{}]", jobId, indexName, id);
-                        bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
-                    }
-                }
-            } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising influencers", new Object[] {jobId}), e);
+            for (Influencer influencer : influencers) {
+                logger.trace("[{}] ES BULK ACTION: index influencer to index [{}] with ID [{}]", jobId, indexName, influencer.getId());
+                indexResult(influencer.getId(), influencer, "influencer");
             }
 
             return this;
+        }
+
+        public Builder persistModelPlot(ModelPlot modelPlot) {
+            logger.trace("[{}] ES BULK ACTION: index model plot to index [{}] with ID [{}]", jobId, indexName, modelPlot.getId());
+            indexResult(modelPlot.getId(), modelPlot, "model plot");
+            return this;
+        }
+
+        private void indexResult(String id, ToXContent resultDoc, String resultType) {
+            try (XContentBuilder content = toXContentBuilder(resultDoc)) {
+                bulkRequest.add(new IndexRequest(indexName, DOC_TYPE, id).source(content));
+            } catch (IOException e) {
+                logger.error(new ParameterizedMessage("[{}] Error serialising {}", jobId, resultType), e);
+            }
+
+            if (bulkRequest.numberOfActions() >= JobRenormalizedResultsPersister.BULK_LIMIT) {
+                executeRequest();
+            }
         }
 
         /**
@@ -252,16 +247,6 @@ public class JobResultsPersister extends AbstractComponent {
         persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(jobId), listener);
         // Don't commit as we expect masses of these updates and they're only
         // for information at the API level
-    }
-
-    /**
-     * Persist model plot output
-     */
-    public void persistModelPlot(ModelPlot modelPlot) {
-        Persistable persistable = new Persistable(modelPlot.getJobId(), modelPlot, modelPlot.getId());
-        persistable.persist(AnomalyDetectorsIndex.resultsWriteAlias(modelPlot.getJobId())).actionGet();
-        // Don't commit as we expect masses of these updates and they're not
-        // read again by this process
     }
 
     /**

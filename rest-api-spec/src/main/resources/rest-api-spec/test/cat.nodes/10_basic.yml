@@ -60,7 +60,20 @@
 
   - do:
       cat.nodes:
-          h: disk,diskAvail,diskTotal,diskUsed,diskUsedPercent
+          h: diskAvail,diskTotal,diskUsed,diskUsedPercent
+          v: true
+
+  - match:
+      # leading whitespace on columns and optional whitespace on values is necessary
+      # because `diskAvail` is right aligned and text representation of disk size might be
+      # longer so it's padded with leading whitespace
+      $body: |
+               /^  \s* diskAvail            \s+ diskTotal            \s+ diskUsed            \s+ diskUsedPercent            \n
+                  (\s* \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b\s+ (100\.00 | \d{1,2}\.\d{2}) \n)+  $/
+
+  - do:
+      cat.nodes:
+          h: disk,dt,du,dup
           v: true
 
   - match:
@@ -68,8 +81,8 @@
       # because `disk` is right aligned and text representation of disk size might be
       # longer so it's padded with leading whitespace
       $body: |
-               /^  \s* disk                 \s+ diskAvail            \s+ diskTotal            \s+ diskUsed            \s+ diskUsedPercent            \n
-                  (\s* \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b\s+ (100\.00 | \d{1,2}\.\d{2}) \n)+  $/
+               /^  \s* disk                 \s+ dt                   \s+ du                  \s+ dup                        \n
+                  (\s* \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b \s+ \d+(\.\d+)?[ptgmk]?b\s+ (100\.00 | \d{1,2}\.\d{2}) \n)+  $/
 
 ---
 "Test cat nodes output with full_id set":

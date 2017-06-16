@@ -356,7 +356,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             } else {
                 parser.skipChildren(); // skip potential inner objects for forward compatibility
             }
-        } else {
+        } else if (token == XContentParser.Token.START_ARRAY) {
             parser.skipChildren(); // skip potential inner arrays for forward compatibility
         }
     }

@@ -395,6 +395,10 @@ public class RestHighLevelClient {
                 try {
                     return responseConverter.apply(e.getResponse());
                 } catch (Exception innerException) {
+                    //the exception is ignored as we now try to parse the response as an error.
+                    //this covers cases like get where 404 can either be a valid document not found response,
+                    //or an error for which parsing is completely different. We try to consider the 404 response as a valid one
+                    //first. If parsing of the response breaks, we fall back to parsing it as an error.
                     throw parseResponseException(e);
                 }
             }

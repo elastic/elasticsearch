@@ -20,6 +20,7 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,7 +44,6 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.elasticsearch.index.get.GetField.readGetField;
 
 public class GetResult implements Streamable, Iterable<GetField>, ToXContentObject {
@@ -273,7 +273,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
         String currentFieldName = parser.currentName();
         String index = null, type = null, id = null;
         long version = -1;
-        boolean found = false;
+        Boolean found = null;
         BytesReference source = null;
         Map<String, GetField> fields = new HashMap<>();
         while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -304,16 +304,18 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
                 } else if (FIELDS.equals(currentFieldName)) {
                     while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         GetField getField = GetField.fromXContent(parser);
-                        if (getField != null) {
-                            fields.put(getField.getName(), getField);
-                        }
+                        fields.put(getField.getName(), getField);
                     }
                 } else {
                     parser.skipChildren(); // skip potential inner objects for forward compatibility
                 }
-            } else {
+            } else if (token == XContentParser.Token.START_ARRAY) {
                 parser.skipChildren(); // skip potential inner arrays for forward compatibility
             }
+        }
+
+        if (found == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Missing required field [found]");
         }
         return new GetResult(index, type, id, version, found, source, fields);
     }

@@ -68,8 +68,8 @@ public class GetResponseTests extends ESTestCase {
         BytesReference mutated;
         if (addRandomFields) {
             // "_source" and "fields" just consists of key/value pairs, we shouldn't add anything random there. It is already
-            // randomized in the randomGetResult() method anyway. Metadata fields are rendered out in the root object while
-            // other fields are rendered out in a "fields" object.
+            // randomized in the randomGetResult() method anyway. Also, we cannot add anything in the root object since this is
+            // where GetResult's metadata fields are rendered out while other fields are rendered out in a "fields" object.
             Predicate<String> excludeFilter = (s) -> s.isEmpty() || s.contains("fields") || s.contains("_source");
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {

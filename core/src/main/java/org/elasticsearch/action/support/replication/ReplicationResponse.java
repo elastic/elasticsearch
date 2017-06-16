@@ -196,10 +196,10 @@ public class ReplicationResponse extends ActionResponse {
                             failuresList.add(Failure.fromXContent(parser));
                         }
                     } else {
-                        parser.skipChildren();
+                        parser.skipChildren(); // skip potential inner arrays for forward compatibility
                     }
-                } else {
-                    parser.skipChildren();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    parser.skipChildren(); // skip potential inner arrays for forward compatibility
                 }
             }
             Failure[] failures = EMPTY;
@@ -373,7 +373,7 @@ public class ReplicationResponse extends ActionResponse {
                         } else {
                             parser.skipChildren(); // skip potential inner objects for forward compatibility
                         }
-                    } else {
+                    } else if (token == XContentParser.Token.START_ARRAY) {
                         parser.skipChildren(); // skip potential inner arrays for forward compatibility
                     }
                 }

@@ -110,8 +110,10 @@ public class UpdateResponseTests extends ESTestCase {
             // because exception rendering and parsing are very permissive: any extra object or field would be rendered as
             // a exception custom metadata and be parsed back as a custom header, making it impossible to compare the results
             // in this test.
-            // - Thet GetResult's "_source" and "fields" just consists of key/value pairs, we shouldn't add anything random there.
-            // It is already randomized in the randomGetResult() method anyway.
+            // - The GetResult's "_source" and "fields" just consists of key/value pairs, we shouldn't add anything random there.
+            // It is already randomized in the randomGetResult() method anyway. Also, we cannot add anything within the "get"
+            // object since this is where GetResult's metadata fields are rendered out and they would be parsed back as
+            // extra metadata fields.
             Predicate<String> excludeFilter = path -> path.contains("reason") || path.contains("get.fields")
                     || path.contains("get._source") || path.endsWith("get");
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());

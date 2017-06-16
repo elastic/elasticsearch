@@ -543,7 +543,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 shard.shardId(), RefreshPolicy.NONE, itemRequests);
         bulkShardRequest.primaryTerm(randomIntBetween(1, (int) shard.getPrimaryTerm()));
         TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
-        verify(shard, times(1)).applyNoOpOnReplica(1, bulkShardRequest.primaryTerm(), exception.toString());
+        verify(shard, times(1)).markSeqNoAsNoop(1, bulkShardRequest.primaryTerm(), exception.toString());
         closeShards(shard);
     }
 

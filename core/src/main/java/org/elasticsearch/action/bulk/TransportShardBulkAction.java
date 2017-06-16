@@ -454,7 +454,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 switch (replicaItemExecutionMode(item, i)) {
                     case NORMAL:
                         final DocWriteResponse primaryResponse = item.getPrimaryResponse().getResponse();
-                        operationResult = performNormalOpOnReplica(primaryResponse, docWriteRequest, primaryTerm, replica);
+                        operationResult = performOpOnReplica(primaryResponse, docWriteRequest, primaryTerm, replica);
                         assert operationResult != null : "operation result must never be null when primary response has no failure";
                         location = syncOperationResultOrThrow(operationResult, location);
                         break;
@@ -463,7 +463,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     case FAILURE:
                         final BulkItemResponse.Failure failure = item.getPrimaryResponse().getFailure();
                         assert failure.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO : "seq no must be assigned";
-                        operationResult = replica.applyNoOpOnReplica(failure.getSeqNo(), primaryTerm, failure.getMessage());
+                        operationResult = replica.markSeqNoAsNoop(failure.getSeqNo(), primaryTerm, failure.getMessage());
                         assert operationResult != null : "operation result must never be null when primary response has no failure";
                         location = syncOperationResultOrThrow(operationResult, location);
                         break;
@@ -481,8 +481,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return location;
     }
 
-    private static Engine.Result performNormalOpOnReplica(DocWriteResponse primaryResponse, DocWriteRequest docWriteRequest,
-                                                          long primaryTerm, IndexShard replica) throws Exception {
+    private static Engine.Result performOpOnReplica(DocWriteResponse primaryResponse, DocWriteRequest docWriteRequest,
+                                                    long primaryTerm, IndexShard replica) throws Exception {
         switch (docWriteRequest.opType()) {
             case CREATE:
             case INDEX:

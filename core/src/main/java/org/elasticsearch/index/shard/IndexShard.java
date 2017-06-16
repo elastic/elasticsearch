@@ -607,11 +607,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return result;
     }
 
-    public Engine.NoOpResult applyNoOpOnReplica(long seqNo, long primaryTerm, String reason) throws IOException {
-        return applyNoOp(seqNo, primaryTerm, reason, Engine.Operation.Origin.REPLICA);
+    public Engine.NoOpResult markSeqNoAsNoop(long seqNo, long primaryTerm, String reason) throws IOException {
+        return markSeqNoAsNoop(seqNo, primaryTerm, reason, Engine.Operation.Origin.REPLICA);
     }
 
-    private Engine.NoOpResult applyNoOp(long seqNo, long opPrimaryTerm, String reason, Engine.Operation.Origin origin) throws IOException {
+    private Engine.NoOpResult markSeqNoAsNoop(long seqNo, long opPrimaryTerm, String reason,
+                                              Engine.Operation.Origin origin) throws IOException {
         assert opPrimaryTerm <= this.primaryTerm : "op term [ " + opPrimaryTerm + " ] > shard term [" + this.primaryTerm + "]";
         long startTime = System.nanoTime();
         ensureWriteAllowed(origin);
@@ -654,7 +655,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // In order to work around this issue, we make deletions create types. This way, we
             // fail if index and delete operations do not use the same type.
             try {
-                Mapping update = mapperService().documentMapperWithAutoCreate(type).getMapping();
+                Mapping update = docMapper(type).getMapping();
                 if (update != null) {
                     onMappingUpdate.accept(update);
                 }
@@ -1079,7 +1080,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 break;
             case NO_OP:
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
-                result = applyNoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason(), origin);
+                result = markSeqNoAsNoop(noOp.seqNo(), noOp.primaryTerm(), noOp.reason(), origin);
                 break;
             default:
                 throw new IllegalStateException("No operation defined for [" + operation + "]");

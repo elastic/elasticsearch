@@ -48,9 +48,9 @@ import static org.elasticsearch.index.get.GetField.readGetField;
 
 public class GetResult implements Streamable, Iterable<GetField>, ToXContentObject {
 
-    private static final String _INDEX = "_index";
-    private static final String _TYPE = "_type";
-    private static final String _ID = "_id";
+    public static final String _INDEX = "_index";
+    public static final String _TYPE = "_type";
+    public static final String _ID = "_id";
     private static final String _VERSION = "_version";
     private static final String FOUND = "found";
     private static final String FIELDS = "fields";
@@ -312,16 +312,6 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
             } else if (token == XContentParser.Token.START_ARRAY) {
                 parser.skipChildren(); // skip potential inner arrays for forward compatibility
             }
-        }
-
-        // At this stage we ensure that we parsed enough information to return
-        // a valid GetResult instance. If it's not the case, we throw an
-        // exception so that callers know it and can handle it correctly.
-        // This is typically the case when one wants to parse the result of
-        // a get request and uses this method, but the xcontent to parse is
-        // not a valid get result but an exception instead.
-        if (found == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Missing required field [found]");
         }
         return new GetResult(index, type, id, version, found, source, fields);
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.action.get;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -160,6 +161,22 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
 
     public static GetResponse fromXContent(XContentParser parser) throws IOException {
         GetResult getResult = GetResult.fromXContent(parser);
+
+        // At this stage we ensure that we parsed enough information to return
+        // a valid GetResponse instance. If it's not the case, we throw an
+        // exception so that callers know it and can handle it correctly.
+        // This is typically the case when one wants to parse the result of
+        // a get request and uses this method, but the xcontent to parse is
+        // not a valid get result but an exception instead.
+        if (getResult.getIndex() == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + GetResult._INDEX + "]");
+        }
+        if (getResult.getType() == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + GetResult._TYPE + "]");
+        }
+        if (getResult.getId() == null) {
+            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + GetResult._ID + "]");
+        }
         return new GetResponse(getResult);
     }
 

@@ -49,7 +49,7 @@ The following is a sample format of the file:
 
 [source,synonyms]
 --------------------------------------------------
-include::{docdir}/../src/test/cluster/config/analysis/synonym.txt[]
+include::{es-test-dir}/cluster/config/analysis/synonym.txt[]
 --------------------------------------------------
 
 You can also define synonyms for the filter directly in the

@@ -52,12 +52,6 @@ final class PerThreadIDVersionAndSeqNoLookup {
     // TODO: do we really need to store all this stuff? some if it might not speed up anything.
     // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
-    /** The {@link LeafReaderContext} that needs to be looked up. */
-    private final LeafReaderContext context;
-    /** Live docs of the context, cached to avoid the cost of ensureOpen() on every
-     *  segment for every index operation. */
-    private final Bits liveDocs;
-
     /** terms enum for uid field */
     final String uidField;
     private final TermsEnum termsEnum;
@@ -71,10 +65,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
     /**
      * Initialize lookup for the provided segment
      */
-    PerThreadIDVersionAndSeqNoLookup(LeafReaderContext context, String uidField) throws IOException {
-        this.context = context;
-        final LeafReader reader = context.reader();
-        this.liveDocs = reader.getLiveDocs();
+    PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
         this.uidField = uidField;
         Fields fields = reader.fields();
         Terms terms = fields.terms(uidField);
@@ -91,12 +82,17 @@ final class PerThreadIDVersionAndSeqNoLookup {
         this.readerKey = readerKey;
     }
 
-    /** Return null if id is not found. */
-    public DocIdAndVersion lookupVersion(BytesRef id)
+    /** Return null if id is not found.
+     * We pass the {@link LeafReaderContext} as an argument so that things
+     * still work with reader wrappers that hide some documents while still
+     * using the same cache key. Otherwise we'd have to disable caching
+     * entirely for these readers.
+     */
+    public DocIdAndVersion lookupVersion(BytesRef id, LeafReaderContext context)
         throws IOException {
         assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
             "context's reader is not the same as the reader class was initialized on.";
-        int docID = getDocID(id);
+        int docID = getDocID(id, context.reader().getLiveDocs());
 
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             final NumericDocValues versions = context.reader().getNumericDocValues(VersionFieldMapper.NAME);
@@ -116,7 +112,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * returns the internal lucene doc id for the given id bytes.
      * {@link DocIdSetIterator#NO_MORE_DOCS} is returned if not found
      * */
-    private int getDocID(BytesRef id) throws IOException {
+    private int getDocID(BytesRef id, Bits liveDocs) throws IOException {
         if (termsEnum.seekExact(id)) {
             int docID = DocIdSetIterator.NO_MORE_DOCS;
             // there may be more than one matching docID, in the case of nested docs, so we want the last one:
@@ -134,8 +130,10 @@ final class PerThreadIDVersionAndSeqNoLookup {
     }
 
     /** Return null if id is not found. */
-    DocIdAndSeqNo lookupSeqNo(BytesRef id) throws IOException {
-        int docID = getDocID(id);
+    DocIdAndSeqNo lookupSeqNo(BytesRef id, LeafReaderContext context) throws IOException {
+        assert context.reader().getCoreCacheHelper().getKey().equals(readerKey) :
+            "context's reader is not the same as the reader class was initialized on.";
+        int docID = getDocID(id, context.reader().getLiveDocs());
         if (docID != DocIdSetIterator.NO_MORE_DOCS) {
             NumericDocValues seqNos = context.reader().getNumericDocValues(SeqNoFieldMapper.NAME);
             long seqNo;

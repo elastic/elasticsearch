@@ -150,7 +150,10 @@ public class InternalEngine extends Engine {
         }
         this.uidField = engineConfig.getIndexSettings().isSingleType() ? IdFieldMapper.NAME : UidFieldMapper.NAME;
         this.versionMap = new LiveVersionMap();
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
+            engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
+            engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
+        );
         this.deletionPolicy = new CombinedDeletionPolicy(
             new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), translogDeletionPolicy, openMode);
         store.incRef();
@@ -1854,6 +1857,10 @@ public class InternalEngine extends Engine {
             // the setting will be re-interpreted if it's set to true
             this.maxUnsafeAutoIdTimestamp.set(Long.MAX_VALUE);
         }
+        final TranslogDeletionPolicy translogDeletionPolicy = translog.getDeletionPolicy();
+        final IndexSettings indexSettings = engineConfig.getIndexSettings();
+        translogDeletionPolicy.setRetentionAgeInMillis(indexSettings.getTranslogRetentionAge().getMillis());
+        translogDeletionPolicy.setRetentionSizeInBytes(indexSettings.getTranslogRetentionSize().getBytes());
     }
 
     public MergeStats getMergeStats() {

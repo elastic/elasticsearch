@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.lucene.analysis.miscellaneous;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenFilter;
@@ -31,7 +31,7 @@ import java.io.IOException;
  * A token filter that generates unique tokens. Can remove unique tokens only on the same
  * position increments as well.
  */
-public class UniqueTokenFilter extends TokenFilter {
+class UniqueTokenFilter extends TokenFilter {
 
     private final CharTermAttribute termAttribute = addAttribute(CharTermAttribute.class);
     private final PositionIncrementAttribute posIncAttribute = addAttribute(PositionIncrementAttribute.class);
@@ -39,11 +39,11 @@ public class UniqueTokenFilter extends TokenFilter {
     private final CharArraySet previous = new CharArraySet(8, false);
     private final boolean onlyOnSamePosition;
 
-    public UniqueTokenFilter(TokenStream in) {
+    UniqueTokenFilter(TokenStream in) {
         this(in, false);
     }
 
-    public UniqueTokenFilter(TokenStream in, boolean onlyOnSamePosition) {
+    UniqueTokenFilter(TokenStream in, boolean onlyOnSamePosition) {
         super(in);
         this.onlyOnSamePosition = onlyOnSamePosition;
     }

@@ -37,6 +37,10 @@ normalization can be specified with the `name` parameter, which accepts `nfc`,
 `nfkc`, and `nfkc_cf` (default).  Set the `mode` parameter to `decompose` to
 convert `nfc` to `nfd` or `nfkc` to `nfkd` respectively:
 
+Which letters are normalized can be controlled by specifying the
+`unicodeSetFilter` parameter, which accepts a
+http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
+
 Here are two examples, the default usage and a customised character filter:
 
 
@@ -188,6 +192,10 @@ itself as the `icu_normalizer` token filter, which is available to all indices
 without any further configuration. The type of normalization can be specified
 with the `name` parameter, which accepts `nfc`, `nfkc`, and `nfkc_cf`
 (default).
+
+Which letters are normalized can be controlled by specifying the
+`unicodeSetFilter` parameter, which accepts a
+http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
 
 You should probably prefer the <<analysis-icu-normalization-charfilter,Normalization character filter>>.
 

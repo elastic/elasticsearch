@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.index.translog.TranslogDeletionPolicyTests.createTranslogDeletionPolicy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -39,7 +40,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
 
     public void testPassThrough() throws IOException {
         SnapshotDeletionPolicy indexDeletionPolicy = mock(SnapshotDeletionPolicy.class);
-        CombinedDeletionPolicy combinedDeletionPolicy = new CombinedDeletionPolicy(indexDeletionPolicy, new TranslogDeletionPolicy(),
+        CombinedDeletionPolicy combinedDeletionPolicy = new CombinedDeletionPolicy(indexDeletionPolicy, createTranslogDeletionPolicy(),
             EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
         List<IndexCommit> commitList = new ArrayList<>();
         long count = randomIntBetween(1, 3);

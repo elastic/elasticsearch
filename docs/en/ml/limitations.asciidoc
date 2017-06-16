@@ -33,12 +33,16 @@ see {ref}/modules-cross-cluster-search.html[Cross Cluster Search].
 
 [float]
 === Anomaly Explorer omissions and limitations
-//See x-pack-elasticsearch/#844
+//See x-pack-elasticsearch/#844 and x-pack-kibana/#1461
 
-In Kibana, Anomaly Explorer charts are not displayed for anomalies
+In {kib}, Anomaly Explorer charts are not displayed for anomalies
 that were due to categorization, `time_of_day` functions, or `time_of_week`
 functions. Those particular results do not display well as time series
 charts.
+
+The charts are also not displayed for detectors that use script fields. In that
+case, the original source data cannot be easily searched because it has been
+somewhat transformed by the script.
 
 The Anomaly Explorer charts can also look odd in circumstances where there
 is very little data to plot. For example, if there is only one data point, it is

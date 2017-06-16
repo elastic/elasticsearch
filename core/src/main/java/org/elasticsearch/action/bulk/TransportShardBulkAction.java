@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -265,130 +266,149 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     /**
+     * Creates a new bulk item result from the given requests and result of performing the update operation on the shard.
+     */
+    static BulkItemResultHolder processUpdateResponse(final UpdateRequest updateRequest, final String concreteIndex,
+                                                      final Engine.Result result, final UpdateHelper.Result translate,
+                                                      final IndexShard primary, final int bulkReqId) throws Exception {
+        assert result.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO : "failed result should not have a sequence number";
+
+        Engine.Operation.TYPE opType = result.getOperationType();
+
+        final UpdateResponse updateResponse;
+        final BulkItemRequest replicaRequest;
+
+        // enrich update response and set translated update (index/delete) request for replica execution in bulk items
+        if (opType == Engine.Operation.TYPE.INDEX) {
+            assert result instanceof Engine.IndexResult : result.getClass();
+            final IndexRequest updateIndexRequest = translate.action();
+            final IndexResponse indexResponse = new IndexResponse(primary.shardId(), updateIndexRequest.type(), updateIndexRequest.id(),
+                    result.getSeqNo(), primary.getPrimaryTerm(), result.getVersion(), ((Engine.IndexResult) result).isCreated());
+            updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(), indexResponse.getType(),
+                    indexResponse.getId(), indexResponse.getSeqNo(), indexResponse.getPrimaryTerm(), indexResponse.getVersion(),
+                    indexResponse.getResult());
+
+            if ((updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) ||
+                    (updateRequest.fields() != null && updateRequest.fields().length > 0)) {
+                final BytesReference indexSourceAsBytes = updateIndexRequest.source();
+                final Tuple<XContentType, Map<String, Object>> sourceAndContent =
+                        XContentHelper.convertToMap(indexSourceAsBytes, true, updateIndexRequest.getContentType());
+                updateResponse.setGetResult(UpdateHelper.extractGetResult(updateRequest, concreteIndex,
+                                indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
+            }
+            // set translated request as replica request
+            replicaRequest = new BulkItemRequest(bulkReqId, updateIndexRequest);
+
+        } else if (opType == Engine.Operation.TYPE.DELETE) {
+            assert result instanceof Engine.DeleteResult : result.getClass();
+            final DeleteRequest updateDeleteRequest = translate.action();
+
+            final DeleteResponse deleteResponse = new DeleteResponse(primary.shardId(), updateDeleteRequest.type(), updateDeleteRequest.id(),
+                    result.getSeqNo(), primary.getPrimaryTerm(), result.getVersion(), ((Engine.DeleteResult) result).isFound());
+
+            updateResponse = new UpdateResponse(deleteResponse.getShardInfo(), deleteResponse.getShardId(),
+                    deleteResponse.getType(), deleteResponse.getId(), deleteResponse.getSeqNo(), deleteResponse.getPrimaryTerm(),
+                    deleteResponse.getVersion(), deleteResponse.getResult());
+
+            final GetResult getResult = UpdateHelper.extractGetResult(updateRequest, concreteIndex, deleteResponse.getVersion(),
+                    translate.updatedSourceAsMap(), translate.updateSourceContentType(), null);
+
+            updateResponse.setGetResult(getResult);
+            // set translated request as replica request
+            replicaRequest = new BulkItemRequest(bulkReqId, updateDeleteRequest);
+
+        } else {
+            throw new IllegalArgumentException("unknown operation type: " + opType);
+        }
+
+        return new BulkItemResultHolder(updateResponse, result, replicaRequest);
+    }
+
+    /**
+     * Executes update request once, delegating to a index or delete operation after translation.
+     * NOOP updates are indicated by returning a <code>null</code> operation in {@link BulkItemResultHolder}
+     */
+    static BulkItemResultHolder executeUpdateRequestOnce(UpdateRequest updateRequest, IndexShard primary,
+                                                         IndexMetaData metaData, String concreteIndex,
+                                                         UpdateHelper updateHelper, LongSupplier nowInMillis,
+                                                         BulkItemRequest primaryItemRequest, int bulkReqId,
+                                                         final MappingUpdatePerformer mappingUpdater) throws Exception {
+        final UpdateHelper.Result translate;
+        // translate update request
+        try {
+            translate = updateHelper.prepare(updateRequest, primary, nowInMillis);
+        } catch (Exception failure) {
+            // we may fail translating a update to index or delete operation
+            // we use index result to communicate failure while translating update request
+            final Engine.Result result = new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbersService.UNASSIGNED_SEQ_NO);
+            return new BulkItemResultHolder(null, result, primaryItemRequest);
+        }
+
+        final Engine.Result result;
+        // execute translated update request
+        switch (translate.getResponseResult()) {
+            case CREATED:
+            case UPDATED:
+                IndexRequest indexRequest = translate.action();
+                MappingMetaData mappingMd = metaData.mappingOrDefault(indexRequest.type());
+                indexRequest.process(mappingMd, concreteIndex);
+                result = executeIndexRequestOnPrimary(indexRequest, primary, mappingUpdater);
+                break;
+            case DELETED:
+                DeleteRequest deleteRequest = translate.action();
+                result = executeDeleteRequestOnPrimary(deleteRequest, primary, mappingUpdater);
+                break;
+            case NOOP:
+                primary.noopUpdate(updateRequest.type());
+                result = null;
+                break;
+            default: throw new IllegalStateException("Illegal update operation " + translate.getResponseResult());
+        }
+
+        if (result == null) {
+            // this is a noop operation
+            final UpdateResponse updateResponse = translate.action();
+            return new BulkItemResultHolder(updateResponse, result, primaryItemRequest);
+        } else if (result.hasFailure()) {
+            // There was a result, and the result was a failure
+            return new BulkItemResultHolder(null, result, primaryItemRequest);
+        } else {
+            // It was successful, we need to construct the response and return it
+            return processUpdateResponse(updateRequest, concreteIndex, result, translate, primary, bulkReqId);
+        }
+    }
+
+    /**
      * Executes update request, delegating to a index or delete operation after translation,
      * handles retries on version conflict and constructs update response
-     * NOTE: reassigns bulk item request at <code>requestIndex</code> for replicas to
-     * execute translated update request (NOOP update is an exception). NOOP updates are
-     * indicated by returning a <code>null</code> operation in {@link BulkItemResultHolder}
-     * */
+     * NOOP updates are indicated by returning a <code>null</code> operation
+     * in {@link BulkItemResultHolder}
+     */
     private static BulkItemResultHolder executeUpdateRequest(UpdateRequest updateRequest, IndexShard primary,
                                                              IndexMetaData metaData, BulkShardRequest request,
                                                              int requestIndex, UpdateHelper updateHelper,
                                                              LongSupplier nowInMillis,
                                                              final MappingUpdatePerformer mappingUpdater) throws Exception {
-        Engine.Result result = null;
-        UpdateResponse updateResponse = null;
-        BulkItemRequest replicaRequest = request.items()[requestIndex];
-        int maxAttempts = updateRequest.retryOnConflict();
-        for (int attemptCount = 0; attemptCount <= maxAttempts; attemptCount++) {
-            final UpdateHelper.Result translate;
-            // translate update request
-            try {
-                translate = updateHelper.prepare(updateRequest, primary, nowInMillis);
-            } catch (Exception failure) {
-                // we may fail translating a update to index or delete operation
-                // we use index result to communicate failure while translating update request
-                result = new Engine.IndexResult(failure, updateRequest.version(), SequenceNumbersService.UNASSIGNED_SEQ_NO);
-                break; // out of retry loop
-            }
-            // execute translated update request
-            switch (translate.getResponseResult()) {
-                case CREATED:
-                case UPDATED:
-                    IndexRequest indexRequest = translate.action();
-                    MappingMetaData mappingMd = metaData.mappingOrDefault(indexRequest.type());
-                    indexRequest.process(mappingMd, request.index());
-                    result = executeIndexRequestOnPrimary(indexRequest, primary, mappingUpdater);
-                    break;
-                case DELETED:
-                    DeleteRequest deleteRequest = translate.action();
-                    result = executeDeleteRequestOnPrimary(deleteRequest, primary, mappingUpdater);
-                    break;
-                case NOOP:
-                    primary.noopUpdate(updateRequest.type());
-                    break;
-                default: throw new IllegalStateException("Illegal update operation " + translate.getResponseResult());
-            }
-            if (result == null) {
-                // this is a noop operation
-                updateResponse = translate.action();
-                break; // out of retry loop
-            } else if (result.hasFailure() == false) {
-                // enrich update response and
-                // set translated update (index/delete) request for replica execution in bulk items
-                switch (result.getOperationType()) {
-                    case INDEX:
-                        assert result instanceof Engine.IndexResult : result.getClass();
-                        IndexRequest updateIndexRequest = translate.action();
-                        final IndexResponse indexResponse = new IndexResponse(
-                                primary.shardId(),
-                                updateIndexRequest.type(),
-                                updateIndexRequest.id(),
-                                result.getSeqNo(),
-                                primary.getPrimaryTerm(),
-                                result.getVersion(),
-                                ((Engine.IndexResult) result).isCreated());
-                        BytesReference indexSourceAsBytes = updateIndexRequest.source();
-                        updateResponse = new UpdateResponse(
-                                indexResponse.getShardInfo(),
-                                indexResponse.getShardId(),
-                                indexResponse.getType(),
-                                indexResponse.getId(),
-                                indexResponse.getSeqNo(),
-                                indexResponse.getPrimaryTerm(),
-                                indexResponse.getVersion(),
-                                indexResponse.getResult());
-                        if ((updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) ||
-                            (updateRequest.fields() != null && updateRequest.fields().length > 0)) {
-                            Tuple<XContentType, Map<String, Object>> sourceAndContent =
-                                XContentHelper.convertToMap(indexSourceAsBytes, true, updateIndexRequest.getContentType());
-                            updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, request.index(),
-                                indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
-                        }
-                        // set translated request as replica request
-                        replicaRequest = new BulkItemRequest(request.items()[requestIndex].id(), updateIndexRequest);
-                        break;
-                    case DELETE:
-                        assert result instanceof Engine.DeleteResult : result.getClass();
-                        DeleteRequest updateDeleteRequest = translate.action();
-                        DeleteResponse deleteResponse = new DeleteResponse(
-                                primary.shardId(),
-                                updateDeleteRequest.type(),
-                                updateDeleteRequest.id(),
-                                result.getSeqNo(),
-                                primary.getPrimaryTerm(),
-                                result.getVersion(),
-                                ((Engine.DeleteResult) result).isFound());
-                        updateResponse = new UpdateResponse(
-                                deleteResponse.getShardInfo(),
-                                deleteResponse.getShardId(),
-                                deleteResponse.getType(),
-                                deleteResponse.getId(),
-                                deleteResponse.getSeqNo(),
-                                deleteResponse.getPrimaryTerm(),
-                                deleteResponse.getVersion(),
-                                deleteResponse.getResult());
-                        final GetResult getResult = updateHelper.extractGetResult(
-                                updateRequest,
-                                request.index(),
-                                deleteResponse.getVersion(),
-                                translate.updatedSourceAsMap(),
-                                translate.updateSourceContentType(),
-                                null);
-                        updateResponse.setGetResult(getResult);
-                        // set translated request as replica request
-                        replicaRequest = new BulkItemRequest(request.items()[requestIndex].id(), updateDeleteRequest);
-                        break;
-                }
-                assert result.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                // successful operation
-                break; // out of retry loop
-            } else if (result.getFailure() instanceof VersionConflictEngineException == false) {
-                // not a version conflict exception
-                break; // out of retry loop
+        BulkItemRequest primaryItemRequest = request.items()[requestIndex];
+        assert primaryItemRequest.request() == updateRequest
+                : "expected bulk item request to contain the original update request, got: " +
+                primaryItemRequest.request() + " and " + updateRequest;
+
+        BulkItemResultHolder holder = null;
+        // There must be at least one attempt
+        int maxAttempts = Math.max(1, updateRequest.retryOnConflict());
+        for (int attemptCount = 0; attemptCount < maxAttempts; attemptCount++) {
+
+            holder = executeUpdateRequestOnce(updateRequest, primary, metaData, request.index(), updateHelper,
+                    nowInMillis, primaryItemRequest, request.items()[requestIndex].id(), mappingUpdater);
+
+            // It was either a successful request, or it was a non-conflict failure
+            if (holder.isVersionConflict() == false) {
+                return holder;
             }
         }
-        return new BulkItemResultHolder(updateResponse, result, replicaRequest);
+        // We ran out of tries and haven't returned a valid bulk item response, so return the last one generated
+        return holder;
     }
 
     /** Modes for executing item request on replica depending on corresponding primary execution result */

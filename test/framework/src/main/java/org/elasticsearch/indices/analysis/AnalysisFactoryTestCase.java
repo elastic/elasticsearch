@@ -22,7 +22,6 @@ package org.elasticsearch.indices.analysis;
 import org.apache.lucene.analysis.util.CharFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.index.analysis.ApostropheFilterFactory;
 import org.elasticsearch.index.analysis.ArabicNormalizationFilterFactory;
@@ -36,10 +35,8 @@ import org.elasticsearch.index.analysis.CommonGramsTokenFilterFactory;
 import org.elasticsearch.index.analysis.CzechStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.DecimalDigitFilterFactory;
 import org.elasticsearch.index.analysis.DelimitedPayloadTokenFilterFactory;
-import org.elasticsearch.index.analysis.EdgeNGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
 import org.elasticsearch.index.analysis.ElisionTokenFilterFactory;
-import org.elasticsearch.index.analysis.FlattenGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.GermanNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
@@ -49,14 +46,11 @@ import org.elasticsearch.index.analysis.KStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.KeepTypesFilterFactory;
 import org.elasticsearch.index.analysis.KeepWordFilterFactory;
 import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
-import org.elasticsearch.index.analysis.LengthTokenFilterFactory;
 import org.elasticsearch.index.analysis.LetterTokenizerFactory;
 import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
-import org.elasticsearch.index.analysis.LowerCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
 import org.elasticsearch.index.analysis.MinHashTokenFilterFactory;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
-import org.elasticsearch.index.analysis.NGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
 import org.elasticsearch.index.analysis.PatternCaptureGroupTokenFilterFactory;
@@ -82,7 +76,6 @@ import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.index.analysis.ThaiTokenizerFactory;
 import org.elasticsearch.index.analysis.TruncateTokenFilterFactory;
 import org.elasticsearch.index.analysis.UAX29URLEmailTokenizerFactory;
-import org.elasticsearch.index.analysis.UpperCaseTokenFilterFactory;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
 import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
@@ -90,7 +83,6 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collection;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Locale;
@@ -165,7 +157,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("decimaldigit",              DecimalDigitFilterFactory.class)
         .put("delimitedpayload",          DelimitedPayloadTokenFilterFactory.class)
         .put("dictionarycompoundword",    DictionaryCompoundWordTokenFilterFactory.class)
-        .put("edgengram",                 EdgeNGramTokenFilterFactory.class)
+        .put("edgengram",                 MovedToAnalysisCommon.class)
         .put("elision",                   ElisionTokenFilterFactory.class)
         .put("englishminimalstem",        StemmerTokenFilterFactory.class)
         .put("englishpossessive",         StemmerTokenFilterFactory.class)
@@ -178,7 +170,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("germanlightstem",           StemmerTokenFilterFactory.class)
         .put("germanminimalstem",         StemmerTokenFilterFactory.class)
         .put("germannormalization",       GermanNormalizationFilterFactory.class)
-        .put("greeklowercase",            LowerCaseTokenFilterFactory.class)
+        .put("greeklowercase",            MovedToAnalysisCommon.class)
         .put("greekstem",                 StemmerTokenFilterFactory.class)
         .put("hindinormalization",        HindiNormalizationFilterFactory.class)
         .put("hindistem",                 StemmerTokenFilterFactory.class)
@@ -186,17 +178,17 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("hunspellstem",              HunspellTokenFilterFactory.class)
         .put("hyphenationcompoundword",   HyphenationCompoundWordTokenFilterFactory.class)
         .put("indicnormalization",        IndicNormalizationFilterFactory.class)
-        .put("irishlowercase",            LowerCaseTokenFilterFactory.class)
+        .put("irishlowercase",            MovedToAnalysisCommon.class)
         .put("indonesianstem",            StemmerTokenFilterFactory.class)
         .put("italianlightstem",          StemmerTokenFilterFactory.class)
         .put("keepword",                  KeepWordFilterFactory.class)
         .put("keywordmarker",             MovedToAnalysisCommon.class)
         .put("kstem",                     KStemTokenFilterFactory.class)
         .put("latvianstem",               StemmerTokenFilterFactory.class)
-        .put("length",                    LengthTokenFilterFactory.class)
+        .put("length",                    MovedToAnalysisCommon.class)
         .put("limittokencount",           LimitTokenCountFilterFactory.class)
-        .put("lowercase",                 LowerCaseTokenFilterFactory.class)
-        .put("ngram",                     NGramTokenFilterFactory.class)
+        .put("lowercase",                 MovedToAnalysisCommon.class)
+        .put("ngram",                     MovedToAnalysisCommon.class)
         .put("norwegianlightstem",        StemmerTokenFilterFactory.class)
         .put("norwegianminimalstem",      StemmerTokenFilterFactory.class)
         .put("patterncapturegroup",       PatternCaptureGroupTokenFilterFactory.class)
@@ -225,12 +217,12 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("synonymgraph",              SynonymGraphTokenFilterFactory.class)
         .put("trim",                      MovedToAnalysisCommon.class)
         .put("truncate",                  TruncateTokenFilterFactory.class)
-        .put("turkishlowercase",          LowerCaseTokenFilterFactory.class)
+        .put("turkishlowercase",          MovedToAnalysisCommon.class)
         .put("type",                      KeepTypesFilterFactory.class)
-        .put("uppercase",                 UpperCaseTokenFilterFactory.class)
+        .put("uppercase",                 MovedToAnalysisCommon.class)
         .put("worddelimiter",             MovedToAnalysisCommon.class)
         .put("worddelimitergraph",        MovedToAnalysisCommon.class)
-        .put("flattengraph",              FlattenGraphTokenFilterFactory.class)
+        .put("flattengraph",              MovedToAnalysisCommon.class)
 
         // TODO: these tokenfilters are not yet exposed: useful?
 
@@ -262,6 +254,9 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("daterecognizer",            Void.class)
         // for token filters that generate bad offsets, which are now rejected since Lucene 7
         .put("fixbrokenoffsets",          Void.class)
+        // should we expose it, or maybe think about higher level integration of the
+        // fake term frequency feature (LUCENE-7854)
+        .put("delimitedtermfrequency",    Void.class)
 
         .immutableMap();
 

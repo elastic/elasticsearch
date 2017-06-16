@@ -314,8 +314,9 @@ public class UpdateHelper extends AbstractComponent {
      * Applies {@link UpdateRequest#fetchSource()} to the _source of the updated document to be returned in a update response.
      * For BWC this function also extracts the {@link UpdateRequest#fields()} from the updated document to be returned in a update response
      */
-    public GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long version, final Map<String, Object> source,
-                                      XContentType sourceContentType, @Nullable final BytesReference sourceAsBytes) {
+    public static GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long version,
+                                             final Map<String, Object> source, XContentType sourceContentType,
+                                             @Nullable final BytesReference sourceAsBytes) {
         if ((request.fields() == null || request.fields().length == 0) &&
             (request.fetchSource() == null || request.fetchSource().fetchSource() == false)) {
             return null;

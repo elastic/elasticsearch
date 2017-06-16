@@ -145,6 +145,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getPreConfiguredTokenizers() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenizers());
+        filters.put("keyword", null);
         filters.put("lowercase", null);
         return filters;
     }

@@ -3,7 +3,7 @@
 
 The `join` datatype is a special field that creates
 parent/child relation within documents of the same index.
-This `relations` section defines a set of possible relations within the documents,
+The `relations` section defines a set of possible relations within the documents,
 each relation being a parent name and a child name.
 A parent/child relation can be defined as follows:
 
@@ -32,7 +32,7 @@ PUT my_index
 
 To index a document with a join, the name of the relation and the optional parent
 of the document must be provided in the `source`.
-For instance the following creates a parent document in the `my_parent` context:
+For instance the following creates two parent documents in the `my_parent` context:
 
 [source,js]
 --------------------------------------------------
@@ -55,9 +55,12 @@ PUT my_index/doc/2?refresh
 
 When indexing a child, the name of the relation as well as the parent id of the document
 must be added in the `_source`.
-It is required to index the lineage of a parent in the same shard so you must
+
+WARNING: It is required to index the lineage of a parent in the same shard so you must
 always route child documents using their greater parent id.
-For instance the following index two children documents pointing to the same parent
+
+
+For instance the following index two children documents pointing to the same parent `1
 with a `routing` value equals to the `id` of the parent:
 
 [source,js]
@@ -71,7 +74,7 @@ PUT my_index/doc/3?routing=1&refresh <1>
   }
 }
 
-PUT my_index/doc/4?routing=1&refresh <1>
+PUT my_index/doc/4?routing=1&refresh
 {
   "text": "This is a another child document",
   "my_join_field": {
@@ -90,11 +93,11 @@ PUT my_index/doc/4?routing=1&refresh <1>
 ==== Parent-join restrictions
 
 * Only one `join` field is allowed per index mapping.
-* An element can have multiple children but only one parent.
 * Parent and child documents must be indexed on the same shard.
   This means that the same `routing` value needs to be provided when
   <<docs-get,getting>>, <<docs-delete,deleting>>, or <<docs-update,updating>>
   a child document.
+* An element can have multiple children but only one parent.
 * It is possible to add a new relation to an existing `join` field.
 * It is also possible to add a child to an existing element
   but only if the element is already a parent.
@@ -103,13 +106,17 @@ PUT my_index/doc/4?routing=1&refresh <1>
 
 The parent-join creates one field to index the name of the relation
 within the document (`my_parent`, `my_child`, ...).
-It also creates one field per parent/child relation. The name of this field is
-the name of the `join` field followed by `#` and the name of the parent in the relation.
+
+It also creates one field per parent/child relation.
+The name of this field is the name of the `join` field followed by `#` and the
+name of the parent in the relation.
 So for instance for the `my_parent` => [`my_child`, `another_child`] relation,
 the `join` field creates an additional field named `my_join_field#my_parent`.
+
 This field contains the parent `_id` that the document links to
 if the document is a child (`my_child` or `another_child`) and the `_id` of
 document if it's a parent (`my_parent`).
+
 When searching an index that contains a `join` field, these two fields are always
 returned in the search response:
 
@@ -125,6 +132,8 @@ GET my_index/_search
 --------------------------
 // CONSOLE
 // TEST[continued]
+
+Will return:
 
 [source,js]
 --------------------------------------------------
@@ -357,7 +366,7 @@ PUT my_index
 
 <1> `my_parent` is parent of `my_child`.
 
-... and multiple levels of parent/child:
+And multiple levels of parent/child:
 
 [source,js]
 --------------------------------------------------

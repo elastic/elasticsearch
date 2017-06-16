@@ -295,7 +295,7 @@ GET my_index/_search
 
 ==== Global ordinals
 
-The `join` field uses <<eager-global-ordinals,global ordinals>> to speed up joins.
+The `join` field uses <<global-ordinals,global ordinals>> to speed up joins.
 Global ordinals need to be rebuilt after any change to a shard. The more
 parent id values are stored in a shard, the longer it takes to rebuild the
 global ordinals for the `join` field.

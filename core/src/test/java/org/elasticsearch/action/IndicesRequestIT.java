@@ -644,17 +644,22 @@ public class IndicesRequestIT extends ESIntegTestCase {
     }
 
     private String[] randomUniqueIndicesOrAliases() {
-        Set<String> uniqueIndices = new HashSet<>();
-        int count = randomIntBetween(1, this.indices.size());
-        while (uniqueIndices.size() < count) {
-            uniqueIndices.add(randomFrom(this.indices));
-        }
-        String[] indices = new String[count];
+        String[] uniqueIndices = randomUniqueIndices();
+        String[] indices = new String[uniqueIndices.length];
         int i = 0;
         for (String index : uniqueIndices) {
             indices[i++] = randomBoolean() ? index + "-alias" : index;
         }
         return indices;
+    }
+
+    private String[] randomUniqueIndices() {
+        Set<String> uniqueIndices = new HashSet<>();
+        int count = randomIntBetween(1, this.indices.size());
+        while (uniqueIndices.size() < count) {
+            uniqueIndices.add(randomFrom(this.indices));
+        }
+        return uniqueIndices.toArray(new String[uniqueIndices.size()]);
     }
 
     private static void assertAllRequestsHaveBeenConsumed() {

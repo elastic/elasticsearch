@@ -21,7 +21,8 @@ PUT /test_index
                 "filter" : {
                     "synonym" : {
                         "type" : "synonym",
-                        "synonyms_path" : "analysis/synonym.txt"
+                        "synonyms_path" : "analysis/synonym.txt",
+                        "tokenizer" : "whitespace"
                     }
                 }
             }

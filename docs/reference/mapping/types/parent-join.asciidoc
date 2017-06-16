@@ -1,4 +1,4 @@
-[[mapping-parent-join-field]]
+[[parent-join]]
 === `join` datatype
 
 The `join` datatype is a special field that creates

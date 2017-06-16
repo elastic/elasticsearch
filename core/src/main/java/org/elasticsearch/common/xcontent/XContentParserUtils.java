@@ -134,7 +134,7 @@ public final class XContentParserUtils {
             throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT && parser.currentToken() != XContentParser.Token.START_ARRAY) {
             throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
-        };
+        }
         String currentFieldName = parser.currentName();
         if (Strings.hasLength(currentFieldName)) {
             int position = currentFieldName.indexOf(delimiter);

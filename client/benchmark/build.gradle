@@ -37,7 +37,9 @@ apply plugin: 'application'
 
 group = 'org.elasticsearch.client'
 
-tasks.remove(assemble) // Not published so no need to assemble
+// Not published so no need to assemble
+tasks.remove(assemble)
+build.dependsOn.remove('assemble')
 
 archivesBaseName = 'client-benchmarks'
 mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'

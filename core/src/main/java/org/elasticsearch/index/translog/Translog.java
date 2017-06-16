@@ -1522,7 +1522,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 // we're shutdown potentially on some tragic event, don't delete anything
                 return;
             }
-            long minReferencedGen = deletionPolicy.minTranslogGenRequired();
+            long minReferencedGen = deletionPolicy.minTranslogGenRequired(readers, current);
             assert minReferencedGen >= getMinFileGeneration() :
                 "deletion policy requires a minReferenceGen of [" + minReferencedGen + "] but the lowest gen available is ["
                     + getMinFileGeneration() + "]";

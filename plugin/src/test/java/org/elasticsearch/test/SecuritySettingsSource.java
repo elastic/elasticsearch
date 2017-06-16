@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 
 import java.net.URISyntaxException;
@@ -77,7 +76,6 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     private final Path parentFolder;
     private final String subfolderPrefix;
-    private final byte[] systemKey;
     private final boolean useGeneratedSSLConfig;
     private final boolean hostnameVerificationEnabled;
 
@@ -90,21 +88,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
      * @param scope the scope of the test that is requiring an instance of SecuritySettingsSource
      */
     public SecuritySettingsSource(int numOfNodes, boolean useGeneratedSSLConfig, Path parentFolder, Scope scope) {
-        this(numOfNodes, useGeneratedSSLConfig, generateKey(), parentFolder, scope);
-    }
-
-    /**
-     * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.
-     *
-     * @param numOfNodes the number of nodes for proper unicast configuration (can be more than actually available)
-     * @param useGeneratedSSLConfig whether ssl key/cert should be auto-generated
-     * @param systemKey the system key that all of the nodes will use to sign messages
-     * @param parentFolder the parent folder that will contain all of the configuration files that need to be created
-     * @param scope the scope of the test that is requiring an instance of SecuritySettingsSource
-     */
-    public SecuritySettingsSource(int numOfNodes, boolean useGeneratedSSLConfig, byte[] systemKey, Path parentFolder, Scope scope) {
         super(numOfNodes, DEFAULT_SETTINGS);
-        this.systemKey = systemKey;
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();
         this.useGeneratedSSLConfig = useGeneratedSSLConfig;
@@ -115,7 +99,6 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     public Settings nodeSettings(int nodeOrdinal) {
         Path home = SecurityTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
         Path xpackConf = SecurityTestUtils.createFolder(home.resolve("config"), XPackPlugin.NAME);
-        writeFile(xpackConf, "system_key", systemKey);
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
         writeFile(xpackConf, "roles.yml", configRoles());
@@ -192,20 +175,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         return new SecureString(DEFAULT_PASSWORD.toCharArray());
     }
 
-    protected byte[] systemKey() {
-        return systemKey;
-    }
-
     protected Class<? extends XPackPlugin> xpackPluginClass() {
         return XPackPlugin.class;
-    }
-
-    private static byte[] generateKey() {
-        try {
-            return CryptoService.generateKey();
-        } catch (Exception e) {
-            throw new ElasticsearchException("exception while generating the system key", e);
-        }
     }
 
     public Settings getNodeSSLSettings() {

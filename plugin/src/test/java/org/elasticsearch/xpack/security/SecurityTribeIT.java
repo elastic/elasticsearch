@@ -73,7 +73,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         super.setUp();
         if (cluster2 == null) {
             SecuritySettingsSource cluster2SettingsSource =
-                    new SecuritySettingsSource(defaultMaxNumberOfNodes(), useGeneratedSSL, systemKey(), createTempDir(), Scope.SUITE);
+                    new SecuritySettingsSource(defaultMaxNumberOfNodes(), useGeneratedSSL, createTempDir(), Scope.SUITE);
             cluster2 = new InternalTestCluster(randomLong(), createTempDir(), true, true, 1, 2,
                     UUIDs.randomBase64UUID(random()), cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
                     getClientWrapper());
@@ -135,7 +135,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
     private void setupTribeNode(Settings settings) throws NodeValidationException, InterruptedException {
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(1, useGeneratedSSL, systemKey(), createTempDir(), Scope.TEST);
+                new SecuritySettingsSource(1, useGeneratedSSL, createTempDir(), Scope.TEST);
         Map<String,String> asMap = new HashMap<>(cluster2SettingsSource.nodeSettings(0).getAsMap());
         asMap.remove(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey());
         Settings.Builder tribe1Defaults = Settings.builder();

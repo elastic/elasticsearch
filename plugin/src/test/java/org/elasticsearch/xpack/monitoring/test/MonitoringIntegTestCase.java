@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -55,7 +54,6 @@ import org.junit.Before;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -447,9 +445,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecureString(TEST_PASSWORD.toCharArray())));
 
         static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
-        static byte[] systemKey = generateKey(); // must be the same for all nodes
-
-        public static final String IP_FILTER = "allow: all\n";
 
         public static final String USERS =
                 "transport_client:" + TEST_PASSWORD_HASHED + "\n" +
@@ -495,7 +490,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 writeFile(xpackConf, "users", USERS);
                 writeFile(xpackConf, "users_roles", USER_ROLES);
                 writeFile(xpackConf, "roles.yml", ROLES);
-                writeFile(xpackConf, "system_key", systemKey);
 
                 builder.put("xpack.security.enabled", true)
                         .put("xpack.ml.autodetect_process", false)
@@ -510,27 +504,9 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
             }
         }
 
-        static byte[] generateKey() {
-            try {
-                return CryptoService.generateKey();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        public static String writeFile(Path folder, String name, String content) throws IOException {
+        static String writeFile(Path folder, String name, String content) throws IOException {
             Path file = folder.resolve(name);
             try (BufferedWriter stream = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
-                Streams.copy(content, stream);
-            } catch (IOException e) {
-                throw new ElasticsearchException("error writing file in test", e);
-            }
-            return file.toAbsolutePath().toString();
-        }
-
-        public static String writeFile(Path folder, String name, byte[] content) throws IOException {
-            Path file = folder.resolve(name);
-            try (OutputStream stream = Files.newOutputStream(file)) {
                 Streams.copy(content, stream);
             } catch (IOException e) {
                 throw new ElasticsearchException("error writing file in test", e);

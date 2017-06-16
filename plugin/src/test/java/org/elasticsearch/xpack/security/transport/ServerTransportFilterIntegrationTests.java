@@ -82,7 +82,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         Path home = createTempDir();
         Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
         Files.createDirectories(xpackConf);
-        writeFile(xpackConf, "system_key", systemKey());
 
         Transport transport = internalCluster().getDataNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
@@ -115,7 +114,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         Path home = createTempDir();
         Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
         Files.createDirectories(xpackConf);
-        writeFile(xpackConf, "system_key", systemKey());
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
         writeFile(xpackConf, "roles.yml", configRoles());

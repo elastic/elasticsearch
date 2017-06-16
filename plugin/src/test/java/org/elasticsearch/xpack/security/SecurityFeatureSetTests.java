@@ -13,26 +13,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
-import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,9 +33,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.any;
@@ -53,19 +44,15 @@ import static org.mockito.Mockito.when;
 public class SecurityFeatureSetTests extends ESTestCase {
 
     private Settings settings;
-    private Environment environment;
     private XPackLicenseState licenseState;
     private Realms realms;
     private IPFilter ipFilter;
     private CompositeRolesStore rolesStore;
     private NativeRoleMappingStore roleMappingStore;
-    private AuditTrailService auditTrail;
-    private CryptoService cryptoService;
 
     @Before
     public void init() throws Exception {
         settings = Settings.builder().put("path.home", createTempDir()).build();
-        environment = new Environment(settings);
         licenseState = mock(XPackLicenseState.class);
         realms = mock(Realms.class);
         ipFilter = mock(IPFilter.class);
@@ -75,7 +62,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
 
     public void testAvailable() throws Exception {
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter, environment);
+                rolesStore, roleMappingStore, ipFilter);
         boolean available = randomBoolean();
         when(licenseState.isAuthAllowed()).thenReturn(available);
         assertThat(featureSet.available(), is(available));
@@ -88,26 +75,14 @@ public class SecurityFeatureSetTests extends ESTestCase {
                 .put("xpack.security.enabled", enabled)
                 .build();
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter, environment);
+                rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(enabled));
     }
 
     public void testEnabledDefault() throws Exception {
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter, environment);
+                rolesStore, roleMappingStore, ipFilter);
         assertThat(featureSet.enabled(), is(true));
-    }
-
-    public void testSystemKeyUsageEnabledByCryptoService() throws IOException {
-        final boolean enabled = randomBoolean();
-        if (enabled) {
-            Path path = CryptoService.resolveSystemKey(environment);
-            Files.createDirectories(path.getParent());
-            Files.write(path, new byte[0]);
-        }
-        SecurityFeatureSet featureSet = new SecurityFeatureSet(settings, licenseState, realms,
-                rolesStore, roleMappingStore, ipFilter, environment);
-        assertThat(featureSet.systemKeyUsage(), hasEntry("enabled", enabled));
     }
 
     public void testUsage() throws Exception {
@@ -164,13 +139,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
             return Void.TYPE;
         }).when(roleMappingStore).usageStats(any(ActionListener.class));
 
-        final boolean useSystemKey = randomBoolean();
-        if (useSystemKey) {
-            Path path = CryptoService.resolveSystemKey(environment);
-            Files.createDirectories(path.getParent());
-            Files.write(path, new byte[0], StandardOpenOption.CREATE_NEW);
-        }
-
         Map<String, Object> realmsUsageStats = new HashMap<>();
         for (int i = 0; i < 5; i++) {
             Map<String, Object> realmUsage = new HashMap<>();
@@ -187,7 +155,7 @@ public class SecurityFeatureSetTests extends ESTestCase {
         }
 
         SecurityFeatureSet featureSet = new SecurityFeatureSet(settings.build(), licenseState,
-                realms, rolesStore, roleMappingStore, ipFilter, environment);
+                realms, rolesStore, roleMappingStore, ipFilter);
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage securityUsage = future.get();
@@ -242,9 +210,6 @@ public class SecurityFeatureSetTests extends ESTestCase {
                     final Map<String, Object> roleMapping = source.getValue("role_mapping.native");
                     assertThat(roleMapping.entrySet(), emptyIterable());
                 }
-
-                // system key
-                assertThat(source.getValue("system_key.enabled"), is(useSystemKey));
 
                 // anonymous
                 assertThat(source.getValue("anonymous.enabled"), is(anonymousEnabled));

@@ -236,15 +236,6 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     /**
-     * Allows for us to get the system key that is being used for the cluster
-     *
-     * @return the system key bytes
-     */
-    protected byte[] systemKey() {
-        return customSecuritySettingsSource.systemKey();
-    }
-
-    /**
      * Allows to override the users config file when the {@link org.elasticsearch.test.ESIntegTestCase.ClusterScope} is set to
      * {@link org.elasticsearch.test.ESIntegTestCase.Scope#SUITE} or {@link org.elasticsearch.test.ESIntegTestCase.Scope#TEST}
      */

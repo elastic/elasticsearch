@@ -115,6 +115,9 @@ public final class XContentParserUtils {
      * (ex: terms#foo where "terms" refers to the type of a registered {@link NamedXContentRegistry.Entry},
      * "#" is the delimiter and "foo" the name of the object to parse).
      *
+     * It also expected that following this field name is either an Object or an array xContent structure and
+     * the cursor points to the start token of this structure.
+     *
      * The method splits the field's name to extract the type and name and then parses the object
      * using the {@link XContentParser#namedObject(Class, String, Object)} method.
      *
@@ -125,10 +128,13 @@ public final class XContentParserUtils {
      * @param <T>         the type of the object to parse
      * @throws IOException if anything went wrong during parsing or if the type or name cannot be derived
      *                     from the field's name
+     * @throws ParsingException if the parser isn't positioned on either START_OBJECT or START_ARRAY at the beginning
      */
     public static <T> void parseTypedKeysObject(XContentParser parser, String delimiter, Class<T> objectClass, Consumer<T> consumer)
             throws IOException {
-        assert parser.currentToken() == XContentParser.Token.START_OBJECT || parser.currentToken() == XContentParser.Token.START_ARRAY;
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT && parser.currentToken() != XContentParser.Token.START_ARRAY) {
+            throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
+        };
         String currentFieldName = parser.currentName();
         if (Strings.hasLength(currentFieldName)) {
             int position = currentFieldName.indexOf(delimiter);
@@ -138,9 +144,10 @@ public final class XContentParserUtils {
                 consumer.accept(parser.namedObject(objectClass, type, name));
                 return;
             }
+            // if we didn't find a delimiter we ignore the object or array for forward compatibility instead of throwing an error
+            parser.skipChildren();
+        } else {
+            throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: empty key");
         }
-        // If the field name is empty or we didn't find a delimiter we ignore
-        // the object for forward compatibility instead of throwing an error
-        parser.skipChildren();
     }
 }

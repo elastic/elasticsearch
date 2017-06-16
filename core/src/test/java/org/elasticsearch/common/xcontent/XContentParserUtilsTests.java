@@ -119,4 +119,33 @@ public class XContentParserUtilsTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
         }
     }
+
+    public void testParseTypedKeysObjectErrors() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+        {
+            BytesReference bytes = toXContent((builder, params) -> builder.startObject("name").field("field", 0).endObject(), xContentType,
+                    randomBoolean());
+            try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+                ParsingException exception = expectThrows(ParsingException.class,
+                        () -> parseTypedKeysObject(parser, "#", Boolean.class, o -> {
+                        }));
+                assertEquals("Failed to parse object: unexpected token [FIELD_NAME] found", exception.getMessage());
+            }
+        }
+        {
+            BytesReference bytes = toXContent((builder, params) -> builder.startObject("").field("field", 0).endObject(), xContentType,
+                    randomBoolean());
+            try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ParsingException exception = expectThrows(ParsingException.class,
+                        () -> parseTypedKeysObject(parser, "#", Boolean.class, o -> {
+                        }));
+                assertEquals("Failed to parse object: empty key", exception.getMessage());
+            }
+        }
+    }
 }

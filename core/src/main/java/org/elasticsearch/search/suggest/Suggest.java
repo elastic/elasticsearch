@@ -22,6 +22,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -49,6 +50,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -179,10 +181,14 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            String currentField = parser.currentName();
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
             Suggestion<? extends Entry<? extends Option>> suggestion = Suggestion.fromXContent(parser);
             if (suggestion != null) {
                 suggestions.add(suggestion);
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                        String.format(Locale.ROOT, "Could not parse suggestion keyed as [%s]", currentField));
             }
         }
         return new Suggest(suggestions);

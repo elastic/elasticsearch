@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -133,7 +136,15 @@ public class Aggregations implements Iterable<Aggregation>, ToXContent {
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.START_OBJECT) {
-                parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, aggregations::add);
+                SetOnce<Aggregation> typedAgg = new SetOnce<>();
+                String currentField = parser.currentName();
+                parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class, typedAgg::set);
+                if (typedAgg.get() != null) {
+                    aggregations.add(typedAgg.get());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            String.format(Locale.ROOT, "Could not parse aggregation keyed as [%s]", currentField));
+                }
             }
         }
         return new Aggregations(aggregations);

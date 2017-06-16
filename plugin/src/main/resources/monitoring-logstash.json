@@ -50,6 +50,9 @@
                 "name": {
                   "type": "keyword"
                 },
+                "ephemeral_id": {
+                  "type": "keyword"
+                },
                 "host": {
                   "type": "keyword"
                 },
@@ -245,15 +248,18 @@
                 "hash": {
                   "type": "keyword"
                 },
+                "ephemeral_id": {
+                  "type": "keyword"
+                },
                 "events": {
                   "properties": {
-                    "input": {
+                    "in": {
                       "type": "long"
                     },
-                    "filter": {
+                    "filtered": {
                       "type": "long"
                     },
-                    "output": {
+                    "out": {
                       "type": "long"
                     }
                   }

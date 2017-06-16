@@ -182,8 +182,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private final CounterMetric numHandshakes = new CounterMetric();
     private static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
 
-    private final MeanMetric rxMetric = new MeanMetric();
-    private final MeanMetric txMetric = new MeanMetric();
+    private final MeanMetric readBytesMetric = new MeanMetric();
+    private final MeanMetric transmittedBytesMetric = new MeanMetric();
 
     public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
@@ -304,14 +304,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 DiscoveryNode node = entry.getKey();
                 NodeChannels channels = entry.getValue();
                 for (Channel channel : channels.getChannels()) {
-                    internalSendMessage(channel, pingHeader, new NotifyOnceListener<Channel>() {
+                    internalSendMessage(channel, pingHeader, new SendMetricListener<Channel>(pingHeader.length()) {
                         @Override
-                        public void innerOnResponse(Channel channel) {
+                        protected void innerInnerOnResponse(Channel channel) {
                             successfulPings.inc();
                         }
 
                         @Override
-                        public void innerOnFailure(Exception e) {
+                        protected void innerOnFailure(Exception e) {
                             if (isOpen(channel)) {
                                 logger.debug(
                                     (Supplier<?>) () -> new ParameterizedMessage("[{}] failed to send ping transport message", node), e);
@@ -988,9 +988,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         } else if (e instanceof TcpTransport.HttpOnTransportException) {
             // in case we are able to return data, serialize the exception content and sent it back to the client
             if (isOpen(channel)) {
-                final NotifyOnceListener<Channel> closeChannel = new NotifyOnceListener<Channel>() {
+                BytesArray message = new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8));
+                final SendMetricListener<Channel> closeChannel = new SendMetricListener<Channel>(message.length()) {
                     @Override
-                    public void innerOnResponse(Channel channel) {
+                    protected void innerInnerOnResponse(Channel channel) {
                         try {
                             closeChannels(Collections.singletonList(channel));
                         } catch (IOException e1) {
@@ -999,7 +1000,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     }
 
                     @Override
-                    public void innerOnFailure(Exception e) {
+                    protected void innerOnFailure(Exception e) {
                         try {
                             closeChannels(Collections.singletonList(channel));
                         } catch (IOException e1) {
@@ -1008,7 +1009,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         }
                     }
                 };
-                internalSendMessage(channel, new BytesArray(e.getMessage().getBytes(StandardCharsets.UTF_8)), closeChannel);
+                internalSendMessage(channel, message, closeChannel);
             }
         } else {
             logger.warn(
@@ -1090,7 +1091,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             final TransportRequestOptions finalOptions = options;
             // this might be called in a different thread
             SendListener onRequestSent = new SendListener(stream,
-                () -> transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions));
+                () -> transportServiceAdapter.onRequestSent(node, requestId, action, request, finalOptions), message.length());
             internalSendMessage(targetChannel, message, onRequestSent);
             addedReleaseListener = true;
         } finally {
@@ -1103,10 +1104,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     /**
      * sends a message to the given channel, using the given callbacks.
      */
-    private void internalSendMessage(Channel targetChannel, BytesReference message, NotifyOnceListener<Channel> listener) {
+    private void internalSendMessage(Channel targetChannel, BytesReference message, SendMetricListener<Channel> listener) {
         try {
             sendMessage(targetChannel, message, listener);
-            txMetric.inc(message.length());
         } catch (Exception ex) {
             // call listener to ensure that any resources are released
             listener.onFailure(ex);
@@ -1136,9 +1136,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             status = TransportStatus.setError(status);
             final BytesReference bytes = stream.bytes();
             final BytesReference header = buildHeader(requestId, status, nodeVersion, bytes.length());
+            CompositeBytesReference message = new CompositeBytesReference(header, bytes);
             SendListener onResponseSent = new SendListener(null,
-                () -> transportServiceAdapter.onResponseSent(requestId, action, error));
-            internalSendMessage(channel, new CompositeBytesReference(header, bytes), onResponseSent);
+                () -> transportServiceAdapter.onResponseSent(requestId, action, error), message.length());
+            internalSendMessage(channel, message, onResponseSent);
         }
     }
 
@@ -1167,13 +1168,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             }
             threadPool.getThreadContext().writeTo(stream);
             stream.setVersion(nodeVersion);
-            BytesReference reference = buildMessage(requestId, status, nodeVersion, response, stream);
+            BytesReference message = buildMessage(requestId, status, nodeVersion, response, stream);
 
             final TransportResponseOptions finalOptions = options;
             // this might be called in a different thread
             SendListener listener = new SendListener(stream,
-                () -> transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions));
-            internalSendMessage(channel, reference, listener);
+                () -> transportServiceAdapter.onResponseSent(requestId, action, response, finalOptions), message.length());
+            internalSendMessage(channel, message, listener);
             addedReleaseListener = true;
         } finally {
             if (!addedReleaseListener) {
@@ -1329,7 +1330,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     public final void messageReceived(BytesReference reference, Channel channel, String profileName,
                                       InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {
         final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-        rxMetric.inc(totalMessageSize);
+        readBytesMetric.inc(totalMessageSize);
         // we have additional bytes to read, outside of the header
         boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
         StreamInput streamIn = reference.streamInput();
@@ -1667,22 +1668,42 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    private final class SendListener extends NotifyOnceListener<Channel> {
+    /**
+     * This listener increments the transmitted bytes metric on success.
+     */
+    private abstract class SendMetricListener<T> extends NotifyOnceListener<T> {
+        private final long messageSize;
+
+        private SendMetricListener(long messageSize) {
+            this.messageSize = messageSize;
+        }
+
+        @Override
+        protected final void innerOnResponse(T object) {
+            transmittedBytesMetric.inc(messageSize);
+            innerInnerOnResponse(object);
+        }
+
+        protected abstract void innerInnerOnResponse(T object);
+    }
+
+    private final class SendListener extends SendMetricListener<Channel> {
         private final Releasable optionalReleasable;
         private final Runnable transportAdaptorCallback;
 
-        private SendListener(Releasable optionalReleasable, Runnable transportAdaptorCallback) {
+        private SendListener(Releasable optionalReleasable, Runnable transportAdaptorCallback, long messageLength) {
+            super(messageLength);
             this.optionalReleasable = optionalReleasable;
             this.transportAdaptorCallback = transportAdaptorCallback;
         }
 
         @Override
-        public void innerOnResponse(Channel channel) {
+        protected void innerInnerOnResponse(Channel channel) {
             release();
         }
 
         @Override
-        public void innerOnFailure(Exception e) {
+        protected void innerOnFailure(Exception e) {
             release();
         }
 
@@ -1715,6 +1736,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     @Override
     public final TransportStats getStats() {
         return new TransportStats(
-            getNumOpenServerConnections(), rxMetric.count(), rxMetric.sum(), txMetric.count(), txMetric.sum());
+            getNumOpenServerConnections(), readBytesMetric.count(), readBytesMetric.sum(), transmittedBytesMetric.count(), transmittedBytesMetric.sum());
     }
 }

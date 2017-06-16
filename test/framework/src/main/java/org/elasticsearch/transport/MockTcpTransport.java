@@ -306,7 +306,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                     configureSocket(incomingSocket);
                     synchronized (this) {
                         if (isOpen.get()) {
-                            incomingChannel = new MockChannel(incomingSocket, localAddress, profile, workerChannels::remove);
+                            incomingChannel = new MockChannel(incomingSocket,
+                                new InetSocketAddress(incomingSocket.getLocalAddress(), incomingSocket.getPort()), profile,
+                                workerChannels::remove);
                             //establish a happens-before edge between closing and accepting a new connection
                             workerChannels.add(incomingChannel);
 

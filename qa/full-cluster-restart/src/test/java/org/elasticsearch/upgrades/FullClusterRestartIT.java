@@ -19,6 +19,7 @@
 
 package org.elasticsearch.upgrades;
 
+import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -47,7 +48,6 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -448,8 +448,49 @@ public class FullClusterRestartIT extends ESRestTestCase {
     public void testSnapshotRestore() throws IOException {
         int count;
         if (runningAgainstOldCluster) {
+            // Create the index
             count = between(200, 300);
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+
+            // Stick a routing attribute into to cluster settings so we can see it after the restore
+            HttpEntity routingSetting = new StringEntity(
+                    "{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": \"" + oldClusterVersion + "\"}}",
+                    ContentType.APPLICATION_JSON);
+            client().performRequest("PUT", "/_cluster/settings", emptyMap(), routingSetting);
+
+            // Stick a template into the cluster so we can see it after the restore
+            XContentBuilder templateBuilder = JsonXContent.contentBuilder().startObject();
+            templateBuilder.field("template", "te*");
+            templateBuilder.startObject("settings"); {
+                templateBuilder.field("number_of_shards", 1);
+            }
+            templateBuilder.endObject();
+            templateBuilder.startObject("mappings"); {
+                templateBuilder.startObject("doc"); {
+                    templateBuilder.startObject("_source"); {
+                        templateBuilder.field("enabled", randomLenientBoolean());
+                    }
+                    templateBuilder.endObject();
+                }
+                templateBuilder.endObject();
+            }
+            templateBuilder.endObject();
+            templateBuilder.startObject("aliases"); {
+                templateBuilder.startObject("alias1").endObject();
+                templateBuilder.startObject("alias2"); {
+                    templateBuilder.startObject("filter"); {
+                        templateBuilder.startObject("term"); {
+                            templateBuilder.field("version", oldClusterVersion);
+                        }
+                        templateBuilder.endObject();
+                    }
+                    templateBuilder.endObject();
+                }
+                templateBuilder.endObject();
+            }
+            templateBuilder.endObject().endObject();
+            client().performRequest("PUT", "/_template/test_template", emptyMap(),
+                    new StringEntity(templateBuilder.string(), ContentType.APPLICATION_JSON));
 
             // Create the repo and the snapshot
             XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject(); {
@@ -481,6 +522,18 @@ public class FullClusterRestartIT extends ESRestTestCase {
         String countResponse = toStr(client().performRequest("GET", "/" + index + "/_search", singletonMap("size", "0")));
         assertThat(countResponse, containsString("\"total\":" + count));
 
+        /* Remove the routing setting and template that we added before the
+         * snapshot so we can test restoring them. If we're running on the
+         * new cluster then they should exist because they were leftover from
+         * the restore done by the old cluster. We leave them in place so we
+         * get a test of a full cluster restart with templates restored from
+         * a snapshot. */
+        HttpEntity clearRoutingSetting = new StringEntity(
+                "{\"persistent\":\"cluster.routing.allocation.exclude.test_attr\": null}}",
+                ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/_cluster/settings", emptyMap(), clearRoutingSetting);
+        client().performRequest("DELETE", "/_template/test_template", emptyMap(), clearRoutingSetting);
+
         if (false == runningAgainstOldCluster) {
             /* Remove any "restored" indices from the old cluster run of this test.
              * We intentionally don't remove them while running this against the
@@ -496,8 +549,9 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertEquals(response, singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", map));
         assertEquals(response, singletonList(oldClusterVersion.toString()), XContentMapValues.extractValue("snapshots.version", map));
 
+        // Perform the restore
         XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
-        restoreCommand.field("include_global_state", randomBoolean());
+        restoreCommand.field("include_global_state", true);
         restoreCommand.field("indices", index);
         restoreCommand.field("rename_pattern", index);
         restoreCommand.field("rename_replacement", "restored_" + index);
@@ -505,10 +559,21 @@ public class FullClusterRestartIT extends ESRestTestCase {
         client().performRequest("POST", "/_snapshot/repo/snap/_restore", singletonMap("wait_for_completion", "true"),
                 new StringEntity(restoreCommand.string(), ContentType.APPLICATION_JSON));
 
-             countResponse = toStr(
-                    client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")));
-            assertThat(countResponse, containsString("\"total\":" + count));
+        // Make sure search finds all documents
+        countResponse = toStr(client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")));
+        assertThat(countResponse, containsString("\"total\":" + count));
+
+        // TODO add documents and count again
+
+        if (false == runningAgainstOldCluster) {
+            // Check settings added by the restore process
+            map = toMap(client().performRequest("GET", "/_cluster/settings"));
+            fail(map.toString());
+
+            // TODO assert that the template came back too
         }
+
+    }
 
     // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.
 

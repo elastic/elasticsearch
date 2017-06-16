@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -1107,12 +1108,22 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testResolveAdminAction() {
-        DeleteIndexRequest request = new DeleteIndexRequest("*");
-        Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, DeleteIndexAction.NAME));
-        String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoobar", "foofoo", "foofoo-closed"};
-        assertThat(indices.size(), equalTo(expectedIndices.length));
-        assertThat(indices, hasItems(expectedIndices));
-        assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+        {
+            RefreshRequest request = new RefreshRequest("*");
+            Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, DeleteIndexAction.NAME));
+            String[] expectedIndices = new String[]{"bar", "foofoobar", "foofoo"};
+            assertThat(indices.size(), equalTo(expectedIndices.length));
+            assertThat(indices, hasItems(expectedIndices));
+            assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+        }
+        {
+            DeleteIndexRequest request = new DeleteIndexRequest("*");
+            Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, DeleteIndexAction.NAME));
+            String[] expectedIndices = new String[]{"bar", "bar-closed", "foofoo", "foofoo-closed"};
+            assertThat(indices.size(), equalTo(expectedIndices.length));
+            assertThat(indices, hasItems(expectedIndices));
+            assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+        }
     }
 
     public void testIndicesExists() {

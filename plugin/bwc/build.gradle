@@ -31,7 +31,9 @@ subprojects {
   }
   if (enabled) {
     apply plugin: 'distribution'
+    // Not published so no need to assemble
     tasks.remove(assemble)
+    build.dependsOn.remove('assemble')
 
     def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
     def (String currentMajor, String currentMinor, String currentBugfix) = version.split('\\.')

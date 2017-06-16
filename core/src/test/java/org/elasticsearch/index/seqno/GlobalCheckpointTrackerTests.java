@@ -19,9 +19,13 @@
 
 package org.elasticsearch.index.seqno;
 
+import com.carrotsearch.hppc.ObjectLongHashMap;
+import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -42,8 +46,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.not;
@@ -335,19 +341,11 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
     public void testUpdateAllocationIdsFromMaster() throws Exception {
         final long initialClusterStateVersion = randomNonNegativeLong();
         final int numberOfActiveAllocationsIds = randomIntBetween(2, 16);
-        final Set<String> activeAllocationIds =
-                IntStream.range(0, numberOfActiveAllocationsIds).mapToObj(i -> randomAlphaOfLength(16)).collect(Collectors.toSet());
         final int numberOfInitializingIds = randomIntBetween(2, 16);
-        final Set<String> initializingIds =
-                IntStream.range(0, numberOfInitializingIds).mapToObj(i -> {
-                    do {
-                        final String initializingId = randomAlphaOfLength(16);
-                        // ensure we do not duplicate an allocation ID in active and initializing sets
-                        if (!activeAllocationIds.contains(initializingId)) {
-                            return initializingId;
-                        }
-                    } while (true);
-                }).collect(Collectors.toSet());
+        final Tuple<Set<String>, Set<String>> activeAndInitializingAllocationIds =
+                randomActiveAndInitializingAllocationIds(numberOfActiveAllocationsIds, numberOfInitializingIds);
+        final Set<String> activeAllocationIds = activeAndInitializingAllocationIds.v1();
+        final Set<String> initializingIds = activeAndInitializingAllocationIds.v2();
         tracker.updateAllocationIdsFromMaster(initialClusterStateVersion, activeAllocationIds, initializingIds);
 
         // first we assert that the in-sync and tracking sets are set up correctly
@@ -521,7 +519,184 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         markingThread.join();
 
         assertThat(tracker.getGlobalCheckpoint(), equalTo((long) nextActiveLocalCheckpoint));
+    }
 
+    public void testPrimaryContextOlderThanAppliedClusterState() {
+        final long initialClusterStateVersion = randomIntBetween(0, Integer.MAX_VALUE - 1) + 1;
+        final int numberOfActiveAllocationsIds = randomIntBetween(0, 8);
+        final int numberOfInitializingIds = randomIntBetween(0, 8);
+        final Tuple<Set<String>, Set<String>> activeAndInitializingAllocationIds =
+                randomActiveAndInitializingAllocationIds(numberOfActiveAllocationsIds, numberOfInitializingIds);
+        final Set<String> activeAllocationIds = activeAndInitializingAllocationIds.v1();
+        final Set<String> initializingAllocationIds = activeAndInitializingAllocationIds.v2();
+        tracker.updateAllocationIdsFromMaster(initialClusterStateVersion, activeAllocationIds, initializingAllocationIds);
+
+        /*
+         * We are going to establish a primary context from a cluster state version older than the applied cluster state version on the
+         * tracker. Because of recovery barriers established during relocation handoff, we know that the set of active allocation IDs in the
+         * newer cluster state is a superset of the allocation IDs in the applied cluster state with the caveat that an existing
+         * initializing allocation ID could have moved to an in-sync allocation ID within the tracker due to recovery finalization, and the
+         * set of initializing allocation IDs is otherwise arbitrary.
+         */
+        final int numberOfAdditionalInitializingAllocationIds = randomIntBetween(0, 8);
+        final Set<String> initializedAllocationIds = new HashSet<>(randomSubsetOf(initializingAllocationIds));
+        final Set<String> newInitializingAllocationIds =
+                randomAllocationIdsExcludingExistingIds(
+                        Sets.union(activeAllocationIds, initializingAllocationIds), numberOfAdditionalInitializingAllocationIds);
+        final Set<String> contextInitializingIds = Sets.union(
+                new HashSet<>(randomSubsetOf(Sets.difference(initializingAllocationIds, initializedAllocationIds))),
+                newInitializingAllocationIds);
+
+        final int numberOfAdditionalActiveAllocationIds = randomIntBetween(0, 8);
+        final Set<String> contextActiveAllocationIds = Sets.union(
+                Sets.union(
+                        activeAllocationIds,
+                        randomAllocationIdsExcludingExistingIds(activeAllocationIds, numberOfAdditionalActiveAllocationIds)),
+                initializedAllocationIds);
+
+        final ObjectLongMap<String> activeAllocationIdsLocalCheckpoints = new ObjectLongHashMap<>();
+        for (final String allocationId : contextActiveAllocationIds) {
+            activeAllocationIdsLocalCheckpoints.put(allocationId, randomNonNegativeLong());
+        }
+        final ObjectLongMap<String> initializingAllocationIdsLocalCheckpoints = new ObjectLongHashMap<>();
+        for (final String allocationId : contextInitializingIds) {
+            initializingAllocationIdsLocalCheckpoints.put(allocationId, randomNonNegativeLong());
+        }
+
+        final PrimaryContext primaryContext = new PrimaryContext(
+                initialClusterStateVersion - randomIntBetween(0, Math.toIntExact(initialClusterStateVersion) - 1),
+                activeAllocationIdsLocalCheckpoints,
+                initializingAllocationIdsLocalCheckpoints);
+
+        tracker.updateAllocationIdsFromPrimaryContext(primaryContext);
+
+        // the primary context carries an older cluster state version
+        assertThat(tracker.appliedClusterStateVersion, equalTo(initialClusterStateVersion));
+
+        // only existing active allocation IDs and initializing allocation IDs that moved to initialized should be in-sync
+        assertThat(
+                Sets.union(activeAllocationIds, initializedAllocationIds),
+                equalTo(
+                        StreamSupport
+                                .stream(tracker.inSyncLocalCheckpoints.keys().spliterator(), false)
+                                .map(e -> e.value)
+                                .collect(Collectors.toSet())));
+
+        // the local checkpoints known to the tracker for in-sync shards should match what is known in the primary context
+        for (final String allocationId : Sets.union(activeAllocationIds, initializedAllocationIds)) {
+            assertThat(
+                    tracker.inSyncLocalCheckpoints.get(allocationId), equalTo(primaryContext.inSyncLocalCheckpoints().get(allocationId)));
+        }
+
+        // only existing initializing allocation IDs that did not moved to initialized should be tracked
+        assertThat(
+                Sets.difference(initializingAllocationIds, initializedAllocationIds),
+                equalTo(
+                        StreamSupport
+                        .stream(tracker.trackingLocalCheckpoints.keys().spliterator(), false)
+                        .map(e -> e.value)
+                        .collect(Collectors.toSet())));
+
+        // the local checkpoints known to the tracker for initializing shards should match what is known in the primary context
+        for (final String allocationId : Sets.difference(initializingAllocationIds, initializedAllocationIds)) {
+            if (primaryContext.trackingLocalCheckpoints().containsKey(allocationId)) {
+                assertThat(
+                        tracker.trackingLocalCheckpoints.get(allocationId),
+                        equalTo(primaryContext.trackingLocalCheckpoints().get(allocationId)));
+            } else {
+                assertThat(tracker.trackingLocalCheckpoints.get(allocationId), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+            }
+        }
+
+        // the global checkpoint can only be computed from active allocation IDs and initializing allocation IDs that moved to initializing
+        final long globalCheckpoint =
+                StreamSupport
+                        .stream(activeAllocationIdsLocalCheckpoints.spliterator(), false)
+                        .filter(e -> tracker.inSyncLocalCheckpoints.containsKey(e.key) || initializedAllocationIds.contains(e.key))
+                        .mapToLong(e -> e.value)
+                        .min()
+                        .orElse(SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(globalCheckpoint));
+    }
+
+    public void testPrimaryContextNewerThanAppliedClusterState() {
+        final long initialClusterStateVersion = randomIntBetween(0, Integer.MAX_VALUE);
+        final int numberOfActiveAllocationsIds = randomIntBetween(0, 8);
+        final int numberOfInitializingIds = randomIntBetween(0, 8);
+        final Tuple<Set<String>, Set<String>> activeAndInitializingAllocationIds =
+                randomActiveAndInitializingAllocationIds(numberOfActiveAllocationsIds, numberOfInitializingIds);
+        final Set<String> activeAllocationIds = activeAndInitializingAllocationIds.v1();
+        final Set<String> initializingAllocationIds = activeAndInitializingAllocationIds.v2();
+        tracker.updateAllocationIdsFromMaster(initialClusterStateVersion, activeAllocationIds, initializingAllocationIds);
+
+        /*
+         * We are going to establish a primary context from a cluster state version older than the applied cluster state version on the
+         * tracker. Because of recovery barriers established during relocation handoff, we know that the set of active allocation IDs in the
+         * newer cluster state is a subset of the allocation IDs in the applied cluster state with the caveat that an existing initializing
+         * allocation ID could have moved to an in-sync allocation ID within the tracker due to recovery finalization, and the set of
+         * initializing allocation IDs is otherwise arbitrary.
+         */
+        final int numberOfNewInitializingAllocationIds = randomIntBetween(0, 8);
+        final Set<String> initializedAllocationIds = new HashSet<>(randomSubsetOf(initializingAllocationIds));
+        final Set<String> newInitializingAllocationIds =
+                randomAllocationIdsExcludingExistingIds(
+                        Sets.union(activeAllocationIds, initializingAllocationIds), numberOfNewInitializingAllocationIds);
+
+        final ObjectLongMap<String> activeAllocationIdsLocalCheckpoints = new ObjectLongHashMap<>();
+        for (final String allocationId : Sets.union(new HashSet<>(randomSubsetOf(activeAllocationIds)), initializedAllocationIds)) {
+            activeAllocationIdsLocalCheckpoints.put(allocationId, randomNonNegativeLong());
+        }
+        final ObjectLongMap<String> initializingIdsLocalCheckpoints = new ObjectLongHashMap<>();
+        final Set<String> contextInitializingAllocationIds = Sets.union(
+                new HashSet<>(randomSubsetOf(Sets.difference(initializingAllocationIds, initializedAllocationIds))),
+                newInitializingAllocationIds);
+        for (final String allocationId : contextInitializingAllocationIds) {
+            initializingIdsLocalCheckpoints.put(allocationId, randomNonNegativeLong());
+        }
+
+        final PrimaryContext primaryContext =
+                new PrimaryContext(
+                        initialClusterStateVersion + randomIntBetween(0, Integer.MAX_VALUE) + 1,
+                        activeAllocationIdsLocalCheckpoints,
+                        initializingIdsLocalCheckpoints);
+
+        tracker.updateAllocationIdsFromPrimaryContext(primaryContext);
+
+        final PrimaryContext trackerPrimaryContext = tracker.primaryContext();
+
+        final long globalCheckpoint =
+                StreamSupport
+                        .stream(activeAllocationIdsLocalCheckpoints.values().spliterator(), false)
+                        .mapToLong(e -> e.value)
+                        .min()
+                        .orElse(SequenceNumbersService.UNASSIGNED_SEQ_NO);
+
+        // the primary context contains knowledge of the state of the entire universe
+        assertThat(primaryContext.clusterStateVersion(), equalTo(trackerPrimaryContext.clusterStateVersion()));
+        assertThat(primaryContext.inSyncLocalCheckpoints(), equalTo(trackerPrimaryContext.inSyncLocalCheckpoints()));
+        assertThat(primaryContext.trackingLocalCheckpoints(), equalTo(trackerPrimaryContext.trackingLocalCheckpoints()));
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(globalCheckpoint));
+    }
+
+    private Tuple<Set<String>, Set<String>> randomActiveAndInitializingAllocationIds(
+            final int numberOfActiveAllocationsIds,
+            final int numberOfInitializingIds) {
+        final Set<String> activeAllocationIds =
+                IntStream.range(0, numberOfActiveAllocationsIds).mapToObj(i -> randomAlphaOfLength(16) + i).collect(Collectors.toSet());
+        final Set<String> initializingIds = randomAllocationIdsExcludingExistingIds(activeAllocationIds, numberOfInitializingIds);
+        return Tuple.tuple(activeAllocationIds, initializingIds);
+    }
+
+    private Set<String> randomAllocationIdsExcludingExistingIds(final Set<String> existingAllocationIds, final int numberOfAllocationIds) {
+        return IntStream.range(0, numberOfAllocationIds).mapToObj(i -> {
+            do {
+                final String newAllocationId = randomAlphaOfLength(16);
+                // ensure we do not duplicate an allocation ID
+                if (!existingAllocationIds.contains(newAllocationId)) {
+                    return newAllocationId + i;
+                }
+            } while (true);
+        }).collect(Collectors.toSet());
     }
 
     private void markAllocationIdAsInSyncQuietly(

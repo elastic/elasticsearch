@@ -23,15 +23,22 @@ import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.LongTuple;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * This class is responsible of tracking the global checkpoint. The global checkpoint is the highest sequence number for which all lower (or
@@ -44,7 +51,7 @@ import java.util.Set;
  */
 public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
-    private long clusterStateVersion;
+    long appliedClusterStateVersion;
 
     /*
      * This map holds the last known local checkpoint for every active shard and initializing shard copies that has been brought up to speed
@@ -220,11 +227,11 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      */
     public synchronized void updateAllocationIdsFromMaster(
             final long applyingClusterStateVersion, final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
-        if (applyingClusterStateVersion < clusterStateVersion) {
+        if (applyingClusterStateVersion < appliedClusterStateVersion) {
             return;
         }
 
-        clusterStateVersion = applyingClusterStateVersion;
+        appliedClusterStateVersion = applyingClusterStateVersion;
 
         // remove shards whose allocation ID no longer exists
         inSyncLocalCheckpoints.removeAll(a -> !activeAllocationIds.contains(a) && !initializingAllocationIds.contains(a));
@@ -267,7 +274,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     synchronized PrimaryContext primaryContext() {
         final ObjectLongMap<String> inSyncLocalCheckpoints = new ObjectLongHashMap<>(this.inSyncLocalCheckpoints);
         final ObjectLongMap<String> trackingLocalCheckpoints = new ObjectLongHashMap<>(this.trackingLocalCheckpoints);
-        return new PrimaryContext(clusterStateVersion, inSyncLocalCheckpoints, trackingLocalCheckpoints);
+        return new PrimaryContext(appliedClusterStateVersion, inSyncLocalCheckpoints, trackingLocalCheckpoints);
     }
 
     /**
@@ -324,7 +331,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          * In both cases, no calls to update the local checkpoint for such shards will be made. This case is safe too.
          */
 
-        if (primaryContext.clusterStateVersion() > clusterStateVersion) {
+        if (primaryContext.clusterStateVersion() > appliedClusterStateVersion) {
             final Set<String> activeAllocationIds =
                     new HashSet<>(Arrays.asList(primaryContext.inSyncLocalCheckpoints().keys().toArray(String.class)));
             final Set<String> initializingAllocationIds =
@@ -332,13 +339,27 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
             updateAllocationIdsFromMaster(primaryContext.clusterStateVersion(), activeAllocationIds, initializingAllocationIds);
         }
 
-        for (final ObjectLongCursor<String> cursor : primaryContext.inSyncLocalCheckpoints()) {
-            updateLocalCheckpoint(cursor.key, cursor.value);
-            assert cursor.value >= globalCheckpoint
-                    : "local checkpoint [" + cursor.value + "] violates being at least the global checkpoint [" + globalCheckpoint + "]";
-            if (trackingLocalCheckpoints.containsKey(cursor.key)) {
-                final long current = trackingLocalCheckpoints.remove(cursor.key);
-                inSyncLocalCheckpoints.put(cursor.key, current);
+        /*
+         * As we are updating the local checkpoints for the in-sync allocation IDs, the global checkpoint will advance in place; this means
+         * that we have to sort the incoming local checkpoints from smallest to largest lest we violate that the global checkpoint does not
+         * regress.
+         */
+        final List<LongTuple<String>> inSync =
+                StreamSupport
+                        .stream(primaryContext.inSyncLocalCheckpoints().spliterator(), false)
+                        .map(e -> LongTuple.tuple(e.key, e.value))
+                        .collect(Collectors.toList());
+
+        inSync.sort(Comparator.comparingLong(LongTuple::v2));
+
+        for (final LongTuple<String> cursor : inSync) {
+            assert cursor.v2() >= globalCheckpoint
+                    : "local checkpoint [" + cursor.v2() + "] violates being at least the global checkpoint [" + globalCheckpoint + "]";
+            updateLocalCheckpoint(cursor.v1(), cursor.v2());
+            if (trackingLocalCheckpoints.containsKey(cursor.v1())) {
+                final long current = trackingLocalCheckpoints.remove(cursor.v1());
+                inSyncLocalCheckpoints.put(cursor.v1(), current);
+                updateGlobalCheckpointOnPrimary();
             }
         }
 

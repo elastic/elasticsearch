@@ -116,14 +116,9 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
         String fieldName = parser.currentName();
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
-
         List<Object> values = new ArrayList<>();
         while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            if (token.isValue()) {
-                values.add(parseStoredFieldsValue(parser));
-            } else {
-                parser.skipChildren();
-            }
+            values.add(parseStoredFieldsValue(parser));
         }
         return new GetField(fieldName, values);
     }

@@ -46,7 +46,9 @@ import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.action.DocWriteResponse.Result.NOT_FOUND;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class UpdateResponseTests extends ESTestCase {
 
@@ -96,7 +98,7 @@ public class UpdateResponseTests extends ESTestCase {
     }
 
     private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.values());
+        final XContentType xContentType = randomFrom(XContentType.JSON);
         final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse(xContentType);
         UpdateResponse updateResponse = tuple.v1();
         UpdateResponse expectedUpdateResponse = tuple.v2();
@@ -114,8 +116,7 @@ public class UpdateResponseTests extends ESTestCase {
             // It is already randomized in the randomGetResult() method anyway. Also, we cannot add anything within the "get"
             // object since this is where GetResult's metadata fields are rendered out and they would be parsed back as
             // extra metadata fields.
-            Predicate<String> excludeFilter = path -> path.contains("reason") || path.contains("get.fields")
-                    || path.contains("get._source") || path.endsWith("get");
+            Predicate<String> excludeFilter = path -> path.contains("reason") || path.contains("get");
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {
             mutated = originalBytes;
@@ -126,15 +127,17 @@ public class UpdateResponseTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        // We can't use equals() to compare the original and the parsed delete response
-        // because the random delete response can contain shard failures with exceptions,
-        // and those exceptions are not parsed back with the same types.
-        assertUpdateResponse(expectedUpdateResponse, parsedUpdateResponse);
-    }
+        IndexResponseTests.assertDocWriteResponse(expectedUpdateResponse, parsedUpdateResponse);
+        if (addRandomFields == false) {
+            assertEquals(expectedUpdateResponse.getGetResult(), parsedUpdateResponse.getGetResult());
+        }
 
-    public static void assertUpdateResponse(UpdateResponse expected, UpdateResponse actual) {
-        IndexResponseTests.assertDocWriteResponse(expected, actual);
-        assertEquals(expected.getGetResult(), actual.getGetResult());
+        // Prints out the parsed UpdateResponse object to verify that it is the same as the expected output.
+        // If random fields have been inserted, it checks that they have been filtered out and that they do
+        // not alter the final output of the parsed object.
+        BytesReference parsedBytes = toXContent(parsedUpdateResponse, xContentType, humanReadable);
+        BytesReference expectedBytes = toXContent(expectedUpdateResponse, xContentType, humanReadable);
+        assertToXContentEquivalent(expectedBytes, parsedBytes, xContentType);
     }
 
     /**

@@ -352,6 +352,9 @@
             "http_address": {
               "type": "keyword"
             },
+            "ephemeral_id": {
+              "type": "keyword"
+            },
             "version": {
               "type": "keyword"
             },
@@ -367,6 +370,9 @@
                   "type": "keyword"
                 },
                 "hash": {
+                  "type": "keyword"
+                },
+                "ephemeral_id": {
                   "type": "keyword"
                 },
                 "workers": {

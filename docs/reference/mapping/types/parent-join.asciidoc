@@ -145,7 +145,7 @@ GET my_index/_search
                 },
                 "fields": {
                     "my_join_field": [
-                        "my_parent"
+                        "my_parent"   <1>
                     ]
                 },
                 "sort": [
@@ -163,7 +163,7 @@ GET my_index/_search
                 },
                 "fields": {
                     "my_join_field": [
-                        "my_parent"
+                        "my_parent"  <2>
                     ]
                 },
                 "sort": [
@@ -179,8 +179,8 @@ GET my_index/_search
                 "_source": {
                     "text": "This is a child document",
                     "my_join_field": {
-                        "name": "my_child",
-                        "parent": "1"
+                        "name": "my_child", <3>
+                        "parent": "1"  <4>
                     }
                 },
                 "fields": {

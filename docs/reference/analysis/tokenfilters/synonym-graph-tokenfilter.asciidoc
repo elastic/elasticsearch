@@ -37,7 +37,8 @@ PUT /test_index
                 "filter" : {
                     "graph_synonyms" : {
                         "type" : "synonym_graph",
-                        "synonyms_path" : "analysis/synonym.txt"
+                        "synonyms_path" : "analysis/synonym.txt",
+                        "tokenizer": "whitespace"
                     }
                 }
             }
@@ -47,7 +48,7 @@ PUT /test_index
 --------------------------------------------------
 // CONSOLE
 
-The above configures a `search_synonyms` filter, with a path of
+The above configures a `graph_synonyms` filter, with a path of
 `analysis/synonym.txt` (relative to the `config` location). The
 `search_synonyms` analyzer is then configured with the filter.
 Additional settings are: `ignore_case` (defaults to `false`), and

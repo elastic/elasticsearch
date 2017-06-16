@@ -29,8 +29,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -50,7 +48,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -89,8 +86,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
-import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
+import static java.util.stream.Collectors.toMap;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_INDEX_UUID;
@@ -160,36 +157,30 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 request.aliases().forEach(a -> aliasValidator.validateAlias(a, request.index(), currentState.metaData()));
 
                 final Index shrinkFromIndex = request.shrinkFrom();
-
-                // @todo we could skip this call for shrinked index
-                // we only find a template when its an API call (a new index)
-                // find templates, highest order are better matching
-                List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
-
-                Map<String, Custom> customs = new HashMap<>();
-
+                final Map<String, Custom> customs = new HashMap<>(request.customs());
                 // add the request mapping
-                Map<String, Map<String, Object>> mappings = new HashMap<>();
-                Map<String, AliasMetaData> templatesAliases = new HashMap<>();
-                List<String> templateNames = new ArrayList<>();
+                final Map<String, Map<String, Object>> mappings = new HashMap<>();
+                final List<String> templateNames = new ArrayList<>();
 
-                // @todo checked exception here
                 for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
                     mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
                 }
 
-                request.customs().forEach(customs::put);
+                // @todo we could skip this call for shrinked index
+                final Map<String, AliasMetaData> templatesAliases = new HashMap<>();
+                // we only find a template when its an API call (a new index)
+                // find templates, highest order are better matching
+                final List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
 
+                // @todo apply this block only for non-shrink
                 // apply templates, merging the mappings into the request mapping if exists
-                for (IndexTemplateMetaData template : templates) {
-                    templateNames.add(template.getName());
-
-                    if (shrinkFromIndex == null) {
+                if (shrinkFromIndex == null) {
+                    for (IndexTemplateMetaData template : templates) {
+                        templateNames.add(template.getName());
                         fillMappingsFromTemplate(mappings, template);
-
+                        fillCustomsFromTemplate(customs, template);
+                        fillAliasesFromTemplate(currentState, templatesAliases, template);
                     }
-                    fillCustomsFromTemplate(customs, template);
-                    fillAliasesFromTemplate(currentState, templatesAliases, template);
                 }
 
                 Settings.Builder indexSettingsBuilder = getBuilder(request, currentState, templates);
@@ -249,6 +240,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         queryShardContext, xContentRegistry)
                     );
 
+
+                // now, update the mappings with the actual source
+                final Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
+                for (DocumentMapper mapper : mapperService.docMappers(true)) {
+                    MappingMetaData mappingMd = new MappingMetaData(mapper);
+                    mappingsMetaData.put(mapper.type(), mappingMd);
+                }
+
                 templatesAliases
                     .values()
                     .stream()
@@ -257,15 +256,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         aliasMetaData.filter().uncompressed(), queryShardContext, xContentRegistry)
                     );
 
-                // now, update the mappings with the actual source
-                Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
-                for (DocumentMapper mapper : mapperService.docMappers(true)) {
-                    MappingMetaData mappingMd = new MappingMetaData(mapper);
-                    mappingsMetaData.put(mapper.type(), mappingMd);
-                }
+                final Set<AliasMetaData> aliasesMetaData = getAliasesMetadata(request.aliases());
+                // @todo call to templates
+                aliasesMetaData.addAll(templatesAliases.values());
 
                 final IndexMetaData.Builder indexMetaDataBuilder = createMetaDataBuilder(request.index(), actualIndexSettings,
-                    routingNumShards, mappingsMetaData, request.state(), request.aliases(), templatesAliases, customs);
+                    routingNumShards, mappingsMetaData, request.state(), aliasesMetaData, customs);
 
                 final IndexMetaData indexMetaData;
                 try {
@@ -281,6 +277,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     .put(indexMetaData, false)
                     .build();
 
+                // @todo templateNames
                 logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}",
                     request.index(), request.cause(), templateNames, indexMetaData.getNumberOfShards(),
                     indexMetaData.getNumberOfReplicas(), mappings.keySet());
@@ -324,8 +321,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         private void fillAliasesFromTemplate(ClusterState currentState, Map<String, AliasMetaData> templatesAliases,
                                              IndexTemplateMetaData template) {
-            // @todo add stream methods for template.aliases() (out of scope for this ticket)
-            //handle aliases
             for (ObjectObjectCursor<String, AliasMetaData> cursor : template.aliases()) {
                 AliasMetaData aliasMetaData = cursor.value;
                 //if an alias with same name came with the create index request itself,
@@ -350,8 +345,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
 
         private void fillCustomsFromTemplate(Map<String, Custom> customs, IndexTemplateMetaData template) {
-            // @todo add stream methods for template.customs() (out of scope for this ticket)
-            // handle custom
             for (ObjectObjectCursor<String, Custom> cursor : template.customs()) {
                 String type = cursor.key;
                 Custom custom = cursor.value;
@@ -365,8 +358,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
+        // @todo move to separate class
         private void fillMappingsFromTemplate(Map<String, Map<String, Object>> mappings, IndexTemplateMetaData template) throws Exception {
-            // @todo add stream methods for template.mappings() (out of scope for this ticket)
             for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
                 String mappingString = cursor.value.string();
                 if (mappings.containsKey(cursor.key)) {
@@ -379,33 +372,34 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        // @todo extract method and move it to IndexMetaData.Builder. Look at IndexMetaData class and builder constructor
+        private Set<AliasMetaData> getAliasesMetadata(Set<Alias> aliases) {
+            return aliases
+                .stream().map(alias -> {
+                    return AliasMetaData
+                        .builder(alias.name())
+                        .filter(alias.filter())
+                        .indexRouting(alias.indexRouting())
+                        .searchRouting(alias.searchRouting()).build();
+                }).collect(toSet());
+        }
+
         private IndexMetaData.Builder createMetaDataBuilder(String index, Settings actualIndexSettings, int routingNumShards,
-                                                            Map<String, MappingMetaData> mappingsMetaData, State state, Set<Alias> aliases,
-                                                            Map<String, AliasMetaData> templatesAliases, Map<String, Custom> customs) {
+                                                            Map<String, MappingMetaData> mappingsMetaData, State state,
+                                                            Set<AliasMetaData> aliasesMetaData, Map<String, Custom> customs) {
             final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData
                 .builder(index)
                 .settings(actualIndexSettings)
                 .setRoutingNumShards(routingNumShards);
 
             mappingsMetaData.values().forEach(indexMetaDataBuilder::putMapping);
-            templatesAliases.values().forEach(indexMetaDataBuilder::putAlias);
-
-            aliases.forEach(alias -> {
-                AliasMetaData aliasMetaData = AliasMetaData
-                    .builder(alias.name())
-                    .filter(alias.filter())
-                    .indexRouting(alias.indexRouting())
-                    .searchRouting(alias.searchRouting()).build();
-                indexMetaDataBuilder.putAlias(aliasMetaData);
-            });
-
+            aliasesMetaData.forEach(indexMetaDataBuilder::putAlias);
             customs.forEach(indexMetaDataBuilder::putCustom);
             indexMetaDataBuilder.state(state);
 
             return indexMetaDataBuilder;
         }
 
+        // @todo move to custom class
         private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request, ClusterState state) throws IOException {
             List<IndexTemplateMetaData> templateMetadata = new ArrayList<>();
 
@@ -426,6 +420,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         private Settings.Builder getBuilder(CreateIndexClusterStateUpdateRequest request, ClusterState currentState,
                                             List<IndexTemplateMetaData> templates) {
             Settings.Builder indexSettingsBuilder = Settings.builder();
+            // @todo extract templates from this method
             // apply templates, here, in reverse order, since first ones are better matching
             for (int i = templates.size() - 1; i >= 0; i--) {
                 indexSettingsBuilder.put(templates.get(i).settings());
@@ -433,7 +428,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             // now, put the request settings, so they override templates
             indexSettingsBuilder.put(request.settings());
 
-            //@todo merge settings with default
             if (indexSettingsBuilder.get(SETTING_NUMBER_OF_SHARDS) == null) {
                 indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, settings.getAsInt(SETTING_NUMBER_OF_SHARDS, 5));
             }

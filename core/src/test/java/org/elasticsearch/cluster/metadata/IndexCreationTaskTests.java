@@ -22,6 +22,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Sort;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,24 +35,28 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParentFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.ArgumentCaptor;
 
+import java.io.IOException;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Set;
+import java.util.Collections;
 import java.util.function.Supplier;
 
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class IndexCreationTaskTests extends ESTestCase {
@@ -66,6 +71,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     private final ActionListener listener = mock(ActionListener.class);
     private final ClusterState state = mock(ClusterState.class);
     private final Settings settings = Settings.builder().build();
+    private final MapperService mapper = mock(MapperService.class);
 
     final ImmutableOpenMap.Builder<String, IndexTemplateMetaData> tplBuilder = ImmutableOpenMap.builder();
     final ImmutableOpenMap.Builder<String, MetaData.Custom> customBuilder = ImmutableOpenMap.builder();
@@ -88,18 +94,104 @@ public class IndexCreationTaskTests extends ESTestCase {
             "template_1", "te*",
             AliasMetaData.builder("alias1").build(),
             "customType", null,
-            "mappingType", null
+            "mappingType", createMapping()
         ));
 
         final ClusterState result = executeTask(state);
 
         assertTrue(result.metaData().index("test").getAliases().containsKey("alias1"));
         assertTrue(result.metaData().index("test").getCustoms().containsKey("customType"));
-       // assertTrue(result.metaData().index("test").getMappings().containsKey("mappingType"));
+
+        final ArgumentCaptor<Map> argument = ArgumentCaptor.forClass(Map.class);
+
+        verify(mapper).merge(argument.capture(), anyObject(), anyBoolean());
+        assertTrue(argument.getValue().containsKey("mappingType"));
     }
 
-    //@todo test params from request
-    //@todo test merge templates and params from request
+    public void testRequestDataHavePriorityOverTemplateData() throws Exception {
+        final AliasMetaData tplAlias = AliasMetaData.builder("alias1").searchRouting("fromTpl").build();
+        final CompressedXContent tplMapping = createMapping("text");
+        final CompressedXContent reqMapping = createMapping("keyword");
+
+        tplBuilder.put("template_1", createTemplateMetadata(
+            "template_1", "te*",
+            tplAlias,
+            "customType", null,
+            "mappingType", tplMapping
+        ));
+
+        setupRequestAlias(new Alias("alias1").searchRouting("fromReq"));
+        setupRequestMapping(reqMapping);
+
+        final ClusterState result = executeTask(state);
+
+        assertEquals("fromReq", result.metaData().index("test").getAliases().get("alias1").getSearchRouting());
+        assertEquals("{type={properties={field={type=keyword}}}}", getMappingsFromResponse().get("mappingType").toString());
+    }
+
+    public void testApplyDataFromRequest() throws Exception {
+        final Map<String, String> mappings = new HashMap<>();
+        mappings.put("mapping1", createMapping().string());
+
+        final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
+        customs.put("custom1", mock(IndexMetaData.Custom.class));
+
+        when(request.aliases()).thenReturn(new HashSet<>(Arrays.asList(new Alias("alias1"))));
+        when(request.mappings()).thenReturn(mappings);
+        when(request.customs()).thenReturn(customs);
+
+        final ClusterState result = executeTask(state);
+
+        assertTrue(result.metaData().index("test").getAliases().containsKey("alias1"));
+        assertTrue(result.metaData().index("test").getCustoms().containsKey("custom1"));
+
+        final ArgumentCaptor<Map> argument = ArgumentCaptor.forClass(Map.class);
+
+        verify(mapper).merge(argument.capture(), anyObject(), anyBoolean());
+        assertTrue(argument.getValue().containsKey("mapping1"));
+    }
+
+    /*
+     * @todo test settings (template + request)
+     * @todo test custom (template + request)
+     * @todo test template order
+     * @todo test shrink == true
+     */
+
+    private Map<String, Object> getMappingsFromResponse() {
+        final ArgumentCaptor<Map> argument = ArgumentCaptor.forClass(Map.class);
+        verify(mapper).merge(argument.capture(), anyObject(), anyBoolean());
+        return argument.getValue();
+    }
+
+    private void setupRequestAlias(Alias alias) {
+        when(request.aliases()).thenReturn(new HashSet<>(Arrays.asList(alias)));
+    }
+
+    private void setupRequestMapping(CompressedXContent mapping) throws IOException {
+        final Map<String, String> mappings = new HashMap<>();
+        mappings.put("mappingType", mapping.string());
+        when(request.mappings()).thenReturn(mappings);
+    }
+
+    private CompressedXContent createMapping() throws IOException {
+        return createMapping("text");
+    }
+
+    private CompressedXContent createMapping(String fieldType) throws IOException {
+        final String mapping = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("field")
+                            .field("type", fieldType)
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject().string();
+
+        return new CompressedXContent(mapping);
+    }
 
     @SuppressWarnings("unchecked")
     private ClusterState executeTask(ClusterState state) throws Exception {
@@ -114,15 +206,15 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     private IndexTemplateMetaData createTemplateMetadata(String name, String pattern,
-                                                         AliasMetaData aliasMetadata,
+                                                         AliasMetaData aliasesMetaData,
                                                          String customType, IndexMetaData.Custom customMetaData,
                                                          String mappingType, CompressedXContent mappingSource) throws Exception {
         return IndexTemplateMetaData
             .builder(name)
             .patterns(Arrays.asList(pattern))
-            .putAlias(aliasMetadata)
+            .putAlias(aliasesMetaData)
             .putCustom(customType, customMetaData)
-            //.putMapping(mappingType, mappingSource)
+            .putMapping(mappingType, mappingSource)
             .build();
     }
 
@@ -176,7 +268,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(docMapper.routingFieldMapper()).thenReturn(mock(RoutingFieldMapper.class));
         when(docMapper.parentFieldMapper()).thenReturn(mock(ParentFieldMapper.class));
 
-        final MapperService mapper = mock(MapperService.class);
         when(mapper.docMappers(anyBoolean())).thenReturn(Collections.singletonList(docMapper));
 
         final Supplier<Sort> supplier = mock(Supplier.class);

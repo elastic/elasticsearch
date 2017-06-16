@@ -1736,6 +1736,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     @Override
     public final TransportStats getStats() {
         return new TransportStats(
-            getNumOpenServerConnections(), readBytesMetric.count(), readBytesMetric.sum(), transmittedBytesMetric.count(), transmittedBytesMetric.sum());
+            getNumOpenServerConnections(), readBytesMetric.count(), readBytesMetric.sum(), transmittedBytesMetric.count(),
+            transmittedBytesMetric.sum());
     }
 }

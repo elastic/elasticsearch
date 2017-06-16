@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import org.apache.logging.log4j.core.tools.Generate;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.painless.WriterConstants.OBJECT_TYPE;
+import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 
 /**
  * Implementation of a ScriptEngine for the Painless language.
@@ -157,12 +159,13 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
                 }
             });
 
-            compile(contextsToCompilers.get(context), loader, scriptName, scriptSource, params);
+            MainMethodReserved reserved = new MainMethodReserved();
+            compile(contextsToCompilers.get(context), loader, reserved, scriptName, scriptSource, params);
 
             if (context.statefulFactoryClazz != null) {
-                return generateFactory(loader, context, generateStatefulFactory(loader, context));
+                return generateFactory(loader, context, reserved, generateStatefulFactory(loader, context, reserved));
             } else {
-                return generateFactory(loader, context, WriterConstants.CLASS_TYPE);
+                return generateFactory(loader, context, reserved, WriterConstants.CLASS_TYPE);
             }
         }
     }
@@ -178,7 +181,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T> Type generateStatefulFactory(Loader loader, ScriptContext<T> context) {
+    private <T> Type generateStatefulFactory(Loader loader, ScriptContext<T> context, MainMethodReserved reserved) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER | Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.statefulFactoryClazz).getInternalName();
@@ -259,6 +262,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         adapter.returnValue();
         adapter.endMethod();
 
+        writeNeedsMethods(context.statefulFactoryClazz, writer, reserved);
         writer.visitEnd();
 
         loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
@@ -278,7 +282,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
      * @param <T> The factory class.
      * @return A factory class that will return script instances.
      */
-    private <T> T generateFactory(Loader loader, ScriptContext<T> context, Type classType) {
+    private <T> T generateFactory(Loader loader, ScriptContext<T> context, MainMethodReserved reserved, Type classType) {
         int classFrames = ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS;
         int classAccess = Opcodes.ACC_PUBLIC | Opcodes.ACC_SUPER| Opcodes.ACC_FINAL;
         String interfaceBase = Type.getType(context.factoryClazz).getInternalName();
@@ -329,6 +333,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         adapter.returnValue();
         adapter.endMethod();
 
+        writeNeedsMethods(context.factoryClazz, writer, reserved);
         writer.visitEnd();
 
         Class<?> factory = loader.defineFactory(className.replace('/', '.'), writer.toByteArray());
@@ -338,6 +343,27 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         } catch (Exception exception) { // Catch everything to let the user know this is something caused internally.
             throw new IllegalStateException(
                 "An internal error occurred attempting to define the factory class [" + className + "].", exception);
+        }
+    }
+
+    private void writeNeedsMethods(Class<?> clazz, ClassWriter writer, MainMethodReserved reserved) {
+        for (Method method : clazz.getMethods()) {
+            if (method.getName().startsWith("needs") &&
+                method.getReturnType().equals(boolean.class) && method.getParameterTypes().length == 0) {
+                String name = method.getName();
+                name = name.substring(5);
+                name = Character.toLowerCase(name.charAt(0)) + name.substring(1);
+
+                org.objectweb.asm.commons.Method needs = new org.objectweb.asm.commons.Method(method.getName(),
+                    MethodType.methodType(boolean.class).toMethodDescriptorString());
+
+                GeneratorAdapter adapter = new GeneratorAdapter(Opcodes.ASM5, needs,
+                    writer.visitMethod(Opcodes.ACC_PUBLIC, needs.getName(), needs.getDescriptor(), null, null));
+                adapter.visitCode();
+                adapter.push(reserved.getUsedVariables().contains(name));
+                adapter.returnValue();
+                adapter.endMethod();
+            }
         }
     }
 
@@ -398,7 +424,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
                 @Override
                 public Object run() {
                     String name = scriptName == null ? INLINE_NAME : scriptName;
-                    Constructor<?> constructor = compiler.compile(loader, name, source, compilerSettings);
+                    Constructor<?> constructor = compiler.compile(loader, new MainMethodReserved(), name, source, compilerSettings);
 
                     try {
                         return constructor.newInstance(args);
@@ -414,7 +440,8 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
         }
     }
 
-    void compile(Compiler compiler, Loader loader, String scriptName, String source, Map<String, String> params) {
+    void compile(Compiler compiler, Loader loader, MainMethodReserved reserved,
+                 String scriptName, String source, Map<String, String> params) {
         final CompilerSettings compilerSettings;
 
         if (params.isEmpty()) {
@@ -460,7 +487,7 @@ public final class PainlessScriptEngine extends AbstractComponent implements Scr
                 @Override
                 public Void run() {
                     String name = scriptName == null ? INLINE_NAME : scriptName;
-                    compiler.compile(loader, name, source, compilerSettings);
+                    compiler.compile(loader, reserved, name, source, compilerSettings);
 
                     return null;
                 }

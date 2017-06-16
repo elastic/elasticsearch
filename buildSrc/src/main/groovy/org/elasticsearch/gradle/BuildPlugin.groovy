@@ -393,8 +393,11 @@ class BuildPlugin implements Plugin<Project> {
             project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
                 // place the pom next to the jar it is for
                 t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
-                // build poms with assemble
-                project.assemble.dependsOn(t)
+                // build poms with assemble (if the assemble task exists)
+                Task assemble = project.tasks.findByName('assemble')
+                if (assemble) {
+                    assemble.dependsOn(t)
+                }
             }
         }
     }

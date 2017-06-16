@@ -21,6 +21,7 @@ esplugin {
   description 'Demonstrates all the pluggable Java entry points in Elasticsearch'
   classname 'org.elasticsearch.plugin.example.JvmExamplePlugin'
 }
+tasks.remove(assemble) // Not published so no need to assemble
 
 // no unit tests
 test.enabled = false
@@ -47,4 +48,3 @@ integTestCluster {
 integTestRunner {
   systemProperty 'external.address', "${ -> exampleFixture.addressAndPort }"
 }
-

@@ -300,15 +300,18 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          * shards the target receives from the master will be equal to the knowledge of the in-sync and initializing shards the target
          * receives from the relocation source via the primary context.
          *
-         * In the case when version(context) < version(target) or version(target) < version(context), we first consider shards that could be
-         * contained in the primary context but not contained in the cluster state applied on the target.
+         * Let us now consider the case that version(context) < version(target). In this case, the active allocation IDs in the primary
+         * context can be a superset of the active allocation IDs contained in the applied cluster state. This is because no new shards can
+         * have been started as marking a shard as in-sync is blocked during relocation handoff. Note however that the relocation target
+         * itself will have been marked in-sync during recovery and therefore is an active allocation ID from the perspective of the primary
+         * context.
          *
-         * Suppose there is such a shard and that it is an in-sync shard. However, marking a shard as in-sync requires an operation permit
-         * on the primary shard. Such a permit can not be obtained after the relocation handoff has started as the relocation handoff blocks
-         * all operations. Therefore, there can not be such a shard that is marked in-sync.
+         * Finally, we consider the case that version(target) < version(context). In this case, the active allocation IDs in the primary
+         * context can be a subset of the active allocation IDs contained the applied cluster state. This is again because no new shards can
+         * have been started. Moreover, existing active allocation IDs could have been removed from the cluster state.
          *
-         * Now consider the case of an initializing shard that is contained in the primary context but not contained in the cluster state
-         * applied on the target.
+         * In each of these latter two cases, consider initializing shards that are contained in the primary context but not contained in
+         * the cluster state applied on the target.
          *
          * If version(context) < version(target) it means that the shard has been removed by a later cluster state update that is already
          * applied on the target and we only need to ensure that we do not add it to the tracking map on the target. The call to
@@ -319,16 +322,16 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          * Therefore, such a shard can never initialize from the relocation source and will have to await the handoff completing. As such,
          * these shards are not problematic.
          *
-         * Now we consider shards that are contained in the cluster state applied on the target but not contained in the primary context.
+         * Lastly, again in these two cases, what about initializing shards that are contained in cluster state applied on the target but
+         * not contained in the cluster state applied on the target.
          *
-         * If version(context) < version(target) it means that the target has learned of an initializing shard that the source is not aware
-         * of. As explained above, this initialization can only succeed after the relocation is complete, and only with the target as the
-         * source of the recovery.
+         * If version(context) < version(target) it means that a shard has started initializing by a later cluster state that is applied on
+         * the target but not yet known to what would be the relocation source. As recoveries are delayed at this time, these shards can not
+         * cause a problem and we do not mutate remove these shards from the tracking map, so we are safe here.
          *
-         * Otherwise, if version(target) < version(context) it only means that the global checkpoint on the target will be held back until a
-         * later cluster state update arrives because the target will not learn of the removal until later.
-         *
-         * In both cases, no calls to update the local checkpoint for such shards will be made. This case is safe too.
+         * If version(target) < version(context) it means that a shard has started initializing but was removed by a later cluster state. In
+         * this case, as the cluster state version on the primary context exceeds the applied cluster state version, we replace the tracking
+         * map and are safe here too.
          */
 
         if (primaryContext.clusterStateVersion() > appliedClusterStateVersion) {

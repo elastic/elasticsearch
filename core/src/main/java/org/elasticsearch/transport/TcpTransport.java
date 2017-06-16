@@ -458,20 +458,23 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     if (logger.isDebugEnabled()) {
                         logger.debug("connected to node [{}]", node);
                     }
-                    transportServiceAdapter.onNodeConnected(node);
-                    if (nodeChannels.isClosed()) {
-                        // we got closed concurrently due to a disconnect or some other event on the channel.
-                        // the close callback will close the NodeChannel instance first and then try to remove
-                        // the connection from the connected nodes. It will NOT acquire the connectionLock for
-                        // the node to prevent any blocking calls on network threads. Yet, we still establish a happens
-                        // before relationship to the connectedNodes.put since we check if we can remove the (DiscoveryNode, NodeChannels)
-                        // tuple from the map after we closed. Here we check if it's closed an if so we try to remove it frist
-                        // either way one of the two wins even if the callback has run before we even added the tuple to the map since in
-                        // that case we remove it here again
-                        if (connectedNodes.remove(node, nodeChannels)) {
-                            transportServiceAdapter.onNodeDisconnected(node);
+                    try {
+                        transportServiceAdapter.onNodeConnected(node);
+                    } finally {
+                        if (nodeChannels.isClosed()) {
+                            // we got closed concurrently due to a disconnect or some other event on the channel.
+                            // the close callback will close the NodeChannel instance first and then try to remove
+                            // the connection from the connected nodes. It will NOT acquire the connectionLock for
+                            // the node to prevent any blocking calls on network threads. Yet, we still establish a happens
+                            // before relationship to the connectedNodes.put since we check if we can remove the (DiscoveryNode, NodeChannels)
+                            // tuple from the map after we closed. Here we check if it's closed an if so we try to remove it frist
+                            // either way one of the two wins even if the callback has run before we even added the tuple to the map since in
+                            // that case we remove it here again
+                            if (connectedNodes.remove(node, nodeChannels)) {
+                                transportServiceAdapter.onNodeDisconnected(node);
+                            }
+                            throw new NodeNotConnectedException(node, "connection concurrently closed");
                         }
-                        throw new NodeNotConnectedException(node, "connection concurrently closed");
                     }
                     success = true;
                 } catch (ConnectTransportException e) {

@@ -1027,24 +1027,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertArrayEquals(new String[] {"test-alias-0", "test-alias-1", "test-alias-non-filtering"}, strings);
     }
 
-    public void testConcreteIndicesForDeprecatedPattern() {
-        MetaData.Builder mdBuilder = MetaData.builder()
-            .put(indexBuilder("testXXX").state(State.OPEN))
-            .put(indexBuilder("testXXY").state(State.OPEN))
-            .put(indexBuilder("testYYY").state(State.OPEN));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
-            IndicesOptions.fromOptions(true, true, true, true));
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testX*")),
-            equalTo(newHashSet("testXXX", "testXXY")));
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testXXX", "+testXXY", "+testYYY", "-testYYY")),
-            equalTo(newHashSet("testXXX", "testXXY", "testYYY")));
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testXX*", "+testY*")),
-            equalTo(newHashSet("testXXX", "testXXY", "testYYY")));
-        assertWarnings("support for '+' as part of index expressions is deprecated");
-    }
-
     public void testDeleteIndexIgnoresAliases() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("test-index").state(State.OPEN)

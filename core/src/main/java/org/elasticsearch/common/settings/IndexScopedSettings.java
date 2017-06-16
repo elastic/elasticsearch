@@ -127,6 +127,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
         IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
         IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
         IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
         FieldMapper.IGNORE_MALFORMED_SETTING,
         FieldMapper.COERCE_SETTING,

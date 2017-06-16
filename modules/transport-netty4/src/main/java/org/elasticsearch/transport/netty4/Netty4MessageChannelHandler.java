@@ -22,11 +22,8 @@ package org.elasticsearch.transport.netty4;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelPromise;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.TcpHeader;
-import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.Transports;
 
 import java.net.InetSocketAddress;
@@ -37,23 +34,12 @@ import java.net.InetSocketAddress;
  */
 final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
-    private final TransportServiceAdapter transportServiceAdapter;
     private final Netty4Transport transport;
     private final String profileName;
 
     Netty4MessageChannelHandler(Netty4Transport transport, String profileName) {
-        this.transportServiceAdapter = transport.transportServiceAdapter();
         this.transport = transport;
         this.profileName = profileName;
-    }
-
-    @Override
-    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
-        if (msg instanceof ByteBuf && transportServiceAdapter != null) {
-            // record the number of bytes send on the channel
-            promise.addListener(f -> transportServiceAdapter.addBytesSent(((ByteBuf) msg).readableBytes()));
-        }
-        ctx.write(msg, promise);
     }
 
     @Override

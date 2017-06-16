@@ -174,7 +174,7 @@ public abstract class ValuesSource {
 
             @Override
             public boolean needsScores() {
-                return script.needsScores();
+                return script.needs_score();
             }
         }
 
@@ -246,7 +246,7 @@ public abstract class ValuesSource {
 
             @Override
             public boolean needsScores() {
-                return script.needsScores();
+                return script.needs_score();
             }
 
             @Override
@@ -387,7 +387,7 @@ public abstract class ValuesSource {
 
             @Override
             public boolean needsScores() {
-                return script.needsScores();
+                return script.needs_score();
             }
         }
 
@@ -406,7 +406,7 @@ public abstract class ValuesSource {
 
         @Override
         public boolean needsScores() {
-            return script.needsScores();
+            return script.needs_score();
         }
 
         @Override

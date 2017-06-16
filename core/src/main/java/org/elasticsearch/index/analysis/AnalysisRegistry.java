@@ -466,7 +466,7 @@ public final class AnalysisRegistry implements Closeable {
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {
             processNormalizerFactory(deprecationLogger, indexSettings, entry.getKey(), entry.getValue(), normalizers,
-                    tokenFilterFactoryFactories, charFilterFactoryFactories);
+                    tokenizerFactoryFactories.get("keyword"), tokenFilterFactoryFactories, charFilterFactoryFactories);
         }
         for (Map.Entry<String, NamedAnalyzer> entry : analyzerAliases.entrySet()) {
             String key = entry.getKey();
@@ -585,10 +585,11 @@ public final class AnalysisRegistry implements Closeable {
             String name,
             AnalyzerProvider<?> normalizerFactory,
             Map<String, NamedAnalyzer> normalizers,
+            TokenizerFactory keywordTokenizerFactory,
             Map<String, TokenFilterFactory> tokenFilters,
             Map<String, CharFilterFactory> charFilters) {
         if (normalizerFactory instanceof CustomNormalizerProvider) {
-            ((CustomNormalizerProvider) normalizerFactory).build(charFilters, tokenFilters);
+            ((CustomNormalizerProvider) normalizerFactory).build(keywordTokenizerFactory, charFilters, tokenFilters);
         }
         Analyzer normalizerF = normalizerFactory.get();
         if (normalizerF == null) {

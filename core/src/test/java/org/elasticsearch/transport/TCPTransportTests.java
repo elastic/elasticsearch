@@ -235,7 +235,7 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                public long serverOpen() {
+                public long getNumOpenServerConnections() {
                     return 0;
                 }
 

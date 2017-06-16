@@ -228,103 +228,11 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         // node startup
         upgradeIndexFolder();
         importIndex(indexName);
-        assertAllSearchWorks(indexName);
-        assertBasicAggregationWorks(indexName);
-        assertRealtimeGetWorks(indexName);
-        assertNewReplicasWork(indexName);
         assertUpgradeWorks(client(), indexName, version);
         assertPositionIncrementGapDefaults(indexName, version);
         assertAliasWithBadName(indexName, version);
         assertStoredBinaryFields(indexName, version);
         unloadIndex(indexName);
-    }
-
-    boolean findPayloadBoostInExplanation(Explanation expl) {
-        if (expl.getDescription().startsWith("payloadBoost=") && expl.getValue() != 1f) {
-            return true;
-        } else {
-            boolean found = false;
-            for (Explanation sub : expl.getDetails()) {
-                found |= findPayloadBoostInExplanation(sub);
-            }
-            return found;
-        }
-    }
-
-    void assertAllSearchWorks(String indexName) {
-        logger.info("--> testing _all search");
-        SearchResponse searchRsp = client().prepareSearch(indexName).get();
-        ElasticsearchAssertions.assertNoFailures(searchRsp);
-        assertThat(searchRsp.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
-        SearchHit bestHit = searchRsp.getHits().getAt(0);
-
-        // Make sure there are payloads and they are taken into account for the score
-        // the 'string' field has a boost of 4 in the mappings so it should get a payload boost
-        String stringValue = (String) bestHit.getSourceAsMap().get("string");
-        assertNotNull(stringValue);
-        Explanation explanation = client().prepareExplain(indexName, bestHit.getType(), bestHit.getId())
-                .setQuery(QueryBuilders.matchQuery("_all", stringValue)).get().getExplanation();
-        assertTrue("Could not find payload boost in explanation\n" + explanation, findPayloadBoostInExplanation(explanation));
-
-        // Make sure the query can run on the whole index
-        searchRsp = client().prepareSearch(indexName).setQuery(QueryBuilders.matchQuery("_all", stringValue)).setExplain(true).get();
-        ElasticsearchAssertions.assertNoFailures(searchRsp);
-        assertThat(searchRsp.getHits().getTotalHits(), greaterThanOrEqualTo(1L));
-    }
-
-    void assertBasicAggregationWorks(String indexName) {
-        // histogram on a long
-        SearchResponse searchRsp = client().prepareSearch(indexName).addAggregation(AggregationBuilders.histogram("histo").field
-                ("long_sort").interval(10)).get();
-        ElasticsearchAssertions.assertSearchResponse(searchRsp);
-        Histogram histo = searchRsp.getAggregations().get("histo");
-        assertNotNull(histo);
-        long totalCount = 0;
-        for (Histogram.Bucket bucket : histo.getBuckets()) {
-            totalCount += bucket.getDocCount();
-        }
-        assertEquals(totalCount, searchRsp.getHits().getTotalHits());
-
-        // terms on a boolean
-        searchRsp = client().prepareSearch(indexName).addAggregation(AggregationBuilders.terms("bool_terms").field("bool")).get();
-        Terms terms = searchRsp.getAggregations().get("bool_terms");
-        totalCount = 0;
-        for (Terms.Bucket bucket : terms.getBuckets()) {
-            totalCount += bucket.getDocCount();
-        }
-        assertEquals(totalCount, searchRsp.getHits().getTotalHits());
-    }
-
-    void assertRealtimeGetWorks(String indexName) {
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
-                .put("refresh_interval", -1)
-                .build()));
-        SearchRequestBuilder searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery());
-        SearchHit hit = searchReq.get().getHits().getAt(0);
-        String docId = hit.getId();
-        // foo is new, it is not a field in the generated index
-        client().prepareUpdate(indexName, "doc", docId).setDoc(Requests.INDEX_CONTENT_TYPE, "foo", "bar").get();
-        GetResponse getRsp = client().prepareGet(indexName, "doc", docId).get();
-        Map<String, Object> source = getRsp.getSourceAsMap();
-        assertThat(source, Matchers.hasKey("foo"));
-
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
-                .put("refresh_interval", IndexSettings.DEFAULT_REFRESH_INTERVAL)
-                .build()));
-    }
-
-    void assertNewReplicasWork(String indexName) throws Exception {
-        final int numReplicas = 1;
-        final long startTime = System.currentTimeMillis();
-        logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, indexName);
-        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder()
-                .put("number_of_replicas", numReplicas)
-        ).execute().actionGet());
-        ensureGreen(TimeValue.timeValueMinutes(2), indexName);
-        logger.debug("--> index [{}] is green, took [{}]", indexName, TimeValue.timeValueMillis(System.currentTimeMillis() - startTime));
-        logger.debug("--> recovery status:\n{}", XContentHelper.toString(client().admin().indices().prepareRecoveries(indexName).get()));
-
-        // TODO: do something with the replicas! query? index?
     }
 
     void assertPositionIncrementGapDefaults(String indexName, Version version) throws Exception {

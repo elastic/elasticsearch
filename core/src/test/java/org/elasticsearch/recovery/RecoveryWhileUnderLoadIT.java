@@ -341,12 +341,9 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     }
 
     private void refreshAndAssert() throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                RefreshResponse actionGet = client().admin().indices().prepareRefresh().get();
-                assertAllSuccessful(actionGet);
-            }
+        assertBusy(() -> {
+            RefreshResponse actionGet = client().admin().indices().prepareRefresh().get();
+            assertAllSuccessful(actionGet);
         }, 5, TimeUnit.MINUTES);
     }
 }

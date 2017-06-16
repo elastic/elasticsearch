@@ -19,7 +19,6 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -212,54 +211,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name", "abc")))
                 .highlighter(new HighlightBuilder().field("name")).get();
         assertHighlight(search, 0, "name", 0, startsWith("<em>abc</em> <em>abc</em> <em>abc</em> <em>abc</em>"));
-    }
-
-    public void testNgramHighlighting() throws IOException {
-        assertAcked(prepareCreate("test")
-                .addMapping("test",
-                        "name", "type=text,analyzer=name_index_analyzer,search_analyzer=name_search_analyzer,"
-                            + "term_vector=with_positions_offsets",
-                        "name2", "type=text,analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer,"
-                            + "term_vector=with_positions_offsets")
-                .setSettings(Settings.builder()
-                        .put(indexSettings())
-                        .put("analysis.filter.my_ngram.max_gram", 20)
-                        .put("analysis.filter.my_ngram.min_gram", 1)
-                        .put("analysis.filter.my_ngram.type", "ngram")
-                        .put("analysis.tokenizer.my_ngramt.max_gram", 20)
-                        .put("analysis.tokenizer.my_ngramt.min_gram", 1)
-                        .put("analysis.tokenizer.my_ngramt.token_chars", "letter,digit")
-                        .put("analysis.tokenizer.my_ngramt.type", "ngram")
-                        .put("analysis.analyzer.name_index_analyzer.tokenizer", "my_ngramt")
-                        .put("analysis.analyzer.name2_index_analyzer.tokenizer", "whitespace")
-                        .put("analysis.analyzer.name2_index_analyzer.filter", "my_ngram")
-                        .put("analysis.analyzer.name_search_analyzer.tokenizer", "whitespace")));
-        client().prepareIndex("test", "test", "1")
-            .setSource("name", "logicacmg ehemals avinci - the know how company",
-                       "name2", "logicacmg ehemals avinci - the know how company").get();
-        refresh();
-        ensureGreen();
-        SearchResponse search = client().prepareSearch().setQuery(matchQuery("name", "logica m"))
-                .highlighter(new HighlightBuilder().field("name")).get();
-        assertHighlight(search, 0, "name", 0,
-                equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name", "logica ma")).highlighter(new HighlightBuilder().field("name")).get();
-        assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name", "logica")).highlighter(new HighlightBuilder().field("name")).get();
-        assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehemals avinci - the know how company"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name2", "logica m")).highlighter(new HighlightBuilder().field("name2"))
-                .get();
-        assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> <em>ehemals</em> avinci - the know how <em>company</em>"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name2", "logica ma")).highlighter(new HighlightBuilder().field("name2"))
-                .get();
-        assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> <em>ehemals</em> avinci - the know how company"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name2", "logica")).highlighter(new HighlightBuilder().field("name2")).get();
-        assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> ehemals avinci - the know how company"));
     }
 
     public void testEnsureNoNegativeOffsets() throws Exception {

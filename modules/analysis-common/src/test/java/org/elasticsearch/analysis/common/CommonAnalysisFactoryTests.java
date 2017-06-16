@@ -51,13 +51,22 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getTokenFilters() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getTokenFilters());
-        filters.put("asciifolding",          ASCIIFoldingTokenFilterFactory.class);
-        filters.put("keywordmarker",         KeywordMarkerTokenFilterFactory.class);
-        filters.put("porterstem",            PorterStemTokenFilterFactory.class);
-        filters.put("snowballporter",        SnowballTokenFilterFactory.class);
-        filters.put("trim",                  TrimTokenFilterFactory.class);
-        filters.put("worddelimiter",         WordDelimiterTokenFilterFactory.class);
-        filters.put("worddelimitergraph",    WordDelimiterGraphTokenFilterFactory.class);
+        filters.put("asciifolding", ASCIIFoldingTokenFilterFactory.class);
+        filters.put("keywordmarker", KeywordMarkerTokenFilterFactory.class);
+        filters.put("porterstem", PorterStemTokenFilterFactory.class);
+        filters.put("snowballporter", SnowballTokenFilterFactory.class);
+        filters.put("trim", TrimTokenFilterFactory.class);
+        filters.put("worddelimiter", WordDelimiterTokenFilterFactory.class);
+        filters.put("worddelimitergraph", WordDelimiterGraphTokenFilterFactory.class);
+        filters.put("flattengraph", FlattenGraphTokenFilterFactory.class);
+        filters.put("length", LengthTokenFilterFactory.class);
+        filters.put("greeklowercase", LowerCaseTokenFilterFactory.class);
+        filters.put("irishlowercase", LowerCaseTokenFilterFactory.class);
+        filters.put("lowercase", LowerCaseTokenFilterFactory.class);
+        filters.put("turkishlowercase", LowerCaseTokenFilterFactory.class);
+        filters.put("uppercase", UpperCaseTokenFilterFactory.class);
+        filters.put("ngram", NGramTokenFilterFactory.class);
+        filters.put("edgengram", EdgeNGramTokenFilterFactory.class);
         return filters;
     }
 
@@ -136,6 +145,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getPreConfiguredTokenizers() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenizers());
+        filters.put("keyword", null);
         filters.put("lowercase", null);
         return filters;
     }

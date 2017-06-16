@@ -24,6 +24,7 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -99,17 +100,15 @@ public final class SortProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot sort.");
         }
 
-        if (list.size() <= 1) {
-            return;
-        }
+        List<? extends Comparable> copy = new ArrayList<>(list);
 
         if (order.equals(SortOrder.ASCENDING)) {
-            Collections.sort(list);
+            Collections.sort(copy);
         } else {
-            Collections.sort(list, Collections.reverseOrder());
+            Collections.sort(copy, Collections.reverseOrder());
         }
 
-        document.setFieldValue(targetField, list);
+        document.setFieldValue(targetField, copy);
     }
 
     @Override

@@ -431,6 +431,9 @@ The parent/child `inner_hits` can be used to include parent or child:
 --------------------------------------------------
 PUT test
 {
+  "settings": {
+    "mapping.single_type": true
+  },
   "mappings": {
     "doc": {
       "properties": {

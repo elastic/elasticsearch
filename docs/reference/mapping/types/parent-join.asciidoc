@@ -1,6 +1,10 @@
 [[parent-join]]
 === `join` datatype
 
+WARNING: `mapping.single_type` must be set to true in the index settings
+ in order to be able to use a `join` field. The `join` field is agnostic to types
+ and works only with single typed mapping.
+
 The `join` datatype is a special field that creates
 parent/child relation within documents of the same index.
 The `relations` section defines a set of possible relations within the documents,
@@ -11,6 +15,9 @@ A parent/child relation can be defined as follows:
 --------------------------------------------------
 PUT my_index
 {
+  "settings": {
+    "mapping.single_type": true
+  },
   "mappings": {
     "doc": {
       "properties": {
@@ -272,7 +279,7 @@ GET my_index/_search
   "script_fields": {
     "parent": {
       "script": {
-         "source": "doc['my_join_field#my_parent']" <3>
+         "inline": "doc['my_join_field#my_parent']" <3>
       }
     }
   }
@@ -309,6 +316,9 @@ make sense to disable eager loading:
 --------------------------------------------------
 PUT my_index
 {
+  "settings": {
+    "mapping.single_type": true
+  },
   "mappings": {
     "doc": {
       "properties": {
@@ -348,6 +358,9 @@ It is also possible to define multiple children for a single parent:
 --------------------------------------------------
 PUT my_index
 {
+  "settings": {
+    "mapping.single_type": true
+  },
   "mappings": {
     "doc": {
       "properties": {
@@ -372,6 +385,9 @@ And multiple levels of parent/child:
 --------------------------------------------------
 PUT my_index
 {
+  "settings": {
+    "mapping.single_type": true
+  },
   "mappings": {
     "doc": {
       "properties": {
@@ -422,5 +438,3 @@ PUT my_index/doc/3?routing=1&refresh <1>
 
 <1> This child document must be on the same shard than its grandparent and parent
 <2> The parent id of this document (must points to an `another_child` document)
-
-

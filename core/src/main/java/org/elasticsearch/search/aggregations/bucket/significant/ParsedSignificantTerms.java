@@ -153,6 +153,7 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
             return builder;
         }
 
+        @Override
         protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;
 
         static <B extends ParsedBucket> B parseSignificantTermsBucketXContent(final XContentParser parser, final B bucket,
@@ -179,7 +180,8 @@ public abstract class ParsedSignificantTerms extends ParsedMultiBucketAggregatio
                         bucket.supersetDf = parser.longValue();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    aggregations.add(XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class));
+                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
+                            aggregations::add);
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

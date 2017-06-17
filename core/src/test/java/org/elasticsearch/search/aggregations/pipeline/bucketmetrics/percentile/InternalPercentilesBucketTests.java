@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -30,6 +31,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.search.aggregations.metrics.percentiles.InternalPercentilesTestCase.randomPercents;
 
@@ -92,11 +94,16 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
 
     public void testParsedAggregationIteratorOrder() throws IOException {
         final InternalPercentilesBucket aggregation = createTestInstance();
-        final Iterable<Percentile> parsedAggregation = parseAndAssert(aggregation, false);
+        final Iterable<Percentile> parsedAggregation = parseAndAssert(aggregation, false, false);
         Iterator<Percentile> it = aggregation.iterator();
         Iterator<Percentile> parsedIt = parsedAggregation.iterator();
         while (it.hasNext()) {
             assertEquals(it.next(), parsedIt.next());
         }
+    }
+
+    @Override
+    protected Predicate<String> excludePathsFromXContentInsertion() {
+        return path -> path.endsWith(CommonFields.VALUES.getPreferredName());
     }
 }

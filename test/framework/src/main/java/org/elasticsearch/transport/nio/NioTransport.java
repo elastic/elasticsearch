@@ -85,7 +85,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    public long serverOpen() {
+    public long getNumOpenServerConnections() {
         return openChannels.serverChannelsCount();
     }
 

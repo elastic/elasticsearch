@@ -581,7 +581,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     private void disconnectFromNodeCloseAndNotify(DiscoveryNode node, NodeChannels nodeChannels) {
-        assert nodeChannels != null : "nodeChannels must note be null";
+        assert nodeChannels != null : "nodeChannels must not be null";
         try {
             IOUtils.closeWhileHandlingException(nodeChannels);
         } finally {
@@ -941,7 +941,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     protected void onException(Channel channel, Exception e) {
-        String reason = ExceptionsHelper.detailedMessage(e);
         if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
             closeChannelWhileHandlingExceptions(channel);

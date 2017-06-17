@@ -2326,11 +2326,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(46, stats.getRxSize().getBytes());
             assertEquals(91, stats.getTxSize().getBytes());
         } finally {
-            try {
-                assertPendingConnections(0, serviceC.getOriginalTransport());
-            } finally {
-                serviceC.close();
-            }
+            serviceC.close();
         }
     }
 
@@ -2424,11 +2420,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(185 + addressLen, stats.getRxSize().getBytes());
             assertEquals(91, stats.getTxSize().getBytes());
         } finally {
-            try {
-                assertPendingConnections(0, serviceC.getOriginalTransport());
-            } finally {
-                serviceC.close();
-            }
+            serviceC.close();
         }
     }
 }

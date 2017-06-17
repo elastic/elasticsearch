@@ -457,13 +457,13 @@ Response:
     ...
     "hits": {
         "total": 1,
-        "max_score": 1.4818809,
+        "max_score": 1.601195,
         "hits": [
             {
                 "_index": "twitter",
                 "_type": "tweet",
                 "_id": "1",
-                "_score": 1.4818809,
+                "_score": 1.601195,
                 "_source": {
                     "user": "test",
                     "message": "some message with the number 1",
@@ -513,13 +513,13 @@ Response:
     ...
     "hits": {
         "total": 1,
-        "max_score": 1.4818809,
+        "max_score": 1.601195,
         "hits": [
             {
                 "_index": "twitter",
                 "_type": "tweet",
                 "_id": "1",
-                "_score": 1.4818809,
+                "_score": 1.601195,
                 "_source": {
                     "user": "test",
                     "message": "some message with the number 1",

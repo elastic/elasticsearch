@@ -29,6 +29,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.matrix.stats.InternalMatrixStats.Fields;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -38,6 +39,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
 public class InternalMatrixStatsTests extends InternalAggregationTestCase<InternalMatrixStats> {
 
@@ -169,5 +171,10 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
             expectThrows(IllegalArgumentException.class, () -> matrix.getCorrelation(unknownField, other));
             expectThrows(IllegalArgumentException.class, () -> matrix.getCorrelation(other, unknownField));
         }
+    }
+
+    @Override
+    protected Predicate<String> excludePathsFromXContentInsertion() {
+        return path -> path.endsWith(Fields.CORRELATION) || path.endsWith(Fields.COVARIANCE);
     }
 }

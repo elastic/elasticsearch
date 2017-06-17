@@ -144,12 +144,11 @@ public abstract class SearchScript implements ScorerAware, ExecutableScript {
     /** A factory to construct {@link SearchScript} instances. */
     public interface LeafFactory {
         SearchScript newInstance(LeafReaderContext ctx) throws IOException;
+
         /**
-         * Indicates if document scores may be needed by this {@link SearchScript}.
-         *
-         * @return {@code true} if scores are needed.
+         * Return {@code true} if the script needs {@code _score} calculated, or {@code false} otherwise.
          */
-        boolean needsScores();
+        boolean needs_score();
     }
 
     /** A factory to construct stateful {@link SearchScript} factories for a specific index. */

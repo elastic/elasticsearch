@@ -149,6 +149,13 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     }
 
     /**
+     * Returns the number of term buckets currently configured
+     */
+    public int size() {
+        return bucketCountThresholds.getRequiredSize();
+    }
+
+    /**
      * Sets the shard_size - indicating the number of term buckets each shard
      * will return to the coordinating node (the node that coordinates the
      * search execution). The higher the shard size is, the more accurate the
@@ -161,6 +168,13 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
         }
         bucketCountThresholds.setShardSize(shardSize);
         return this;
+    }
+
+    /**
+     * Returns the number of term buckets per shard that are currently configured
+     */
+    public int shardSize() {
+        return bucketCountThresholds.getShardSize();
     }
 
     /**
@@ -177,6 +191,13 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     }
 
     /**
+     * Returns the minimum document count required per term
+     */
+    public long minDocCount() {
+        return bucketCountThresholds.getMinDocCount();
+    }
+
+    /**
      * Set the minimum document count terms should have on the shard in order to
      * appear in the response.
      */
@@ -187,6 +208,13 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
         }
         bucketCountThresholds.setShardMinDocCount(shardMinDocCount);
         return this;
+    }
+
+    /**
+     * Returns the minimum document count required per term, per shard
+     */
+    public long shardMinDocCount() {
+        return bucketCountThresholds.getShardMinDocCount();
     }
 
     /** Set a new order on this builder and return the builder so that calls

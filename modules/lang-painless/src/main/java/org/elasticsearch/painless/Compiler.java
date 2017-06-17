@@ -33,6 +33,7 @@ import java.security.cert.Certificate;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
+import static org.elasticsearch.painless.node.SSource.MainMethodReserved;
 
 /**
  * The Compiler is the entry point for generating a Painless script.  The compiler will receive a Painless
@@ -143,7 +144,7 @@ final class Compiler {
      * @param settings The CompilerSettings to be used during the compilation.
      * @return An executable script that implements both a specified interface and is a subclass of {@link PainlessScript}
      */
-    Constructor<?> compile(Loader loader, String name, String source, CompilerSettings settings) {
+    Constructor<?> compile(Loader loader, MainMethodReserved reserved, String name, String source, CompilerSettings settings) {
         if (source.length() > MAXIMUM_SOURCE_LENGTH) {
             throw new IllegalArgumentException("Scripts may be no longer than " + MAXIMUM_SOURCE_LENGTH +
                 " characters.  The passed in script is " + source.length() + " characters.  Consider using a" +
@@ -151,7 +152,7 @@ final class Compiler {
         }
 
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, base);
-        SSource root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, definition,
+        SSource root = Walker.buildPainlessTree(scriptClassInfo, reserved, name, source, settings, definition,
                 null);
         root.analyze(definition);
         root.write();
@@ -183,7 +184,7 @@ final class Compiler {
         }
 
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(definition, base);
-        SSource root = Walker.buildPainlessTree(scriptClassInfo, name, source, settings, definition,
+        SSource root = Walker.buildPainlessTree(scriptClassInfo, new MainMethodReserved(), name, source, settings, definition,
                 debugStream);
         root.analyze(definition);
         root.write();

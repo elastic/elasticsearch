@@ -174,11 +174,10 @@ import java.util.List;
  */
 public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
-    public static SSource buildPainlessTree(ScriptClassInfo mainMethod, String sourceName,
+    public static SSource buildPainlessTree(ScriptClassInfo mainMethod, MainMethodReserved reserved, String sourceName,
                                             String sourceText, CompilerSettings settings, Definition definition,
                                             Printer debugStream) {
-        return new Walker(mainMethod, sourceName, sourceText, settings, definition,
-                debugStream).source;
+        return new Walker(mainMethod, reserved, sourceName, sourceText, settings, definition, debugStream).source;
     }
 
     private final ScriptClassInfo scriptClassInfo;
@@ -193,9 +192,10 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     private final Globals globals;
     private int syntheticCounter = 0;
 
-    private Walker(ScriptClassInfo scriptClassInfo, String sourceName, String sourceText,
+    private Walker(ScriptClassInfo scriptClassInfo, MainMethodReserved reserved, String sourceName, String sourceText,
                    CompilerSettings settings, Definition definition, Printer debugStream) {
         this.scriptClassInfo = scriptClassInfo;
+        this.reserved.push(reserved);
         this.debugStream = debugStream;
         this.settings = settings;
         this.sourceName = Location.computeSourceName(sourceName, sourceText);
@@ -252,8 +252,6 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitSource(SourceContext ctx) {
-        reserved.push(new MainMethodReserved());
-
         List<SFunction> functions = new ArrayList<>();
 
         for (FunctionContext function : ctx.function()) {

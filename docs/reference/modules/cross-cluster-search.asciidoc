@@ -110,7 +110,9 @@ separated by a `:` character:
 --------------------------------------------------
 POST /cluster_one:twitter/tweet/_search
 {
+  "query": {
     "match_all": {}
+  }
 }
 --------------------------------------------------
 // CONSOLE
@@ -123,7 +125,9 @@ clusters:
 --------------------------------------------------
 POST /cluster_one:twitter,twitter/tweet/_search
 {
+  "query": {
     "match_all": {}
+  }
 }
 --------------------------------------------------
 // CONSOLE

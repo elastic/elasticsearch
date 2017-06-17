@@ -38,7 +38,10 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParentFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
@@ -46,9 +49,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Arrays;
 import java.util.Set;
 import java.util.Collections;
 import java.util.function.Supplier;
@@ -73,9 +74,12 @@ public class IndexCreationTaskTests extends ESTestCase {
     private final Settings settings = Settings.builder().build();
     private final MapperService mapper = mock(MapperService.class);
 
-    final ImmutableOpenMap.Builder<String, IndexTemplateMetaData> tplBuilder = ImmutableOpenMap.builder();
-    final ImmutableOpenMap.Builder<String, MetaData.Custom> customBuilder = ImmutableOpenMap.builder();
-    final ImmutableOpenMap.Builder<String, IndexMetaData> idxBuilder = ImmutableOpenMap.builder();
+    private final ImmutableOpenMap.Builder<String, IndexTemplateMetaData> tplBuilder = ImmutableOpenMap.builder();
+    private final ImmutableOpenMap.Builder<String, MetaData.Custom> customBuilder = ImmutableOpenMap.builder();
+    private final ImmutableOpenMap.Builder<String, IndexMetaData> idxBuilder = ImmutableOpenMap.builder();
+
+    private final Settings reqSettings = Settings.builder().build();
+    private final Set<ClusterBlock> reqBlocks = Sets.newHashSet();
 
     public void testMatchTemplates() throws Exception {
         tplBuilder.put("template_1", createTemplateMetadata("template_1", "te*"));
@@ -84,94 +88,106 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         final ClusterState result = executeTask(state);
 
-        assertTrue(result.metaData().index("test").getAliases().containsKey("template_1_alias"));
-        assertTrue(result.metaData().index("test").getAliases().containsKey("template_2_alias"));
-        assertFalse(result.metaData().index("test").getAliases().containsKey("template_3_alias"));
+        assertTrue(result.metaData().index("test").getAliases().containsKey("alias_from_template_1"));
+        assertTrue(result.metaData().index("test").getAliases().containsKey("alias_from_template_2"));
+        assertFalse(result.metaData().index("test").getAliases().containsKey("alias_from_template_3"));
     }
 
     public void testApplyDataFromTemplate() throws Exception {
-        tplBuilder.put("template_1", createTemplateMetadata(
-            "template_1", "te*",
-            AliasMetaData.builder("alias1").build(),
-            "customType", null,
-            "mappingType", createMapping()
-        ));
-
-        final ClusterState result = executeTask(state);
-
-        assertTrue(result.metaData().index("test").getAliases().containsKey("alias1"));
-        assertTrue(result.metaData().index("test").getCustoms().containsKey("customType"));
-
-        final ArgumentCaptor<Map> argument = ArgumentCaptor.forClass(Map.class);
-
-        verify(mapper).merge(argument.capture(), anyObject(), anyBoolean());
-        assertTrue(argument.getValue().containsKey("mappingType"));
-    }
-
-    public void testRequestDataHavePriorityOverTemplateData() throws Exception {
-        final AliasMetaData tplAlias = AliasMetaData.builder("alias1").searchRouting("fromTpl").build();
-        final CompressedXContent tplMapping = createMapping("text");
-        final CompressedXContent reqMapping = createMapping("keyword");
-
-        tplBuilder.put("template_1", createTemplateMetadata(
-            "template_1", "te*",
-            tplAlias,
-            "customType", null,
-            "mappingType", tplMapping
-        ));
-
-        setupRequestAlias(new Alias("alias1").searchRouting("fromReq"));
-        setupRequestMapping(reqMapping);
-
-        final ClusterState result = executeTask(state);
-
-        assertEquals("fromReq", result.metaData().index("test").getAliases().get("alias1").getSearchRouting());
-        assertEquals("{type={properties={field={type=keyword}}}}", getMappingsFromResponse().get("mappingType").toString());
-    }
-
-    public void testApplyDataFromRequest() throws Exception {
-        final Map<String, String> mappings = new HashMap<>();
-        mappings.put("mapping1", createMapping().string());
-
-        final Map<String, IndexMetaData.Custom> customs = new HashMap<>();
-        customs.put("custom1", mock(IndexMetaData.Custom.class));
-
-        when(request.aliases()).thenReturn(new HashSet<>(Arrays.asList(new Alias("alias1"))));
-        when(request.mappings()).thenReturn(mappings);
-        when(request.customs()).thenReturn(customs);
+        addMatchingTemplate(builder -> builder
+                .putAlias(AliasMetaData.builder("alias1"))
+                .putMapping("mapping1", createMapping())
+                .putCustom("custom1", createCustom())
+        );
 
         final ClusterState result = executeTask(state);
 
         assertTrue(result.metaData().index("test").getAliases().containsKey("alias1"));
         assertTrue(result.metaData().index("test").getCustoms().containsKey("custom1"));
-
-        final ArgumentCaptor<Map> argument = ArgumentCaptor.forClass(Map.class);
-
-        verify(mapper).merge(argument.capture(), anyObject(), anyBoolean());
-        assertTrue(argument.getValue().containsKey("mapping1"));
+        assertTrue(getMappingsFromResponse().containsKey("mapping1"));
     }
 
-    /*
-     * @todo test settings (template + request)
-     * @todo test custom (template + request)
-     * @todo test template order
-     * @todo test shrink == true
-     */
+    public void testRequestDataHavePriorityOverTemplateData() throws Exception {
+        final  IndexMetaData.Custom tplCustom = createCustom();
+        final  IndexMetaData.Custom reqCustom = createCustom();
+        final  IndexMetaData.Custom mergedCustom = createCustom();
+        when(reqCustom.mergeWith(tplCustom)).thenReturn(mergedCustom);
 
-    private Map<String, Object> getMappingsFromResponse() {
+        final CompressedXContent tplMapping = createMapping("text");
+        final CompressedXContent reqMapping = createMapping("keyword");
+
+        addMatchingTemplate(builder -> builder
+                    .putAlias(AliasMetaData.builder("alias1").searchRouting("fromTpl").build())
+                    .putMapping("mapping1", tplMapping)
+                    .putCustom("custom1", tplCustom)
+        );
+
+        setupRequestAlias(new Alias("alias1").searchRouting("fromReq"));
+        setupRequestMapping("mapping1", reqMapping);
+        setupRequestCustom("custom1", reqCustom);
+
+        final ClusterState result = executeTask(state);
+
+        assertEquals(mergedCustom, result.metaData().index("test").getCustoms().get("custom1"));
+        assertEquals("fromReq", result.metaData().index("test").getAliases().get("alias1").getSearchRouting());
+        assertEquals("{type={properties={field={type=keyword}}}}", getMappingsFromResponse().get("mapping1").toString());
+    }
+
+    public void testApplyDataFromRequest() throws Exception {
+        setupRequestAlias(new Alias("alias1"));
+        setupRequestMapping("mapping1", createMapping());
+        setupRequestCustom("custom1", createCustom());
+
+        final ClusterState result = executeTask(state);
+
+        assertTrue(result.metaData().index("test").getAliases().containsKey("alias1"));
+        assertTrue(result.metaData().index("test").getCustoms().containsKey("custom1"));
+        assertTrue(getMappingsFromResponse().containsKey("mapping1"));
+    }
+
+    public void testSettings() throws Exception {
+        // test 1: templates settings in reverse order (more on templates order)
+        // test 2: request setting overrides templates
+        // test 3: default applied if missing
+    }
+
+    // @todo test shrink == true (check data from source)
+    // @todo test for blocks
+    // @todo test allocationService call
+    // @todo test 1 failure with call to indicesService.removeIndex
+
+    private IndexMetaData.Custom createCustom() {
+        return mock(IndexMetaData.Custom.class);
+    }
+
+    private interface MetaDataBuilderConfigurator {
+        void configure(IndexTemplateMetaData.Builder builder) throws IOException;
+    }
+
+    private void addMatchingTemplate(MetaDataBuilderConfigurator configurator) throws IOException {
+        final IndexTemplateMetaData.Builder builder = metaDataBuilder("template1", "te*");
+        configurator.configure(builder);
+
+        tplBuilder.put("template1", builder.build());
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Map<String, Object>> getMappingsFromResponse() {
         final ArgumentCaptor<Map> argument = ArgumentCaptor.forClass(Map.class);
         verify(mapper).merge(argument.capture(), anyObject(), anyBoolean());
         return argument.getValue();
     }
 
     private void setupRequestAlias(Alias alias) {
-        when(request.aliases()).thenReturn(new HashSet<>(Arrays.asList(alias)));
+        when(request.aliases()).thenReturn(new HashSet<>(Collections.singletonList(alias)));
     }
 
-    private void setupRequestMapping(CompressedXContent mapping) throws IOException {
-        final Map<String, String> mappings = new HashMap<>();
-        mappings.put("mappingType", mapping.string());
-        when(request.mappings()).thenReturn(mappings);
+    private void setupRequestMapping(String mappingKey, CompressedXContent mapping) throws IOException {
+        when(request.mappings()).thenReturn(Collections.singletonMap(mappingKey, mapping.string()));
+    }
+
+    private void setupRequestCustom(String customKey, IndexMetaData.Custom custom) throws IOException {
+        when(request.customs()).thenReturn(Collections.singletonMap(customKey, custom));
     }
 
     private CompressedXContent createMapping() throws IOException {
@@ -205,24 +221,17 @@ public class IndexCreationTaskTests extends ESTestCase {
         return task.execute(state);
     }
 
-    private IndexTemplateMetaData createTemplateMetadata(String name, String pattern,
-                                                         AliasMetaData aliasesMetaData,
-                                                         String customType, IndexMetaData.Custom customMetaData,
-                                                         String mappingType, CompressedXContent mappingSource) throws Exception {
+    private IndexTemplateMetaData.Builder metaDataBuilder(String name, String pattern) {
         return IndexTemplateMetaData
             .builder(name)
-            .patterns(Arrays.asList(pattern))
-            .putAlias(aliasesMetaData)
-            .putCustom(customType, customMetaData)
-            .putMapping(mappingType, mappingSource)
-            .build();
+            .patterns(Collections.singletonList(pattern));
     }
 
     private IndexTemplateMetaData createTemplateMetadata(String name, String pattern) {
         return IndexTemplateMetaData
             .builder(name)
-            .patterns(Arrays.asList(pattern))
-            .putAlias(AliasMetaData.builder(name + "_alias").build())
+            .patterns(Collections.singletonList(pattern))
+            .putAlias(AliasMetaData.builder("alias_from_" + name).build())
             .build();
     }
 
@@ -245,13 +254,10 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     private void setupRequest() {
-        final Settings reqSettings = Settings.builder().build();
         when(request.settings()).thenReturn(reqSettings);
         when(request.index()).thenReturn("test");
         when(request.waitForActiveShards()).thenReturn(ActiveShardCount.DEFAULT);
-
-        final Set<ClusterBlock> blocks = Sets.newHashSet();
-        when(request.blocks()).thenReturn(blocks);
+        when(request.blocks()).thenReturn(reqBlocks);
     }
 
     private void setupClusterState() {
@@ -263,15 +269,14 @@ public class IndexCreationTaskTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     private void setupIndicesService() throws Exception {
-        final Index index = mock(Index.class);
         final DocumentMapper docMapper = mock(DocumentMapper.class);
         when(docMapper.routingFieldMapper()).thenReturn(mock(RoutingFieldMapper.class));
         when(docMapper.parentFieldMapper()).thenReturn(mock(ParentFieldMapper.class));
 
         when(mapper.docMappers(anyBoolean())).thenReturn(Collections.singletonList(docMapper));
 
+        final Index index = mock(Index.class);
         final Supplier<Sort> supplier = mock(Supplier.class);
-
         final IndexService service = mock(IndexService.class);
         when(service.index()).thenReturn(index);
         when(service.mapperService()).thenReturn(mapper);

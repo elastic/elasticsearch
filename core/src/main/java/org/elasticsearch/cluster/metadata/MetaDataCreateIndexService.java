@@ -81,12 +81,18 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Map;
+import java.util.List;
+import java.util.HashMap;
+import java.util.Collections;
+import java.util.Set;
+import java.util.Comparator;
+import java.util.Locale;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
-import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -211,7 +217,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList());
                 createdIndex = indexService.index();
                 // now add the mappings
-                MapperService mapperService = indexService.mapperService();
+                final MapperService mapperService = indexService.mapperService();
+
                 try {
                     mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, request.updateAllTypes());
                 } catch (Exception e) {

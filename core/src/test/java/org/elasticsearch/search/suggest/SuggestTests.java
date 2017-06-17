@@ -20,10 +20,13 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -170,5 +173,23 @@ public class SuggestTests extends ESTestCase {
             assertThat(completionSuggestions.get(i).getName(), equalTo(sortedSuggestions.get(i).getName()));
         }
     }
+
+
+    public void testParsingExceptionOnUnknownSuggestion() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        {
+            builder.startArray("unknownSuggestion");
+            builder.endArray();
+        }
+        builder.endObject();
+        BytesReference originalBytes = builder.bytes();
+        try (XContentParser parser = createParser(builder.contentType().xContent(), originalBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            ParsingException ex = expectThrows(ParsingException.class, () -> Suggest.fromXContent(parser));
+            assertEquals("Could not parse suggestion keyed as [unknownSuggestion]", ex.getMessage());
+        }
+    }
+
 
 }

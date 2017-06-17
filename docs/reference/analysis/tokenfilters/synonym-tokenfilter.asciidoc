@@ -40,12 +40,11 @@ This filter tokenize synonyms with whatever tokenizer and token filters
 appear before it in the chain.
 
 [float]
-==== `tokenizer` and `ignore_case` deprecated
+==== `tokenizer` and `ignore_case` are deprecated
 
 The `tokenizer` parameter controls the tokenizers that will be used to
-tokenize the synonym, this parameter is for backwards compatibility.
+tokenize the synonym, this parameter is for backwards compatibility for indices that created before 6.0..
 The `ignore_case` parameter works with `tokenizer` parameter only.
-If you need same behavior in 1.x, `tokenizer` parameter should be set `whitespace`.
 
 Two synonym formats are supported: Solr, WordNet.
 

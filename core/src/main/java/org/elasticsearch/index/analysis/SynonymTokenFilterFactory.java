@@ -37,6 +37,7 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.Reader;
+import java.nio.file.Files;
 import java.util.List;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
@@ -57,7 +58,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
         this.ignoreCase =
             settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false, deprecationLogger);
-        if (settings.get("ignore_case") != null) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha3) && settings.get("ignore_case") != null) {
             deprecationLogger.deprecated(
                 "This tokenize synonyms with whatever tokenizer and token filters appear before it in the chain. " +
                 "If you need ignore case with this filter, you should set lowercase filter before this");
@@ -68,13 +69,14 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
         // for backward compatibility
         if (indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_alpha3)) {
-            deprecationLogger.deprecated(
-                "This filter tokenize synonyms with whatever tokenizer and token filters appear before it in the chain.");
             String tokenizerName = settings.get("tokenizer", "whitespace");
             AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =
                 analysisRegistry.getTokenizerProvider(tokenizerName, indexSettings);
             if (tokenizerFactoryFactory == null) {
                 throw new IllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
+            } else {
+                deprecationLogger.deprecated(
+                    "This filter tokenize synonyms with whatever tokenizer and token filters appear before it in the chain.");
             }
             final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.get(indexSettings, env, tokenizerName,
                 AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
@@ -92,38 +94,25 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         throw new IllegalStateException("Call createPerAnalyzerSynonymFactory to specialize this factory for an analysis chain first");
     }
 
-    protected String getRulesFromSettings(Environment env) {
-        String rules;
+    protected Reader getRulesFromSettings(Environment env) {
+        Reader rulesReader;
         if (settings.getAsArray("synonyms", null) != null) {
             List<String> rulesList = Analysis.getWordList(env, settings, "synonyms");
             StringBuilder sb = new StringBuilder();
             for (String line : rulesList) {
                 sb.append(line).append(System.lineSeparator());
             }
-            rules = sb.toString();
+            rulesReader = new FastStringReader(sb.toString());
         } else if (settings.get("synonyms_path") != null) {
-            Reader rulesReader = Analysis.getReaderFromFile(env, settings, "synonyms_path");
-            StringBuilder sb = new StringBuilder();
-            String tmp;
-            try (BufferedReader br = new BufferedReader(rulesReader)){
-                while ((tmp = br.readLine()) != null) {
-                    sb.append(tmp).append(System.getProperty("line.separator"));
-                }
-                rules = sb.toString();
-            } catch (IOException ioe) {
-                throw new IllegalArgumentException("failed to load synonyms", ioe);
-            }
-
+            rulesReader = Analysis.getReaderFromFile(env, settings, "synonyms_path");
         } else {
             throw new IllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
         }
-        return rules;
+        return rulesReader;
     }
 
     Factory createPerAnalyzerSynonymFactory(Analyzer analyzerForParseSynonym, Environment env){
-        String rules = getRulesFromSettings(env);
-
-        return new Factory("synonym", analyzerForParseSynonym, rules);
+        return new Factory("synonym", analyzerForParseSynonym, getRulesFromSettings(env));
     }
 
     // for backward compatibility
@@ -138,7 +127,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         private final String name;
         private final SynonymMap synonymMap;
 
-        public Factory(String name, Analyzer analyzerForParseSynonym, String rules) {
+        public Factory(String name, Analyzer analyzerForParseSynonym, Reader rulesReader) {
 
             this.name = name;
 
@@ -158,7 +147,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             try {
                 SynonymMap.Builder parser;
-                Reader rulesReader = new FastStringReader(rules);
                 if ("wordnet".equalsIgnoreCase(format)) {
                     parser = new WordnetSynonymParser(true, expand, analyzer);
                     ((WordnetSynonymParser) parser).parse(rulesReader);

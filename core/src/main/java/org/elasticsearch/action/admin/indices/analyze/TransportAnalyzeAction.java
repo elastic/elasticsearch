@@ -57,7 +57,6 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -536,7 +535,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                     // Need to set anonymous "name" of tokenfilter
                     tokenFilterFactory = tokenFilterFactoryFactory.get(getNaIndexSettings(settings), environment, "_anonymous_tokenfilter", settings);
                     tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory.v1(), tokenizerFactory.v2(), tokenFilterFactoryList,
-                        charFilterFactoryList, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP, environment);
+                        charFilterFactoryList, environment);
 
 
                 } else {
@@ -556,7 +555,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                             AnalysisRegistry.INDEX_ANALYSIS_FILTER + "." + tokenFilter.name);
                         tokenFilterFactory = tokenFilterFactoryFactory.get(indexSettings, environment, tokenFilter.name, settings);
                         tokenFilterFactory = CustomAnalyzerProvider.checkAndApplySynonymFilter(tokenFilterFactory, tokenizerFactory.v1(), tokenizerFactory.v2(), tokenFilterFactoryList,
-                            charFilterFactoryList, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP, environment);
+                            charFilterFactoryList, environment);
                     }
                 }
                 if (tokenFilterFactory == null) {

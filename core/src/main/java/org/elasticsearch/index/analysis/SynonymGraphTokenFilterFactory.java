@@ -53,12 +53,11 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
         private final String name;
         private final SynonymMap synonymMap;
 
-        public Factory(String name, final Analyzer analyzerForParseSynonym, String rules) {
+        public Factory(String name, final Analyzer analyzerForParseSynonym, Reader rulesReader) {
             this.name = name;
 
             try {
                 SynonymMap.Builder parser;
-                Reader rulesReader = new FastStringReader(rules);
                 if ("wordnet".equalsIgnoreCase(format)) {
                     parser = new WordnetSynonymParser(true, expand, analyzerForParseSynonym);
                     ((WordnetSynonymParser) parser).parse(rulesReader);

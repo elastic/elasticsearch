@@ -10,8 +10,8 @@ setup:
       version: " - 5.99.0"
       reason: translog retention was added in 6.0.0
   - do:
-    indics.stats:
-      metric: [ translog ]
+      indices.stats:
+        metric: [ translog ]
   - set: { indices.test.primaries.translog.size_in_bytes: empty_size }
 
   - do:
@@ -22,19 +22,19 @@ setup:
         body:  { "foo": "bar" }
 
   - do:
-    indics.stats:
-      metric: [ translog ]
+      indices.stats:
+        metric: [ translog ]
   - gt: { indices.test.primaries.translog.size_in_bytes: $empty_size }
   - match: { indices.test.primaries.translog.operations: 1 }
   - gt: { indices.test.primaries.translog.uncommitted_size_in_bytes: $empty_size }
   - match: { indices.test.primaries.translog.uncommitted_operations: 1 }
 
   - do:
-      flush:
+      indices.flush:
         index: test
 
   - do:
-      indics.stats:
+      indices.stats:
         metric: [ translog ]
   - gt: { indices.test.primaries.translog.size_in_bytes: $empty_size }
   - match: { indices.test.primaries.translog.operations: 1 }
@@ -49,12 +49,12 @@ setup:
           index.translog.retention.age: -1
 
   - do:
-      flush:
+      indices.flush:
         index: test
         force: true # force flush as we don't have pending ops
 
   - do:
-      indics.stats:
+      indices.stats:
         metric: [ translog ]
   - match: { indices.test.primaries.translog.size_in_bytes: $empty_size }
   - match: { indices.test.primaries.translog.operations: 0 }

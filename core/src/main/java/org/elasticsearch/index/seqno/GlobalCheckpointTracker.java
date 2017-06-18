@@ -99,6 +99,10 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         this.pendingInSync = new HashSet<>();
     }
 
+    public synchronized long getLocalCheckpointForInSyncShard(final String allocationId) {
+        return inSyncLocalCheckpoints.getOrDefault(allocationId, SequenceNumbersService.UNASSIGNED_SEQ_NO);
+    }
+
     /**
      * Notifies the service to update the local checkpoint for the shard with the provided allocation ID. If the checkpoint is lower than
      * the currently known one, this is a no-op. If the allocation ID is not tracked, it is ignored. This is to prevent late arrivals from
@@ -298,9 +302,10 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     /**
      * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
      *
+     * @param allocationId   the allocation ID of the relocation target
      * @param primaryContext the primary context
      */
-    synchronized void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
+    synchronized void updateAllocationIdsFromPrimaryContext(final String allocationId, final PrimaryContext primaryContext) {
         if (sealed) {
             throw new IllegalStateException("global checkpoint tracker is sealed");
         }
@@ -360,6 +365,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                 .allMatch(e -> e.value == SequenceNumbersService.UNASSIGNED_SEQ_NO) : inSyncLocalCheckpoints;
         assert StreamSupport
                 .stream(trackingLocalCheckpoints.spliterator(), false)
+                .filter(e -> !e.key.equals(allocationId)) // during primary relocation a shard can already know its local checkpoint
                 .allMatch(e -> e.value == SequenceNumbersService.UNASSIGNED_SEQ_NO) : trackingLocalCheckpoints;
         assert pendingInSync.isEmpty() : pendingInSync;
 

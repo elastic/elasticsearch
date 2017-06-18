@@ -1594,6 +1594,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public void updateLocalCheckpoint() {
+        try {
+            updateLocalCheckpointForShard(shardRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
+        } catch (final AlreadyClosedException e) {
+            // okay
+        }
+    }
+
     /**
      * Notifies the service to update the local checkpoint for the shard with the provided allocation ID. See
      * {@link org.elasticsearch.index.seqno.GlobalCheckpointTracker#updateLocalCheckpoint(String, long)} for
@@ -1707,7 +1715,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
         final Engine engine = getEngineOrNull();
         if (engine != null) {
-            engine.seqNoService().updateAllocationIdsFromPrimaryContext(primaryContext);
+            engine.seqNoService().updateAllocationIdsFromPrimaryContext(shardRouting.allocationId().getId(), primaryContext);
         }
     }
 

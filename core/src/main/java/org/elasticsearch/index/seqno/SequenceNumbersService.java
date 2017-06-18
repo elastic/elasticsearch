@@ -115,6 +115,10 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
         return localCheckpointTracker.getStats(getGlobalCheckpoint());
     }
 
+    public long getLocalCheckpointForInSyncShard(final String allocationId) {
+        return globalCheckpointTracker.getLocalCheckpointForInSyncShard(allocationId);
+    }
+
     /**
      * Notifies the service to update the local checkpoint for the shard with the provided allocation ID. See
      * {@link GlobalCheckpointTracker#updateLocalCheckpoint(String, long)} for details.
@@ -180,10 +184,11 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     /**
      * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
      *
+     * @param allocationId   the allocation ID of the relocation target
      * @param primaryContext the sequence number context
      */
-    public void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
-        globalCheckpointTracker.updateAllocationIdsFromPrimaryContext(primaryContext);
+    public void updateAllocationIdsFromPrimaryContext(final String allocationId, final PrimaryContext primaryContext) {
+        globalCheckpointTracker.updateAllocationIdsFromPrimaryContext(allocationId, primaryContext);
     }
 
     /**

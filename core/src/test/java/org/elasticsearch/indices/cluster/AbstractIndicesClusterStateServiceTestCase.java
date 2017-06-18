@@ -387,5 +387,10 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             }
             this.term = newTerm;
         }
+
+        @Override
+        public void updateLocalCheckpoint() {
+
+        }
     }
 }

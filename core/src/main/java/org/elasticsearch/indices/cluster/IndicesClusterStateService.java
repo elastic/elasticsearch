@@ -572,6 +572,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 shard.updatePrimaryTerm(clusterState.metaData().index(shard.shardId().getIndex()).primaryTerm(shard.shardId().id()),
                     primaryReplicaSyncer::resync);
                 shard.updateAllocationIdsFromMaster(clusterState.version(), activeIds, initializingIds);
+                shard.updateLocalCheckpoint();
             }
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
@@ -766,6 +767,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          */
         void updateAllocationIdsFromMaster(
                 long applyingClusterStateVersion, Set<String> activeAllocationIds, Set<String> initializingAllocationIds);
+
+        void updateLocalCheckpoint();
     }
 
     public interface AllocatedIndex<T extends Shard> extends Iterable<T>, IndexComponent {

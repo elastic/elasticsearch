@@ -35,6 +35,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -54,7 +55,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         return 1;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25420")
+    @TestLogging("_root:DEBUG,org.elasticsearch.index.seqno:TRACE")
     public void testFullRollingRestart() throws Exception {
         Settings settings = Settings.builder().put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "30s").build();
         internalCluster().startNode(settings);

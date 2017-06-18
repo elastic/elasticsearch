@@ -49,6 +49,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -526,7 +527,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
     public void testPrimaryContextOlderThanAppliedClusterState() {
         final long initialClusterStateVersion = randomIntBetween(0, Integer.MAX_VALUE - 1) + 1;
         final int numberOfActiveAllocationsIds = randomIntBetween(0, 8);
-        final int numberOfInitializingIds = randomIntBetween(0, 8);
+        final int numberOfInitializingIds = randomIntBetween(1, 8);
         final Tuple<Set<String>, Set<String>> activeAndInitializingAllocationIds =
                 randomActiveAndInitializingAllocationIds(numberOfActiveAllocationsIds, numberOfInitializingIds);
         final Set<String> activeAllocationIds = activeAndInitializingAllocationIds.v1();
@@ -541,12 +542,14 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
          * set of initializing allocation IDs is otherwise arbitrary.
          */
         final int numberOfAdditionalInitializingAllocationIds = randomIntBetween(0, 8);
-        final Set<String> initializedAllocationIds = new HashSet<>(randomSubsetOf(initializingAllocationIds));
+        final Set<String> initializedAllocationIds =
+                new HashSet<>(randomSubsetOf(randomIntBetween(0, initializingAllocationIds.size() - 1), initializingAllocationIds));
         final Set<String> newInitializingAllocationIds =
                 randomAllocationIdsExcludingExistingIds(
                         Sets.union(activeAllocationIds, initializingAllocationIds), numberOfAdditionalInitializingAllocationIds);
+        final Set<String> difference = Sets.difference(initializingAllocationIds, initializedAllocationIds);
         final Set<String> contextInitializingIds = Sets.union(
-                new HashSet<>(randomSubsetOf(Sets.difference(initializingAllocationIds, initializedAllocationIds))),
+                new HashSet<>(randomSubsetOf(randomIntBetween(1, difference.size()), difference)),
                 newInitializingAllocationIds);
 
         final int numberOfAdditionalActiveAllocationIds = randomIntBetween(0, 8);
@@ -570,7 +573,9 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                 activeAllocationIdsLocalCheckpoints,
                 initializingAllocationIdsLocalCheckpoints);
 
-        tracker.updateAllocationIdsFromPrimaryContext(primaryContext);
+        final String initializingAllocationId = randomFrom(Sets.difference(contextInitializingIds, newInitializingAllocationIds));
+        tracker.updateLocalCheckpoint(initializingAllocationId, initializingAllocationIdsLocalCheckpoints.get(initializingAllocationId));
+        tracker.updateAllocationIdsFromPrimaryContext(initializingAllocationId, primaryContext);
 
         // the primary context carries an older cluster state version
         assertThat(tracker.appliedClusterStateVersion, equalTo(initialClusterStateVersion));
@@ -606,7 +611,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                         tracker.trackingLocalCheckpoints.get(allocationId),
                         equalTo(primaryContext.trackingLocalCheckpoints().get(allocationId)));
             } else {
-                assertThat(tracker.trackingLocalCheckpoints.get(allocationId), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                assertThat(allocationId, tracker.trackingLocalCheckpoints.get(allocationId), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
             }
         }
 
@@ -624,7 +629,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
     public void testPrimaryContextNewerThanAppliedClusterState() {
         final long initialClusterStateVersion = randomIntBetween(0, Integer.MAX_VALUE);
         final int numberOfActiveAllocationsIds = randomIntBetween(0, 8);
-        final int numberOfInitializingIds = randomIntBetween(0, 8);
+        final int numberOfInitializingIds = randomIntBetween(1, 8);
         final Tuple<Set<String>, Set<String>> activeAndInitializingAllocationIds =
                 randomActiveAndInitializingAllocationIds(numberOfActiveAllocationsIds, numberOfInitializingIds);
         final Set<String> activeAllocationIds = activeAndInitializingAllocationIds.v1();
@@ -638,19 +643,23 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
          * allocation ID could have moved to an in-sync allocation ID within the tracker due to recovery finalization, and the set of
          * initializing allocation IDs is otherwise arbitrary.
          */
-        final int numberOfNewInitializingAllocationIds = randomIntBetween(0, 8);
-        final Set<String> initializedAllocationIds = new HashSet<>(randomSubsetOf(initializingAllocationIds));
+        final int numberOfNewInitializingAllocationIds = randomIntBetween(1, 8);
+        final Set<String> initializedAllocationIds =
+                new HashSet<>(randomSubsetOf(randomIntBetween(0, initializingAllocationIds.size() - 1), initializingAllocationIds));
         final Set<String> newInitializingAllocationIds =
                 randomAllocationIdsExcludingExistingIds(
                         Sets.union(activeAllocationIds, initializingAllocationIds), numberOfNewInitializingAllocationIds);
 
         final ObjectLongMap<String> activeAllocationIdsLocalCheckpoints = new ObjectLongHashMap<>();
-        for (final String allocationId : Sets.union(new HashSet<>(randomSubsetOf(activeAllocationIds)), initializedAllocationIds)) {
+        final Set<String> contextActiveAllocationIds =
+                Sets.union(new HashSet<>(randomSubsetOf(activeAllocationIds)), initializedAllocationIds);
+        for (final String allocationId : contextActiveAllocationIds) {
             activeAllocationIdsLocalCheckpoints.put(allocationId, randomNonNegativeLong());
         }
         final ObjectLongMap<String> initializingIdsLocalCheckpoints = new ObjectLongHashMap<>();
+        final Set<String> difference = Sets.difference(initializingAllocationIds, initializedAllocationIds);
         final Set<String> contextInitializingAllocationIds = Sets.union(
-                new HashSet<>(randomSubsetOf(Sets.difference(initializingAllocationIds, initializedAllocationIds))),
+                new HashSet<>(randomSubsetOf(randomIntBetween(1, difference.size()), difference)),
                 newInitializingAllocationIds);
         for (final String allocationId : contextInitializingAllocationIds) {
             initializingIdsLocalCheckpoints.put(allocationId, randomNonNegativeLong());
@@ -662,7 +671,9 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                         activeAllocationIdsLocalCheckpoints,
                         initializingIdsLocalCheckpoints);
 
-        tracker.updateAllocationIdsFromPrimaryContext(primaryContext);
+        final String initializingAllocationId = randomFrom(Sets.difference(contextInitializingAllocationIds, newInitializingAllocationIds));
+        tracker.updateLocalCheckpoint(initializingAllocationId, initializingIdsLocalCheckpoints.get(initializingAllocationId));
+        tracker.updateAllocationIdsFromPrimaryContext(initializingAllocationId, primaryContext);
 
         final PrimaryContext trackerPrimaryContext = tracker.primaryContext();
         try {
@@ -698,7 +709,8 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
          * global checkpoint on replica which can happen on the relocation source).
          */
         assertIllegalStateExceptionWhenSealed(() -> tracker.updateLocalCheckpoint(randomAlphaOfLength(16), randomNonNegativeLong()));
-        assertIllegalStateExceptionWhenSealed(() -> tracker.updateAllocationIdsFromPrimaryContext(mock(PrimaryContext.class)));
+        assertIllegalStateExceptionWhenSealed(
+                () -> tracker.updateAllocationIdsFromPrimaryContext(randomAlphaOfLength(16), mock(PrimaryContext.class)));
         assertIllegalStateExceptionWhenSealed(() -> tracker.primaryContext());
         assertIllegalStateExceptionWhenSealed(() -> tracker.markAllocationIdAsInSync(randomAlphaOfLength(16), randomNonNegativeLong()));
 

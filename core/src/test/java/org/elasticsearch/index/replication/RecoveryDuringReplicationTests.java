@@ -183,6 +183,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // index some more
             totalDocs += shards.indexDocs(randomIntBetween(0, 5));
 
+            if (randomBoolean()) {
+                shards.flush();
+            }
+
             oldPrimary.close("demoted", false);
             oldPrimary.store().close();
 
@@ -194,9 +198,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(totalDocs - committedDocs));
             } else {
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-                assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(totalDocs - committedDocs));
+                assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(totalDocs));
             }
 
+            // roll back the extra ops in the replica
             shards.removeReplica(replica);
             replica.close("resync", false);
             replica.store().close();

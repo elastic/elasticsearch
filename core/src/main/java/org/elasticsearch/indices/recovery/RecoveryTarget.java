@@ -61,8 +61,8 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 import java.util.function.LongConsumer;
+import java.util.stream.Collectors;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -403,6 +403,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             translog.incrementRecoveredOperations();
         }
         indexShard().sync();
+        // roll over / flush / trim if needed
+        indexShard().afterWriteOperation();
         return indexShard().getLocalCheckpoint();
     }
 

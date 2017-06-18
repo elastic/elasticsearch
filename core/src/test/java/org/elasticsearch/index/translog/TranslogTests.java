@@ -356,6 +356,8 @@ public class TranslogTests extends ESTestCase {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(1L));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(97L));
+            assertThat(stats.getUncommittedOperations(), equalTo(1));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(97L));
         }
 
         translog.add(new Translog.Delete("test", "2", 1, newUid("2")));
@@ -363,6 +365,8 @@ public class TranslogTests extends ESTestCase {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2L));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(146L));
+            assertThat(stats.getUncommittedOperations(), equalTo(2));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(146L));
         }
 
         translog.add(new Translog.Delete("test", "3", 2, newUid("3")));
@@ -370,6 +374,8 @@ public class TranslogTests extends ESTestCase {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3L));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(195L));
+            assertThat(stats.getUncommittedOperations(), equalTo(3));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(195L));
         }
 
         translog.add(new Translog.NoOp(3, 1, randomAlphaOfLength(16)));
@@ -377,6 +383,8 @@ public class TranslogTests extends ESTestCase {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(237L));
+            assertThat(stats.getUncommittedOperations(), equalTo(4));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(237L));
         }
 
         final long expectedSizeInBytes = 280L;
@@ -384,9 +392,9 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
-            assertThat(
-                stats.getTranslogSizeInBytes(),
-                equalTo(expectedSizeInBytes));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
+            assertThat(stats.getUncommittedOperations(), equalTo(4));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(expectedSizeInBytes));
         }
 
         {
@@ -403,15 +411,18 @@ public class TranslogTests extends ESTestCase {
                 builder.startObject();
                 copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.endObject();
-                assertThat(builder.string(), equalTo("{\"translog\":{\"operations\":4,\"size_in_bytes\":" + expectedSizeInBytes + "}}"));
+                assertThat(builder.string(), equalTo("{\"translog\":{\"operations\":4,\"size_in_bytes\":" + expectedSizeInBytes
+                    + ",\"uncommitted_operations\":4,\"uncommitted_size_in_bytes\":" + expectedSizeInBytes + "}}"));
             }
         }
 
         markCurrentGenAsCommitted(translog);
         {
             final TranslogStats stats = stats();
-            assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
+            assertThat(stats.getUncommittedOperations(), equalTo(0));
+            assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
         }
     }
 
@@ -420,7 +431,8 @@ public class TranslogTests extends ESTestCase {
         final int n = randomIntBetween(0, 16);
         final List<TranslogStats> statsList = new ArrayList<>(n);
         for (int i = 0; i < n; i++) {
-            final TranslogStats stats = new TranslogStats(randomIntBetween(1, 4096), randomIntBetween(1, 1 << 20));
+            final TranslogStats stats = new TranslogStats(randomIntBetween(1, 4096), randomIntBetween(1, 1 << 20),
+                randomIntBetween(1, 1 << 20), randomIntBetween(1, 4096));
             statsList.add(stats);
             total.add(stats);
         }
@@ -431,16 +443,26 @@ public class TranslogTests extends ESTestCase {
         assertThat(
             total.getTranslogSizeInBytes(),
             equalTo(statsList.stream().mapToLong(TranslogStats::getTranslogSizeInBytes).sum()));
+        assertThat(
+            total.getUncommittedOperations(),
+            equalTo(statsList.stream().mapToInt(TranslogStats::getUncommittedOperations).sum()));
+        assertThat(
+            total.getUncommittedSizeInBytes(),
+            equalTo(statsList.stream().mapToLong(TranslogStats::getUncommittedSizeInBytes).sum()));
     }
 
     public void testNegativeNumberOfOperations() {
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(-1, 1));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(-1, 1, 1, 1));
         assertThat(e, hasToString(containsString("numberOfOperations must be >= 0")));
+        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, -1, 1));
+        assertThat(e, hasToString(containsString("uncommittedOperations must be >= 0")));
     }
 
     public void testNegativeSizeInBytes() {
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, -1));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, -1, 1, 1));
         assertThat(e, hasToString(containsString("translogSizeInBytes must be >= 0")));
+        e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, 1, 1, -1));
+        assertThat(e, hasToString(containsString("uncommittedSizeInBytes must be >= 0")));
     }
 
     public void testSnapshot() throws IOException {
@@ -2347,7 +2369,7 @@ public class TranslogTests extends ESTestCase {
         }
         commit(translog, generation + rolls);
         assertThat(translog.currentFileGeneration(), equalTo(generation + rolls ));
-        assertThat(translog.totalOperations(), equalTo(0));
+        assertThat(translog.uncommittedOperations(), equalTo(0));
         if (longRetention) {
             for (int i = 0; i <= rolls; i++) {
                 assertFileIsPresent(translog, generation + i);

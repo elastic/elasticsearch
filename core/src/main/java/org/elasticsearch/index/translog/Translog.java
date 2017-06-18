@@ -367,17 +367,31 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
 
     /**
-     * Returns the number of operations in the transaction files that aren't committed to lucene..
+     * Returns the number of operations in the translog files that aren't committed to lucene.
      */
-    public int totalOperations() {
+    public int uncommittedOperations() {
         return totalOperations(deletionPolicy.getMinTranslogGenerationForRecovery());
     }
 
     /**
      * Returns the size in bytes of the translog files that aren't committed to lucene.
      */
-    public long sizeInBytes() {
+    public long uncommittedSizeInBytes() {
         return sizeInBytesByMinGen(deletionPolicy.getMinTranslogGenerationForRecovery());
+    }
+
+    /**
+     * Returns the number of operations in the translog files
+     */
+    public int totalOperations() {
+        return totalOperations(-1);
+    }
+
+    /**
+     * Returns the size in bytes of the v files
+     */
+    public long sizeInBytes() {
+        return sizeInBytesByMinGen(-1);
     }
 
     /**
@@ -713,7 +727,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public TranslogStats stats() {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
-            return new TranslogStats(totalOperations(), sizeInBytes());
+            return new TranslogStats(totalOperations(), sizeInBytes(), uncommittedOperations(), uncommittedSizeInBytes());
         }
     }
 

@@ -119,7 +119,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25284")
 public class IndicesRequestIT extends ESIntegTestCase {
 
     private final List<String> indices = new ArrayList<>();
@@ -488,7 +487,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
     public void testDeleteIndex() {
         interceptTransportActions(DeleteIndexAction.NAME);
 
-        String[] randomIndicesOrAliases = randomUniqueIndicesOrAliases();
+        String[] randomIndicesOrAliases = randomUniqueIndices();
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(randomIndicesOrAliases);
         assertAcked(internalCluster().coordOnlyNodeClient().admin().indices().delete(deleteIndexRequest).actionGet());
 

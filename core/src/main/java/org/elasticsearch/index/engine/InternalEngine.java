@@ -1215,7 +1215,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             ensureCanFlush();
             String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
-            if (syncId != null && translog.totalOperations() == 0 && indexWriter.hasUncommittedChanges()) {
+            if (syncId != null && translog.uncommittedOperations() == 0 && indexWriter.hasUncommittedChanges()) {
                 logger.trace("start renewing sync commit [{}]", syncId);
                 commitIndexWriter(indexWriter, translog, syncId);
                 logger.debug("successfully sync committed. sync id [{}].", syncId);

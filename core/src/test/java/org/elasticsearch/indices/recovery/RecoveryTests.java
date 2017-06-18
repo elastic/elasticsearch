@@ -72,6 +72,7 @@ public class RecoveryTests extends ESIndexLevelReplicationTestCase {
                 .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), "100b")
             );
             replica.indexSettings().updateIndexMetaData(builder.build());
+            replica.onSettingsChanged();
             releaseRecovery.countDown();
             future.get();
             // rolling/flushing is async

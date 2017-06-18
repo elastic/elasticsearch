@@ -347,14 +347,14 @@ public class TranslogTests extends ESTestCase {
         final long firstOperationPosition = translog.getFirstOperationPosition();
         {
             final TranslogStats stats = stats();
-            assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(0));
         }
         assertThat((int) firstOperationPosition, greaterThan(CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC)));
         translog.add(new Translog.Index("test", "1", 0, new byte[]{1}));
 
         {
             final TranslogStats stats = stats();
-            assertThat(stats.estimatedNumberOfOperations(), equalTo(1L));
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(1));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(97L));
             assertThat(stats.getUncommittedOperations(), equalTo(1));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(97L));
@@ -363,7 +363,7 @@ public class TranslogTests extends ESTestCase {
         translog.add(new Translog.Delete("test", "2", 1, newUid("2")));
         {
             final TranslogStats stats = stats();
-            assertThat(stats.estimatedNumberOfOperations(), equalTo(2L));
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(2));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(146L));
             assertThat(stats.getUncommittedOperations(), equalTo(2));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(146L));
@@ -372,7 +372,7 @@ public class TranslogTests extends ESTestCase {
         translog.add(new Translog.Delete("test", "3", 2, newUid("3")));
         {
             final TranslogStats stats = stats();
-            assertThat(stats.estimatedNumberOfOperations(), equalTo(3L));
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(3));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(195L));
             assertThat(stats.getUncommittedOperations(), equalTo(3));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(195L));
@@ -381,7 +381,7 @@ public class TranslogTests extends ESTestCase {
         translog.add(new Translog.NoOp(3, 1, randomAlphaOfLength(16)));
         {
             final TranslogStats stats = stats();
-            assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(237L));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(237L));
@@ -391,7 +391,7 @@ public class TranslogTests extends ESTestCase {
         translog.rollGeneration();
         {
             final TranslogStats stats = stats();
-            assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
             assertThat(stats.getUncommittedOperations(), equalTo(4));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(expectedSizeInBytes));
@@ -404,7 +404,7 @@ public class TranslogTests extends ESTestCase {
             final TranslogStats copy = new TranslogStats();
             copy.readFrom(out.bytes().streamInput());
 
-            assertThat(copy.estimatedNumberOfOperations(), equalTo(4L));
+            assertThat(copy.estimatedNumberOfOperations(), equalTo(4));
             assertThat(copy.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
 
             try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
@@ -419,7 +419,7 @@ public class TranslogTests extends ESTestCase {
         markCurrentGenAsCommitted(translog);
         {
             final TranslogStats stats = stats();
-            assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(4));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
@@ -439,7 +439,7 @@ public class TranslogTests extends ESTestCase {
 
         assertThat(
             total.estimatedNumberOfOperations(),
-            equalTo(statsList.stream().mapToLong(TranslogStats::estimatedNumberOfOperations).sum()));
+            equalTo(statsList.stream().mapToInt(TranslogStats::estimatedNumberOfOperations).sum()));
         assertThat(
             total.getTranslogSizeInBytes(),
             equalTo(statsList.stream().mapToLong(TranslogStats::getTranslogSizeInBytes).sum()));

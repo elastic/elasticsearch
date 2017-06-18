@@ -527,7 +527,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @return {@code true} if the translog should be flushed
      */
     public boolean shouldFlush() {
-        final long size = this.sizeInBytes();
+        final long size = this.uncommittedSizeInBytes();
         return size > this.indexSettings.getFlushThresholdSize().getBytes();
     }
 

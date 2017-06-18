@@ -56,6 +56,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
@@ -573,11 +574,6 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public long serverOpen() {
-            return transport.serverOpen();
-        }
-
-        @Override
         public List<String> getLocalAddresses() {
             return transport.getLocalAddresses();
         }
@@ -607,6 +603,11 @@ public final class MockTransportService extends TransportService {
                     DelegateTransport.this.sendRequest(connection, requestId, action, request, options);
                 }
             };
+        }
+
+        @Override
+        public TransportStats getStats() {
+            return transport.getStats();
         }
 
         @Override

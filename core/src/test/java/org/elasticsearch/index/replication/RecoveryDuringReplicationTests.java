@@ -422,8 +422,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             EnumSet.of(RecoveryState.Stage.INDEX, RecoveryState.Stage.TRANSLOG, RecoveryState.Stage.FINALIZE);
         private final Logger logger;
 
-        public BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked, CountDownLatch releaseRecovery, IndexShard shard,
-                       DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener, Logger logger) {
+        public BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked, CountDownLatch releaseRecovery,
+                              IndexShard shard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
+                              Logger logger) {
             super(shard, sourceNode, listener, version -> {});
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;

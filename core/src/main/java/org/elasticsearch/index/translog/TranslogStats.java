@@ -71,7 +71,7 @@ public class TranslogStats extends ToXContentToBytes implements Streamable {
         return translogSizeInBytes;
     }
 
-    public long estimatedNumberOfOperations() {
+    public int estimatedNumberOfOperations() {
         return numberOfOperations;
     }
 

@@ -344,6 +344,9 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testStats() throws IOException {
+        // self control cleaning for test
+        translog.getDeletionPolicy().setRetentionSizeInBytes(1024 * 1024);
+        translog.getDeletionPolicy().setRetentionAgeInMillis(3600 * 1000);
         final long firstOperationPosition = translog.getFirstOperationPosition();
         {
             final TranslogStats stats = stats();

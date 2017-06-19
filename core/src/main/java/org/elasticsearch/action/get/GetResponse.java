@@ -34,6 +34,7 @@ import org.elasticsearch.index.get.GetResult;
 
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -159,23 +160,31 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
         return getResult.toXContent(builder, params);
     }
 
+    /**
+     * This method can be used to parse a {@link GetResponse} object when it has been printed out
+     * as a xcontent using the {@link #toXContent(XContentBuilder, Params)} method.
+     * <p>
+     * For forward compatibility reason this method might not fail if it tries to parse a field it
+     * doesn't know. But before returning the result it will check that enough information were
+     * parsed to return a valid {@link GetResponse} instance and throws a {@link ParsingException}
+     * otherwise. This is the case when we get a 404 back, which can be parsed as a normal
+     * {@link GetResponse} with found set to false, or as an elasticsearch exception. The caller
+     * of this method needs a way to figure out whether we got back a valid get response, which
+     * can be done by catching ParsingException.
+     *
+     * @param parser {@link XContentParser} to parse the response from
+     * @return a {@link GetResponse}
+     * @throws IOException is an I/O exception occurs during the parsing
+     */
     public static GetResponse fromXContent(XContentParser parser) throws IOException {
         GetResult getResult = GetResult.fromXContent(parser);
 
         // At this stage we ensure that we parsed enough information to return
         // a valid GetResponse instance. If it's not the case, we throw an
         // exception so that callers know it and can handle it correctly.
-        // This is typically the case when one wants to parse the result of
-        // a get request and uses this method, but the xcontent to parse is
-        // not a valid get result but an exception instead.
-        if (getResult.getIndex() == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + GetResult._INDEX + "]");
-        }
-        if (getResult.getType() == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + GetResult._TYPE + "]");
-        }
-        if (getResult.getId() == null) {
-            throw new ParsingException(parser.getTokenLocation(), "Missing required field [" + GetResult._ID + "]");
+        if (getResult.getIndex() == null && getResult.getType() == null && getResult.getId() == null) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    String.format(Locale.ROOT, "Missing required fields [%s,%s,%s]", GetResult._INDEX, GetResult._TYPE, GetResult._ID));
         }
         return new GetResponse(getResult);
     }

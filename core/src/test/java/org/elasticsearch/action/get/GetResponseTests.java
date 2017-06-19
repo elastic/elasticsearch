@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -69,7 +70,7 @@ public class GetResponseTests extends ESTestCase {
         if (addRandomFields) {
             // "_source" and "fields" just consists of key/value pairs, we shouldn't add anything random there. It is already
             // randomized in the randomGetResult() method anyway. Also, we cannot add anything in the root object since this is
-            // where GetResult's metadata fields are rendered out while other fields are rendered out in a "fields" object.
+            // where GetResult's metadata fields are rendered out while            // other fields are rendered out in a "fields" object.
             Predicate<String> excludeFilter = (s) -> s.isEmpty() || s.contains("fields") || s.contains("_source");
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {
@@ -116,6 +117,19 @@ public class GetResponseTests extends ESTestCase {
         checkEqualsAndHashCode(new GetResponse(randomGetResult(XContentType.JSON).v1()), GetResponseTests::copyGetResponse,
                 GetResponseTests::mutateGetResponse);
     }
+
+    public void testFromXContentThrowsParsingException() throws IOException {
+        GetResponse getResponse = new GetResponse(new GetResult(null, null, null, randomIntBetween(1, 5), randomBoolean(), null, null));
+
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toShuffledXContent(getResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
+
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            ParsingException exception = expectThrows(ParsingException.class, () -> GetResponse.fromXContent(parser));
+            assertEquals("Missing required fields [_index,_type,_id]", exception.getMessage());
+        }
+    }
+
     private static GetResponse copyGetResponse(GetResponse getResponse) {
         return new GetResponse(copyGetResult(getResponse.getResult));
     }

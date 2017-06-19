@@ -169,8 +169,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try {
             assertNoPendingHandshakes(serviceA.getOriginalTransport());
             assertNoPendingHandshakes(serviceB.getOriginalTransport());
-            assertPendingConnections(0, serviceA.getOriginalTransport());
-            assertPendingConnections(0, serviceB.getOriginalTransport());
         } finally {
             IOUtils.close(serviceA, serviceB, () -> {
                 try {
@@ -194,12 +192,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void assertPendingConnections(int numConnections, Transport transport) {
-        if (transport instanceof TcpTransport) {
-            TcpTransport tcpTransport = (TcpTransport) transport;
-            assertEquals(numConnections, tcpTransport.getNumOpenConnections() - tcpTransport.getNumConnectedNodes());
-        }
-    }
 
     public void testHelloWorld() {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
@@ -2243,16 +2235,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceB.sendRequest(connection, "action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
             receivedLatch.await();
-            assertPendingConnections(1, serviceB.getOriginalTransport());
             serviceC.close();
-            assertPendingConnections(0, serviceC.getOriginalTransport());
             sendResponseLatch.countDown();
             responseLatch.await();
         }
-        assertPendingConnections(0, serviceC.getOriginalTransport());
     }
 
-    public void testTransportStats() throws IOException, InterruptedException {
+    public void testTransportStats() throws Exception {
         MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
@@ -2316,19 +2305,23 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE);
         try (Transport.Connection connection = serviceC.openConnection(serviceB.getLocalNode(), builder.build())) {
-            stats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
-            assertEquals(1, stats.getRxCount());
-            assertEquals(1, stats.getTxCount());
-            assertEquals(25, stats.getRxSize().getBytes());
-            assertEquals(45, stats.getTxSize().getBytes());
+            assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
+                    TransportStats transportStats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
+                    assertEquals(1, transportStats.getRxCount());
+                    assertEquals(1, transportStats.getTxCount());
+                    assertEquals(25, transportStats.getRxSize().getBytes());
+                    assertEquals(45, transportStats.getTxSize().getBytes());
+                });
             serviceC.sendRequest(connection, "action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
             receivedLatch.await();
-            stats = serviceC.transport.getStats(); // request has ben send
-            assertEquals(1, stats.getRxCount());
-            assertEquals(2, stats.getTxCount());
-            assertEquals(25, stats.getRxSize().getBytes());
-            assertEquals(91, stats.getTxSize().getBytes());
+            assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
+                    TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
+                    assertEquals(1, transportStats.getRxCount());
+                    assertEquals(2, transportStats.getTxCount());
+                    assertEquals(25, transportStats.getRxSize().getBytes());
+                    assertEquals(91, transportStats.getTxSize().getBytes());
+                });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // response has been received
@@ -2337,15 +2330,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(46, stats.getRxSize().getBytes());
             assertEquals(91, stats.getTxSize().getBytes());
         } finally {
-            try {
-                assertPendingConnections(0, serviceC.getOriginalTransport());
-            } finally {
-                serviceC.close();
-            }
+            serviceC.close();
         }
     }
 
-    public void testTransportStatsWithException() throws IOException, InterruptedException {
+    public void testTransportStatsWithException() throws Exception {
         MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
         CountDownLatch receivedLatch = new CountDownLatch(1);
         CountDownLatch sendResponseLatch = new CountDownLatch(1);
@@ -2411,19 +2400,23 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE);
         try (Transport.Connection connection = serviceC.openConnection(serviceB.getLocalNode(), builder.build())) {
-            stats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
-            assertEquals(1, stats.getRxCount());
-            assertEquals(1, stats.getTxCount());
-            assertEquals(25, stats.getRxSize().getBytes());
-            assertEquals(45, stats.getTxSize().getBytes());
+            assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
+                    TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
+                    assertEquals(1, transportStats.getRxCount());
+                    assertEquals(1, transportStats.getTxCount());
+                    assertEquals(25, transportStats.getRxSize().getBytes());
+                    assertEquals(45, transportStats.getTxSize().getBytes());
+                });
             serviceC.sendRequest(connection, "action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
             receivedLatch.await();
-            stats = serviceC.transport.getStats(); // request has ben send
-            assertEquals(1, stats.getRxCount());
-            assertEquals(2, stats.getTxCount());
-            assertEquals(25, stats.getRxSize().getBytes());
-            assertEquals(91, stats.getTxSize().getBytes());
+            assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
+                    TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
+                    assertEquals(1, transportStats.getRxCount());
+                    assertEquals(2, transportStats.getTxCount());
+                    assertEquals(25, transportStats.getRxSize().getBytes());
+                    assertEquals(91, transportStats.getTxSize().getBytes());
+                });
             sendResponseLatch.countDown();
             responseLatch.await();
             stats = serviceC.transport.getStats(); // exception response has been received
@@ -2435,11 +2428,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(185 + addressLen, stats.getRxSize().getBytes());
             assertEquals(91, stats.getTxSize().getBytes());
         } finally {
-            try {
-                assertPendingConnections(0, serviceC.getOriginalTransport());
-            } finally {
-                serviceC.close();
-            }
+            serviceC.close();
         }
     }
 }

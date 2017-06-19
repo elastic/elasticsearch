@@ -146,7 +146,8 @@ public class ParsedBinaryRange extends ParsedMultiBucketAggregation<ParsedBinary
                         bucket.to = parser.text();
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    aggregations.add(XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class));
+                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
+                            aggregations::add);
                 }
             }
             bucket.setAggregations(new Aggregations(aggregations));

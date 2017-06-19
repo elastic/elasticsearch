@@ -41,8 +41,6 @@ import java.net.URLEncoder;
 import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * A base class for the response of a write operation that involves a single doc
@@ -307,17 +305,15 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
                 }
             } else if (FORCED_REFRESH.equals(currentFieldName)) {
                 context.setForcedRefresh(parser.booleanValue());
-            } else {
-                throwUnknownField(currentFieldName, parser.getTokenLocation());
             }
         } else if (token == XContentParser.Token.START_OBJECT) {
             if (_SHARDS.equals(currentFieldName)) {
                 context.setShardInfo(ShardInfo.fromXContent(parser));
             } else {
-                throwUnknownField(currentFieldName, parser.getTokenLocation());
+                parser.skipChildren(); // skip potential inner objects for forward compatibility
             }
-        } else {
-            throwUnknownToken(token, parser.getTokenLocation());
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            parser.skipChildren(); // skip potential inner arrays for forward compatibility
         }
     }
 

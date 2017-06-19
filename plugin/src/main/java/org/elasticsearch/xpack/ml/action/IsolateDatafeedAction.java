@@ -171,7 +171,8 @@ public class IsolateDatafeedAction
             readFrom(in);
         }
 
-        public Response() {
+        Response() {
+            super(null, null);
         }
 
         @Override

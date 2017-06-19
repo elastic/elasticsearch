@@ -803,6 +803,13 @@ public abstract class Engine implements Closeable {
      */
     public abstract CommitId flush() throws EngineException;
 
+
+    /**
+     * checks and removes translog files that no longer need to be retained. See
+     * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
+     */
+    public abstract void trimTranslog() throws EngineException;
+
     /**
      * Force merges to 1 segment
      */

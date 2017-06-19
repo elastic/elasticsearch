@@ -111,6 +111,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final List<SearchOperationListener> searchOperationListeners;
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
+    private volatile AsyncTrimTranslogTask trimTranslogTask;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
@@ -177,6 +178,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         // kick off async ops for the first shard in this index
         this.refreshTask = new AsyncRefreshTask(this);
+        this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         rescheduleFsyncTask(indexSettings.getTranslogDurability());
     }
 
@@ -606,6 +608,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (refreshTask.getInterval().equals(indexSettings.getRefreshInterval()) == false) {
                 rescheduleRefreshTasks();
             }
+            if (trimTranslogTask.getInterval().equals(indexSettings.getTranslogRetentionCheckInterval()) == false) {
+                rescheduleTrimTranslogcheck();
+            }
             final Translog.Durability durability = indexSettings.getTranslogDurability();
             if (durability != oldTranslogDurability) {
                 rescheduleFsyncTask(durability);
@@ -629,7 +634,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         } finally {
             refreshTask = new AsyncRefreshTask(this);
         }
+    }
 
+    private void rescheduleTrimTranslogcheck() {
+        try {
+            trimTranslogTask.close();
+        } finally {
+            trimTranslogTask = new AsyncTrimTranslogTask(this);
+        }
     }
 
     public interface ShardStoreDeleter {
@@ -689,6 +701,28 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     default:
                         throw new IllegalStateException("unknown state: " + shard.state());
                 }
+            }
+        }
+    }
+
+    private void maybeTrimTranslog() {
+        for (IndexShard shard : this.shards.values()) {
+            switch (shard.state()) {
+                case CREATED:
+                case RECOVERING:
+                case CLOSED:
+                    continue;
+                case POST_RECOVERY:
+                case STARTED:
+                case RELOCATED:
+                    try {
+                        shard.trimTranslog();
+                    } catch (IndexShardClosedException | AlreadyClosedException ex) {
+                        // fine - continue;
+                    }
+                    continue;
+                default:
+                    throw new IllegalStateException("unknown state: " + shard.state());
             }
         }
     }
@@ -837,6 +871,28 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    final class AsyncTrimTranslogTask extends BaseAsyncTask {
+
+        AsyncTrimTranslogTask(IndexService indexService) {
+            super(indexService, indexService.getIndexSettings().getTranslogRetentionCheckInterval());
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.maybeTrimTranslog();
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.GENERIC;
+        }
+
+        @Override
+        public String toString() {
+            return "trim_translog";
+        }
+    }
+
     AsyncRefreshTask getRefreshTask() { // for tests
         return refreshTask;
     }
@@ -845,4 +901,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return fsyncTask;
     }
 
+    AsyncTrimTranslogTask getTrimTranslogTask() {
+        return trimTranslogTask;
+    }
 }

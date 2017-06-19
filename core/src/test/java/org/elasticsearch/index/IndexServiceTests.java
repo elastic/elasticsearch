@@ -21,7 +21,6 @@ package org.elasticsearch.index;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -42,8 +41,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.hamcrest.core.IsEqual.equalTo;
 
 /** Unit test(s) for IndexService */
 public class IndexServiceTests extends ESSingleNodeTestCase {
@@ -163,6 +161,36 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertTrue(refreshTask.isClosed());
     }
 
+    public void testTrimTranslogTaskIsUpdated() throws IOException {
+        IndexService indexService = createIndex("test", Settings.EMPTY);
+        IndexService.AsyncTrimTranslogTask trimTask = indexService.getTrimTranslogTask();
+        assertEquals(10, trimTask.getInterval().minutes());
+        assertTrue(indexService.getTrimTranslogTask().mustReschedule());
+
+        // now disable
+        IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder()
+            .put(indexService.getMetaData().getSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), -1)).build();
+        indexService.updateMetaData(metaData);
+        assertNotSame(trimTask, indexService.getTrimTranslogTask());
+        assertTrue(trimTask.isClosed());
+        assertFalse(trimTask.isScheduled());
+        assertFalse(indexService.getTrimTranslogTask().mustReschedule());
+
+        // set it to 100m
+        metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder()
+            .put(indexService.getMetaData().getSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100m")).build();
+        indexService.updateMetaData(metaData);
+        assertNotSame(trimTask, indexService.getTrimTranslogTask());
+        assertTrue(trimTask.isClosed());
+
+        trimTask = indexService.getTrimTranslogTask();
+        assertTrue(trimTask.mustReschedule());
+        assertTrue(trimTask.isScheduled());
+        assertEquals(100, trimTask.getInterval().minutes());
+    }
+
     public void testFsyncTaskIsRunning() throws IOException {
         IndexService indexService = createIndex("test", Settings.builder().put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC).build());
         IndexService.AsyncTranslogFSync fsyncTask = indexService.getFsyncTask();
@@ -262,6 +290,28 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
                 .get();
         assertNotNull(indexService.getFsyncTask());
     }
+
+    public void testAsyncTranslogTrimActuallyWorks() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100ms") // very often :)
+            .build();
+        IndexService indexService = createIndex("test", settings);
+        ensureGreen("test");
+        assertTrue(indexService.getRefreshTask().mustReschedule());
+        client().prepareIndex("test", "test", "1").setSource("{\"foo\": \"bar\"}", XContentType.JSON).get();
+        client().admin().indices().prepareFlush("test").get();
+        IndexMetaData metaData = IndexMetaData.builder(indexService.getMetaData()).settings(Settings.builder()
+            .put(indexService.getMetaData().getSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), -1)
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), -1))
+        .build();
+        indexService.updateMetaData(metaData);
+
+        IndexShard shard = indexService.getShard(0);
+        assertBusy(() -> assertThat(shard.getTranslog().totalOperations(), equalTo(0)));
+    }
+
+
 
     public void testIllegalFsyncInterval() {
         Settings settings = Settings.builder()

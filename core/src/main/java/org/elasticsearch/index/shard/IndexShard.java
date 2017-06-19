@@ -876,6 +876,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * checks and removes translog files that no longer need to be retained. See
+     * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
+     */
+    public void trimTranslog() {
+        verifyNotClosed();
+        final Engine engine = getEngine();
+        engine.trimTranslog();
+    }
+
+    /**
      * Rolls the tranlog generation and cleans unneeded.
      *
      * @throws IOException if any file operations on the translog throw an I/O exception

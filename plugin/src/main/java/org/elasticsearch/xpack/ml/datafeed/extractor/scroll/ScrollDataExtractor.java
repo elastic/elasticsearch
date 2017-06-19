@@ -43,7 +43,7 @@ import java.util.concurrent.TimeUnit;
 class ScrollDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = Loggers.getLogger(ScrollDataExtractor.class);
-    private static final TimeValue SCROLL_TIMEOUT = new TimeValue(10, TimeUnit.MINUTES);
+    private static final TimeValue SCROLL_TIMEOUT = new TimeValue(30, TimeUnit.MINUTES);
 
     private final Client client;
     private final ScrollDataExtractorContext context;

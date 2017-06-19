@@ -45,6 +45,8 @@ public class BaseTasksResponse extends ActionResponse {
     private List<FailedNodeException> nodeFailures;
 
     public BaseTasksResponse() {
+        taskFailures = Collections.emptyList();
+        nodeFailures = Collections.emptyList();
     }
 
     public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures) {

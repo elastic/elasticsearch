@@ -1,11 +1,4 @@
 
-include::../Versions.asciidoc[]
-
-
-include::getting-started.asciidoc[]
-
-include::setup.asciidoc[]
-
 include::migration/index.asciidoc[]
 
 include::api-conventions.asciidoc[]
@@ -33,15 +26,3 @@ include::modules.asciidoc[]
 include::index-modules.asciidoc[]
 
 include::ingest.asciidoc[]
-
-include::how-to.asciidoc[]
-
-include::testing.asciidoc[]
-
-include::glossary.asciidoc[]
-
-include::release-notes.asciidoc[]
-
-include::painless-api-reference.asciidoc[]
-
-include::redirects.asciidoc[]

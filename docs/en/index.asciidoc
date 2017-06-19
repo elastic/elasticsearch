@@ -1,9 +1,0 @@
-[[elasticsearch-reference]]
-= Elasticsearch Reference
-
-:es-repo-dir:           {docdir}/../../../../elasticsearch/docs
-:es-test-dir:           {docdir}/../../../../elasticsearch/docs/src/test
-:plugins-examples-dir:  {docdir}/../../../../elasticsearch/plugins/examples
-
-include::Versions.asciidoc[]
-include::index-shared.asciidoc[]

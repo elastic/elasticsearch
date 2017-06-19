@@ -262,6 +262,9 @@
                     },
                     "out": {
                       "type": "long"
+                    },
+                    "duration_in_millis":{
+                      "type": "long"
                     }
                   }
                 },

@@ -253,7 +253,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertNoFailures(searchRsp);
         int totalHits = (int) XContentMapValues.extractValue("hits.total", searchRsp);
         assertEquals(count, totalHits);
-        Map<?, ?> bestHit = (Map<?, ?>) ((List)(XContentMapValues.extractValue("hits.hits", searchRsp))).get(0);
+        Map<?, ?> bestHit = (Map<?, ?>) ((List<?>)(XContentMapValues.extractValue("hits.hits", searchRsp))).get(0);
 
         // Make sure there are payloads and they are taken into account for the score
         // the 'string' field has a boost of 4 in the mappings so it should get a payload boost
@@ -451,54 +451,74 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
+    /**
+     * Tests snapshot/restore by creating a snapshot and restoring it. It takes
+     * a snapshot on the old cluster and restores it on the old cluster as a
+     * sanity check and on the new cluster as an upgrade test. It also takes a
+     * snapshot on the new cluster and restores that on the new cluster as a
+     * test that the repository is ok with containing snapshot from both the
+     * old and new versions. All of the snapshots include an index, a template,
+     * and some routing configuration.
+     */
     public void testSnapshotRestore() throws IOException {
         int count;
         if (runningAgainstOldCluster) {
             // Create the index
             count = between(200, 300);
             indexRandomDocuments(count, true, true, i -> jsonBuilder().startObject().field("field", "value").endObject());
+        } else {
+            count = countOfIndexedRandomDocuments();
+        }
 
-            // Stick a routing attribute into to cluster settings so we can see it after the restore
-            HttpEntity routingSetting = new StringEntity(
-                    "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + oldClusterVersion + "\"}}",
-                    ContentType.APPLICATION_JSON);
-            client().performRequest("PUT", "/_cluster/settings", emptyMap(), routingSetting);
+        // Refresh the index so the count doesn't fail
+        refresh();
 
-            // Stick a template into the cluster so we can see it after the restore
-            XContentBuilder templateBuilder = JsonXContent.contentBuilder().startObject();
-            templateBuilder.field("template", "te*");
-            templateBuilder.startObject("settings"); {
-                templateBuilder.field("number_of_shards", 1);
+        // Count the documents in the index to make sure we have as many as we put there
+        String countResponse = toStr(client().performRequest("GET", "/" + index + "/_search", singletonMap("size", "0")));
+        assertThat(countResponse, containsString("\"total\":" + count));
+
+        // Stick a routing attribute into to cluster settings so we can see it after the restore
+        HttpEntity routingSetting = new StringEntity(
+                "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + oldClusterVersion + "\"}}",
+                ContentType.APPLICATION_JSON);
+        client().performRequest("PUT", "/_cluster/settings", emptyMap(), routingSetting);
+
+        // Stick a template into the cluster so we can see it after the restore
+        XContentBuilder templateBuilder = JsonXContent.contentBuilder().startObject();
+        templateBuilder.field("template", "evil_*"); // Don't confuse other tests by applying the template
+        templateBuilder.startObject("settings"); {
+            templateBuilder.field("number_of_shards", 1);
+        }
+        templateBuilder.endObject();
+        templateBuilder.startObject("mappings"); {
+            templateBuilder.startObject("doc"); {
+                templateBuilder.startObject("_source"); {
+                    templateBuilder.field("enabled", true);
+                }
+                templateBuilder.endObject();
             }
             templateBuilder.endObject();
-            templateBuilder.startObject("mappings"); {
-                templateBuilder.startObject("doc"); {
-                    templateBuilder.startObject("_source"); {
-                        templateBuilder.field("enabled", randomLenientBoolean());
+        }
+        templateBuilder.endObject();
+        templateBuilder.startObject("aliases"); {
+            templateBuilder.startObject("alias1").endObject();
+            templateBuilder.startObject("alias2"); {
+                templateBuilder.startObject("filter"); {
+                    templateBuilder.startObject("term"); {
+                        templateBuilder.field("version", runningAgainstOldCluster ? oldClusterVersion : Version.CURRENT);
                     }
                     templateBuilder.endObject();
                 }
                 templateBuilder.endObject();
             }
             templateBuilder.endObject();
-            templateBuilder.startObject("aliases"); {
-                templateBuilder.startObject("alias1").endObject();
-                templateBuilder.startObject("alias2"); {
-                    templateBuilder.startObject("filter"); {
-                        templateBuilder.startObject("term"); {
-                            templateBuilder.field("version", oldClusterVersion);
-                        }
-                        templateBuilder.endObject();
-                    }
-                    templateBuilder.endObject();
-                }
-                templateBuilder.endObject();
-            }
-            templateBuilder.endObject().endObject();
-            client().performRequest("PUT", "/_template/test_template", emptyMap(),
-                    new StringEntity(templateBuilder.string(), ContentType.APPLICATION_JSON));
+        }
+        templateBuilder.endObject().endObject();
+        client().performRequest("PUT", "/_template/test_template", emptyMap(),
+                new StringEntity(templateBuilder.string(), ContentType.APPLICATION_JSON));
 
-            // Create the repo and the snapshot
+        if (runningAgainstOldCluster) {
+            // Create the repo
             XContentBuilder repoConfig = JsonXContent.contentBuilder().startObject(); {
                 repoConfig.field("type", "fs");
                 repoConfig.startObject("settings"); {
@@ -510,90 +530,96 @@ public class FullClusterRestartIT extends ESRestTestCase {
             repoConfig.endObject();
             client().performRequest("PUT", "/_snapshot/repo", emptyMap(),
                     new StringEntity(repoConfig.string(), ContentType.APPLICATION_JSON));
-
-            XContentBuilder snapshotConfig = JsonXContent.contentBuilder().startObject(); {
-                snapshotConfig.field("indices", index);
-            }
-            snapshotConfig.endObject();
-            client().performRequest("PUT", "/_snapshot/repo/snap", singletonMap("wait_for_completion", "true"),
-                    new StringEntity(snapshotConfig.string(), ContentType.APPLICATION_JSON));
-
-            // Refresh the index so the count doesn't fail
-            refresh();
-        } else {
-            count = countOfIndexedRandomDocuments();
         }
 
-        // Count the documents in the index to make sure we have as many as we put there
-        String countResponse = toStr(client().performRequest("GET", "/" + index + "/_search", singletonMap("size", "0")));
-        assertThat(countResponse, containsString("\"total\":" + count));
+        client().performRequest("PUT", "/_snapshot/repo/" + (runningAgainstOldCluster ? "old_snap" : "new_snap"),
+                singletonMap("wait_for_completion", "true"),
+                new StringEntity("{\"indices\": \"" + index + "\"}", ContentType.APPLICATION_JSON));
 
-        /* Remove the routing setting and template that we added before the
-         * snapshot so we can test restoring them. If we're running on the
-         * new cluster then they should exist because they were leftover from
-         * the restore done by the old cluster. We leave them in place so we
-         * get a test of a full cluster restart with templates restored from
-         * a snapshot. */
+        checkSnapshot("old_snap", count, oldClusterVersion);
+        if (false == runningAgainstOldCluster) {
+            checkSnapshot("new_snap", count, Version.CURRENT);
+        }
+    }
+
+    private void checkSnapshot(String snapshotName, int count, Version tookOnVersion) throws IOException {
+        // Check the snapshot metadata, especially the version
+        String response = toStr(client().performRequest("GET", "/_snapshot/repo/" + snapshotName, singletonMap("verbose", "true")));
+        Map<String, Object> map = toMap(response);
+        assertEquals(response, singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", map));
+        assertEquals(response, singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", map));
+        assertEquals(response, singletonList(tookOnVersion.toString()), XContentMapValues.extractValue("snapshots.version", map));
+
+        // Remove the routing setting and template so we can test restoring them.
         HttpEntity clearRoutingSetting = new StringEntity(
                 "{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}",
                 ContentType.APPLICATION_JSON);
         client().performRequest("PUT", "/_cluster/settings", emptyMap(), clearRoutingSetting);
         client().performRequest("DELETE", "/_template/test_template", emptyMap(), clearRoutingSetting);
 
-        if (false == runningAgainstOldCluster) {
-            /* Remove any "restored" indices from the old cluster run of this test.
-             * We intentionally don't remove them while running this against the
-             * old cluster so we can test starting the node with a restored index
-             * in the cluster. */
-            client().performRequest("DELETE", "/restored_*");
-        }
-
-        // Check the metadata, especially the version
-        String response = toStr(client().performRequest("GET", "/_snapshot/repo/_all", singletonMap("verbose", "true")));
-        Map<String, Object> map = toMap(response);
-        assertEquals(response, singletonList("snap"), XContentMapValues.extractValue("snapshots.snapshot", map));
-        assertEquals(response, singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", map));
-        assertEquals(response, singletonList(oldClusterVersion.toString()), XContentMapValues.extractValue("snapshots.version", map));
-
-        // Perform the restore
+        // Restore
         XContentBuilder restoreCommand = JsonXContent.contentBuilder().startObject();
         restoreCommand.field("include_global_state", true);
         restoreCommand.field("indices", index);
         restoreCommand.field("rename_pattern", index);
         restoreCommand.field("rename_replacement", "restored_" + index);
         restoreCommand.endObject();
-        client().performRequest("POST", "/_snapshot/repo/snap/_restore", singletonMap("wait_for_completion", "true"),
+        client().performRequest("POST", "/_snapshot/repo/" + snapshotName + "/_restore", singletonMap("wait_for_completion", "true"),
                 new StringEntity(restoreCommand.string(), ContentType.APPLICATION_JSON));
 
         // Make sure search finds all documents
-        countResponse = toStr(client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")));
+        String countResponse = toStr(client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")));
         assertThat(countResponse, containsString("\"total\":" + count));
 
-        // TODO add documents and count again
+        // Add some extra documents to the index to be sure we can still write to it after restoring it
+        int extras = between(1, 100);
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < extras; i++) {
+            bulk.append("{\"index\":{\"_id\":\"").append(count + i).append("\"}}\n");
+            bulk.append("{\"test\":\"test\"}\n");
+        }
+        client().performRequest("POST", "/restored_" + index + "/doc/_bulk", singletonMap("refresh", "true"),
+                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
 
-        if (false == runningAgainstOldCluster) {
-            // Check settings added by the restore process
-            map = toMap(client().performRequest("GET", "/_cluster/settings", singletonMap("flat_settings", "true")));
-            Map<String, Object> expected = new HashMap<>();
-            expected.put("transient", emptyMap());
-            expected.put("persistent", singletonMap("cluster.routing.allocation.exclude.test_attr", oldClusterVersion.toString()));
-            if (false == expected.equals(map)) {
-                NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
-                builder.compareMaps(map, expected);
-                fail(builder.toString());
-            }
+        // And count to make sure the add worked
+        // Make sure search finds all documents
+        countResponse = toStr(client().performRequest("GET", "/restored_" + index + "/_search", singletonMap("size", "0")));
+        assertThat(countResponse, containsString("\"total\":" + (count + extras)));
 
-            map = toMap(client().performRequest("GET", "/_template/test_template"));
-            expected = new HashMap<>();
-            expected.put("patterns", "te*");
-            expected.put("number_of_shards", 1);
-            expected.put("mappings", singletonMap("doc", singletonMap("_source", singletonMap("enabled", "true"))));
-            expected = singletonMap("test_template", expected);
-            if (false == expected.equals(map)) {
-                NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
-                builder.compareMaps(map, expected);
-                fail(builder.toString());
-            }
+        // Clean up the index for the next iteration
+        client().performRequest("DELETE", "/restored_*");
+
+        // Check settings added by the restore process
+        map = toMap(client().performRequest("GET", "/_cluster/settings", singletonMap("flat_settings", "true")));
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("transient", emptyMap());
+        expected.put("persistent", singletonMap("cluster.routing.allocation.exclude.test_attr", oldClusterVersion.toString()));
+        if (false == expected.equals(map)) {
+            NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
+            builder.compareMaps(map, expected);
+            fail("settings don't match:\n" + builder.toString());
+        }
+
+        // Check that the template was restored successfully
+        map = toMap(client().performRequest("GET", "/_template/test_template"));
+        expected = new HashMap<>();
+        if (runningAgainstOldCluster) {
+            expected.put("template", "evil_*");
+        } else {
+            expected.put("index_patterns", singletonList("evil_*"));
+        }
+        expected.put("settings", singletonMap("index", singletonMap("number_of_shards", "1")));
+        expected.put("mappings", singletonMap("doc", singletonMap("_source", singletonMap("enabled", true))));
+        expected.put("order", 0);
+        Map<String, Object> aliases = new HashMap<>();
+        aliases.put("alias1", emptyMap());
+        aliases.put("alias2", singletonMap("filter", singletonMap("term", singletonMap("version", tookOnVersion.toString()))));
+        expected.put("aliases", aliases);
+        expected = singletonMap("test_template", expected);
+        if (false == expected.equals(map)) {
+            NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
+            builder.compareMaps(map, expected);
+            fail("template doesn't match:\n" + builder.toString());
         }
 
     }

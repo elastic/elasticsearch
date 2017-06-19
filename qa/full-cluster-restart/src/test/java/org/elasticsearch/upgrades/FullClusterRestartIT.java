@@ -544,7 +544,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     private void checkSnapshot(String snapshotName, int count, Version tookOnVersion) throws IOException {
         // Check the snapshot metadata, especially the version
-        String response = toStr(client().performRequest("GET", "/_snapshot/repo/" + snapshotName, singletonMap("verbose", "true")));
+        String response = toStr(client().performRequest("GET", "/_snapshot/repo/" + snapshotName, listSnapshotVerboseParams()));
         Map<String, Object> map = toMap(response);
         assertEquals(response, singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", map));
         assertEquals(response, singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", map));
@@ -622,6 +622,17 @@ public class FullClusterRestartIT extends ESRestTestCase {
             fail("template doesn't match:\n" + builder.toString());
         }
 
+    }
+
+    /**
+     * Parameters required to get the version of Elasticsearch that took the snapshot.
+     * On versions after 5.5 we need a {@code verbose} parameter.
+     */
+    private Map<String, String> listSnapshotVerboseParams() {
+        if (runningAgainstOldCluster && oldClusterVersion.before(Version.V_5_5_0)) {
+            return emptyMap();
+        }
+        return singletonMap("verbose", "true");
     }
 
     // TODO tests for upgrades after shrink. We've had trouble with shrink in the past.

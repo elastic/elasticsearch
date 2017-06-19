@@ -4,7 +4,8 @@
   "settings": {
     "index.number_of_shards": 1,
     "index.mapper.dynamic" : false,
-    "index.priority": 800
+    "index.priority": 800,
+    "index.internal.format": 6
   },
   "mappings": {
     "doc": {

@@ -3,6 +3,7 @@
   "order": 2147483647,
   "settings": {
     "xpack.watcher.template.version": "${xpack.watcher.template.version}",
+    "index.internal.format": 6,
     "index.number_of_shards": 1,
     "index.mapper.dynamic": false
   },

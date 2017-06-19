@@ -9,6 +9,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -19,6 +20,8 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
@@ -92,8 +95,10 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         }
     }
 
-    /*
-     * TODO possible optimization
+    /**
+     *
+     * @param event The event of containing the new cluster state
+     *
      * stop certain parts of watcher, when there are no watcher indices on this node by checking the shardrouting
      * note that this is not easily possible, because of the execute watch api, that needs to be able to execute anywhere!
      * this means, only certain components can be stopped
@@ -121,6 +126,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 DiscoveryNode localNode = event.state().nodes().getLocalNode();
                 RoutingNode routingNode = event.state().getRoutingNodes().node(localNode.getId());
                 IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
+
                 // no watcher index, time to pause, if we currently have shards here
                 if (watcherIndexMetaData == null) {
                     if (previousAllocationIds.get().isEmpty() == false) {
@@ -151,8 +157,30 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                     executor.execute(() -> watcherService.reload(event.state(), "different shard allocation ids"));
                 }
             } else if (watcherService.state() != WatcherState.STARTED && watcherService.state() != WatcherState.STARTING) {
-                executor.execute(() -> start(event.state(), false));
+                if (isIndexInternalFormat(event.state().metaData(), Watch.INDEX) &&
+                        isIndexInternalFormat(event.state().metaData(), TriggeredWatchStore.INDEX_NAME)) {
+                    executor.execute(() -> start(event.state(), false));
+                } else {
+                    logger.error("Not starting watcher, the indices have not been upgraded yet. Please run the Upgrade API");
+                }
             }
+        }
+    }
+
+    /**
+     * If the supplied index exists, ensure that the 'index.internal.format' setting is configured appropriately.
+     * This ensures that watcher can use this index as needed.
+     *
+     * @param metaData  The cluster state meta data
+     * @param index     The index name to check for. Aliases will be resolved properly.
+     * @return          true if the index does not exist or the internal format is set properly
+     */
+    boolean isIndexInternalFormat(MetaData metaData, String index) {
+        IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(index, metaData);
+        if (watcherIndexMetaData == null) {
+            return true;
+        } else {
+            return XPackPlugin.INDEX_INTERNAL_FORMAT_SETTING.get(watcherIndexMetaData.getSettings()) == XPackPlugin.INTERNAL_INDEX_FORMAT;
         }
     }
 

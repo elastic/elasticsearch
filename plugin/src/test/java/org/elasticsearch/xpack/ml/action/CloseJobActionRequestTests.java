@@ -100,10 +100,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask("opening-job", null, null, tasksBuilder);
 
-        ElasticsearchStatusException conflictException =
-                expectThrows(ElasticsearchStatusException.class, () ->
-                        CloseJobAction.validateJobAndTaskState("opening-job", mlBuilder.build(), tasksBuilder.build()));
-        assertEquals(RestStatus.CONFLICT, conflictException.status());
+        CloseJobAction.validateJobAndTaskState("opening-job", mlBuilder.build(), tasksBuilder.build());
     }
 
     public void testValidate_jobIsMissing() {

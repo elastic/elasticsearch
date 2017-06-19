@@ -616,6 +616,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             case FAILED:
                 failedJobs.add(jobId);
                 break;
+            case OPENING:
             case OPENED:
                 openJobs.add(jobId);
                 break;
@@ -663,10 +664,6 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         Job job = mlMetadata.getJobs().get(jobId);
         if (job == null) {
             throw new ResourceNotFoundException("cannot close job, because job [" + jobId + "] does not exist");
-        }
-
-        if (MlMetadata.getJobState(jobId, tasks) == JobState.OPENING) {
-            throw ExceptionsHelper.conflictStatusException("cannot close job because job [" + jobId + "] is opening");
         }
 
         Optional<DatafeedConfig> datafeed = mlMetadata.getDatafeedByJobId(jobId);

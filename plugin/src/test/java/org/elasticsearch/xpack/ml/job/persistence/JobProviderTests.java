@@ -41,9 +41,7 @@ import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.CategorizerState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelState;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.CategoryDefinition;
@@ -51,9 +49,7 @@ import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.Result;
 import org.mockito.ArgumentCaptor;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -802,43 +798,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(now, snapshots.get(1).getLatestResultTimeStamp());
         assertEquals("snapshot2", snapshots.get(1).getDescription());
         assertEquals(6, snapshots.get(1).getSnapshotDocCount());
-    }
-
-    public void testRestoreStateToStream() throws Exception {
-        String snapshotId = "123";
-        Map<String, Object> categorizerState = new HashMap<>();
-        categorizerState.put("catName", "catVal");
-        GetResponse categorizerStateGetResponse1 = createGetResponse(true, categorizerState);
-        GetResponse categorizerStateGetResponse2 = createGetResponse(false, null);
-        Map<String, Object> modelState = new HashMap<>();
-        modelState.put("modName", "modVal1");
-        GetResponse modelStateGetResponse1 = createGetResponse(true, modelState);
-        modelState.put("modName", "modVal2");
-        GetResponse modelStateGetResponse2 = createGetResponse(true, modelState);
-
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
-                        CategorizerState.documentId(JOB_ID, 1), categorizerStateGetResponse1)
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
-                        CategorizerState.documentId(JOB_ID, 2), categorizerStateGetResponse2)
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
-                        ModelState.documentId(JOB_ID, snapshotId, 1), modelStateGetResponse1)
-                .prepareGet(AnomalyDetectorsIndex.jobStateIndexName(), ElasticsearchMappings.DOC_TYPE,
-                        ModelState.documentId(JOB_ID, snapshotId, 2), modelStateGetResponse2);
-
-        JobProvider provider = createProvider(clientBuilder.build());
-
-        ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID).setSnapshotId(snapshotId).setSnapshotDocCount(2).build();
-
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-
-        provider.restoreStateToStream(JOB_ID, modelSnapshot, stream);
-
-        String[] restoreData = stream.toString(StandardCharsets.UTF_8.name()).split("\0");
-        assertEquals(3, restoreData.length);
-        assertEquals("{\"modName\":\"modVal1\"}", restoreData[0]);
-        assertEquals("{\"modName\":\"modVal2\"}", restoreData[1]);
-        assertEquals("{\"catName\":\"catVal\"}", restoreData[2]);
     }
 
     public void testViolatedFieldCountLimit() throws Exception {

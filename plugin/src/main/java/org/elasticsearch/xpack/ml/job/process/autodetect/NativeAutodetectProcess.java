@@ -11,11 +11,13 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ControlMsgToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.LengthEncodedWriter;
 import org.elasticsearch.xpack.ml.job.process.logging.CppLogMessageHandler;
@@ -49,6 +51,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream processInStream;
     private final InputStream processOutStream;
+    private final OutputStream processRestoreStream;
     private final LengthEncodedWriter recordWriter;
     private final ZonedDateTime startTime;
     private final int numberOfAnalysisFields;
@@ -58,16 +61,17 @@ class NativeAutodetectProcess implements AutodetectProcess {
     private volatile Future<?> stateProcessorFuture;
     private volatile boolean processCloseInitiated;
     private volatile boolean processKilled;
+    private volatile boolean isReady;
     private final AutodetectResultsParser resultsParser;
 
-    NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream,
-                            InputStream processOutStream, int numberOfAnalysisFields,
-                            List<Path> filesToDelete, AutodetectResultsParser resultsParser,
-                            Runnable onProcessCrash) {
+    NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream,  InputStream processOutStream,
+                            OutputStream processRestoreStream, int numberOfAnalysisFields, List<Path> filesToDelete,
+                            AutodetectResultsParser resultsParser, Runnable onProcessCrash) {
         this.jobId = jobId;
         cppLogHandler = new CppLogMessageHandler(jobId, logStream);
         this.processInStream = new BufferedOutputStream(processInStream);
         this.processOutStream = processOutStream;
+        this.processRestoreStream = processRestoreStream;
         this.recordWriter = new LengthEncodedWriter(this.processInStream);
         startTime = ZonedDateTime.now();
         this.numberOfAnalysisFields = numberOfAnalysisFields;
@@ -105,6 +109,26 @@ class NativeAutodetectProcess implements AutodetectProcess {
                 }
             }
         });
+    }
+
+    @Override
+    public void restoreState(StateStreamer stateStreamer, ModelSnapshot modelSnapshot) {
+        if (modelSnapshot != null) {
+            try (OutputStream r = processRestoreStream) {
+                stateStreamer.restoreStateToStream(jobId, modelSnapshot, r);
+            } catch (Exception e) {
+                // TODO: should we fail to start?
+                if (processKilled == false) {
+                    LOGGER.error("Error restoring model state for job " + jobId, e);
+                }
+            }
+        }
+        isReady = true;
+    }
+
+    @Override
+    public boolean isReady() {
+        return isReady;
     }
 
     @Override

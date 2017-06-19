@@ -7,9 +7,11 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
@@ -41,6 +43,15 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     public BlackHoleAutodetectProcess(String jobId) {
         this.jobId = jobId;
         startTime = ZonedDateTime.now();
+    }
+
+    @Override
+    public void restoreState(StateStreamer stateStreamer, ModelSnapshot modelSnapshot) {
+    }
+
+    @Override
+    public boolean isReady() {
+        return true;
     }
 
     @Override

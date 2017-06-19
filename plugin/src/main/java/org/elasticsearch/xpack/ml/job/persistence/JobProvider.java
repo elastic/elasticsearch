@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -16,7 +14,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -76,7 +73,6 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.security.support.Exceptions;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -835,72 +831,6 @@ public class JobProvider {
                     new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelSnapshot.RESULTS_FIELD);
             handler.accept(result);
         }, errorHandler));
-    }
-
-    /**
-     * Given a model snapshot, get the corresponding state and write it to the supplied
-     * stream.  If there are multiple state documents they are separated using <code>'\0'</code>
-     * when written to the stream.
-     *
-     * Because we have a rule that we will not open a legacy job in the current product version
-     * we don't have to worry about legacy document IDs here.
-     *
-     * @param jobId         the job id
-     * @param modelSnapshot the model snapshot to be restored
-     * @param restoreStream the stream to write the state to
-     */
-    public void restoreStateToStream(String jobId, ModelSnapshot modelSnapshot, OutputStream restoreStream) throws IOException {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
-
-        // First try to restore model state.
-        for (String stateDocId : modelSnapshot.stateDocumentIds()) {
-            LOGGER.trace("ES API CALL: get ID {} from index {}", stateDocId, indexName);
-
-            GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, stateDocId).get();
-            if (!stateResponse.isExists()) {
-                LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
-                        modelSnapshot.getSnapshotDocCount(), jobId, modelSnapshot.getSnapshotId(), stateDocId);
-                break;
-            }
-            writeStateToStream(stateResponse.getSourceAsBytesRef(), restoreStream);
-        }
-
-        // Secondly try to restore categorizer state. This must come after model state because that's
-        // the order the C++ process expects.  There are no snapshots for this, so the IDs simply
-        // count up until a document is not found.  It's NOT an error to have no categorizer state.
-        int docNum = 0;
-        while (true) {
-            String docId = CategorizerState.documentId(jobId, ++docNum);
-
-            LOGGER.trace("ES API CALL: get ID {} from index {}", docId, indexName);
-
-            GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, docId).get();
-            if (!stateResponse.isExists()) {
-                break;
-            }
-            writeStateToStream(stateResponse.getSourceAsBytesRef(), restoreStream);
-        }
-
-    }
-
-    private void writeStateToStream(BytesReference source, OutputStream stream) throws IOException {
-        // The source bytes are already UTF-8.  The C++ process wants UTF-8, so we
-        // can avoid converting to a Java String only to convert back again.
-        BytesRefIterator iterator = source.iterator();
-        for (BytesRef ref = iterator.next(); ref != null; ref = iterator.next()) {
-            // There's a complication that the source can already have trailing 0 bytes
-            int length = ref.bytes.length;
-            while (length > 0 && ref.bytes[length - 1] == 0) {
-                --length;
-            }
-            if (length > 0) {
-                stream.write(ref.bytes, 0, length);
-            }
-        }
-        // This is dictated by RapidJSON on the C++ side; it treats a '\0' as end-of-file
-        // even when it's not really end-of-file, and this is what we need because we're
-        // sending multiple JSON documents via the same named pipe.
-        stream.write(0);
     }
 
     public QueryPage<ModelPlot> modelPlot(String jobId, int from, int size) {

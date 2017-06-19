@@ -438,7 +438,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
                 AliasMetaData.Builder.toXContent(cursor.value, builder, params);
             }
             builder.endObject();
-
         }
 
         public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName) throws IOException {

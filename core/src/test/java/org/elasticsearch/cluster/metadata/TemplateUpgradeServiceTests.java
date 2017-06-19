@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -65,9 +66,8 @@ import static org.mockito.Mockito.when;
 
 public class TemplateUpgradeServiceTests extends ESTestCase {
 
-    private ClusterService clusterService = new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings
-        .BUILT_IN_CLUSTER_SETTINGS), null);
-
+    private final ClusterService clusterService = new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+        ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
     public void testCalculateChangesAddChangeAndDelete() {
 
         boolean shouldAdd = randomBoolean();
@@ -103,32 +103,41 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                 }
             ));
 
-        Tuple<Map<String, BytesReference>, Set<String>> changes = service.calculateTemplateChanges(metaData.templates());
+        Optional<Tuple<Map<String, BytesReference>, Set<String>>> optChanges =
+            service.calculateTemplateChanges(metaData.templates());
 
-        if (shouldAdd) {
-            assertThat(changes.v1().get("added_test_template"), notNullValue());
-            if (shouldChange) {
-                assertThat(changes.v1().keySet(), hasSize(2));
-                assertThat(changes.v1().get("changed_test_template"), notNullValue());
+        if (shouldAdd || shouldRemove || shouldChange) {
+            Tuple<Map<String, BytesReference>, Set<String>> changes = optChanges.orElseThrow(() ->
+                new AssertionError("Should have non empty changes"));
+            if (shouldAdd) {
+                assertThat(changes.v1().get("added_test_template"), notNullValue());
+                if (shouldChange) {
+                    assertThat(changes.v1().keySet(), hasSize(2));
+                    assertThat(changes.v1().get("changed_test_template"), notNullValue());
+                } else {
+                    assertThat(changes.v1().keySet(), hasSize(1));
+                }
             } else {
-                assertThat(changes.v1().keySet(), hasSize(1));
+                if (shouldChange) {
+                    assertThat(changes.v1().get("changed_test_template"), notNullValue());
+                    assertThat(changes.v1().keySet(), hasSize(1));
+                } else {
+                    assertThat(changes.v1().keySet(), empty());
+                }
+            }
+
+            if (shouldRemove) {
+                assertThat(changes.v2(), hasSize(1));
+                assertThat(changes.v2().contains("removed_test_template"), equalTo(true));
+            } else {
+                assertThat(changes.v2(), empty());
             }
         } else {
-            if (shouldChange) {
-                assertThat(changes.v1().get("changed_test_template"), notNullValue());
-                assertThat(changes.v1().keySet(), hasSize(1));
-            } else {
-                assertThat(changes.v1().keySet(), empty());
-            }
-        }
-
-        if (shouldRemove) {
-            assertThat(changes.v2(), hasSize(1));
-            assertThat(changes.v2().contains("removed_test_template"), equalTo(true));
-        } else {
-            assertThat(changes.v2(), empty());
+            assertThat(optChanges.isPresent(), equalTo(false));
         }
     }
+
+
 
     @SuppressWarnings("unchecked")
     public void testUpdateTemplates() {
@@ -162,7 +171,6 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             return null;
         }).when(mockIndicesAdminClient).deleteTemplate(any(DeleteIndexTemplateRequest.class), any(ActionListener.class));
 
-
         Set<String> deletions = new HashSet<>(deletionsCount);
         for (int i = 0; i < deletionsCount; i++) {
             deletions.add("remove_template_" + i);
@@ -176,6 +184,10 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             Collections.emptyList());
 
         service.updateTemplates(additions, deletions);
+        int updatesInProgress = service.getUpdatesInProgress();
+
+        assertThat(putTemplateListeners.size(), equalTo(additionsCount));
+        assertThat(deleteTemplateListeners.size(), equalTo(deletionsCount));
 
         for (int i = 0; i < additionsCount; i++) {
             if (randomBoolean()) {
@@ -196,6 +208,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
                 });
             }
         }
+        assertThat(updatesInProgress - service.getUpdatesInProgress(), equalTo(additionsCount + deletionsCount));
     }
 
     @SuppressWarnings("unchecked")

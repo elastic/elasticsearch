@@ -47,10 +47,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
@@ -61,8 +61,6 @@ import static java.util.Collections.singletonMap;
  * Upgrades Templates on behalf of installed {@link Plugin}s when a node joins the cluster
  */
 public class TemplateUpgradeService extends AbstractComponent implements ClusterStateListener {
-    private final Tuple<Map<String, BytesReference>, Set<String>> EMPTY = new Tuple<>(Collections.emptyMap(), Collections.emptySet());
-
     private final UnaryOperator<Map<String, IndexTemplateMetaData>> indexTemplateMetaDataUpgraders;
 
     public final ClusterService clusterService;
@@ -115,20 +113,18 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         }
 
         lastTemplateMetaData = templates;
-        Tuple<Map<String, BytesReference>, Set<String>> changes = calculateTemplateChanges(templates);
-        if (changes.v1().isEmpty() && changes.v2().isEmpty()) {
-            // no changes required
-            return;
-        }
-
-        if (updatesInProgress.compareAndSet(0, changes.v1().size() + changes.v2().size())) {
-            threadPool.generic().execute(() -> updateTemplates(changes.v1(), changes.v2()));
+        Optional<Tuple<Map<String, BytesReference>, Set<String>>> changes = calculateTemplateChanges(templates);
+        if (changes.isPresent()) {
+            if (updatesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size())) {
+                threadPool.generic().execute(() -> updateTemplates(changes.get().v1(), changes.get().v2()));
+            }
         }
     }
 
     void updateTemplates(Map<String, BytesReference> changes, Set<String> deletions) {
         for (Map.Entry<String, BytesReference> change : changes.entrySet()) {
-            PutIndexTemplateRequest request = new PutIndexTemplateRequest(change.getKey()).source(change.getValue(), XContentType.JSON);
+            PutIndexTemplateRequest request =
+                new PutIndexTemplateRequest(change.getKey()).source(change.getValue(), XContentType.JSON);
             request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
             client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
                 @Override
@@ -172,7 +168,12 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         }
     }
 
-    Tuple<Map<String, BytesReference>, Set<String>> calculateTemplateChanges(ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
+    int getUpdatesInProgress() {
+        return updatesInProgress.get();
+    }
+
+    Optional<Tuple<Map<String, BytesReference>, Set<String>>> calculateTemplateChanges(
+        ImmutableOpenMap<String, IndexTemplateMetaData> templates) {
         // collect current templates
         Map<String, IndexTemplateMetaData> existingMap = new HashMap<>();
         for (ObjectObjectCursor<String, IndexTemplateMetaData> customCursor : templates) {
@@ -194,9 +195,9 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                     changes.put(key, toBytesReference(value));
                 }
             });
-            return new Tuple<>(changes, deletes);
+            return Optional.of(new Tuple<>(changes, deletes));
         }
-        return EMPTY;
+        return Optional.empty();
     }
 
     private static final ToXContent.Params PARAMS = new ToXContent.MapParams(singletonMap("reduce_mappings", "true"));

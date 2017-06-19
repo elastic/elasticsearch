@@ -149,7 +149,6 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         AtomicInteger updateCount = new AtomicInteger();
         // Make sure all templates are recreated correctly
         assertBusy(() -> {
-            logger.info("checking....");
             // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
             // so we need to simulate updates to make sure the template upgrade kicks in
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(

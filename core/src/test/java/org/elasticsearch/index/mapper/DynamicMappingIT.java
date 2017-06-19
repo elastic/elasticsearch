@@ -21,7 +21,9 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +37,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DynamicMappingIT extends ESIntegTestCase {
 
@@ -143,6 +147,13 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 () -> client().prepareIndex("index_2", "bar", "1").setSource("field", "abc").get());
         assertEquals("type[bar] missing", e1.getMessage());
         assertEquals("trying to auto create mapping, but dynamic mapping is disabled", e1.getCause().getMessage());
+
+        BulkResponse bulkResponse = client().prepareBulk().add(new IndexRequest("index_2", "bar", "2").source("field", "abc")).get();
+        assertTrue(bulkResponse.hasFailures());
+        BulkItemResponse.Failure firstFailure = bulkResponse.getItems()[0].getFailure();
+        assertThat(firstFailure.getCause(), instanceOf(TypeMissingException.class));
+        assertEquals("type[bar] missing", firstFailure.getCause().getMessage());
+        assertEquals("trying to auto create mapping, but dynamic mapping is disabled", firstFailure.getCause().getCause().getMessage());
 
         // make sure no mappings were created for bar
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices("index_2").get();

@@ -37,7 +37,7 @@ public class WriteOperation {
         this.networkBuffer = networkBuffer;
     }
 
-    public NetworkBytesReference getNetworkBuffer() throws IOException {
+    public NetworkBytesReference getNetworkBuffer() {
         return networkBuffer;
     }
 

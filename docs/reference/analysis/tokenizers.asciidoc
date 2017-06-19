@@ -99,14 +99,14 @@ terms.
 
 <<analysis-simplepattern-tokenizer,Simple Pattern Tokenizer>>::
 
-The `simplepattern` tokenizer uses a regular expression to capture matching
+The `simple_pattern` tokenizer uses a regular expression to capture matching
 text as terms. It uses a restricted subset of regular expression features
 and is generally faster than the `pattern` tokenizer.
 
 <<analysis-simplepatternsplit-tokenizer,Simple Pattern Split Tokenizer>>::
 
-The `simplepatternsplit` tokenizer uses the same restricted regular expression
-subset as the `simplepattern` tokenizer, but splits the input at matches rather
+The `simple_pattern_split` tokenizer uses the same restricted regular expression
+subset as the `simple_pattern` tokenizer, but splits the input at matches rather
 than returning the matches as terms.
 
 <<analysis-pathhierarchy-tokenizer,Path Tokenizer>>::

@@ -86,8 +86,8 @@ if (bwcVersion.endsWith('-SNAPSHOT')) {
     commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
   }
 
-  File bwcDeb = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.deb")
-  File bwcRpm = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.rpm")
+  File bwcDeb = file("${checkoutDir}/distribution/deb/build/distributions/elasticsearch-${bwcVersion}.deb")
+  File bwcRpm = file("${checkoutDir}/distribution/rpm/build/distributions/elasticsearch-${bwcVersion}.rpm")
   File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.zip")
   task buildBwcVersion(type: GradleBuild) {
     dependsOn checkoutBwcBranch

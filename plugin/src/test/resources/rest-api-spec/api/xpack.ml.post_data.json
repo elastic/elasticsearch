@@ -1,5 +1,6 @@
 {
   "xpack.ml.post_data": {
+    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-post-data.html",
     "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/ml/anomaly_detectors/{job_id}/_data",

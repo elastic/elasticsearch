@@ -1,5 +1,6 @@
 {
   "xpack.ml.flush_job": {
+    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-flush-job.html",
     "methods": [
       "POST"
     ],

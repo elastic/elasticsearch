@@ -1,5 +1,6 @@
 {
   "xpack.ml.stop_datafeed": {
+    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-stop-datafeed.html",
     "methods": [
       "POST"
     ],

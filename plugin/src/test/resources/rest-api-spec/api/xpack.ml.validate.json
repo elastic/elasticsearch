@@ -1,5 +1,6 @@
 {
   "xpack.ml.validate": {
+    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-valid-job.html",
     "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/ml/anomaly_detectors/_validate",

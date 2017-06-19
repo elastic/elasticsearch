@@ -1,5 +1,6 @@
 {
   "xpack.ml.update_datafeed": {
+    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-update-datafeed.html",
     "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/ml/datafeeds/{datafeed_id}/_update",

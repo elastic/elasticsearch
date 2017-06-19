@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -387,9 +388,12 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             throw new IndexShardNotRecoveringException(shardId, indexShard().state());
         }
         for (Translog.Operation operation : operations) {
-            indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY, update -> {
+            Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY, update -> {
                 throw new MapperException("mapping updates are not allowed [" + operation + "]");
             });
+            assert result.hasFailure() == false ||
+                result.getFailure() instanceof MapperParsingException : "expected mapper parsing failures. got " + result.getFailure();
+            ExceptionsHelper.reThrowIfNotNull(result.getFailure());
         }
         // update stats only after all operations completed (to ensure that mapping updates don't mess with stats)
         translog.incrementRecoveredOperations(operations.size());

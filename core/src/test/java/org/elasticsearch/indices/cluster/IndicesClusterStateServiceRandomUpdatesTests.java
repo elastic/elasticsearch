@@ -420,6 +420,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             null,
             null,
+            null,
             null);
     }
 

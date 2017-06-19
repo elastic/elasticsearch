@@ -524,6 +524,19 @@ public class TransportService extends AbstractLifecycleComponent {
         }
     }
 
+    public final <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+                                                                     final TransportRequest request, final Task parentTask,
+                                                                     final TransportRequestOptions options,
+                                                                     final TransportResponseHandler<T> handler) {
+        try {
+            Transport.Connection connection = getConnection(node);
+            sendChildRequest(connection, action, request, parentTask, options, handler);
+        } catch (NodeNotConnectedException ex) {
+            // the caller might not handle this so we invoke the handler
+            handler.handleException(ex);
+        }
+    }
+
     public <T extends TransportResponse> void sendChildRequest(final Transport.Connection connection, final String action,
                                                                final TransportRequest request, final Task parentTask,
                                                                final TransportResponseHandler<T> handler) {

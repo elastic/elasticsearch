@@ -15,7 +15,7 @@ import java.util.Iterator;
 public class BlackHoleAutodetectProcessTests extends ESTestCase {
 
     public void testFlushJob_writesAck() throws Exception {
-        try (BlackHoleAutodetectProcess process = new BlackHoleAutodetectProcess()) {
+        try (BlackHoleAutodetectProcess process = new BlackHoleAutodetectProcess("foo")) {
             String flushId = process.flushJob(InterimResultsParams.builder().build());
             Iterator<AutodetectResult> iterator = process.readAutodetectResults();
             iterator.hasNext();

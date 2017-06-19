@@ -61,29 +61,17 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureGreen();
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
-        assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
-            assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
-        });
+        awaitJobOpenedAndAssigned(job.getId(), null);
 
         internalCluster().stopRandomDataNode();
         ensureStableCluster(3);
         ensureGreen();
-        assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
-            assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
-        });
+        awaitJobOpenedAndAssigned(job.getId(), null);
 
         internalCluster().stopRandomDataNode();
         ensureStableCluster(2);
         ensureGreen();
-        assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
-            assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
-        });
+        awaitJobOpenedAndAssigned(job.getId(), null);
     }
 
     public void testFailOverBasics_withDataFeeder() throws Exception {
@@ -112,11 +100,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureGreen();
         OpenJobAction.Request openJobRequest = new OpenJobAction.Request(job.getId());
         client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet();
-        assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
-            assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
-        });
+        awaitJobOpenedAndAssigned(job.getId(), null);
         StartDatafeedAction.Request startDataFeedRequest = new StartDatafeedAction.Request(config.getId(), 0L);
         client().execute(StartDatafeedAction.INSTANCE, startDataFeedRequest);
 
@@ -130,11 +114,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().stopRandomDataNode();
         ensureStableCluster(3);
         ensureGreen();
-        assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
-            assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
-        });
+        awaitJobOpenedAndAssigned(job.getId(), null);
         assertBusy(() -> {
             GetDatafeedsStatsAction.Response statsResponse =
                     client().execute(GetDatafeedsStatsAction.INSTANCE, new GetDatafeedsStatsAction.Request(config.getId())).actionGet();
@@ -145,11 +125,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         internalCluster().stopRandomDataNode();
         ensureStableCluster(2);
         ensureGreen();
-        assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                    client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
-            assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
-        });
+        awaitJobOpenedAndAssigned(job.getId(), null);
         assertBusy(() -> {
             GetDatafeedsStatsAction.Response statsResponse =
                     client().execute(GetDatafeedsStatsAction.INSTANCE, new GetDatafeedsStatsAction.Request(config.getId())).actionGet();
@@ -390,8 +366,10 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
         Exception e = expectThrows(ElasticsearchStatusException.class,
                 () -> client().execute(OpenJobAction.INSTANCE, openJobRequest).actionGet());
-        assertTrue(e.getMessage().startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
-        assertTrue(e.getMessage().endsWith("because not all primary shards are active for the following indices [.ml-anomalies-shared]]"));
+        assertTrue(e.getMessage(),
+                e.getMessage().startsWith("Could not open job because no suitable nodes were found, allocation explanation"));
+        assertTrue(e.getMessage(), e.getMessage().endsWith("because not all primary shards are active for the following indices "
+                + "[.ml-state,.ml-anomalies-shared]]"));
 
         logger.info("Start data node");
         String nonMlNode = internalCluster().startNode(Settings.builder()

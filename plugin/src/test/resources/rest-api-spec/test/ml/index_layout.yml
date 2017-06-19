@@ -517,3 +517,58 @@
       count:
         index: .ml-state
   - match: {count: 0}
+
+---
+"Test force close does not create state":
+
+  - do:
+      indices.create:
+        index: .ml-state
+
+  - do:
+      xpack.ml.put_job:
+        job_id: index-layout-force-close-job
+        body:  >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - match: { job_id: "index-layout-force-close-job" }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: index-layout-force-close-job
+
+  - do:
+      xpack.ml.post_data:
+        job_id: index-layout-force-close-job
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
+
+  - do:
+      xpack.ml.close_job:
+        job_id: index-layout-force-close-job
+        force: true
+  - match: { closed: true }
+
+  - do:
+      indices.exists:
+        index: ".ml-state"
+  - is_true: ''
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      count:
+        index: .ml-state
+  - match: {count: 0}
+

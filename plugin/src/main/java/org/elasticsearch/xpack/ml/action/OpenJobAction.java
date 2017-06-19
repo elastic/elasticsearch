@@ -349,7 +349,11 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         @Override
         protected void onCancelled() {
             String reason = getReasonCancelled();
-            closeJob(reason);
+            killJob(reason);
+        }
+
+        void killJob(String reason) {
+            autodetectProcessManager.killProcess(this, false, reason);
         }
 
         void closeJob(String reason) {

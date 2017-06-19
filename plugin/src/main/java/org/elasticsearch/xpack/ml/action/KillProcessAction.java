@@ -140,7 +140,7 @@ public class KillProcessAction extends Action<KillProcessAction.Request, KillPro
             auditor.info(jobTask.getJobId(), Messages.JOB_AUDIT_KILLING);
 
             try {
-                processManager.killProcess(jobTask, true);
+                processManager.killProcess(jobTask, true, null);
                 listener.onResponse(new Response(true));
             } catch (Exception e) {
                 listener.onFailure(e);

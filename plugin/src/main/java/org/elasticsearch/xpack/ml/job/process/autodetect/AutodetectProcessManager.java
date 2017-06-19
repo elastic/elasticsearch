@@ -133,9 +133,14 @@ public class AutodetectProcessManager extends AbstractComponent {
         }
     }
 
-    public void killProcess(JobTask jobTask, boolean awaitCompletion) {
+    public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason) {
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobTask.getAllocationId());
         if (communicator != null) {
+            if (reason == null) {
+                logger.info("Killing job [{}]", jobTask.getJobId());
+            } else {
+                logger.info("Killing job [{}], because [{}]", jobTask.getJobId(), reason);
+            }
             killProcess(communicator, jobTask.getJobId(), awaitCompletion, true);
         }
     }

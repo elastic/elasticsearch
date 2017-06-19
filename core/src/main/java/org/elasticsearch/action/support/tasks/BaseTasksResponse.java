@@ -44,11 +44,6 @@ public class BaseTasksResponse extends ActionResponse {
     private List<TaskOperationFailure> taskFailures;
     private List<FailedNodeException> nodeFailures;
 
-    public BaseTasksResponse() {
-        taskFailures = Collections.emptyList();
-        nodeFailures = Collections.emptyList();
-    }
-
     public BaseTasksResponse(List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures) {
         this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(taskFailures));
         this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(nodeFailures));

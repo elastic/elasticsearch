@@ -222,10 +222,12 @@ public class StopDatafeedAction
         }
 
         public Response(StreamInput in) throws IOException {
+            super(null, null);
             readFrom(in);
         }
 
         public Response() {
+            super(null, null);
         }
 
         public boolean isStopped() {

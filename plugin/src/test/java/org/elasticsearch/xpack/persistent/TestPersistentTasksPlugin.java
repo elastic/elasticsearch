@@ -477,7 +477,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin {
         private List<TestTaskResponse> tasks;
 
         public TestTasksResponse() {
-
+            super(null, null);
         }
 
         public TestTasksResponse(List<TestTaskResponse> tasks, List<TaskOperationFailure> taskFailures,

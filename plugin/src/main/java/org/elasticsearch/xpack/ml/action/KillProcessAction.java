@@ -78,9 +78,11 @@ public class KillProcessAction extends Action<KillProcessAction.Request, KillPro
         private boolean killed;
 
         Response() {
+            super(null, null);
         }
 
         Response(StreamInput in) throws IOException {
+            super(null, null);
             readFrom(in);
         }
 

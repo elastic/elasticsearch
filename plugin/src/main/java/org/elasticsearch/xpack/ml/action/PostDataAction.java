@@ -67,10 +67,12 @@ public class PostDataAction extends Action<PostDataAction.Request, PostDataActio
         private DataCounts dataCounts;
 
         Response(String jobId) {
+            super(null, null);
             dataCounts = new DataCounts(jobId);
         }
 
         private Response() {
+            super(null, null);
         }
 
         public Response(DataCounts counts) {

@@ -233,9 +233,12 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
         private boolean closed;
 
         Response() {
+            super(null, null);
+
         }
 
         Response(StreamInput in) throws IOException {
+            super(null, null);
             readFrom(in);
         }
 

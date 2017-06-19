@@ -237,9 +237,9 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     public void testExplicitMixedWildcardDashIndices() {
-        SearchRequest request = new SearchRequest("-index21", "-does_not_exist", "-index1*", "--index11", "+-index20");
+        SearchRequest request = new SearchRequest("-index21", "-does_not_exist", "-index1*", "--index11");
         Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(userDashIndices, SearchAction.NAME));
-        String[] expectedIndices = new String[]{"-index10", "-index21", "-index20", "-does_not_exist"};
+        String[] expectedIndices = new String[]{"-index10", "-index21", "-does_not_exist"};
         assertThat(indices.size(), equalTo(expectedIndices.length));
         assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
@@ -257,8 +257,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
     }
 
-    public void testDashIndicesPlusAndMinus() {
-        SearchRequest request = new SearchRequest("+-index10", "+-index11", "--index11", "-index20");
+    public void testDashIndicesMinus() {
+        SearchRequest request = new SearchRequest("-index10", "-index11", "--index11", "-index20");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean()));
         Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(userDashIndices, SearchAction.NAME));
         String[] expectedIndices = new String[]{"-index10", "-index11", "--index11", "-index20"};
@@ -266,6 +266,13 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices().length, equalTo(expectedIndices.length));
         assertThat(indices, hasItems(expectedIndices));
         assertThat(request.indices(), arrayContainingInAnyOrder(expectedIndices));
+    }
+
+    public void testDashIndicesPlus() {
+        SearchRequest request = new SearchRequest("+bar");
+        request.indicesOptions(IndicesOptions.fromOptions(true, false, randomBoolean(), randomBoolean()));
+        expectThrows(IndexNotFoundException.class,
+                () -> defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)));
     }
 
     public void testDashNotExistingIndex() {
@@ -389,8 +396,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenStrict() {
-        SearchRequest request = new SearchRequest("*", "-foofoo*", "+barbaz", "+foob*");
+    public void testResolveWildcardsExclusionsExpandWilcardsOpenStrict() {
+        SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz", "foob*");
         request.indicesOptions(IndicesOptions.fromOptions(false, true, true, false));
         Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, SearchAction.NAME));
         String[] replacedIndices = new String[]{"bar", "barbaz"};
@@ -411,8 +418,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenAndClosedStrict() {
-        SearchRequest request = new SearchRequest("*", "-foofoo*", "+barbaz");
+    public void testResolveWildcardsExclusionExpandWilcardsOpenAndClosedStrict() {
+        SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz");
         request.indicesOptions(IndicesOptions.fromOptions(false, randomBoolean(), true, true));
         Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, SearchAction.NAME));
         String[] replacedIndices = new String[]{"bar", "bar-closed", "barbaz"};
@@ -422,8 +429,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.indices(), arrayContainingInAnyOrder(replacedIndices));
     }
 
-    public void testResolveWildcardsPlusAndMinusExpandWilcardsOpenAndClosedIgnoreUnavailable() {
-        SearchRequest request = new SearchRequest("*", "-foofoo*", "+barbaz");
+    public void testResolveWildcardsExclusionExpandWilcardsOpenAndClosedIgnoreUnavailable() {
+        SearchRequest request = new SearchRequest("*", "-foofoo*", "barbaz");
         request.indicesOptions(IndicesOptions.fromOptions(true, randomBoolean(), true, true));
         Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, SearchAction.NAME));
         String[] replacedIndices = new String[]{"bar", "bar-closed"};

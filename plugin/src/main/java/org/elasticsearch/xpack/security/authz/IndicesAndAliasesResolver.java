@@ -251,21 +251,15 @@ public class IndicesAndAliasesResolver {
     //TODO Investigate reusing code from vanilla es to resolve index names and wildcards
     private List<String> replaceWildcardsWithAuthorizedIndices(String[] indices, IndicesOptions indicesOptions, MetaData metaData,
                                                                List<String> authorizedIndices, boolean replaceWildcards) {
-        //the order matters when it comes to + and -
+        //the order matters when it comes to exclusions
         List<String> finalIndices = new ArrayList<>();
         boolean wildcardSeen = false;
         for (String index : indices) {
             String aliasOrIndex;
             boolean minus = false;
-            if (index.charAt(0) == '+') {
+            if (index.charAt(0) == '-' && wildcardSeen) {
                 aliasOrIndex = index.substring(1);
-            } else if (index.charAt(0) == '-') {
-                if (wildcardSeen) {
-                    aliasOrIndex = index.substring(1);
-                    minus = true;
-                } else {
-                    aliasOrIndex = index;
-                }
+                minus = true;
             } else {
                 aliasOrIndex = index;
             }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.support;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -184,7 +185,7 @@ public class WatcherUtilsTests extends ESTestCase {
             builder.field("search_type", randomBoolean() ? searchType.name() : searchType.name().toLowerCase(Locale.ROOT));
         }
 
-        BytesReference source = null;
+        BytesReference source = BytesArray.EMPTY;
         if (randomBoolean()) {
             SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery()).size(11);
             XContentBuilder searchSourceJsonBuilder = jsonBuilder();

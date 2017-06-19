@@ -5,21 +5,29 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.MockMustacheScriptEngine;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
@@ -40,11 +48,13 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.joda.time.DateTime;
+import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -52,34 +62,60 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
+import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.joda.time.DateTimeZone.UTC;
+import static org.mockito.Mockito.mock;
 
-@ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, supportsDedicatedMasters = false,
-        numDataNodes = 1)
-public class SearchInputTests extends ESIntegTestCase {
+public class SearchInputTests extends ESTestCase {
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        Collection<Class<? extends Plugin>> types = new ArrayList<>();
-        types.addAll(super.nodePlugins());
-        types.add(MockMustacheScriptEngine.TestPlugin.class);
-        types.add(CustomScriptContextPlugin.class);
-        return types;
+    private ScriptService scriptService;
+    private Client client;
+
+    @Before
+    public void setup() {
+        Map<String, ScriptEngine> engines = new HashMap<>();
+        engines.put(MockMustacheScriptEngine.NAME, new MockMustacheScriptEngine());
+        Map<String, ScriptContext<?>> contexts = new HashMap<>();
+        contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+        contexts.put(Watcher.SCRIPT_SEARCH_CONTEXT.name, Watcher.SCRIPT_SEARCH_CONTEXT);
+        contexts.put(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
+
+        client = mock(Client.class);
     }
 
     public void testExecute() throws Exception {
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                boolQuery().must(matchQuery("event_type", "a")));
+        ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 1234, ShardSearchFailure.EMPTY_ARRAY);
+        searchFuture.onResponse(searchResponse);
+        when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
+
+        SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery().must(matchQuery("event_type", "a")));
 
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder);
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
-                client(), watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
-        WatchExecutionContext ctx = new TriggeredExecutionContext(
+                client, watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
+        WatchExecutionContext ctx = createExecutionContext();
+        SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
+
+        assertThat(result.status(), is(Input.Result.Status.SUCCESS));
+        SearchRequest searchRequest = requestCaptor.getValue();
+        assertThat(searchRequest.searchType(), is(request.getSearchType()));
+        assertThat(searchRequest.indicesOptions(), is(request.getIndicesOptions()));
+        assertThat(searchRequest.indices(), is(arrayContainingInAnyOrder(request.getIndices())));
+
+    }
+
+    private TriggeredExecutionContext createExecutionContext() {
+        return new TriggeredExecutionContext(
                 new Watch("test-watch",
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                         new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
@@ -92,48 +128,29 @@ public class SearchInputTests extends ESIntegTestCase {
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)),
                 timeValueSeconds(5));
-        SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
-
-        assertThat(result.status(), is(Input.Result.Status.SUCCESS));
-        assertThat(XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
-        assertNotNull(result.executedRequest());
-        assertThat(result.status(), is(Input.Result.Status.SUCCESS));
-        assertEquals(result.executedRequest().getSearchType(), request.getSearchType());
-        assertArrayEquals(result.executedRequest().getIndices(), request.getIndices());
-        assertEquals(result.executedRequest().getIndicesOptions(), request.getIndicesOptions());
     }
 
     public void testDifferentSearchType() throws Exception {
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                boolQuery().must(matchQuery("event_type", "a"))
-        );
+        ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 1234, ShardSearchFailure.EMPTY_ARRAY);
+        searchFuture.onResponse(searchResponse);
+        when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
+
+        SearchSourceBuilder searchSourceBuilder = searchSource().query(boolQuery().must(matchQuery("event_type", "a")));
         SearchType searchType = getRandomSupportedSearchType();
         WatcherSearchTemplateRequest request = WatcherTestUtils.templateRequest(searchSourceBuilder, searchType);
 
         ExecutableSearchInput searchInput = new ExecutableSearchInput(new SearchInput(request, null, null, null), logger,
-                client(), watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
-        WatchExecutionContext ctx = new TriggeredExecutionContext(
-                new Watch("test-watch",
-                        new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
-                        new ExecutableSimpleInput(new SimpleInput(new Payload.Simple()), logger),
-                        AlwaysCondition.INSTANCE,
-                        null,
-                        null,
-                        new ArrayList<>(),
-                        null,
-                        new WatchStatus(new DateTime(0, UTC), emptyMap())),
-                new DateTime(0, UTC),
-                new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)),
-                timeValueSeconds(5));
+                client, watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
+        WatchExecutionContext ctx = createExecutionContext();
         SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
         assertThat(result.status(), is(Input.Result.Status.SUCCESS));
-        assertThat(XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
-        assertNotNull(result.executedRequest());
-        assertThat(result.status(), is(Input.Result.Status.SUCCESS));
-        assertEquals(result.executedRequest().getSearchType(), searchType);
-        assertArrayEquals(result.executedRequest().getIndices(), request.getIndices());
-        assertEquals(result.executedRequest().getIndicesOptions(), request.getIndicesOptions());
+        SearchRequest searchRequest = requestCaptor.getValue();
+        assertThat(searchRequest.searchType(), is(request.getSearchType()));
+        assertThat(searchRequest.indicesOptions(), is(request.getIndicesOptions()));
+        assertThat(searchRequest.indices(), is(arrayContainingInAnyOrder(request.getIndices())));
     }
 
     public void testParserValid() throws Exception {
@@ -142,38 +159,49 @@ public class SearchInputTests extends ESIntegTestCase {
                                 .from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}")));
 
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
-        XContentBuilder builder = jsonBuilder().value(
-                new SearchInput(WatcherTestUtils.templateRequest(source), null, timeout, null));
+        XContentBuilder builder = jsonBuilder().value(new SearchInput(WatcherTestUtils.templateRequest(source), null, timeout, null));
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client(), xContentRegistry(), scriptService());
+        SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client, xContentRegistry(), scriptService);
 
         SearchInput searchInput = factory.parseInput("_id", parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
         assertThat(searchInput.getTimeout(), equalTo(timeout));
     }
 
-    private WatcherSearchTemplateService watcherSearchTemplateService() {
-        String master = internalCluster().getMasterName();
-        return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
-                internalCluster().getInstance(ScriptService.class, master),
-                internalCluster().getInstance(NamedXContentRegistry.class, master)
-        );
-    }
+    // source: https://discuss.elastic.co/t/need-help-for-energy-monitoring-system-alerts/89415/3
+    public void testThatEmptyRequestBodyWorks() throws Exception {
+        ArgumentCaptor<SearchRequest> requestCaptor = ArgumentCaptor.forClass(SearchRequest.class);
+        PlainActionFuture<SearchResponse> searchFuture = PlainActionFuture.newFuture();
+        SearchResponse searchResponse = new SearchResponse(InternalSearchResponse.empty(), "", 1, 1, 1234, ShardSearchFailure.EMPTY_ARRAY);
+        searchFuture.onResponse(searchResponse);
+        when(client.search(requestCaptor.capture())).thenReturn(searchFuture);
 
-    private ScriptService scriptService() {
-        return internalCluster().getInstance(ScriptService.class);
-    }
+        try (XContentBuilder builder = jsonBuilder().startObject().startObject("request")
+                .startArray("indices").value("foo").endArray().endObject().endObject();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
+                     builder.bytes())) {
 
-    /**
-     * Custom plugin that registers XPack script context.
-     */
-    public static class CustomScriptContextPlugin extends Plugin implements ScriptPlugin {
+            parser.nextToken(); // advance past the first starting object
 
-        @Override
-        public List<ScriptContext> getContexts() {
-            return Collections.singletonList(Watcher.SCRIPT_TEMPLATE_CONTEXT);
+            SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, client, xContentRegistry(), scriptService);
+            SearchInput input = factory.parseInput("my-watch", parser);
+            assertThat(input.getRequest(), is(not(nullValue())));
+            assertThat(input.getRequest().getSearchSource(), is(BytesArray.EMPTY));
+
+            ExecutableSearchInput executableSearchInput = factory.createExecutable(input);
+            WatchExecutionContext ctx = createExecutionContext();
+            SearchInput.Result result = executableSearchInput.execute(ctx, Payload.Simple.EMPTY);
+            assertThat(result.status(), is(Input.Result.Status.SUCCESS));
+            // no body in the search request
+            ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+            assertThat(requestCaptor.getValue().source().toString(params), is("{}"));
         }
+    }
+
+    private WatcherSearchTemplateService watcherSearchTemplateService() {
+        SearchModule module = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new WatcherSearchTemplateService(Settings.EMPTY, scriptService, new NamedXContentRegistry(module.getNamedXContents()));
     }
 }

@@ -32,6 +32,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INTERNAL_INDEX_FORMAT_CURRENT;
+import static org.hamcrest.Matchers.is;
+
 public class IndexMetaDataTests extends ESTestCase {
 
     public void testIndexMetaDataSerialization() throws IOException {
@@ -120,5 +123,49 @@ public class IndexMetaDataTests extends ESTestCase {
 
         assertEquals("the number of target shards (8) must be greater than the shard id: 8",
             expectThrows(IllegalArgumentException.class, () -> IndexMetaData.selectShrinkShards(8, metaData, 8)).getMessage());
+    }
+
+    public void testInternalIndexFormat() {
+        Settings defaultSettings = Settings.builder()
+                .put("index.version.created", 1)
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)
+                .build();
+
+        // matching version
+        {
+            IndexMetaData metaData = IndexMetaData.builder("foo")
+                    .settings(Settings.builder()
+                            .put(defaultSettings)
+                            // intentionally not using the constant, so upgrading requires you to look at this test
+                            // where you have to update this part and the next one
+                            .put("index.internal.format", 6)
+                            .build())
+                    .build();
+
+            assertThat(metaData.isIndexInternalFormat(), is(true));
+        }
+
+        // not matching version
+        {
+            IndexMetaData metaData = IndexMetaData.builder("foo")
+                    .settings(Settings.builder()
+                            .put(defaultSettings)
+                            .put("index.internal.format", randomFrom(randomIntBetween(0, 5),
+                                    randomIntBetween(7, Integer.MAX_VALUE)))
+                            .build())
+                    .build();
+            assertThat(metaData.isIndexInternalFormat(), is(false));
+        }
+
+        // no setting configured
+        {
+            IndexMetaData metaData = IndexMetaData.builder("foo")
+                    .settings(Settings.builder()
+                            .put(defaultSettings)
+                            .build())
+                    .build();
+            assertThat(metaData.isIndexInternalFormat(), is(false));
+        }
     }
 }

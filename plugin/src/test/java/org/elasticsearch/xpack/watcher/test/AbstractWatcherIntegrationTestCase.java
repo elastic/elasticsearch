@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -205,6 +206,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         } else {
             types.add(XPackPlugin.class);
         }
+        types.add(CommonAnalysisPlugin.class);
         return types;
     }
 

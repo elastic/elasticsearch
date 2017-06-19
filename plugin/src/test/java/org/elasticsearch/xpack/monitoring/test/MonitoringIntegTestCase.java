@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.test;
 
 import io.netty.util.internal.SystemPropertyUtil;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -159,7 +160,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, MockPainlessScriptEngine.TestPlugin.class, MockIngestPlugin.class);
+        return Arrays.asList(XPackPlugin.class, MockPainlessScriptEngine.TestPlugin.class, MockIngestPlugin.class,
+                CommonAnalysisPlugin.class);
     }
 
     @Override

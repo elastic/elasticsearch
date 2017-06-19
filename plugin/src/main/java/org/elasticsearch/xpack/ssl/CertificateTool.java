@@ -617,7 +617,8 @@ public class CertificateTool extends EnvironmentAwareCommand {
         }
 
         static boolean isValidFilename(String name) {
-            return ALLOWED_FILENAME_CHAR_PATTERN.matcher(resolvePath(name).toString()).matches()
+            return ALLOWED_FILENAME_CHAR_PATTERN.matcher(name).matches()
+                    && ALLOWED_FILENAME_CHAR_PATTERN.matcher(resolvePath(name).toString()).matches()
                     && name.startsWith(".") == false;
         }
     }

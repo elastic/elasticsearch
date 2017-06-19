@@ -28,8 +28,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -41,7 +39,6 @@ import java.util.concurrent.ExecutorService;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.anyString;
@@ -353,65 +350,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutWatcherIndex, clusterStateWithWatcherIndex));
         verify(watcherService, times(1)).pauseExecution(anyObject());
-    }
-
-    public void testWatcherDoesNotStartWithOldIndexFormat() throws Exception {
-        String index = randomFrom(Watch.INDEX, TriggeredWatchStore.INDEX_NAME);
-        Index watchIndex = new Index(index, "foo");
-        ShardId shardId = new ShardId(watchIndex, 0);
-        IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(watchIndex)
-                .addShard(TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED)).build();
-        DiscoveryNodes nodes = new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")).build();
-
-        Settings.Builder indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
-        if (randomBoolean()) {
-            int randomNumber = randomFrom(randomIntBetween(0, XPackPlugin.INTERNAL_INDEX_FORMAT-1),
-                    randomIntBetween(XPackPlugin.INTERNAL_INDEX_FORMAT, Integer.MAX_VALUE));
-            indexSettings.put(XPackPlugin.INDEX_INTERNAL_FORMAT_SETTING.getKey(), randomNumber);
-        }
-        IndexMetaData.Builder newIndexMetaDataBuilder = IndexMetaData.builder(index).settings(indexSettings);
-
-        ClusterState clusterStateWithWatcherIndex = ClusterState.builder(new ClusterName("my-cluster"))
-                .nodes(nodes)
-                .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
-                .metaData(MetaData.builder().put(newIndexMetaDataBuilder))
-                .build();
-
-        ClusterState emptyClusterState = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).build();
-
-        when(watcherService.state()).thenReturn(WatcherState.STOPPED);
-        when(watcherService.validate(eq(clusterStateWithWatcherIndex))).thenReturn(true);
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithWatcherIndex, emptyClusterState));
-        verify(watcherService, never()).start(any(ClusterState.class));
-    }
-
-    public void testInternalIndexFormatCheck() {
-        int indexFormat = XPackPlugin.INTERNAL_INDEX_FORMAT;;
-        boolean expectedIndexInternalFormat = randomBoolean();
-        if (expectedIndexInternalFormat == false) {
-            indexFormat = randomFrom(randomIntBetween(0, XPackPlugin.INTERNAL_INDEX_FORMAT-1),
-                    randomIntBetween(XPackPlugin.INTERNAL_INDEX_FORMAT+1, Integer.MAX_VALUE));
-        }
-
-        Settings.Builder indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(XPackPlugin.INDEX_INTERNAL_FORMAT_SETTING.getKey(), indexFormat);
-        IndexMetaData.Builder metaDataBuilder = IndexMetaData.builder(Watch.INDEX).settings(indexSettings);
-        MetaData metaData = MetaData.builder().put(metaDataBuilder).build();
-
-        boolean indexInternalFormat = lifeCycleService.isIndexInternalFormat(metaData, Watch.INDEX);
-        assertThat(indexInternalFormat, is(expectedIndexInternalFormat));
-    }
-
-    public void testInternalIndexFormatCheckOnNonExistingIndex() {
-        MetaData metaData = MetaData.builder().build();
-        boolean indexInternalFormat = lifeCycleService.isIndexInternalFormat(metaData, Watch.INDEX);
-        assertThat(indexInternalFormat, is(true));
     }
 
     private static DiscoveryNode newNode(String nodeName) {

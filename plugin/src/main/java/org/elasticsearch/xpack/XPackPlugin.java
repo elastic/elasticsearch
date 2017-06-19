@@ -46,6 +46,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -106,7 +107,11 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.CertificateException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -145,11 +150,6 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     // inside of YAML settings we still use xpack do not having handle issues with dashes
     private static final String SETTINGS_NAME = "xpack";
-
-    // internal index format is used for upgrading
-    public static final Setting<Integer> INDEX_INTERNAL_FORMAT_SETTING =
-            Setting.intSetting("index.internal.format", 0, Setting.Property.IndexScope);
-    public static final int INTERNAL_INDEX_FORMAT = 6;
 
     // TODO: clean up this library to not ask for write access to all system properties!
     static {
@@ -359,8 +359,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         settings.addAll(licensing.getSettings());
         settings.addAll(XPackSettings.getAllSettings());
 
-        // an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
-        settings.add(INDEX_INTERNAL_FORMAT_SETTING);
+        // we add the `xpack.version` setting to all internal indices
+        settings.add(Setting.simpleString("index.xpack.version", Setting.Property.IndexScope));
 
         // notification services
         settings.add(SlackService.SLACK_ACCOUNT_SETTING);

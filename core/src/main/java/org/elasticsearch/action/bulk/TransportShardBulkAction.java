@@ -44,7 +44,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -611,10 +610,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         public void verifyMappings(final Mapping update, final ShardId shardId) {
             if (update != null) {
-                // this should not happen as updateMappings has successfully run before this method, and updateMappingOnMaster uses
-                // acking to check that all nodes have the updated mapping
-                // TODO: check if we can remove this logic, or at least not make it retry but fail hard instead
-                assert false : "updateMappings should have ensured that this node has the correct mapping applied";
                 throw new ReplicationOperation.RetryOnPrimaryException(shardId,
                         "Dynamic mappings are not available on the node that holds the primary yet");
             }

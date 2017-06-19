@@ -559,13 +559,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     public void testCancelBeforeScrollResponse() throws Exception {
-        // We bail so early we don't need to pass in a half way valid response.
         cancelTaskCase((DummyAsyncBulkByScrollAction action) -> simulateScrollResponse(action, timeValueNanos(System.nanoTime()), 1,
-                null));
+                new ScrollableHitSource.Response(false, emptyList(), between(1, 100000), emptyList(), null)));
     }
 
     public void testCancelBeforeSendBulkRequest() throws Exception {
-        // We bail so early we don't need to pass in a half way valid request.
+        // We bail so early we don't need to pass in a half way valid response.
         cancelTaskCase((DummyAsyncBulkByScrollAction action) -> action.sendBulkRequest(timeValueNanos(System.nanoTime()), null));
     }
 

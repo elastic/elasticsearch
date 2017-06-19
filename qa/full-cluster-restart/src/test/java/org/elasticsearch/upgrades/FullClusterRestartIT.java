@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
 
@@ -80,6 +81,11 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
     @Override
     protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveTemplatesUponCompletion() {
         return true;
     }
 
@@ -306,7 +312,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         requestBody = "{ \"query\": { \"match_all\" : {} }}";
         Map<String, Object> searchRsp = toMap(client().performRequest("GET", "/" + index + "/_search", Collections.emptyMap(),
                 new StringEntity(requestBody, ContentType.APPLICATION_JSON)));
-        Map<?, ?> hit = (Map<?, ?>) ((List)(XContentMapValues.extractValue("hits.hits", searchRsp))).get(0);
+        Map<?, ?> hit = (Map<?, ?>) ((List<?>)(XContentMapValues.extractValue("hits.hits", searchRsp))).get(0);
         String docId = (String) hit.get("_id");
 
         requestBody = "{ \"doc\" : { \"foo\": \"bar\"}}";
@@ -454,7 +460,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
             // Stick a routing attribute into to cluster settings so we can see it after the restore
             HttpEntity routingSetting = new StringEntity(
-                    "{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": \"" + oldClusterVersion + "\"}}",
+                    "{\"persistent\": {\"cluster.routing.allocation.exclude.test_attr\": \"" + oldClusterVersion + "\"}}",
                     ContentType.APPLICATION_JSON);
             client().performRequest("PUT", "/_cluster/settings", emptyMap(), routingSetting);
 
@@ -529,7 +535,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
          * get a test of a full cluster restart with templates restored from
          * a snapshot. */
         HttpEntity clearRoutingSetting = new StringEntity(
-                "{\"persistent\":\"cluster.routing.allocation.exclude.test_attr\": null}}",
+                "{\"persistent\":{\"cluster.routing.allocation.exclude.test_attr\": null}}",
                 ContentType.APPLICATION_JSON);
         client().performRequest("PUT", "/_cluster/settings", emptyMap(), clearRoutingSetting);
         client().performRequest("DELETE", "/_template/test_template", emptyMap(), clearRoutingSetting);
@@ -567,10 +573,27 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
         if (false == runningAgainstOldCluster) {
             // Check settings added by the restore process
-            map = toMap(client().performRequest("GET", "/_cluster/settings"));
-            fail(map.toString());
+            map = toMap(client().performRequest("GET", "/_cluster/settings", singletonMap("flat_settings", "true")));
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("transient", emptyMap());
+            expected.put("persistent", singletonMap("cluster.routing.allocation.exclude.test_attr", oldClusterVersion.toString()));
+            if (false == expected.equals(map)) {
+                NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
+                builder.compareMaps(map, expected);
+                fail(builder.toString());
+            }
 
-            // TODO assert that the template came back too
+            map = toMap(client().performRequest("GET", "/_template/test_template"));
+            expected = new HashMap<>();
+            expected.put("patterns", "te*");
+            expected.put("number_of_shards", 1);
+            expected.put("mappings", singletonMap("doc", singletonMap("_source", singletonMap("enabled", "true"))));
+            expected = singletonMap("test_template", expected);
+            if (false == expected.equals(map)) {
+                NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
+                builder.compareMaps(map, expected);
+                fail(builder.toString());
+            }
         }
 
     }

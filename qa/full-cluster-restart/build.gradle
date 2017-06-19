@@ -79,7 +79,7 @@ for (Version version : indexCompatVersions) {
     dependsOn = [upgradedClusterTest]
   }
 
-  if (project.bwc_tests_enabled == false) {
+  if (project.bwc_tests_enabled) {
     bwcTest.dependsOn(versionBwcTest)
   }
 }

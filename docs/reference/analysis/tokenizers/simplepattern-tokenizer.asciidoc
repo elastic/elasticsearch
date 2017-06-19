@@ -3,7 +3,7 @@
 
 experimental[]
 
-The `simplepattern` tokenizer uses a regular expression to capture matching
+The `simple_pattern` tokenizer uses a regular expression to capture matching
 text as terms. The set of regular expression features it supports is more
 limited than the <<analysis-pattern-tokenizer,`pattern`>> tokenizer, but the
 tokenization is generally faster.
@@ -11,7 +11,7 @@ tokenization is generally faster.
 This tokenizer does not support splitting the input on a pattern match, unlike
 the <<analysis-pattern-tokenizer,`pattern`>> tokenizer. To split on pattern
 matches using the same restricted regular expression subset, see the
-<<analysis-simplepatternsplit-tokenizer,`simplepatternsplit`>> tokenizer.
+<<analysis-simplepatternsplit-tokenizer,`simple_pattern_split`>> tokenizer.
 
 This tokenizer uses {lucene-core-javadoc}/org/apache/lucene/util/automaton/RegExp.html[Lucene regular expressions].
 For an explanation of the supported features and syntax, see <<regexp-syntax,Regular Expression Syntax>>.
@@ -22,7 +22,7 @@ tokenizer should always be configured with a non-default pattern.
 [float]
 === Configuration
 
-The `simplepattern` tokenizer accepts the following parameters:
+The `simple_pattern` tokenizer accepts the following parameters:
 
 [horizontal]
 `pattern`::
@@ -31,7 +31,7 @@ The `simplepattern` tokenizer accepts the following parameters:
 [float]
 === Example configuration
 
-This example configures the `simplepattern` tokenizer to produce terms that are
+This example configures the `simple_pattern` tokenizer to produce terms that are
 three-digit numbers
 
 [source,js]
@@ -47,7 +47,7 @@ PUT my_index
       },
       "tokenizer": {
         "my_tokenizer": {
-          "type": "simplepattern",
+          "type": "simple_pattern",
           "pattern": "[0123456789]{3}"
         }
       }

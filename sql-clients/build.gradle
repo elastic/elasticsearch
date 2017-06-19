@@ -1,201 +1,35 @@
 description = 'Elasticsearch SQL Clients'
 
-def revHash = 123123123123123
-
-
 import org.gradle.plugins.ide.eclipse.model.*;
 
-def template() { { project ->
-    apply plugin: 'elasticsearch.build'
-    apply plugin: "java"
-    apply plugin: 'eclipse'
+subprojects {
+  apply plugin: 'elasticsearch.build'
+  apply plugin: "java"
+  apply plugin: 'eclipse'
 
-    sourceSets.test.resources.srcDirs = ["src/test/resources", "src/test/java"]
-    
-    // Massaging Eclipse
-    eclipse {
-        classpath.file {
-            whenMerged { cp ->
-                
-                def con = entries.find { e ->
-                    e.kind == "con" && e.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER")
-                }
-                ((AbstractClasspathEntry) con).accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
-                
-                entries.unique { a, b ->
-                    return a.path.compareTo(b.path)
-                }
-                entries.removeAll { it.path.endsWith('.pom') }
-            }
+  sourceSets.test.resources.srcDirs = ["src/test/resources", "src/test/java"]
+
+  // Massaging Eclipse
+  eclipse {
+    classpath.file {
+      whenMerged { cp ->
+        def con = entries.find { e ->
+          e.kind == "con" && e.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER")
         }
-        jdt {
-            javaRuntimeName = "JavaSE-1.8"
-            // specify again the compatibility to override the default JavaRE settings
-            sourceCompatibility = 1.8
-            targetCompatibility = 1.8
+        ((AbstractClasspathEntry) con).accessRules.add(new AccessRule("accessible", "com/sun/net/httpserver/*"))
+
+        entries.unique { a, b ->
+          return a.path.compareTo(b.path)
         }
+        entries.removeAll { it.path.endsWith('.pom') }
+      }
     }
-    
-    dependencies {
-        testCompile("junit:junit:${versions.junit}") {
-			exclude group:'org.hamcrest', module:'hamcrest-core'
-		}
-        testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  }
+
+  dependencies {
+    testCompile("junit:junit:${versions.junit}") {
+      exclude group:'org.hamcrest', module:'hamcrest-core'
     }
-    }
+    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  }
 }
-
-// Shared HTTP Client
-project(":net-client") {
-    apply plugin: 'elasticsearch.build'
-    apply plugin: "java"
-
-    // add some utilities for doing proto testing as this project is common to all protos
-
-    sourceSets {
-        itest {}
-    }
-    
-    dependencies {
-        itestCompile "org.elasticsearch.client:transport:${version}"
-    }
-}  
-
-// JDBC
-project(":jdbc-proto") {
-    apply plugin: 'elasticsearch.build'
-    apply plugin: "java"
-
-    
-    dependencies {
-        compile project(":net-client")
-    }
-}
-
-project(":jdbc") {
-    apply plugin: 'elasticsearch.build'
-    apply plugin: "java"
-
-    def generatedResources = "$buildDir/generated-resources/main"
-    
-    sourceSets {
-        main {
-            output.dir(generatedResources, builtBy: "generateGitHash")
-        }
-    }
-    
-    task generateGitHash {
-        doLast {
-            Properties props = new Properties()
-            props.put("version", version)
-            props.put("hash", revHash)
-            props.put("version.major", jdbcMajorVer)
-            props.put("version.minor", jdbcMinorVer)
-            File output = new File(generatedResources, "jdbc-build.properties")
-            new File(generatedResources).mkdirs()
-            output.createNewFile()
-            props.store(output.newWriter(), null) 
-        }
-    }
-
-    sourceSets {
-        itest {}
-    }
-    
-    dependencies {
-        compile project(":net-client")
-        compile project(":jdbc-proto")
-
-        itestCompile project(":plugins")
-        itestCompile configurations.compile
-        itestCompile configurations.runtime
-        itestCompile configurations.testCompile
-        itestRuntime configurations.testRuntime
-        
-        itestRuntime "com.h2database:h2:1.4.194"
-        itestRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
-    }
-
-    eclipse.classpath {
-        plusConfigurations << configurations.itestRuntime
-    }
-    
-    jar {
-        from(zipTree(project(":net-client").jar.archivePath))
-        from(zipTree(project(":jdbc-proto").jar.archivePath))
-    }
-    
-    task integrationTest(type: Test) {
-        group 'Verification'
-        description 'Runs the integration tests.'
-        
-        testClassesDir = sourceSets.itest.output.classesDir
-        classpath = sourceSets.itest.runtimeClasspath
-        excludes = ["**/Abstract*.class"]
-        
-        mustRunAfter tasks.test
-    }
-}
-
-// CLI
-project(":cli-proto") {
-    apply plugin: 'elasticsearch.build'
-    apply plugin: "java"
-
-    dependencies {
-        compile project(":net-client")
-    }
-}
-
-project(":cli") {
-    apply plugin: 'elasticsearch.build'
-    apply plugin: "java"
-
-    apply plugin: 'application'
-
-    sourceSets {
-        itest {}
-    }
-    
-    dependencies {
-        compile "org.jline:jline:3.3.0"
-
-        compile project(":net-client")
-        compile project(":cli-proto")
-        
-        itestCompile project(":plugins")
-        itestCompile "org.elasticsearch.client:transport:$version"
-        itestCompile configurations.compile
-        itestCompile configurations.runtime
-        itestCompile configurations.testCompile
-        itestRuntime configurations.testRuntime
-    }
-    
-    eclipse.classpath {
-        plusConfigurations << configurations.itestRuntime
-    }
-
-    task integrationTest(type: Test) {
-        group 'Verification'
-        description 'Runs the integration tests.'
-        
-        testClassesDir = sourceSets.itest.output.classesDir
-        classpath = sourceSets.itest.runtimeClasspath
-        excludes = ["**/Abstract*.class"]
-        
-        mustRunAfter tasks.test
-    }
-
-    jar {
-        from(zipTree(project(":net-client").jar.archivePath))
-        from(zipTree(project(":cli-proto").jar.archivePath))
-    }
-    
-    mainClassName = "org.elasticsearch.sql.console.SqlConsole"
-
-    run {
-      classpath = sourceSets.test.runtimeClasspath
-    }
-    
-}
-defaultTasks 'build'

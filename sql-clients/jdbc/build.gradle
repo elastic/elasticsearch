@@ -1,0 +1,49 @@
+import org.elasticsearch.gradle.Version
+
+apply plugin: 'elasticsearch.build'
+
+def generatedResources = "$buildDir/generated-resources/main"
+
+sourceSets {
+  main {
+    output.dir(generatedResources, builtBy: "generateGitHash")
+  }
+}
+
+task generateGitHash {
+  // TODO use the manifest file automatically built by elasticsearch.build
+  doLast {
+    Version current = Version.fromString(versions.elasticsearch)
+    String revHash = '123123123123123'
+    Properties props = new Properties()
+    props.put("version", versions.elasticsearch)
+    props.put("hash", revHash)
+    props.put("version.major", current.major as String)
+    props.put("version.minor", current.minor as String)
+    File output = new File(generatedResources, "jdbc-build.properties")
+    new File(generatedResources).mkdirs()
+    output.createNewFile()
+    def writer = output.newWriter("UTF-8")
+    try {
+      props.store(writer, null)
+    } finally {
+      writer.close()
+    }
+  }
+}
+
+dependencies {
+  compile project(':x-pack-elasticsearch:sql-clients:net-client')
+  compile project(':x-pack-elasticsearch:sql-clients:jdbc-proto')
+
+  testCompile project(":x-pack-elasticsearch:transport-client")
+
+  testRuntime "com.h2database:h2:1.4.194"
+  testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
+}
+
+// TODO seems like we should use the jars....
+jar {
+  from(zipTree(project(':x-pack-elasticsearch:sql-clients:net-client').jar.archivePath))
+  from(zipTree(project(':x-pack-elasticsearch:sql-clients:jdbc-proto').jar.archivePath))
+}

@@ -1,0 +1,5 @@
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  compile project(':x-pack-elasticsearch:sql-clients:net-client')
+}

@@ -1,0 +1,24 @@
+apply plugin: 'elasticsearch.build'
+
+apply plugin: 'application'
+
+dependencies {
+  compile "org.jline:jline:3.3.0"
+
+  compile project(':x-pack-elasticsearch:sql-clients:net-client')
+  compile project(':x-pack-elasticsearch:sql-clients:cli-proto')
+
+  testCompile project(":x-pack-elasticsearch:transport-client")
+}
+
+// TODO seems like we should use the jars....
+jar {
+  from(zipTree(project(':x-pack-elasticsearch:sql-clients:net-client').jar.archivePath))
+  from(zipTree(project(':x-pack-elasticsearch:sql-clients:cli-proto').jar.archivePath))
+}
+
+mainClassName = "org.elasticsearch.sql.console.SqlConsole"
+
+run {
+  classpath = sourceSets.test.runtimeClasspath
+}

@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.integration.util;
 
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.util.Properties;
-
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.sql.integration.es.LocalEs;
 import org.elasticsearch.xpack.sql.jdbc.integration.server.JdbcHttpServer;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcTemplate.JdbcSupplier;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver;
 import org.junit.rules.ExternalResource;
+
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.util.Properties;
 
 import static org.junit.Assert.assertNotNull;
 

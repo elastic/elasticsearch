@@ -5,16 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.integration.net.protocol;
 
-import java.sql.Connection;
-import java.sql.DatabaseMetaData;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.List;
-import java.util.Properties;
-import java.util.concurrent.TimeUnit;
-
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.sql.TestUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.elasticsearch.xpack.sql.jdbc.integration.server.JdbcHttpServer;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcTemplate;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
@@ -26,7 +20,14 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.junit.Assert.assertThat;
+import java.net.InetAddress;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.Assert.assertThat;
 
 
 public class ProtoTest {
@@ -50,7 +52,8 @@ public class ProtoTest {
     @BeforeClass
     public static void setUp() throws Exception {
         if (esClient == null) {
-            esClient = TestUtils.newClient();
+            esClient = new PreBuiltTransportClient(Settings.EMPTY)
+                    .addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), 9300));
         }
         if (server == null) {
             server = new JdbcHttpServer(esClient);

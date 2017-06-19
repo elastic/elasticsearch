@@ -5,6 +5,23 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.integration.util;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
+import org.junit.Test;
+import org.junit.runners.MethodSorters;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URL;
@@ -14,28 +31,9 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.transport.client.PreBuiltTransportClient;
-import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
-
 import static java.util.stream.Collectors.toList;
-
-import static org.junit.Assert.fail;
-
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.junit.Assert.fail;
 
 // used rarely just to load the data (hence why it's marked as abstract)
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
@@ -50,7 +48,7 @@ public abstract class EsDataLoader {
     private static void initClient() {
         if (client == null) {
             client = new PreBuiltTransportClient(Settings.EMPTY)
-                       .addTransportAddress(new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 9300));
+                       .addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), 9300));
         }
     }
     private static Client client()  {

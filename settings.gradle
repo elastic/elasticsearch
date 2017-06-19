@@ -1,20 +1,3 @@
-include "net-client"
-project(":net-client").projectDir = file("sql-clients/net-client")
-
-include "jdbc-proto"
-project(":jdbc-proto").projectDir = file("sql-clients/jdbc-proto")
-
-include "jdbc"
-project(":jdbc").projectDir = file("sql-clients/jdbc")
-
-// CLI
-include "cli-proto"
-project(":cli-proto").projectDir = file("sql-clients/cli-proto")
-
-include "cli"
-project(":cli").projectDir = file("sql-clients/cli")
-
-// NOTE: we ensure the elasticsearch dir is present in buildSrc
 File extrasDir = new File(settingsDir, '..').getCanonicalFile()
 if (extrasDir.name.endsWith('-extra') == false) {
   throw new GradleException("x-pack-elasticsearch must be checked out under an elasticsearch-extra directory, found ${extrasDir.name}")
@@ -22,4 +5,3 @@ if (extrasDir.name.endsWith('-extra') == false) {
 File elasticsearchDir = new File(extrasDir.parentFile, extrasDir.name[0..-7])
 project(':').projectDir = elasticsearchDir
 apply from: "${elasticsearchDir}/settings.gradle"
-

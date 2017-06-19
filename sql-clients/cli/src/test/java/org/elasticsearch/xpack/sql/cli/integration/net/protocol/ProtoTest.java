@@ -5,10 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.cli.integration.net.protocol;
 
-import java.util.Properties;
-
 import org.elasticsearch.client.Client;
-import org.elasticsearch.sql.TestUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.elasticsearch.xpack.sql.cli.CliConfiguration;
 import org.elasticsearch.xpack.sql.cli.integration.server.CliHttpServer;
 import org.elasticsearch.xpack.sql.cli.net.client.HttpCliClient;
@@ -18,13 +17,14 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import static org.junit.Assert.assertThat;
+import java.util.Properties;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.Assert.assertThat;
 
 public class ProtoTest {
 
@@ -35,7 +35,7 @@ public class ProtoTest {
     @BeforeClass
     public static void setUp() throws Exception {
         if (esClient == null) {
-            esClient = TestUtils.newClient();
+            esClient = new PreBuiltTransportClient(Settings.EMPTY);
         }
         if (server == null) {
             server = new CliHttpServer(esClient);

@@ -83,11 +83,11 @@ dependencies {
   compile 'net.sf.supercsv:super-csv:2.4.0'
   nativeBundle "org.elasticsearch.ml:ml-cpp:${project.version}@zip"
   testCompile 'org.ini4j:ini4j:0.5.2'
-  
+
   // sql deps
   antlr "org.antlr:antlr4:4.5.3"
-  compile project(":jdbc-proto")
-  compile project(":cli-proto")
+  compile project(':x-pack-elasticsearch:sql-clients:jdbc-proto')
+  compile project(':x-pack-elasticsearch:sql-clients:cli-proto')
 
   // common test deps
   testCompile 'org.elasticsearch:securemock:1.2'

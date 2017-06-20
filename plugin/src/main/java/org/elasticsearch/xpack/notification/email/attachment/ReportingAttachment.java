@@ -9,6 +9,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.common.http.HttpProxy;
 import org.elasticsearch.xpack.common.http.auth.HttpAuth;
 
 import java.io.IOException;
@@ -16,11 +17,12 @@ import java.util.Objects;
 
 public class ReportingAttachment implements EmailAttachmentParser.EmailAttachment {
 
-    private static final ParseField INLINE = new ParseField("inline");
-    private static final ParseField AUTH = new ParseField("auth");
-    private static final ParseField INTERVAL = new ParseField("interval");
-    private static final ParseField RETRIES = new ParseField("retries");
-    private static final ParseField URL = new ParseField("url");
+    static final ParseField INLINE = new ParseField("inline");
+    static final ParseField AUTH = new ParseField("auth");
+    static final ParseField PROXY = new ParseField("proxy");
+    static final ParseField INTERVAL = new ParseField("interval");
+    static final ParseField RETRIES = new ParseField("retries");
+    static final ParseField URL = new ParseField("url");
 
     private final boolean inline;
     private final String id;
@@ -28,19 +30,17 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
     private final String url;
     private final TimeValue interval;
     private final Integer retries;
+    private final HttpProxy proxy;
 
-    public ReportingAttachment(String id, String url, boolean inline) {
-        this(id, url, inline, null, null, null);
-    }
-
-    public ReportingAttachment(String id, String url, boolean inline, @Nullable TimeValue interval, @Nullable Integer retries,
-                               @Nullable HttpAuth auth) {
+    ReportingAttachment(String id, String url, boolean inline, @Nullable TimeValue interval, @Nullable Integer retries,
+                        @Nullable HttpAuth auth, @Nullable HttpProxy proxy) {
         this.id = id;
         this.url = url;
         this.retries = retries;
         this.inline = inline;
         this.auth = auth;
         this.interval = interval;
+        this.proxy = proxy;
         if (retries != null && retries < 0) {
             throw new IllegalArgumentException("Retries for attachment must be >= 0");
         }
@@ -77,6 +77,10 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
         return retries;
     }
 
+    public HttpProxy proxy() {
+        return proxy;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(id).startObject(ReportingAttachmentParser.TYPE)
@@ -100,6 +104,10 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
             builder.endObject();
         }
 
+        if (proxy != null) {
+            proxy.toXContent(builder, params);
+        }
+
         return builder.endObject().endObject();
     }
 
@@ -111,11 +119,12 @@ public class ReportingAttachment implements EmailAttachmentParser.EmailAttachmen
         ReportingAttachment otherAttachment = (ReportingAttachment) o;
         return Objects.equals(id, otherAttachment.id) && Objects.equals(url, otherAttachment.url) &&
                Objects.equals(interval, otherAttachment.interval) && Objects.equals(inline, otherAttachment.inline) &&
-               Objects.equals(retries, otherAttachment.retries) && Objects.equals(auth, otherAttachment.auth);
+               Objects.equals(retries, otherAttachment.retries) && Objects.equals(auth, otherAttachment.auth) &&
+               Objects.equals(proxy, otherAttachment.proxy);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, url, interval, inline, retries, auth);
+        return Objects.hash(id, url, interval, inline, retries, auth, proxy);
     }
 }

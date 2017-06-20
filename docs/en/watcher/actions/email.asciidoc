@@ -130,20 +130,21 @@ killed by firewalls or load balancers inbetween.
 .`reporting` attachment type attributes
 [options="header"]
 |=====
-| Name           | Description
-| `url`          | The URL to trigger the dashboard creation
-| `inline`       | Configures as an attachment to sent with disposition `inline`. This
-                   allows the use of embedded images in HTML bodies, which are displayed
-                   in certain email clients. Optional. Defaults to `false`.
-| `retries`      | The reporting attachment type tries to poll regularly to receive the
-                   created PDF. This configures the number of retries. Defaults to `40`.
-                   The setting `xpack.notification.reporting.retries` can be configured
-                   globally to change the default.
-| `interval`     | The time to wait between two polling tries. Defaults to `15s` (this
-                   means, by default watcher tries to download a dashboard for 10 minutes,
-                   forty times fifteen seconds). The setting `xpack.notification.reporting.interval`
-                   can be configured globally to change the default.
-| `request.auth` | Additional auth information for the request
+| Name            | Description
+| `url`           | The URL to trigger the dashboard creation
+| `inline`        | Configures as an attachment to sent with disposition `inline`. This
+                    allows the use of embedded images in HTML bodies, which are displayed
+                    in certain email clients. Optional. Defaults to `false`.
+| `retries`       | The reporting attachment type tries to poll regularly to receive the
+                    created PDF. This configures the number of retries. Defaults to `40`.
+                    The setting `xpack.notification.reporting.retries` can be configured
+                    globally to change the default.
+| `interval`      | The time to wait between two polling tries. Defaults to `15s` (this
+                    means, by default watcher tries to download a dashboard for 10 minutes,
+                    forty times fifteen seconds). The setting `xpack.notification.reporting.interval`
+                    can be configured globally to change the default.
+| `request.auth`  | Additional auth configuration for the request
+| `request.proxy` | Additional proxy configuration for the request
 |======
 
 

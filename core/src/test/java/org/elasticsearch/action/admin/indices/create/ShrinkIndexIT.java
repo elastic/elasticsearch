@@ -55,6 +55,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class ShrinkIndexIT extends ESIntegTestCase {
 
@@ -137,40 +138,38 @@ public class ShrinkIndexIT extends ESIntegTestCase {
     }
 
     public void testShrinkIndexPrimaryTerm() throws Exception {
-        final List<Integer> factors = Arrays.asList(2, 2, 2, 2, 2, 2, 2, 2, 2, 2);
+        final List<Integer> factors = Arrays.asList(2, 3, 5, 7);
         final List<Integer> numberOfShardsFactors = randomSubsetOf(randomIntBetween(1, factors.size()), factors);
         final int numberOfShards = numberOfShardsFactors.stream().reduce(1, (x, y) -> x * y);
         final int numberOfTargetShards = randomSubsetOf(numberOfShardsFactors).stream().reduce(1, (x, y) -> x * y);
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", numberOfShards)).get();
 
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
-                .getDataNodes();
-        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
-        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
-        String mergeNode = discoveryNodes[0].getName();
+        final ImmutableOpenMap<String, DiscoveryNode> dataNodes =
+                client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
+        assertThat(dataNodes.size(), greaterThanOrEqualTo(2));
+        final DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        final String mergeNode = discoveryNodes[0].getName();
         ensureGreen();
 
-        // restart a random data node several times to force the primary term for some shards to increase
+        // restart random data nodes to force the primary term for some shards to increase
         for (int i = 0; i < randomIntBetween(0, 16); i++) {
             internalCluster().restartRandomDataNode();
             ensureGreen();
         }
         // relocate all shards to one node such that we can merge it.
-        client().admin().indices().prepareUpdateSettings("source")
-                .setSettings(Settings.builder()
-                        .put("index.routing.allocation.require._name", mergeNode)
-                        .put("index.blocks.write", true)).get();
+        final Settings.Builder prepareShrinkSettings =
+                Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true);
+        client().admin().indices().prepareUpdateSettings("source").setSettings(prepareShrinkSettings).get();
         ensureGreen();
 
         final IndexMetaData indexMetaData = indexMetaData(client(), "source");
         final long beforeShrinkPrimaryTerm = IntStream.range(0, numberOfShards).mapToLong(indexMetaData::primaryTerm).max().getAsLong();
 
         // now merge source into target
-        assertAcked(client().admin().indices().prepareShrinkIndex("source", "target")
-                .setSettings(Settings.builder()
-                        .put("index.number_of_replicas", 0)
-                        .put("index.number_of_shards", numberOfTargetShards).build()).get());
+        final Settings shrinkSettings =
+                Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", numberOfTargetShards).build();
+        assertAcked(client().admin().indices().prepareShrinkIndex("source", "target").setSettings(shrinkSettings).get());
 
         ensureGreen();
 

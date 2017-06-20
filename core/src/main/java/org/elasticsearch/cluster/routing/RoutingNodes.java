@@ -327,29 +327,12 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      *
      */
     public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
-        Version highestVersionSeen = null;
-        ShardRouting candidate = null;
-        for (ShardRouting shardRouting : assignedShards(shardId)) {
-            if (!shardRouting.primary() && shardRouting.active()) {
-                // It's possible for replicaNodeVersion to be null, when deassociating dead nodes
-                // that have been removed, the shards are failed, and part of the shard failing
-                // calls this method with an out-of-date RoutingNodes, where the version might not
-                // be accessible. Therefore, we need to protect against the version being null
-                // (meaning the node will be going away).
-                RoutingNode replicaNode = node(shardRouting.currentNodeId());
-                if (replicaNode != null && replicaNode.node() != null) {
-                    Version replicaNodeVersion = replicaNode.node().getVersion();
-                    if (highestVersionSeen == null || replicaNodeVersion.after(highestVersionSeen)) {
-                        highestVersionSeen = replicaNodeVersion;
-                        candidate = shardRouting;
-                    } else if (candidate == null) {
-                        // Only use this replica if there are no other candidates
-                        candidate = shardRouting;
-                    }
-                }
-            }
-        }
-        return candidate;
+        return assignedShards(shardId).stream()
+                .filter(shr -> !shr.primary() && shr.active())
+                .filter(shr -> node(shr.currentNodeId()) != null)
+                .max(Comparator.comparing(shr -> node(shr.currentNodeId()).node(),
+                                Comparator.nullsFirst(Comparator.comparing(DiscoveryNode::getVersion))))
+                .orElse(null);
     }
 
     /**

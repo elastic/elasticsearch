@@ -167,18 +167,17 @@ public class JobManagerTests extends ESTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("name"))
                 .metaData(MetaData.builder().putCustom(MlMetadata.TYPE, mlMetadata.build())).build();
 
-        expectThrows(ResourceAlreadyExistsException.class, () ->
-                jobManager.putJob(putJobRequest, clusterState, new ActionListener<PutJobAction.Response>() {
-                        @Override
-                        public void onResponse(PutJobAction.Response response) {
+        jobManager.putJob(putJobRequest, clusterState, new ActionListener<PutJobAction.Response>() {
+            @Override
+            public void onResponse(PutJobAction.Response response) {
+                fail("should have got an error");
+            }
 
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            fail(e.toString());
-                        }
-                    }));
+            @Override
+            public void onFailure(Exception e) {
+                assertTrue(e instanceof ResourceAlreadyExistsException);
+            }
+        });
     }
 
     private Job.Builder createJob() {

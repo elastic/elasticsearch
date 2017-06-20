@@ -23,11 +23,11 @@ public class ExceptionsHelper {
     }
 
     public static ResourceAlreadyExistsException jobAlreadyExists(String jobId) {
-        throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_CONFIG_ID_ALREADY_TAKEN, jobId));
+        return new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_CONFIG_ID_ALREADY_TAKEN, jobId));
     }
 
     public static ResourceNotFoundException missingDatafeedException(String datafeedId) {
-        throw new ResourceNotFoundException(Messages.getMessage(Messages.DATAFEED_NOT_FOUND, datafeedId));
+        return new ResourceNotFoundException(Messages.getMessage(Messages.DATAFEED_NOT_FOUND, datafeedId));
     }
 
     public static ElasticsearchException serverError(String msg) {

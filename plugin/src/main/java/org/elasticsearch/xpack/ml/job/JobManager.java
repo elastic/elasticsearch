@@ -167,6 +167,7 @@ public class JobManager extends AbstractComponent {
         MlMetadata currentMlMetadata = state.metaData().custom(MlMetadata.TYPE);
         if (currentMlMetadata != null && currentMlMetadata.getJobs().containsKey(job.getId())) {
             actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
+            return;
         }
 
         ActionListener<Boolean> putJobListener = new ActionListener<Boolean>() {

@@ -23,7 +23,6 @@ To install {xpack} in {es}:
 ----------------------------------------------------------
 bin/elasticsearch-plugin install x-pack
 ----------------------------------------------------------
-//NOTCONSOLE
 
 NOTE: If you are using a <<xpack-package-installation, DEB/RPM distribution>>
       of {es}, run the installation with superuser permissions. To
@@ -64,7 +63,6 @@ for descriptions of what these permissions allow and the associated risks.
 
 Continue with installation? [y/N]y
 ----------------------------------------------------------
-//NOTCONSOLE
 --
   .. {xpack} requires permissions to enable {es} to launch the {ml} analytical
   engine. The native controller ensures that the launched process is a valid
@@ -82,7 +80,6 @@ the Java security manager nor to system call filters.
 
 Continue with installation? [y/N]y
 ----------------------------------------------------------
-//NOTCONSOLE
 --
 
 . If you have disabled automatic index creation in {es}, configure
@@ -94,7 +91,6 @@ Continue with installation? [y/N]y
 -----------------------------------------------------------
 action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*
 -----------------------------------------------------------
-//NOTCONSOLE
 --
 
 . Start {es}.
@@ -104,7 +100,6 @@ action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.wa
 ----------------------------------------------------------
 bin/elasticsearch
 ----------------------------------------------------------
-//NOTCONSOLE
 --
 
 For information about installing {xpack} in {kib} and Logstash, see
@@ -142,7 +137,6 @@ permissions:
 cd /usr/share/elasticsearch
 sudo bin/elasticsearch-plugin install x-pack
 ----------------------------------------------------------
-//NOTCONSOLE
 
 NOTE: If the configuration files are not in `/etc/elasticsearch` you
       need to specify the location of the configuration files by
@@ -175,7 +169,6 @@ and specify the location of the {xpack} zip file. For example:
 ----------------------------------------------------------
 bin/elasticsearch-plugin install file:///path/to/file/x-pack-{version}.zip
 ----------------------------------------------------------
-//NOTCONSOLE
 
 NOTE:  You must specify an absolute path to the zip file after the `file://` protocol.
 

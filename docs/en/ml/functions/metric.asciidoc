@@ -30,8 +30,8 @@ This function supports the following properties:
 * `over_field_name` (optional)
 * `partition_field_name` (optional)
 
-For more information about those properties,
-see <<ml-detectorconfig,Detector Configuration Objects>>.
+For more information about those properties, see
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
 
 .Example 1: Analyzing minimum transactions with the min function
 [source,js]
@@ -64,8 +64,8 @@ This function supports the following properties:
 * `over_field_name` (optional)
 * `partition_field_name` (optional)
 
-For more information about those properties,
-see <<ml-detectorconfig,Detector Configuration Objects>>.
+For more information about those properties, see
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
 
 .Example 2: Analyzing maximum response times with the max function
 [source,js]
@@ -124,8 +124,8 @@ These functions support the following properties:
 * `over_field_name` (optional)
 * `partition_field_name` (optional)
 
-For more information about those properties,
-see <<ml-detectorconfig,Detector Configuration Objects>>.
+For more information about those properties, see
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
 
 .Example 4: Analyzing response times with the median function
 [source,js]
@@ -161,8 +161,8 @@ These functions support the following properties:
 * `over_field_name` (optional)
 * `partition_field_name` (optional)
 
-For more information about those properties,
-see <<ml-detectorconfig,Detector Configuration Objects>>.
+For more information about those properties, see
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
 
 .Example 5: Analyzing response times with the mean function
 [source,js]
@@ -225,8 +225,8 @@ This function supports the following properties:
 * `over_field_name` (optional)
 * `partition_field_name` (optional)
 
-For more information about those properties,
-see <<ml-detectorconfig,Detector Configuration Objects>>.
+For more information about those properties, see
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
 
 .Example 8: Analyzing response times with the metric function
 [source,js]
@@ -261,8 +261,8 @@ These functions support the following properties:
 * `over_field_name` (optional)
 * `partition_field_name` (optional)
 
-For more information about those properties,
-see <<ml-detectorconfig,Detector Configuration Objects>>.
+For more information about those properties, see
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
 
 .Example 9: Analyzing response times with the varp function
 [source,js]

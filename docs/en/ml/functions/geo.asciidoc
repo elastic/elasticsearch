@@ -21,7 +21,7 @@ This function supports the following properties:
 * `partition_field_name` (optional)
 
 For more information about those properties,
-see <<ml-detectorconfig,Detector Configuration Objects>>.
+see {ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
 
 .Example 1: Analyzing transactions with the lat_long function
 [source,js]
@@ -74,4 +74,5 @@ format. For example, the following Painless script transforms
 }
 --------------------------------------------------
 
-For more information about `script_fields`, see <<ml-datafeed-resource>>.
+For more information about `script_fields`, see
+{ref}/ml-datafeed-resource.html[Datafeed Resources].

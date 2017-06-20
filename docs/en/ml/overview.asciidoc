@@ -10,7 +10,7 @@ concepts from the outset will tremendously help ease the learning process.
 
 Machine learning jobs contain the configuration information and metadata
 necessary to perform an analytics task. For a list of the properties associated
-with a job, see <<ml-job-resource, Job Resources>>.
+with a job, see {ref}ml-job-resource.html[Job Resources].
 
 [float]
 [[ml-dfeeds]]
@@ -18,7 +18,7 @@ with a job, see <<ml-job-resource, Job Resources>>.
 
 Jobs can analyze either a one-off batch of data or continuously in real time.
 {dfeeds-cap} retrieve data from {es} for analysis. Alternatively you can
-<<ml-post-data,POST data>> from any source directly to an API.
+{ref}/ml-post-data.html[POST data] from any source directly to an API.
 
 [float]
 [[ml-detectors]]
@@ -28,8 +28,8 @@ As part of the configuration information that is associated with a job,
 detectors define the type of analysis that needs to be done. They also specify
 which fields to analyze. You can have more than one detector in a job, which
 is more efficient than running multiple jobs against the same data. For a list
-of the properties associated with detectors,
-see <<ml-detectorconfig, Detector Configuration Objects>>.
+of the properties associated with detectors, see
+{ref}/ml-job-resource.html#ml-detectorconfig[Detector Configuration Objects].
 
 [float]
 [[ml-buckets]]

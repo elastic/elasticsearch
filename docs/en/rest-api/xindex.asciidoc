@@ -9,8 +9,8 @@
 * <<security-api, Security APIs>>
 * <<watcher-api, Watcher APIs>>
 * <<graph-api, Graph APIs>>
-* Machine Learning APIs
-* <<ml-api-definitions, Definitions>>
+* {ref}/ml-apis.html[Machine Learning APIs]
+* {ref}/ml-api-definitions.html[Definitions]
 --
 
 [[info-api]]
@@ -118,5 +118,3 @@ include::security.asciidoc[]
 include::watcher.asciidoc[]
 
 include::graph.asciidoc[]
-//include::ml-api.asciidoc[]
-//include::defs.asciidoc[]

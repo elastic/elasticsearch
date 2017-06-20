@@ -14,8 +14,8 @@ send your data to that job.
 ** You can create a {dfeed}, which retrieves data from {es} for analysis.
 ** You can use {kib} to expedite the creation of jobs and {dfeeds}.
 
-* If your data is not stored in {es}, you can <<ml-post-data,POST data>> from any
-source directly to an API.
+* If your data is not stored in {es}, you can
+{ref}/ml-post-data.html[POST data] from any source directly to an API.
 
 The results of {ml} analysis are stored in {es} and you can use {kib} to help
 you visualize and explore the results.

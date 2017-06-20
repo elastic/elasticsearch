@@ -1,8 +1,4 @@
 
-
-include::../Versions.asciidoc[]
-
-
 include::getting-started.asciidoc[]
 
 include::setup.asciidoc[]

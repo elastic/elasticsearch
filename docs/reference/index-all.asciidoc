@@ -1,4 +1,0 @@
-[[elasticsearch-reference]]
-= Elasticsearch Reference
-
-include::index-shared.asciidoc[]

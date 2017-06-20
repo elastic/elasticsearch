@@ -360,6 +360,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             tmpImdBuilder.settings(actualIndexSettings);
 
                             if (shrinkFromIndex != null) {
+                                /*
+                                 * We need to arrange that the primary term on all the shards in the shrunken index is at least as large as
+                                 * the maximum primary term on all the shards in the source index. This ensures that we have correct
+                                 * document-level semantics regarding sequence numbers in the shrunken index.
+                                 */
                                 final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
                                 final long primaryTerm =
                                         IntStream

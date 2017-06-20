@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -602,8 +603,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
 
         clusterState = ClusterState.builder(clusterState).nodes(
                 DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node3-6.x", Version.V_6_0_0_alpha3))
-                .add(newNode("node4-6.x", Version.V_6_0_0_alpha3)))
+                .add(newNode("node3-6.x", VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1, null)))
+                .add(newNode("node4-6.x", VersionUtils.randomVersionBetween(random(), Version.V_6_0_0_alpha1, null))))
                 .build();
 
         // start all the replicas
@@ -617,7 +618,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         ShardRouting startedReplica = clusterState.getRoutingNodes().activeReplicaWithHighestVersion(shardId);
         logger.info("--> all shards allocated, replica that should be promoted: {}", startedReplica);
 
-        // fail the primary shard, check replicas get removed as well...
+        // fail the primary shard again and make sure the correct replica is promoted
         ShardRouting primaryShardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
         ClusterState newState = allocation.applyFailedShard(clusterState, primaryShardToFail);
         assertThat(newState, not(equalTo(clusterState)));
@@ -647,15 +648,15 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         logger.info("--> failing primary shard a second time, should select: {}", startedReplica);
 
         // fail the primary shard again, and ensure the same thing happens
-        primaryShardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
-        newState = allocation.applyFailedShard(clusterState, primaryShardToFail);
+        ShardRouting secondPrimaryShardToFail = clusterState.routingTable().index("test").shard(0).primaryShard();
+        newState = allocation.applyFailedShard(clusterState, secondPrimaryShardToFail);
         assertThat(newState, not(equalTo(clusterState)));
         clusterState = newState;
         // the primary gets allocated on another node
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(2));
 
         newPrimaryShard = clusterState.routingTable().index("test").shard(0).primaryShard();
-        assertThat(newPrimaryShard, not(equalTo(primaryShardToFail)));
+        assertThat(newPrimaryShard, not(equalTo(secondPrimaryShardToFail)));
         assertThat(newPrimaryShard.allocationId(), equalTo(startedReplica.allocationId()));
 
         replicaNodeVersion = clusterState.nodes().getDataNodes().get(startedReplica.currentNodeId()).getVersion();
@@ -663,7 +664,8 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         logger.info("--> shard {} got assigned to node with version {}", startedReplica, replicaNodeVersion);
 
         for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            if ("node1".equals(cursor.value.getId())) {
+            if (primaryShardToFail.currentNodeId().equals(cursor.value.getId()) ||
+                    secondPrimaryShardToFail.currentNodeId().equals(cursor.value.getId())) {
                 // Skip the node that the primary was on, it doesn't have a replica so doesn't need a version check
                 continue;
             }

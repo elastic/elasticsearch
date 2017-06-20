@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedSetSelector;
@@ -28,19 +29,28 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -48,11 +58,15 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -139,7 +153,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
 
     public void testShrinkIndexPrimaryTerm() throws Exception {
         final List<Integer> factors = Arrays.asList(2, 3, 5, 7);
-        final List<Integer> numberOfShardsFactors = randomSubsetOf(randomIntBetween(1, factors.size()), factors);
+        final List<Integer> numberOfShardsFactors = randomSubsetOf(scaledRandomIntBetween(1, factors.size()), factors);
         final int numberOfShards = numberOfShardsFactors.stream().reduce(1, (x, y) -> x * y);
         final int numberOfTargetShards = randomSubsetOf(numberOfShardsFactors).stream().reduce(1, (x, y) -> x * y);
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -152,11 +166,39 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         final String mergeNode = discoveryNodes[0].getName();
         ensureGreen();
 
-        // restart random data nodes to force the primary term for some shards to increase
-        for (int i = 0; i < randomIntBetween(0, 16); i++) {
-            internalCluster().restartRandomDataNode();
-            ensureGreen();
+        // fail random primary shards to force primary terms to increase
+        final Index source = resolveIndex("source");
+        final int iterations = scaledRandomIntBetween(0, 16);
+        for (int i = 0; i < iterations; i++) {
+            final String node = randomSubsetOf(1, internalCluster().nodesInclude("source")).get(0);
+            final IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
+            final IndexService indexShards = indexServices.indexServiceSafe(source);
+            for (final Integer shardId : indexShards.shardIds()) {
+                final IndexShard shard = indexShards.getShard(shardId);
+                if (shard.routingEntry().primary() && randomBoolean()) {
+                    disableAllocation("source");
+                    shard.failShard("test", new Exception("test"));
+                    // this can not succeed until the shard is failed and a replica is promoted
+                    int id = 0;
+                    while (true) {
+                        // find an ID that routes to the right shard, we will only index to the shard that saw a primary failure
+                        final String s = Integer.toString(id);
+                        final int hash = Math.floorMod(Murmur3HashFunction.hash(s), numberOfShards);
+                        if (hash == shardId) {
+                            final IndexRequest request =
+                                    new IndexRequest("source", "type", s).source("{ \"f\": \"" + s + "\"}", XContentType.JSON);
+                            client().index(request).get();
+                            break;
+                        } else {
+                            id++;
+                        }
+                    }
+                    enableAllocation("source");
+                    ensureGreen();
+                }
+            }
         }
+
         // relocate all shards to one node such that we can merge it.
         final Settings.Builder prepareShrinkSettings =
                 Settings.builder().put("index.routing.allocation.require._name", mergeNode).put("index.blocks.write", true);

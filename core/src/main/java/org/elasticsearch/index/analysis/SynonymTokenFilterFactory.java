@@ -74,9 +74,6 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 analysisRegistry.getTokenizerProvider(tokenizerName, indexSettings);
             if (tokenizerFactoryFactory == null) {
                 throw new IllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
-            } else {
-                deprecationLogger.deprecated(
-                    "This filter tokenize synonyms with whatever tokenizer and token filters appear before it in the chain.");
             }
             final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.get(indexSettings, env, tokenizerName,
                 AnalysisRegistry.getSettingsFromIndexSettings(indexSettings,
@@ -157,6 +154,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                 synonymMap = parser.build();
             } catch (Exception e) {
                 throw new IllegalArgumentException("failed to build synonyms", e);
+            } finally {
+                if (tokenizerFactory != null) {
+                    analyzer.close();
+                }
             }
         }
 

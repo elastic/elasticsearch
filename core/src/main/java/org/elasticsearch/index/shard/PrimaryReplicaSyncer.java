@@ -157,8 +157,9 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         private AtomicBoolean closed = new AtomicBoolean();
         private AtomicBoolean runOnce = new AtomicBoolean();
 
-        SnapshotSender(Logger logger, SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId, Translog.Snapshot snapshot,
-                       int chunkSizeInBytes, long startingSeqNo, long endingSeqNo, ActionListener<Void> listener) {
+        SnapshotSender(Logger logger, SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId,
+                       Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, long endingSeqNo,
+                       ActionListener<Void> listener) {
             this.logger = logger;
             this.syncAction = syncAction;
             this.task = task;

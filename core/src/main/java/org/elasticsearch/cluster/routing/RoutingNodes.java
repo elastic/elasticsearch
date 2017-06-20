@@ -68,8 +68,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
     private final Map<String, RoutingNode> nodesToShards = new HashMap<>();
 
-    private final Map<String, Version> nodesToVersions = new HashMap<>();
-
     private final UnassignedShards unassignedShards = new UnassignedShards(this);
 
     private final Map<ShardId, List<ShardRouting>> assignedShards = new HashMap<>();
@@ -97,7 +95,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // fill in the nodeToShards with the "live" nodes
         for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
             nodesToShards.put(cursor.value.getId(), new LinkedHashMap<>()); // LinkedHashMap to preserve order
-            nodesToVersions.put(cursor.value.getId(), cursor.value.getVersion());
         }
 
         // fill in the inverse of node -> shards allocated
@@ -339,13 +336,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 // calls this method with an out-of-date RoutingNodes, where the version might not
                 // be accessible. Therefore, we need to protect against the version being null
                 // (meaning the node will be going away).
-                Version replicaNodeVersion = nodesToVersions.get(shardRouting.currentNodeId());
-                if (replicaNodeVersion == null && candidate == null) {
-                    // Only use this replica if there are no other candidates
-                    candidate = shardRouting;
-                } else if (highestVersionSeen == null || (replicaNodeVersion != null && replicaNodeVersion.after(highestVersionSeen))) {
-                    highestVersionSeen = replicaNodeVersion;
-                    candidate = shardRouting;
+                RoutingNode replicaNode = node(shardRouting.currentNodeId());
+                if (replicaNode != null && replicaNode.node() != null) {
+                    Version replicaNodeVersion = replicaNode.node().getVersion();
+                    if (replicaNodeVersion == null && candidate == null) {
+                        // Only use this replica if there are no other candidates
+                        candidate = shardRouting;
+                    } else if (highestVersionSeen == null || (replicaNodeVersion != null && replicaNodeVersion.after(highestVersionSeen))) {
+                        highestVersionSeen = replicaNodeVersion;
+                        candidate = shardRouting;
+                    }
                 }
             }
         }

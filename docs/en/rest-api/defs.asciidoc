@@ -1,3 +1,4 @@
+[role="xpack"]
 [[ml-api-definitions]]
 == Definitions
 
@@ -11,8 +12,13 @@ job configuration options.
 * <<ml-snapshot-resource,Model snapshots>>
 * <<ml-results-resource,Results>>
 
+[role="xpack"]
 include::ml/datafeedresource.asciidoc[]
+[role="xpack"]
 include::ml/jobresource.asciidoc[]
+[role="xpack"]
 include::ml/jobcounts.asciidoc[]
+[role="xpack"]
 include::ml/snapshotresource.asciidoc[]
+[role="xpack"]
 include::ml/resultsresource.asciidoc[]

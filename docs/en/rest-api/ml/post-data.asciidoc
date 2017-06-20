@@ -1,4 +1,4 @@
-//lcawley: Verified example output 2017-04-11
+[role="xpack"]
 [[ml-post-data]]
 === Post Data to Jobs
 
@@ -53,7 +53,9 @@ or a comma-separated list.
 ==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
 ==== Examples

@@ -1,4 +1,4 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-snapshot-resource]]
 === Model Snapshot Resources
 

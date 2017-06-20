@@ -1,4 +1,4 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-job-resource]]
 === Job Resources
 
@@ -85,7 +85,9 @@ An analysis configuration object has the following properties:
   (string) If not null, the values of the specified field will be categorized.
   The resulting categories can be used in a detector by setting `by_field_name`,
   `over_field_name`, or `partition_field_name` to the keyword `mlcategory`.
-  For more information, see <<ml-configuring-categories>>.
+  For more information, see
+  {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+//<<ml-configuring-categories>>.
 
 `categorization_filters`::
   (array of strings) If `categorization_field_name` is specified,
@@ -94,8 +96,9 @@ An analysis configuration object has the following properties:
   off the categorization field values. This functionality is useful to fine tune
   categorization by excluding sequences that should not be taken into
   consideration for defining categories. For example, you can exclude SQL
-  statements that appear in your log files. For more information,
-  see <<ml-configuring-categories>>.
+  statements that appear in your log files. For more information, see
+  {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+//<<ml-configuring-categories>>.
 
 `detectors`::
   (array) An array of detector configuration objects,
@@ -185,7 +188,8 @@ NOTE: The `field_name` cannot contain double quotes or backslashes.
 `function`::
   (string) The analysis function that is used.
   For example, `count`, `rare`, `mean`, `min`, `max`, and `sum`. For more
-  information, see <<ml-functions>>.
+  information, see {xpack-ref}/ml-functions.html[Function Reference].
+//<<ml-functions>>.
 
 `over_field_name`::
   (string) The field used to split the data.
@@ -265,7 +269,10 @@ The `analysis_limits` object has the following properties:
   If you set this value to `0`, no examples are stored. +
 
 NOTE: The `categorization_examples_limit` only applies to analysis that uses categorization.
-For more information, see <<ml-configuring-categories>>.
+For more information, see
+{xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+
+//<<ml-configuring-categories>>.
 
 `model_memory_limit`::
   (long) The approximate maximum amount of memory resources that are required

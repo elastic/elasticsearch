@@ -1,4 +1,4 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-get-datafeed]]
 === Get {dfeeds-cap}
 
@@ -33,7 +33,9 @@ The API returns the following information:
 ==== Authorization
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see <<privileges-list-cluster>>.
+privileges to use this API. For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
 ==== Examples

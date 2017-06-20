@@ -1,4 +1,4 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-stop-datafeed]]
 === Stop {dfeeds-cap}
 
@@ -29,7 +29,9 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 ==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 ==== Examples
 

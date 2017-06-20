@@ -1,4 +1,4 @@
-//lcawley: Verified example output 2017-04-11
+[role="xpack"]
 [[ml-preview-datafeed]]
 === Preview {dfeeds-cap}
 
@@ -26,7 +26,9 @@ the data that will be passed to the anomaly detection engine.
 ==== Authorization
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see <<privileges-list-cluster>>.
+privileges to use this API. For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
 ==== Examples

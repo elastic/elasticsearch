@@ -1,4 +1,4 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-revert-snapshot]]
 === Revert Model Snapshots
 
@@ -72,7 +72,9 @@ If you want to resend data, then delete the intervening results.
 ==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
 ==== Examples

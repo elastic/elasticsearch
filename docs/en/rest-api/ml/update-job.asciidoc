@@ -1,4 +1,4 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-update-job]]
 === Update Jobs
 
@@ -74,7 +74,9 @@ want to re-run this job with an increased `model_memory_limit`.
 ==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
 ==== Examples

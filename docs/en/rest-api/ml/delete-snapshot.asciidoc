@@ -1,3 +1,4 @@
+[role="xpack"]
 [[ml-delete-snapshot]]
 === Delete Model Snapshots
 
@@ -13,7 +14,7 @@ The delete model snapshot API enables you to delete an existing model snapshot.
 
 IMPORTANT: You cannot delete the active model snapshot. To delete that snapshot,
 first revert to a different one. To identify the active model snapshot, refer to
-the `model_snapshot_id` in the results from the get jobs API. 
+the `model_snapshot_id` in the results from the get jobs API.
 
 ==== Path Parameters
 
@@ -27,7 +28,8 @@ the `model_snapshot_id` in the results from the get jobs API.
 ==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
 ==== Examples

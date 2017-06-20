@@ -1,4 +1,4 @@
-//lcawley Verified example output 2017-04
+[role="xpack"]
 [[ml-start-datafeed]]
 === Start {dfeeds-cap}
 
@@ -73,7 +73,9 @@ of the latest processed record.
 ==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
 ==== Examples

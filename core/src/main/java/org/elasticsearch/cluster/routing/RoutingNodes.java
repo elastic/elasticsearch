@@ -339,11 +339,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 RoutingNode replicaNode = node(shardRouting.currentNodeId());
                 if (replicaNode != null && replicaNode.node() != null) {
                     Version replicaNodeVersion = replicaNode.node().getVersion();
-                    if (replicaNodeVersion == null && candidate == null) {
-                        // Only use this replica if there are no other candidates
-                        candidate = shardRouting;
-                    } else if (highestVersionSeen == null || (replicaNodeVersion != null && replicaNodeVersion.after(highestVersionSeen))) {
+                    if (highestVersionSeen == null || replicaNodeVersion.after(highestVersionSeen)) {
                         highestVersionSeen = replicaNodeVersion;
+                        candidate = shardRouting;
+                    } else if (candidate == null) {
+                        // Only use this replica if there are no other candidates
                         candidate = shardRouting;
                     }
                 }

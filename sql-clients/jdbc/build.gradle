@@ -44,6 +44,13 @@ dependencies {
   testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
 }
 
+dependencyLicenses {
+  mapping from: /jdbc-proto.*/, to: 'elasticsearch'
+  mapping from: /net-client.*/, to: 'elasticsearch'
+  ignoreSha 'jdbc-proto'
+  ignoreSha 'net-client'
+}
+
 // TODO seems like we should use the jars....
 jar {
   from(zipTree(project(':x-pack-elasticsearch:sql-clients:net-client').jar.archivePath))

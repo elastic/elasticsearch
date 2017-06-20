@@ -11,6 +11,13 @@ dependencies {
   testCompile project(':x-pack-elasticsearch:sql-clients:test-utils')
 }
 
+dependencyLicenses {
+  mapping from: /cli-proto.*/, to: 'elasticsearch'
+  mapping from: /net-client.*/, to: 'elasticsearch'
+  ignoreSha 'cli-proto'
+  ignoreSha 'net-client'
+}
+
 // TODO seems like we should use the jars....
 jar {
   from(zipTree(project(':x-pack-elasticsearch:sql-clients:net-client').jar.archivePath))

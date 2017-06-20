@@ -32,9 +32,15 @@ dependencyLicenses {
   mapping from: /http.*/, to: 'httpclient' // pulled in by rest client
   mapping from: /commons-.*/, to: 'commons' // pulled in by rest client
   mapping from: /sniffer.*/, to: 'elasticsearch'
+  mapping from: /jdbc-proto.*/, to: 'elasticsearch'
+  mapping from: /cli-proto.*/, to: 'elasticsearch'
+  mapping from: /net-client.*/, to: 'elasticsearch'
   ignoreSha 'rest'
   ignoreSha 'transport-netty4'
   ignoreSha 'sniffer'
+  ignoreSha 'jdbc-proto'
+  ignoreSha 'cli-proto'
+  ignoreSha 'net-client'
 }
 
 licenseHeaders {

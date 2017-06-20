@@ -10,7 +10,7 @@ concepts from the outset will tremendously help ease the learning process.
 
 Machine learning jobs contain the configuration information and metadata
 necessary to perform an analytics task. For a list of the properties associated
-with a job, see {ref}ml-job-resource.html[Job Resources].
+with a job, see {ref}/ml-job-resource.html[Job Resources].
 
 [float]
 [[ml-dfeeds]]

@@ -124,7 +124,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
         assertThat(e.getMessage(), startsWith("explain must be either 'true' or 'false'"));
     }
 
-    public void testParseXContentForAnalyzeRequestWithInvalidNromalizerThrowsException() throws Exception {
+    public void testParseXContentForAnalyzeRequestWithInvalidNormalizerThrowsException() throws Exception {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
         XContentParser invalidExplain = createParser(XContentFactory.jsonBuilder()
             .startObject()

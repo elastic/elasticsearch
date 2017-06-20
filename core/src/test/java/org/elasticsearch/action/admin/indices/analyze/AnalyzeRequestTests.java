@@ -23,11 +23,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -98,9 +95,7 @@ public class AnalyzeRequestTests extends ESTestCase {
 
     public void testSerializationBwc() throws IOException {
         final byte[] data = Base64.getDecoder().decode("AAABA2ZvbwEEdGV4dAAAAAAAAAABCm5vcm1hbGl6ZXI=");
-        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_3_0, Version.V_5_3_1, Version.V_5_3_2,
-            Version.V_5_4_0);
+        final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.V_5_4_0);
         try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);
             AnalyzeRequest request = new AnalyzeRequest();

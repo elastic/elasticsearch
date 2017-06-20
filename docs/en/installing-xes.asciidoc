@@ -1,0 +1,182 @@
+[role="xpack"]
+[[installing-xpack-es]]
+== Installing X-Pack
+
+After you install {es}, you can optionally obtain and install {xpack}.
+For more information about how to obtain {xpack},
+see https://www.elastic.co/products/x-pack.
+
+You must run the version of {xpack} that matches the version of {es} you are running.
+
+IMPORTANT: If you are installing {xpack} for the first time on an existing
+cluster, you must perform a full cluster restart. Installing {xpack} enables
+security and security must be enabled on ALL nodes in a cluster for the cluster
+to operate correctly. When upgrading you can usually perform
+a {ref}/rolling-upgrades.html[rolling upgrade].
+
+To install {xpack} in {es}:
+
+. Run `bin/elasticsearch-plugin install` from `ES_HOME` on each node in your cluster:
++
+--
+[source,shell]
+----------------------------------------------------------
+bin/elasticsearch-plugin install x-pack
+----------------------------------------------------------
+//NOTCONSOLE
+
+NOTE: If you are using a <<xpack-package-installation, DEB/RPM distribution>>
+      of {es}, run the installation with superuser permissions. To
+      perform an offline installation, <<xpack-installing-offline, download the X-Pack binaries>>.
+
+--
+
+. Confirm that you want to grant {xpack} additional permissions.
++
+--
+TIP:  Specify the `--batch` option when running the install command to
+      automatically grant these permissions and bypass these install prompts.
+
+--
++
+  .. {xpack} needs these permissions to set the threat context loader during
+  install so {watcher} can send email notifications.
++
+--
+[source,shell]
+----------------------------------------------------------
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@     WARNING: plugin requires additional permissions     @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+* java.lang.RuntimePermission accessClassInPackage.com.sun.activation.registries
+* java.lang.RuntimePermission getClassLoader
+* java.lang.RuntimePermission setContextClassLoader
+* java.lang.RuntimePermission setFactory
+* java.security.SecurityPermission createPolicy.JavaPolicy
+* java.security.SecurityPermission getPolicy
+* java.security.SecurityPermission putProviderProperty.BC
+* java.security.SecurityPermission setPolicy
+* java.util.PropertyPermission * read,write
+* java.util.PropertyPermission sun.nio.ch.bugLevel write
+* javax.net.ssl.SSLPermission setHostnameVerifier
+See http://docs.oracle.com/javase/8/docs/technotes/guides/security/permissions.html
+for descriptions of what these permissions allow and the associated risks.
+
+Continue with installation? [y/N]y
+----------------------------------------------------------
+//NOTCONSOLE
+--
+  .. {xpack} requires permissions to enable {es} to launch the {ml} analytical
+  engine. The native controller ensures that the launched process is a valid
+  {ml} component. Once launched, communications between the {ml} processes and
+  {es} are limited to the operating system user that {es} runs as.
++
+--
+[source,shell]
+----------------------------------------------------------
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+@        WARNING: plugin forks a native controller        @
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+This plugin launches a native controller that is not subject to
+the Java security manager nor to system call filters.
+
+Continue with installation? [y/N]y
+----------------------------------------------------------
+//NOTCONSOLE
+--
+
+. If you have disabled automatic index creation in {es}, configure
+{ref}/docs-index_.html#index-creation[`action.auto_create_index`] in
+`elasticsearch.yml` to allow {xpack} to create the following indices:
++
+--
+[source,yaml]
+-----------------------------------------------------------
+action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*
+-----------------------------------------------------------
+//NOTCONSOLE
+--
+
+. Start {es}.
++
+--
+[source,shell]
+----------------------------------------------------------
+bin/elasticsearch
+----------------------------------------------------------
+//NOTCONSOLE
+--
+
+For information about installing {xpack} in {kib} and Logstash, see
+{xpack-ref}/installing-xpack.html[Installing {xpack}].
+
+[IMPORTANT]
+=============================================================================
+SSL/TLS encryption is disabled by default, which means user credentials are
+passed in the clear. **Do not deploy to production without enabling encryption!**
+For more information, see {xpack-ref}/encrypting-communications.html[Encrypting
+Communications].
+
+You must also **change the passwords for the built-in `elastic` user and the
+`kibana` user that enables {kib} to communicate with {es} before
+deploying to production**. For more information,
+see {xpack-ref}/setting-up-authentication.html[Setting Up User Authentication].
+=============================================================================
+
+[float]
+[[xpack-package-installation]]
+=== Installing {xpack} on a DEB/RPM Package Installation
+
+If you use the DEB/RPM packages to install {es}, by default {es} is installed
+in `/usr/share/elasticsearch` and the configuration files are stored
+in `/etc/elasticsearch`. (For the complete list of default paths, see
+{ref}/deb.html#deb-layout[Debian Directory Layout] and
+{ref}/rpm.html#rpm-layout[RPM Directory Layout] in the {es} Reference.)
+
+To install {xpack} on a DEB/RPM package installation, you need to run
+`bin/plugin install` from the `/usr/share/elasticsearch` directory with superuser
+permissions:
+
+[source,shell]
+----------------------------------------------------------
+cd /usr/share/elasticsearch
+sudo bin/elasticsearch-plugin install x-pack
+----------------------------------------------------------
+//NOTCONSOLE
+
+NOTE: If the configuration files are not in `/etc/elasticsearch` you
+      need to specify the location of the configuration files by
+      setting the system property `es.path.conf` to the config path via
+      `ES_JAVA_OPTS="-Des.path.conf=<path>"` or by setting the
+      environment variable `CONF_DIR` via `CONF_DIR=<path>`.
+
+[float]
+[[xpack-installing-offline]]
+=== Installing {xpack} on Offline Machines
+The plugin install scripts require direct Internet access to download and
+install {xpack}. If your server doesn’t have Internet access, you
+can manually download and install {xpack}.
+
+To install {xpack} on a machine that doesn't have Internet access:
+
+. Manually download the {xpack} zip file:
+https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip[
++https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip+]
+(https://artifacts.elastic.co/downloads/packs/x-pack/x-pack-{version}.zip.sha1[sha1])
+
+. Transfer the zip file to a temporary directory on the offline machine. (Do NOT
+put the file in the {es} plugins directory.)
+
+. Run `bin/elasticsearch-plugin install` from the {es} install directory
+and specify the location of the {xpack} zip file. For example:
++
+--
+["source","sh",subs="attributes"]
+----------------------------------------------------------
+bin/elasticsearch-plugin install file:///path/to/file/x-pack-{version}.zip
+----------------------------------------------------------
+//NOTCONSOLE
+
+NOTE:  You must specify an absolute path to the zip file after the `file://` protocol.
+
+--

@@ -6,11 +6,23 @@
 You configure settings for X-Pack features in the `elasticsearch.yml` and `kibana.yml`
 configuration files.
 
-* <<security-settings, Security Settings>>
-* <<monitoring-settings, Monitoring Settings>>
-* <<notification-settings, Watcher Settings>>
-* <<reporting-settings, Reporting Settings>>
-* <<ml-settings, Machine Learning Settings>>
+[options="header,footer"]
+|=======================
+|{xpack} Feature  |{es} Settings                  |{kib} Settings              |Logstash Settings
+|Graph            |No                             |<<graph-settings,Yes>>      |No
+//{kib-ref}/settings-xpack-kb.html[Yes]
+|Machine learning |{ref}/settings-xpack.html[Yes] |Yes                         |No
+//{kib-ref}/settings-xpack-kb.html[Yes]
+|Monitoring       |<<monitoring-settings,Yes>>    |<<monitoring-settings,Yes>> |<<monitoring-settings,Yes>>
+//{ref}/settings-xpack.html[Yes] {kib-ref}/settings-xpack-kb.html[Yes]
+|Reporting        |No                             |<<reporting-settings,Yes>>  |No
+//{kib-ref}/settings-xpack-kb.html[Yes]
+|Security         |<<security-settings,Yes>>      |<<security-settings,Yes>>   |No
+//{ref}/settings-xpack.html[Yes] {kib-ref}/settings-xpack-kb.html[Yes]
+|Watcher          |<<notification-settings,Yes>>  |No                          |No
+//{ref}/settings-xpack.html[Yes] No
+|=======================
+
 --
 
 include::security-settings.asciidoc[]
@@ -18,4 +30,4 @@ include::monitoring-settings.asciidoc[]
 include::graph-settings.asciidoc[]
 include::notification-settings.asciidoc[]
 include::reporting-settings.asciidoc[]
-include::ml-settings.asciidoc[]
+//include::ml-settings.asciidoc[]

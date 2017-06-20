@@ -1,0 +1,14 @@
+[role="xpack"]
+[[setup-xpack]]
+= Setup X-Pack
+
+[partintro]
+--
+{xpack} is an Elastic Stack extension that bundles security, alerting,
+monitoring, reporting, machine learning, and graph capabilities into one
+easy-to-install package. To access this functionality, you must
+<<installing-xpack-es,install {xpack} in {es}>>.
+--
+
+include::installing-xes.asciidoc[]
+include::settings/configuring-xes.asciidoc[]

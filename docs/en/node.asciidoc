@@ -96,8 +96,7 @@ If you want to use {xpackml} features in your cluster, you must enable {ml}
 (set `xpack.ml.enabled` to `true`) on all master-eligible nodes. Do not use
 these settings if you do not have {xpack} installed.
 
-For more information about these settings,
-see {xpack-ref}/ml-settings.html[Machine Learning Settings].
+For more information about these settings, see <<ml-settings>>.
 
 To create a dedicated {ml} node, set:
 

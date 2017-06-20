@@ -23,6 +23,12 @@
 
 include::{es-repo-dir}/Versions.asciidoc[]
 include::{es-repo-dir}/reference/index-shared1.asciidoc[]
+
+ifdef::include-xpack[]
+:edit_url!:
+include::setup-xes.asciidoc[]
+endif::include-xpack[]
+
 include::{es-repo-dir}/reference/index-shared2.asciidoc[]
 
 ifdef::include-xpack[]

@@ -193,8 +193,8 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         service.updateTemplates(additions, deletions);
         int updatesInProgress = service.getUpdatesInProgress();
 
-        assertThat(putTemplateListeners.size(), equalTo(additionsCount));
-        assertThat(deleteTemplateListeners.size(), equalTo(deletionsCount));
+        assertThat(putTemplateListeners, hasSize(additionsCount));
+        assertThat(deleteTemplateListeners, hasSize(deletionsCount));
 
         for (int i = 0; i < additionsCount; i++) {
             if (randomBoolean()) {
@@ -208,11 +208,15 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
         for (int i = 0; i < deletionsCount; i++) {
             if (randomBoolean()) {
+                int prevUpdatesInProgress = service.getUpdatesInProgress();
                 deleteTemplateListeners.get(i).onFailure(new RuntimeException("test - ignore"));
+                assertThat(prevUpdatesInProgress - service.getUpdatesInProgress(), equalTo(1));
             } else {
+                int prevUpdatesInProgress = service.getUpdatesInProgress();
                 deleteTemplateListeners.get(i).onResponse(new DeleteIndexTemplateResponse(randomBoolean()) {
 
                 });
+                assertThat(prevUpdatesInProgress - service.getUpdatesInProgress(), equalTo(1));
             }
         }
         assertThat(updatesInProgress - service.getUpdatesInProgress(), equalTo(additionsCount + deletionsCount));
@@ -276,7 +280,6 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             return null;
         }).when(mockIndicesAdminClient).deleteTemplate(any(DeleteIndexTemplateRequest.class), any(ActionListener.class));
 
-
         TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, mockClient, clusterService, threadPool,
             Arrays.asList(
                 templates -> {
@@ -334,7 +337,6 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
         // Make sure that update wasn't called this time since the index template metadata didn't change
         assertThat(updateInvocation.get(), equalTo(2));
-
     }
 
     private static final int NODE_TEST_ITERS = 100;
@@ -371,7 +373,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         }
     }
 
-    public void testClientNodeRunsTemplateUpdates() {
+    public void testClientNodeDontRunTemplateUpdates() {
         for (int i = 0; i < NODE_TEST_ITERS; i++) {
             int nodesCount = randomIntBetween(1, 10);
             int clientNodesCount = randomIntBetween(1, 4);
@@ -433,5 +435,4 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         }
         return builder.build();
     }
-
 }

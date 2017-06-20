@@ -150,11 +150,9 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
                     return false;
                 }
                 for (ObjectCursor<DiscoveryNode> node : nodes.getMasterAndDataNodes().values()) {
-                    if (node.value.getVersion().equals(maxVersion)) {
-                        if (node.value.getId().compareTo(localNode.getId()) > 0) {
-                            // We have a node with higher id then mine - it should update
-                            return false;
-                        }
+                    if (node.value.getVersion().equals(maxVersion) && node.value.getId().compareTo(localNode.getId()) > 0) {
+                        // We have a node with higher id then mine - it should update
+                        return false;
                     }
                 }
                 // We have the highest version and highest id - we should perform the update

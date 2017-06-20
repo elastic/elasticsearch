@@ -4,4 +4,7 @@
 :es-test-dir: {docdir}/../src/test
 :plugins-examples-dir: {docdir}/../../plugins/examples
 
-include::index-shared.asciidoc[]
+include::../Versions.asciidoc[]
+include::index-shared1.asciidoc[]
+include::index-shared2.asciidoc[]
+include::index-shared3.asciidoc[]

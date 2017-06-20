@@ -97,7 +97,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
             logger.debug("Using MockDirWrapper with seed [{}] throttle: [{}] crashIndex: [{}]", SeedUtils.formatSeed(seed),
                     throttle, crashIndex);
         }
-        delegateService = randomDirectorService(indexStore, path);
+        delegateService = randomDirectoryService(indexStore, path);
     }
 
 
@@ -162,9 +162,14 @@ public class MockFSDirectoryService extends FsDirectoryService {
         return w;
     }
 
-    private FsDirectoryService randomDirectorService(IndexStore indexStore, ShardPath path) {
+    private FsDirectoryService randomDirectoryService(IndexStore indexStore, ShardPath path) {
         final IndexSettings indexSettings = indexStore.getIndexSettings();
-        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData()).settings(Settings.builder().put(indexSettings.getSettings()).put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey())).build();
+        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData())
+            .settings(Settings.builder()
+                .put(indexSettings.getSettings().getAsMap()) // do not copy the secure settings as they will be copied again later on!
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
+                    RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey()))
+            .build();
         final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings());
         return new FsDirectoryService(newIndexSettings, indexStore, path);
     }

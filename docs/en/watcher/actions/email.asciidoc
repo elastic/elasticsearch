@@ -158,8 +158,8 @@ include::{xkb-repo-dir}/reporting/watch-example.asciidoc[]
 
 include::{xkb-repo-dir}/reporting/report-intervals.asciidoc[]
 
-For more information, see <<automating-report-generation,
-Automating Report Generation>>.
+For more information, see
+{kibana-ref}/automating-report-generation.html[Automating Report Generation].
 
 [[email-action-attributes]]
 ==== Email Action Attributes

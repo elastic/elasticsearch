@@ -15,7 +15,7 @@ configuration files.
 //{kib-ref}/settings-xpack-kb.html[Yes]
 |Monitoring       |<<monitoring-settings,Yes>>    |<<monitoring-settings,Yes>> |<<monitoring-settings,Yes>>
 //{ref}/settings-xpack.html[Yes] {kib-ref}/settings-xpack-kb.html[Yes]
-|Reporting        |No                             |<<reporting-settings,Yes>>  |No
+|Reporting        |No                             |Yes                          |No
 //{kib-ref}/settings-xpack-kb.html[Yes]
 |Security         |<<security-settings,Yes>>      |<<security-settings,Yes>>   |No
 //{ref}/settings-xpack.html[Yes] {kib-ref}/settings-xpack-kb.html[Yes]
@@ -29,5 +29,5 @@ include::security-settings.asciidoc[]
 include::monitoring-settings.asciidoc[]
 include::graph-settings.asciidoc[]
 include::notification-settings.asciidoc[]
-include::reporting-settings.asciidoc[]
+//include::reporting-settings.asciidoc[]
 //include::ml-settings.asciidoc[]

@@ -272,9 +272,9 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(info == null ? null : info.getBuild().shortHash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
             
-            long diskUsed = fsInfo.getTotal().getTotal().getBytes() - fsInfo.getTotal().getAvailable().getBytes();
-            double diskUsedRatio = (double) diskUsed / (double) Math.max(
-                fsInfo.getTotal().getTotal().getBytes(), diskUsed); // prevent division by Zero
+            long diskTotal = fsInfo.getTotal().getTotal().getBytes();
+            long diskUsed = diskTotal - fsInfo.getTotal().getAvailable().getBytes();
+            double diskUsedRatio = diskTotal == 0 ? 1.0 : (double) diskUsed / diskTotal;
             table.addCell(fsInfo == null ? null : fsInfo.getTotal().getTotal());
             table.addCell(fsInfo == null ? null : new ByteSizeValue(diskUsed));
             table.addCell(fsInfo == null ? null : fsInfo.getTotal().getAvailable());

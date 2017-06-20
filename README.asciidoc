@@ -97,36 +97,24 @@ gradle clean install
 
 = Building documentation
 
-From version 5.5 onward, the source files in this repository can be included in either the X-Pack Reference or the Elasticsearch Reference. 
+The source files in this repository can be included in either the X-Pack Reference or the Elasticsearch Reference. 
 
-To build the X-Pack Reference (5.4 and later) on your local machine:
+NOTE: In 5.5 and later, the Elasticsearch Reference includes X-Pack-specific content when it is built from this repo.
 
-* Use the `index.asciidoc` file in the x-pack/docs/en repository.
-* Specify the locations of the `x-pack-kibana/docs` and
-`elasticsearch-extra/x-pack-exlasticsearch/docs` directories with
-the `--resource` option when you run `build_docs.pl`.
+To build the Elasticsearch Reference on your local machine:
 
-For example:
-
-[source, txt]
------
-docs/build_docs.pl --doc x-pack/docs/en/index.asciidoc
---resource=x-pack-kibana/docs/ --resource=elasticsearch-extra/x-pack-elasticsearch/docs/
------
-
-To build the Elasticsearch Reference (5.5 and later) on your local machine and include the X-Pack content:
-
-* Use the `index-all.asciidoc` file in the elasticsearch/docs/reference repository.
-* Specify the location of the `elasticsearch-extra/x-pack-exlasticsearch/docs` directory with
-the `--resource` option when you run `build_docs.pl`.
+* Use the `index.asciidoc` file in the docs/en directory.
+* Specify the location of the `elasticsearch/docs` directory with the `--resource` option when you run `build_docs.pl`.
 
 For example:
 
 [source, txt]
 -----
-docs/build_docs.pl --doc elasticsearch/docs/reference/index-all.asciidoc 
---resource=elasticsearch-extra/x-pack-elasticsearch/docs/
+./docs/build_docs.pl --doc elasticsearch-extra/x-pack-elasticsearch/docs/en/index.asciidoc 
+--resource=elasticsearch/docs --chunk 1
 -----
+
+For information about building the X-Pack Reference, see the README in the x-pack repo.
 
 == Adding Images
 

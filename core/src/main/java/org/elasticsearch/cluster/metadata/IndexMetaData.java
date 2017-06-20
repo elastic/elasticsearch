@@ -261,10 +261,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     /**
      * an internal index format description, allowing us to find out if this index is upgraded or needs upgrading
      */
-    private static final String INDEX_INTERNAL_FORMAT = "index.internal.format";
-    public static final Setting<Integer> INDEX_INTERNAL_FORMAT_SETTING =
-            Setting.intSetting(INDEX_INTERNAL_FORMAT, 0, Setting.Property.IndexScope);
-    static final int INTERNAL_INDEX_FORMAT_CURRENT = 6;
+    private static final String INDEX_FORMAT = "index.format";
+    public static final Setting<Integer> INDEX_FORMAT_SETTING =
+            Setting.intSetting(INDEX_FORMAT, 0, Setting.Property.IndexScope, Setting.Property.Final);
 
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
@@ -286,7 +285,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     private final Index index;
     private final long version;
     private final long[] primaryTerms;
-    private final int internalIndexFormat;
 
     private final State state;
 
@@ -343,7 +341,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         this.routingPartitionSize = routingPartitionSize;
         this.waitForActiveShards = waitForActiveShards;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
-        this.internalIndexFormat = internalIndexFormat;
     }
 
     public Index getIndex() {
@@ -515,16 +512,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         return excludeFilters;
     }
 
-    /**
-     * Check that the 'index.internal.format' setting is set correctly for this index.
-     * This setting eases for upgrades
-     *
-     * @return true if the index format is configured to be {@link #INTERNAL_INDEX_FORMAT_CURRENT}
-     */
-    public boolean isIndexInternalFormat() {
-        return internalIndexFormat == INTERNAL_INDEX_FORMAT_CURRENT;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -570,9 +557,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         if (!inSyncAllocationIds.equals(that.inSyncAllocationIds)) {
             return false;
         }
-        if (internalIndexFormat != that.internalIndexFormat) {
-            return false;
-        }
         return true;
     }
 
@@ -589,7 +573,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
         result = 31 * result + Long.hashCode(routingNumShards);
         result = 31 * result + Arrays.hashCode(primaryTerms);
         result = 31 * result + inSyncAllocationIds.hashCode();
-        result = 31 * result + Integer.hashCode(internalIndexFormat);
         return result;
     }
 
@@ -1075,7 +1058,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
 
-            int internalIndexFormat = INDEX_INTERNAL_FORMAT_SETTING.get(settings);
+            int internalIndexFormat = INDEX_FORMAT_SETTING.get(settings);
             return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
                 tmpAliases.build(), customs.build(), filledInSyncAllocationIds.build(), requireFilters, initialRecoveryFilters, includeFilters, excludeFilters,
                 indexCreatedVersion, indexUpgradedVersion, getRoutingNumShards(), routingPartitionSize, waitForActiveShards, internalIndexFormat);

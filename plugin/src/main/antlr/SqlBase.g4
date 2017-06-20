@@ -20,11 +20,6 @@
 
 grammar SqlBase;
 
-/** make sources acceptable by the IDE */ 
-@header {
-package org.elasticsearch.xpack.sql.parser;
-}
-
 tokens {
     DELIMITER
 }
@@ -40,21 +35,21 @@ singleExpression
 statement
     : query                                                                                               #statementDefault
     | EXPLAIN
-        ('(' 
-        ( 
-          PLAN type=(PARSED | ANALYZED | OPTIMIZED | MAPPED | EXECUTABLE | ALL) 
-        | FORMAT format=(TEXT | GRAPHVIZ) 
+        ('('
+        (
+          PLAN type=(PARSED | ANALYZED | OPTIMIZED | MAPPED | EXECUTABLE | ALL)
+        | FORMAT format=(TEXT | GRAPHVIZ)
         | VERIFY verify=booleanValue
-        )* 
-        ')')? 
+        )*
+        ')')?
         statement                                                                                         #explain
     | DEBUG
-        ('(' 
-        ( 
-          PLAN type=(ANALYZED | OPTIMIZED) 
-        | FORMAT format=(TEXT | GRAPHVIZ) 
-        )* 
-        ')')?                                   
+        ('('
+        (
+          PLAN type=(ANALYZED | OPTIMIZED)
+        | FORMAT format=(TEXT | GRAPHVIZ)
+        )*
+        ')')?
         statement                                                                                         #debug
     | SHOW TABLES ((FROM | IN) index=identifier)? (LIKE? pattern=STRING)?                                 #showTables
     | SHOW COLUMNS (FROM | IN) tableIdentifier                                                            #showColumns
@@ -97,7 +92,7 @@ querySpecification
 fromClause
     : FROM relation (',' relation)*
     ;
-    
+
 groupBy
     : setQuantifier? groupingElement (',' groupingElement)*
     ;
@@ -132,7 +127,7 @@ joinRelation
     : (joinType) JOIN right=relationPrimary joinCriteria?
     | NATURAL joinType JOIN right=relationPrimary
     ;
-    
+
 joinType
     : INNER?
     | LEFT OUTER?
@@ -174,7 +169,7 @@ predicated
     ;
 
 // dedicated calls for each branch are not used to reuse the NOT handling across them
-// instead the property kind is used to differentiate 
+// instead the property kind is used to differentiate
 predicate
     : NOT? kind=BETWEEN lower=valueExpression AND upper=valueExpression
     | NOT? kind=IN '(' expression (',' expression)* ')'
@@ -205,7 +200,7 @@ primaryExpression
     ;
 
 columnExpression
-    : ((alias=identifier | table=tableIdentifier) '.' )? name=identifier             
+    : ((alias=identifier | table=tableIdentifier) '.' )? name=identifier
     ;
 
 constant
@@ -215,7 +210,7 @@ constant
     | booleanValue                                                                             #booleanLiteral
     | STRING+                                                                                  #stringLiteral
     ;
-    
+
 comparisonOperator
     : EQ | NEQ | LT | LTE | GT | GTE
     ;
@@ -227,7 +222,7 @@ booleanValue
 dataType
     : identifier                                                                      #primitiveDataType
     ;
-    
+
 whenClause
     : WHEN condition=expression THEN result=expression
     ;
@@ -240,7 +235,7 @@ tableIdentifier
     : index=identifier ('.' type=identifier)?
     | '"' uindex=unquoteIdentifier ('.' utype=unquoteIdentifier)? '"'
     ;
-    
+
 identifier
     : quoteIdentifier
     | unquoteIdentifier
@@ -256,7 +251,7 @@ unquoteIdentifier
     | nonReserved            #unquotedIdentifier
     | DIGIT_IDENTIFIER       #digitIdentifier
     ;
-    
+
 number
     : DECIMAL_VALUE  #decimalLiteral
     | INTEGER_VALUE  #integerLiteral

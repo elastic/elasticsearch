@@ -182,7 +182,9 @@ public class MockFSDirectoryService extends FsDirectoryService {
         final IndexSettings indexSettings = indexStore.getIndexSettings();
         final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData())
             .settings(Settings.builder()
-                .put(indexSettings.getSettings().getAsMap()) // do not copy the secure settings as they will be copied again later on!
+                // don't use the settings from indexSettings#getSettings() they are merged with node settings and might contain
+                // secure settings that should not be copied in here since the new IndexSettings ctor below will barf if we do
+                .put(indexSettings.getIndexMetaData().getSettings())
                 .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
                     RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey()))
             .build();

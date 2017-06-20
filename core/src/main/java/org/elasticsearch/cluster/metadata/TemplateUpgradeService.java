@@ -19,8 +19,10 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
@@ -30,6 +32,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -112,12 +116,52 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             return;
         }
 
+        if (shouldLocalNodeUpdateTemplates(state.nodes()) == false) {
+            return;
+        }
+
+
         lastTemplateMetaData = templates;
         Optional<Tuple<Map<String, BytesReference>, Set<String>>> changes = calculateTemplateChanges(templates);
         if (changes.isPresent()) {
             if (updatesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size())) {
                 threadPool.generic().execute(() -> updateTemplates(changes.get().v1(), changes.get().v2()));
             }
+        }
+    }
+
+    /**
+     * Checks if the current node should update the templates
+     *
+     * If the master has the newest verison in the cluster - it will be dedicated template updater.
+     * Otherwise the node with the highest id among nodes with the highest version should update the templates
+     */
+    boolean shouldLocalNodeUpdateTemplates(DiscoveryNodes nodes) {
+        DiscoveryNode localNode = nodes.getLocalNode();
+        // Only data and master nodes should update the template
+        if (localNode.isDataNode() || localNode.isMasterNode()) {
+            Version maxVersion = nodes.getLargestNonClientNodeVersion();
+            if (maxVersion.equals(nodes.getMasterNode().getVersion())) {
+                // If the master has the latest version - we will allow it to handle the update
+                return nodes.isLocalNodeElectedMaster();
+            } else {
+                if (maxVersion.equals(localNode.getVersion()) == false) {
+                    // The localhost node doesn't have the latest version - not going to update
+                    return false;
+                }
+                for (ObjectCursor<DiscoveryNode> node : nodes.getMasterAndDataNodes().values()) {
+                    if (node.value.getVersion().equals(maxVersion)) {
+                        if (node.value.getId().compareTo(localNode.getId()) > 0) {
+                            // We have a node with higher id then mine - it should update
+                            return false;
+                        }
+                    }
+                }
+                // We have the highest version and highest id - we should perform the update
+                return true;
+            }
+        } else {
+            return false;
         }
     }
 

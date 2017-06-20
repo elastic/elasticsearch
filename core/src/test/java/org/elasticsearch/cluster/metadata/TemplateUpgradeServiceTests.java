@@ -30,6 +30,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -52,11 +55,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
+import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -68,6 +75,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
     private final ClusterService clusterService = new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
         ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
+
     public void testCalculateChangesAddChangeAndDelete() {
 
         boolean shouldAdd = randomBoolean();
@@ -138,7 +146,6 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
     }
 
 
-
     @SuppressWarnings("unchecked")
     public void testUpdateTemplates() {
         int additionsCount = randomIntBetween(0, 5);
@@ -191,7 +198,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
         for (int i = 0; i < additionsCount; i++) {
             if (randomBoolean()) {
-                putTemplateListeners.get(i).onFailure(new RuntimeException());
+                putTemplateListeners.get(i).onFailure(new RuntimeException("test - ignore"));
             } else {
                 putTemplateListeners.get(i).onResponse(new PutIndexTemplateResponse(randomBoolean()) {
 
@@ -201,7 +208,7 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
 
         for (int i = 0; i < deletionsCount; i++) {
             if (randomBoolean()) {
-                deleteTemplateListeners.get(i).onFailure(new RuntimeException());
+                deleteTemplateListeners.get(i).onFailure(new RuntimeException("test - ignore"));
             } else {
                 deleteTemplateListeners.get(i).onResponse(new DeleteIndexTemplateResponse(randomBoolean()) {
 
@@ -210,6 +217,9 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         }
         assertThat(updatesInProgress - service.getUpdatesInProgress(), equalTo(additionsCount + deletionsCount));
     }
+
+    private static final Set<DiscoveryNode.Role> MASTER_DATA_ROLES =
+        Collections.unmodifiableSet(EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA));
 
     @SuppressWarnings("unchecked")
     public void testClusterStateUpdate() {
@@ -286,7 +296,10 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
             ));
 
         ClusterState prevState = ClusterState.EMPTY_STATE;
-        ClusterState state = ClusterState.builder(prevState).metaData(metaData).build();
+        ClusterState state = ClusterState.builder(prevState).nodes(DiscoveryNodes.builder()
+            .add(new DiscoveryNode("node1", "node1", buildNewFakeTransportAddress(), emptyMap(), MASTER_DATA_ROLES, Version.CURRENT)
+            ).localNodeId("node1").masterNodeId("node1").build()
+        ).metaData(metaData).build();
         service.clusterChanged(new ClusterChangedEvent("test", state, prevState));
 
         assertThat(updateInvocation.get(), equalTo(1));
@@ -313,15 +326,96 @@ public class TemplateUpgradeServiceTests extends ESTestCase {
         // Make sure that update was called this time since we are no longer running
         assertThat(updateInvocation.get(), equalTo(2));
 
-        addedListener.getAndSet(null).onFailure(new RuntimeException());
-        changedListener.getAndSet(null).onFailure(new RuntimeException());
-        removedListener.getAndSet(null).onFailure(new RuntimeException());
+        addedListener.getAndSet(null).onFailure(new RuntimeException("test - ignore"));
+        changedListener.getAndSet(null).onFailure(new RuntimeException("test - ignore"));
+        removedListener.getAndSet(null).onFailure(new RuntimeException("test - ignore"));
 
         service.clusterChanged(new ClusterChangedEvent("test 3", state, prevState));
 
         // Make sure that update wasn't called this time since the index template metadata didn't change
         assertThat(updateInvocation.get(), equalTo(2));
 
+    }
+
+    private static final int NODE_TEST_ITERS = 100;
+
+    public void testOnlyOneNodeRunsTemplateUpdates() {
+        TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null, Collections.emptyList());
+        for (int i = 0; i < NODE_TEST_ITERS; i++) {
+            int nodesCount = randomIntBetween(1, 10);
+            int clientNodesCount = randomIntBetween(0, 4);
+            DiscoveryNodes nodes = randomNodes(nodesCount, clientNodesCount);
+            int updaterNode = -1;
+            for (int j = 0; j < nodesCount; j++) {
+                DiscoveryNodes localNodes = DiscoveryNodes.builder(nodes).localNodeId(nodes.resolveNode("node_" + j).getId()).build();
+                if (service.shouldLocalNodeUpdateTemplates(localNodes)) {
+                    assertThat("Expected only one node to update template, found " + updaterNode + " and " + j, updaterNode, lessThan(0));
+                    updaterNode = j;
+                }
+            }
+            assertThat("Expected one node to update template", updaterNode, greaterThanOrEqualTo(0));
+        }
+    }
+
+    public void testIfMasterHasTheHighestVersionItShouldRunsTemplateUpdates() {
+        for (int i = 0; i < NODE_TEST_ITERS; i++) {
+            int nodesCount = randomIntBetween(1, 10);
+            int clientNodesCount = randomIntBetween(0, 4);
+            DiscoveryNodes nodes = randomNodes(nodesCount, clientNodesCount);
+            DiscoveryNodes.Builder builder = DiscoveryNodes.builder(nodes).localNodeId(nodes.resolveNode("_master").getId());
+            nodes = builder.build();
+            TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null,
+                Collections.emptyList());
+            assertThat(service.shouldLocalNodeUpdateTemplates(nodes),
+                equalTo(nodes.getLargestNonClientNodeVersion().equals(nodes.getMasterNode().getVersion())));
+        }
+    }
+
+    public void testClientNodeRunsTemplateUpdates() {
+        for (int i = 0; i < NODE_TEST_ITERS; i++) {
+            int nodesCount = randomIntBetween(1, 10);
+            int clientNodesCount = randomIntBetween(1, 4);
+            DiscoveryNodes nodes = randomNodes(nodesCount, clientNodesCount);
+            int testClient = randomIntBetween(0, clientNodesCount - 1);
+            DiscoveryNodes.Builder builder = DiscoveryNodes.builder(nodes).localNodeId(nodes.resolveNode("client_" + testClient).getId());
+            TemplateUpgradeService service = new TemplateUpgradeService(Settings.EMPTY, null, clusterService, null,
+                Collections.emptyList());
+            assertThat(service.shouldLocalNodeUpdateTemplates(builder.build()), equalTo(false));
+        }
+    }
+
+    private DiscoveryNodes randomNodes(int dataAndMasterNodes, int clientNodes) {
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder();
+        String masterNodeId = null;
+        for (int i = 0; i < dataAndMasterNodes; i++) {
+            String id = randomAlphaOfLength(10) + "_" + i;
+            Set<DiscoveryNode.Role> roles;
+            if (i == 0) {
+                masterNodeId = id;
+                // The first node has to be master node
+                if (randomBoolean()) {
+                    roles = EnumSet.of(DiscoveryNode.Role.MASTER, DiscoveryNode.Role.DATA);
+                } else {
+                    roles = EnumSet.of(DiscoveryNode.Role.MASTER);
+                }
+            } else {
+                if (randomBoolean()) {
+                    roles = EnumSet.of(DiscoveryNode.Role.DATA);
+                } else {
+                    roles = EnumSet.of(DiscoveryNode.Role.MASTER);
+                }
+            }
+            String node = "node_" + i;
+            builder.add(new DiscoveryNode(node, id, buildNewFakeTransportAddress(), emptyMap(), roles, randomVersion(random())));
+        }
+        builder.masterNodeId(masterNodeId);  // Node 0 is always a master node
+
+        for (int i = 0; i < clientNodes; i++) {
+            String node = "client_" + i;
+            builder.add(new DiscoveryNode(node, randomAlphaOfLength(10) + "__" + i, buildNewFakeTransportAddress(), emptyMap(),
+                EnumSet.noneOf(DiscoveryNode.Role.class), randomVersion(random())));
+        }
+        return builder.build();
     }
 
     public static MetaData randomMetaData(IndexTemplateMetaData... templates) {

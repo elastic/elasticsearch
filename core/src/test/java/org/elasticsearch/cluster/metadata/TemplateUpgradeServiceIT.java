@@ -53,9 +53,6 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
     }
 
     public static class TestPlugin extends Plugin {
-        static final Setting<Boolean> UPDATE_TEMPLATE_ENABLED =
-            Setting.boolSetting("tests.update_template_enabled", false, Setting.Property.NodeScope);
-
         // This setting is used to simulate cluster state updates
         static final Setting<Integer> UPDATE_TEMPLATE_DUMMY_SETTING =
             Setting.intSetting("tests.update_template_count", 0, Setting.Property.NodeScope, Setting.Property.Dynamic);
@@ -81,35 +78,34 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         @Override
         public UnaryOperator<Map<String, IndexTemplateMetaData>> getIndexTemplateMetaDataUpgrader() {
             return templates -> {
-                if (UPDATE_TEMPLATE_ENABLED.get(settings)) {
-                    templates.put("test_added_template", IndexTemplateMetaData.builder("test_added_template")
-                        .patterns(Collections.singletonList("*")).build());
-                    templates.remove("test_removed_template");
-                    templates.put("test_changed_template", IndexTemplateMetaData.builder("test_changed_template").order(10)
-                        .patterns(Collections.singletonList("*")).build());
-                }
+                templates.put("test_added_template", IndexTemplateMetaData.builder("test_added_template")
+                    .patterns(Collections.singletonList("*")).build());
+                templates.remove("test_removed_template");
+                templates.put("test_changed_template", IndexTemplateMetaData.builder("test_changed_template").order(10)
+                    .patterns(Collections.singletonList("*")).build());
                 return templates;
             };
         }
 
         @Override
         public List<Setting<?>> getSettings() {
-            return Arrays.asList(UPDATE_TEMPLATE_ENABLED, UPDATE_TEMPLATE_DUMMY_SETTING);
+            return Collections.singletonList(UPDATE_TEMPLATE_DUMMY_SETTING);
         }
     }
 
 
     public void testTemplateUpdate() throws Exception {
-        assertThat(client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates(), empty());
+        assertTemplates();
+
+        // Change some templates
         assertAcked(client().admin().indices().preparePutTemplate("test_dummy_template").setOrder(0)
             .setPatterns(Collections.singletonList("*")).get());
         assertAcked(client().admin().indices().preparePutTemplate("test_changed_template").setOrder(0)
             .setPatterns(Collections.singletonList("*")).get());
         assertAcked(client().admin().indices().preparePutTemplate("test_removed_template").setOrder(1)
             .setPatterns(Collections.singletonList("*")).get());
-        internalCluster().startNode(Settings.builder().put(nodeSettings(0)).put(TestPlugin.UPDATE_TEMPLATE_ENABLED.getKey(), true));
-        // Waiting for the templates to be updated by the newly added node
 
+        // Wait for the templates to be updated back to normal
         assertBusy(() -> {
             List<IndexTemplateMetaData> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
             assertThat(templates.size(), equalTo(3));
@@ -146,6 +142,11 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         // Wipe out all templates
         assertAcked(client().admin().indices().prepareDeleteTemplate("test_*").get());
 
+        assertTemplates();
+
+    }
+
+    private void assertTemplates() throws Exception {
         AtomicInteger updateCount = new AtomicInteger();
         // Make sure all templates are recreated correctly
         assertBusy(() -> {

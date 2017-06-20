@@ -1,0 +1,52 @@
+[[release-notes-5.4.2]]
+== 5.4.2 Release Notes
+
+See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi data path bug in Elasticsearch 5.3.0].
+
+Also see <<breaking-changes-5.4>>.
+
+[[enhancement-5.4.2]]
+[float]
+=== Enhancements
+
+Core::
+* Explicitly reject duplicate data paths {pull}25178[#25178]
+
+Packaging::
+* Set number of processes in systemd unit file {pull}24970[#24970] (issue: {issue}20874[#20874])
+
+
+
+[[bug-5.4.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Terms aggregation should remap global ordinal buckets when a sub-aggregator is used to sort the terms {pull}24941[#24941] (issue: {issue}24788[#24788])
+
+Analysis::
+* PatternAnalyzer should lowercase wildcard queries when `lowercase` is true. {pull}24967[#24967]
+
+Circuit Breakers::
+* Checks the circuit breaker before allocating bytes for a new big array {pull}25010[#25010] (issue: {issue}24790[#24790])
+
+Geo::
+* Fix GeoPoint FieldStats ternary logic bug {pull}25211[#25211] (issue: {issue}24275[#24275])
+* Fix GeoDistance Ordinal for BWC {pull}25033[#25033] (issue: {issue}24816[#24816])
+
+Index APIs::
+* Rollover max docs should only count primaries {pull}24977[#24977] (issue: {issue}24217[#24217])
+
+Nested Docs::
+* Fix the `max` score mode. {pull}25216[#25216] (issue: {issue}24647[#24647])
+
+Network::
+* Ensure pending transport handlers are invoked for all channel failures {pull}25150[#25150]
+
+Packaging::
+* When stopping via systemd only kill the JVM, not its control group {pull}25195[#25195]
+
+Suggesters::
+* Fix context suggester to read values from keyword type field {pull}24200[#24200] (issue: {issue}24129[#24129])
+
+

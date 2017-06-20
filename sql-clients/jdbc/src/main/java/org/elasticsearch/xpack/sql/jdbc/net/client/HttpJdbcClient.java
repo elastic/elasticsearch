@@ -38,6 +38,10 @@ import org.elasticsearch.xpack.sql.jdbc.util.BytesArray;
 import org.elasticsearch.xpack.sql.jdbc.util.FastByteArrayInputStream;
 
 public class HttpJdbcClient implements Closeable {
+    @FunctionalInterface
+    interface DataInputFunction<R> {
+        R apply(DataInput in) throws IOException, SQLException;
+    }
 
     private final HttpClient http;
     private final JdbcConfiguration conCfg;
@@ -202,9 +206,4 @@ public class HttpJdbcClient implements Closeable {
 
         throw new JdbcException("Invalid response status %08X", header);
     }
-}
-
-@FunctionalInterface
-interface DataInputFunction<R> {
-    R apply(DataInput in) throws IOException, SQLException;
 }

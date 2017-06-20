@@ -35,7 +35,7 @@ public class FastByteArrayInputStream extends InputStream {
      * position within the buffer by the <code>mark()</code> method.
      * The current buffer position is set to this point by the
      * <code>reset()</code> method.
-     * <p/>
+     * <p>
      * If no mark has been set, then the value of mark is the offset
      * passed to the constructor (or 0 if the offset was not supplied).
      *
@@ -82,7 +82,7 @@ public class FastByteArrayInputStream extends InputStream {
      * <code>0</code> to <code>255</code>. If no byte is available
      * because the end of the stream has been reached, the value
      * <code>-1</code> is returned.
-     * <p/>
+     * <p>
      * This <code>read</code> method
      * cannot block.
      *
@@ -108,7 +108,7 @@ public class FastByteArrayInputStream extends InputStream {
      * by <code>System.arraycopy</code>. The
      * value <code>k</code> is added into <code>pos</code>
      * and <code>k</code> is returned.
-     * <p/>
+     * <p>
      * This <code>read</code> method cannot block.
      *
      * @param b   the buffer into which the data is read.
@@ -169,7 +169,7 @@ public class FastByteArrayInputStream extends InputStream {
     /**
      * Returns the number of remaining bytes that can be read (or skipped over)
      * from this input stream.
-     * <p/>
+     * <p>
      * The value returned is <code>count&nbsp;- pos</code>,
      * which is the number of bytes remaining to be read from the input buffer.
      *
@@ -200,11 +200,10 @@ public class FastByteArrayInputStream extends InputStream {
      * ByteArrayInputStream objects are marked at position zero by
      * default when constructed.  They may be marked at another
      * position within the buffer by this method.
-     * <p/>
+     * <p>
      * If no mark has been set, then the value of the mark is the
      * offset passed to the constructor (or 0 if the offset was not
      * supplied).
-     * <p/>
      * <p> Note: The <code>readAheadLimit</code> for this class
      * has no meaning.
      *
@@ -227,7 +226,6 @@ public class FastByteArrayInputStream extends InputStream {
      * Closing a <tt>ByteArrayInputStream</tt> has no effect. The methods in
      * this class can be called after the stream has been closed without
      * generating an <tt>IOException</tt>.
-     * <p/>
      */
     public void close() {}
 

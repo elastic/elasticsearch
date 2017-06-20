@@ -58,26 +58,32 @@ public class RestSqlAction extends BaseRestHandler {
         }
         channel.sendResponse(response);
     }
-}
 
-class Payload {
-    static final ObjectParser<Payload, Void> PARSER = new ObjectParser<>("sql/query");
-
-    static {
-        PARSER.declareString(Payload::setQuery, new ParseField("query"));
+    @Override
+    public String getName() {
+        return "sql_action";
     }
 
-    String query;
+    static class Payload {
+        static final ObjectParser<Payload, Void> PARSER = new ObjectParser<>("sql/query");
 
-    static Payload from(RestRequest request) throws IOException {
-        Payload payload = new Payload();
-        try (XContentParser parser = request.contentParser()) {
-            Payload.PARSER.parse(parser, payload, null);
+        static {
+            PARSER.declareString(Payload::setQuery, new ParseField("query"));
         }
 
-        return payload;
-    }
-    public void setQuery(String query) {
-        this.query = query;
+        String query;
+
+        static Payload from(RestRequest request) throws IOException {
+            Payload payload = new Payload();
+            try (XContentParser parser = request.contentParser()) {
+                Payload.PARSER.parse(parser, payload, null);
+            }
+
+            return payload;
+        }
+        public void setQuery(String query) {
+            this.query = query;
+        }
     }
 }
+

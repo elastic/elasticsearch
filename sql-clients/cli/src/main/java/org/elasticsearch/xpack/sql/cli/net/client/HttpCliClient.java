@@ -24,6 +24,10 @@ import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
 import org.elasticsearch.xpack.sql.net.client.util.Bytes;
 
 public class HttpCliClient implements AutoCloseable {
+    @FunctionalInterface
+    interface DataInputFunction<R> {
+        R apply(DataInput in) throws IOException;
+    }
 
     private final HttpClient http;
     private final CliConfiguration cfg;
@@ -88,9 +92,4 @@ public class HttpCliClient implements AutoCloseable {
     }
 
     public void close() {}
-}
-
-@FunctionalInterface
-interface DataInputFunction<R> {
-    R apply(DataInput in) throws IOException;
 }

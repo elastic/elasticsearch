@@ -1,6 +1,7 @@
 apply plugin: 'elasticsearch.build'
-
 apply plugin: 'application'
+
+project.compactProfile = 'full'
 
 dependencies {
   compile "org.jline:jline:3.3.0"
@@ -9,6 +10,7 @@ dependencies {
   compile project(':x-pack-elasticsearch:sql-clients:cli-proto')
 
   testCompile project(":x-pack-elasticsearch:transport-client")
+  testCompile project(':x-pack-elasticsearch:sql-clients:test-utils')
 }
 
 // TODO seems like we should use the jars....

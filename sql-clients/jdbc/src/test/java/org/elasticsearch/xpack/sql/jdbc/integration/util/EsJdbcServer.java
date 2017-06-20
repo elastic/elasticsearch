@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.sql.jdbc.integration.util;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.sql.integration.es.LocalEs;
 import org.elasticsearch.xpack.sql.jdbc.integration.server.JdbcHttpServer;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcTemplate.JdbcSupplier;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver;
@@ -19,15 +18,12 @@ import java.util.Properties;
 import static org.junit.Assert.assertNotNull;
 
 public class EsJdbcServer extends ExternalResource implements JdbcSupplier<Connection> {
-
-    private final LocalEs es;
     private JdbcHttpServer server;
     private String jdbcUrl;
     private JdbcDriver driver;
     private final Properties properties;
 
     public EsJdbcServer(boolean remote, boolean debug) {
-        es = (remote ? null : new LocalEs());
         properties = new Properties();
         if (debug) {
             properties.setProperty("debug", "true");
@@ -44,11 +40,7 @@ public class EsJdbcServer extends ExternalResource implements JdbcSupplier<Conne
 
     @Override
     protected void before() throws Throwable {
-        if (es != null) {
-            es.start();
-        }
-
-        server = new JdbcHttpServer(es != null ? es.client() : null);
+        server = new JdbcHttpServer(null);
         driver = new JdbcDriver();
 
         server.start(0);
@@ -59,9 +51,6 @@ public class EsJdbcServer extends ExternalResource implements JdbcSupplier<Conne
     protected void after() {
         server.stop();
         server = null;
-        if (es != null) {
-            es.stop();
-        }
     }
 
     public Connection jdbc() throws SQLException {

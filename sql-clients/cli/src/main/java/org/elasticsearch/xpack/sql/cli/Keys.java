@@ -23,7 +23,7 @@ class Keys {
 
     final KeyMap<Key> keys = new KeyMap<>();
     
-    public Keys(Terminal terminal) {
+    Keys(Terminal terminal) {
         keys.setNomatch(Key.NONE);
         keys.setAmbiguousTimeout(400);
         keys.bind(Key.UP, key(terminal, Capability.key_up));

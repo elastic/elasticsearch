@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.jdbc.integration.server;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xpack.sql.net.client.integration.server.ProtoHttpServer;
+import org.elasticsearch.xpack.sql.test.server.ProtoHttpServer;
 
 public class JdbcHttpServer extends ProtoHttpServer {
 

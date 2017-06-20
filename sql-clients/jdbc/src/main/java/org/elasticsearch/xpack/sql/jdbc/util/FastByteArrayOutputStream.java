@@ -20,7 +20,7 @@ public class FastByteArrayOutputStream extends OutputStream {
     /**
      * Creates a new byte array output stream. The buffer capacity is
      * initially 1024 bytes, though its size increases if necessary.
-     * <p/>
+     * <p>
      * ES: We use 1024 bytes since we mainly use this to build json/smile
      * content in memory, and rarely does the 32 byte default in ByteArrayOutputStream fits...
      */
@@ -33,7 +33,6 @@ public class FastByteArrayOutputStream extends OutputStream {
      * the specified size, in bytes.
      *
      * @param size the initial size.
-     * @throws EsHadoopIllegalArgumentException if size is negative.
      */
     public FastByteArrayOutputStream(int size) {
         Assert.isTrue(size >= 0, "Negative initial size: " + size);
@@ -56,7 +55,7 @@ public class FastByteArrayOutputStream extends OutputStream {
     /**
      * Writes <code>len</code> bytes from the specified byte array
      * starting at offset <code>off</code> to this byte array output stream.
-     * <p/>
+     * <p>
      * <b>NO checks for bounds, parameters must be ok!</b>
      *
      * @param b   the data.
@@ -118,7 +117,6 @@ public class FastByteArrayOutputStream extends OutputStream {
      * Closing a <tt>ByteArrayOutputStream</tt> has no effect. The methods in
      * this class can be called after the stream has been closed without
      * generating an <tt>IOException</tt>.
-     * <p/>
      */
     public void close() throws IOException {}
 }

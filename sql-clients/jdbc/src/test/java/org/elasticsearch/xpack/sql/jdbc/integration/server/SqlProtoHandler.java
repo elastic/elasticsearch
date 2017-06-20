@@ -5,19 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.integration.server;
 
-import java.io.DataInput;
-import java.io.IOException;
+import com.sun.net.httpserver.HttpExchange;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Request;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Response;
-import org.elasticsearch.xpack.sql.net.client.integration.server.ProtoHandler;
 import org.elasticsearch.xpack.sql.plugin.jdbc.server.JdbcServer;
 import org.elasticsearch.xpack.sql.plugin.jdbc.server.JdbcServerProtoUtils;
+import org.elasticsearch.xpack.sql.test.server.ProtoHandler;
 
-import com.sun.net.httpserver.HttpExchange;
+import java.io.DataInput;
+import java.io.IOException;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 

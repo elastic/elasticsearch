@@ -84,4 +84,9 @@ public class HttpCliAction extends BaseRestHandler {
         }
         channel.sendResponse(response);
     }
+
+    @Override
+    public String getName() {
+        return "sql_cli_action";
+    }
 }

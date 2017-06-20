@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import java.awt.Desktop;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Locale;
-import java.util.Properties;
-
 import org.elasticsearch.xpack.sql.cli.net.client.HttpCliClient;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
@@ -26,6 +17,15 @@ import org.jline.reader.UserInterruptException;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.InfoCmp.Capability;
+
+import java.awt.Desktop;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Locale;
+import java.util.Properties;
 
 import static java.lang.String.format;
 

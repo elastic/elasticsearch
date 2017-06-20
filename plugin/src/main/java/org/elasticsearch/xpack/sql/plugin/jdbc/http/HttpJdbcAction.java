@@ -85,4 +85,9 @@ public class HttpJdbcAction extends BaseRestHandler {
         }
         channel.sendResponse(response);
     }
+
+    @Override
+    public String getName() {
+        return "sql_jdbc_action";
+    }
 }

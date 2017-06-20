@@ -1,8 +1,3 @@
 apply plugin: 'elasticsearch.build'
 
-description = 'Common base for protos'
-// Tests have some testing utilities
-
-dependencies {
-  testCompile "org.elasticsearch.client:transport:${version}"
-}
+description = 'Common base things for protos'

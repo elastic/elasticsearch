@@ -86,6 +86,7 @@ dependencies {
   // sql deps
   compile project(':x-pack-elasticsearch:sql-clients:jdbc-proto')
   compile project(':x-pack-elasticsearch:sql-clients:cli-proto')
+  compile 'org.antlr:antlr4-runtime:4.5.1-1'
 
   // common test deps
   testCompile 'org.elasticsearch:securemock:1.2'

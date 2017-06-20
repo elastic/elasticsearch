@@ -12,9 +12,9 @@ import org.elasticsearch.xpack.sql.TestUtils;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ProtoUtils;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Request;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
-import org.elasticsearch.xpack.sql.net.client.integration.server.ProtoHandler;
 import org.elasticsearch.xpack.sql.plugin.cli.http.CliServerProtoUtils;
 import org.elasticsearch.xpack.sql.plugin.cli.server.CliServer;
+import org.elasticsearch.xpack.sql.test.server.ProtoHandler;
 
 import java.io.DataInput;
 import java.io.IOException;

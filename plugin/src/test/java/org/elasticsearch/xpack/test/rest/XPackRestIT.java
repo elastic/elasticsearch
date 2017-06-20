@@ -17,6 +17,7 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
 import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
 import org.elasticsearch.xpack.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,6 +52,7 @@ public class XPackRestIT extends XPackRestTestCase {
         List<String> templates = new ArrayList<>();
         templates.add(SecurityLifecycleService.SECURITY_TEMPLATE_NAME);
         templates.addAll(Arrays.asList(MachineLearningTemplateRegistry.TEMPLATE_NAMES));
+        templates.addAll(Arrays.asList(WatcherIndexTemplateRegistry.TEMPLATE_NAMES));
 
         for (String template : templates) {
             awaitCallApi("indices.exists_template", singletonMap("name", template), emptyList(),

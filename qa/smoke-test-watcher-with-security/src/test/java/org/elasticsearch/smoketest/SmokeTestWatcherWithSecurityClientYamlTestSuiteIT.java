@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.junit.After;
 import org.junit.Before;
 
@@ -20,6 +21,7 @@ import java.io.IOException;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.is;
 
@@ -42,6 +44,13 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
         assertBusy(() -> {
             try {
                 getAdminExecutionContext().callApi("xpack.watcher.start", emptyMap(), emptyList(), emptyMap());
+
+                for (String template : WatcherIndexTemplateRegistry.TEMPLATE_NAMES) {
+                    ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi("indices.exists_template",
+                            singletonMap("name", template), emptyList(), emptyMap());
+                    assertThat(templateExistsResponse.getStatusCode(), is(200));
+                }
+
                 ClientYamlTestResponse response =
                         getAdminExecutionContext().callApi("xpack.watcher.stats", emptyMap(), emptyList(), emptyMap());
                 String state = (String) response.evaluate("stats.0.watcher_state");

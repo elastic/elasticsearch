@@ -37,6 +37,10 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
     public static final String TRIGGERED_TEMPLATE_NAME = ".triggered_watches";
     public static final String WATCHES_TEMPLATE_NAME = ".watches";
 
+    public static final String[] TEMPLATE_NAMES = new String[] {
+            HISTORY_TEMPLATE_NAME, TRIGGERED_TEMPLATE_NAME, WATCHES_TEMPLATE_NAME
+    };
+
     public static final TemplateConfig[] TEMPLATE_CONFIGS = new TemplateConfig[]{
             new TemplateConfig(TRIGGERED_TEMPLATE_NAME, "triggered-watches"),
             new TemplateConfig(HISTORY_TEMPLATE_NAME, "watch-history"),

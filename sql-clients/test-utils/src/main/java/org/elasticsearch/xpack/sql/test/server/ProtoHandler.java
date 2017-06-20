@@ -83,7 +83,7 @@ public abstract class ProtoHandler<R> implements HttpHandler, AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         // no-op
     }
 }

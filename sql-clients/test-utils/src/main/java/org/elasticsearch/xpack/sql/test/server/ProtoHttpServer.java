@@ -15,14 +15,14 @@ import com.sun.net.httpserver.HttpServer;
 
 import static java.lang.String.format;
 
-public abstract class ProtoHttpServer {
+public abstract class ProtoHttpServer<R> {
 
-    private final ProtoHandler handler;
+    private final ProtoHandler<R> handler;
     private final String defaultPrefix, protoPrefix;
     private final Client client;
     private HttpServer server;
 
-    public ProtoHttpServer(Client client, ProtoHandler handler, String defaultPrefix, String protoPrefix) {
+    public ProtoHttpServer(Client client, ProtoHandler<R> handler, String defaultPrefix, String protoPrefix) {
         this.client = client;
         this.handler = handler;
         this.defaultPrefix = defaultPrefix;

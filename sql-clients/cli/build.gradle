@@ -1,15 +1,13 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'application'
 
-project.compactProfile = 'full'
-
 dependencies {
   compile "org.jline:jline:3.3.0"
-
   compile project(':x-pack-elasticsearch:sql-clients:net-client')
   compile project(':x-pack-elasticsearch:sql-clients:cli-proto')
 
   testCompile project(":x-pack-elasticsearch:transport-client")
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
   testCompile project(':x-pack-elasticsearch:sql-clients:test-utils')
 }
 
@@ -24,3 +22,6 @@ mainClassName = "org.elasticsearch.sql.console.SqlConsole"
 run {
   classpath = sourceSets.test.runtimeClasspath
 }
+
+// Needed so we can launch graphviz if it is installed
+project.compactProfile = 'full'

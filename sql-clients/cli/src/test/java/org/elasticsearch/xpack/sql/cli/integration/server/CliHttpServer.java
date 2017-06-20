@@ -6,9 +6,10 @@
 package org.elasticsearch.xpack.sql.cli.integration.server;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
 import org.elasticsearch.xpack.sql.test.server.ProtoHttpServer;
 
-public class CliHttpServer extends ProtoHttpServer {
+public class CliHttpServer extends ProtoHttpServer<Response> {
 
     public CliHttpServer(Client client) {
         super(client, new CliProtoHandler(client), "/cli/", "sql/");

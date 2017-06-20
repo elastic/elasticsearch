@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.integration.util;
 
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedFunction;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -15,12 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
-import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
-
-import static java.lang.String.format;
 
 // poor's man JdbcTemplate
 public class JdbcTemplate {
@@ -45,52 +43,9 @@ public class JdbcTemplate {
         T jdbc() throws SQLException;
     }
 
-    public static interface JdbcConsumer<T> extends Consumer<T> {
-
-        @Override
-        default void accept(T t) {
-            try {
-                jdbc(t);
-            } catch (SQLException ex) {
-                throw new RuntimeException(ex);
-            }
-        }
-
-        void jdbc(T t) throws SQLException;
-    }
-
-    public static interface JdbcFunction<T, R> extends Function<T, R> {
-
-        @Override
-        default R apply(T t) {
-            try {
-                return jdbc(t);
-            } catch (SQLException ex) {
-                throw new RuntimeException(ex);
-            }
-        }
-
-        R jdbc(T t) throws SQLException;
-    }
-
-    public static interface JdbcBiFunction<T, U, R> extends BiFunction<T, U, R> {
-
-        @Override
-        default R apply(T t, U u) {
-            try {
-                return jdbc(t, u);
-            } catch (SQLException ex) {
-                throw new RuntimeException(ex);
-            }
-        }
-
-        R jdbc(T t, U u) throws SQLException;
-    }
-
-
     private static final int MAX_WIDTH = 20;
 
-    public static JdbcFunction<ResultSet, Void> resultSetToConsole() {
+    public static CheckedFunction<ResultSet, Void, SQLException> resultSetToConsole() {
         return rs -> {
             ResultSetMetaData metaData = rs.getMetaData();
             StringBuilder sb = new StringBuilder();
@@ -145,20 +100,20 @@ public class JdbcTemplate {
         return buffer;
     }
 
-    public void con(JdbcConsumer<Connection> c) throws Exception {
+    public void consume(CheckedConsumer<Connection, SQLException> c) throws Exception {
         try (Connection con = conn.get()) {
             c.accept(con);
         }
     }
 
-    public <T> T con(JdbcFunction<Connection, T> c) throws Exception {
+    public <T> T map(CheckedFunction<Connection, T, SQLException> c) throws Exception {
         try (Connection con = conn.get()) {
             return c.apply(con);
         }
     }
 
-    public <T> T query(String q, JdbcFunction<ResultSet, T> f) throws Exception {
-        return con(c -> {
+    public <T> T query(String q, CheckedFunction<ResultSet, T, SQLException> f) throws Exception {
+        return map(c -> {
             try (Statement st = c.createStatement();
                  ResultSet rset = st.executeQuery(q)) {
                 return f.apply(rset);
@@ -175,7 +130,7 @@ public class JdbcTemplate {
     }
 
     public void execute(String query) throws Exception {
-        con(c -> {
+        map(c -> {
             try (Statement st = c.createStatement()) {
                 st.execute(query);
                 return null;
@@ -183,15 +138,16 @@ public class JdbcTemplate {
         });
     }
 
-    public <T> T execute(String query, JdbcFunction<PreparedStatement, T> callback) throws Exception {
-        return con(c -> {
+    public <T> T execute(String query, CheckedFunction<PreparedStatement, T, SQLException> callback) throws Exception {
+        return map(c -> {
             try (PreparedStatement ps = c.prepareStatement(query)) {
                 return callback.apply(ps);
             }
         });
     }
 
-    public <T> T execute(String query, JdbcConsumer<PreparedStatement> prepare, JdbcFunction<ResultSet, T> mapper) throws Exception {
+    public <T> T execute(String query, CheckedConsumer<PreparedStatement, SQLException> prepare,
+            CheckedFunction<ResultSet, T, SQLException> mapper) throws Exception {
         return execute(query, ps -> {
             prepare.accept(ps);
             try (ResultSet rs = ps.executeQuery()) {
@@ -200,8 +156,8 @@ public class JdbcTemplate {
         });
     }
 
-    public <T> T query(String q, JdbcFunction<ResultSet, T> mapper, Object... args) throws Exception {
-        JdbcConsumer<PreparedStatement> p = ps -> {
+    public <T> T query(String q, CheckedFunction<ResultSet, T, SQLException> mapper, Object... args) throws Exception {
+        CheckedConsumer<PreparedStatement, SQLException> p = ps -> {
             if (args != null) {
                 for (int i = 0; i < args.length; i++) {
                     ps.setObject(i + 1, args[i]);
@@ -216,8 +172,9 @@ public class JdbcTemplate {
         return query(q, singleResult(type), args);
     }
 
-    public <T> List<T> queryForList(String q, JdbcBiFunction<ResultSet, Integer, T> mapper, Object... args) throws Exception {
-        JdbcFunction<ResultSet, List<T>> f = rs -> {
+    public <T> List<T> queryForList(String q, CheckedBiFunction<ResultSet, Integer, T, SQLException> mapper, Object... args)
+            throws Exception {
+        CheckedFunction<ResultSet, List<T>, SQLException> f = rs -> {
             List<T> list = new ArrayList<>();
             while (rs.next()) {
                 list.add(mapper.apply(rs, rs.getRow()));
@@ -229,7 +186,7 @@ public class JdbcTemplate {
     }
 
     public <T> List<T> queryForList(String q, Class<T> type, Object... args) throws Exception {
-        JdbcBiFunction<ResultSet, Integer, T> mapper = (rs, i) -> {
+        CheckedBiFunction<ResultSet, Integer, T, SQLException> mapper = (rs, i) -> {
             if (i != 1) {
                 throw new IllegalArgumentException("Expected exactly one column...");
             }
@@ -238,7 +195,7 @@ public class JdbcTemplate {
         return queryForList(q, mapper, args);
     }
 
-    public static <T> JdbcFunction<ResultSet, T> singleResult(Class<T> type) {
+    public static <T> CheckedFunction<ResultSet, T, SQLException> singleResult(Class<T> type) {
         return rs -> {
             if (rs.next()) {
                 T result = convertObject(rs.getObject(1), type);
@@ -246,7 +203,7 @@ public class JdbcTemplate {
                     return result;
                 }
             }
-            throw new IllegalArgumentException(format("Expected exactly one column; discovered %s",rs.getMetaData().getColumnCount()));
+            throw new IllegalArgumentException("Expected exactly one column; discovered [" + rs.getMetaData().getColumnCount() + "]");
         };
     }
 
@@ -289,5 +246,10 @@ public class JdbcTemplate {
             }
             return map;
         }, args);
+    }
+
+    @FunctionalInterface
+    public interface CheckedBiFunction<T, U, R, E extends Exception> {
+        R apply(T t, U u) throws E;
     }
 }

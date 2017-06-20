@@ -135,7 +135,7 @@ public class ProtoTest {
 
     @Test
     public void testBasicJdbc() throws Exception {
-        j.con(c -> {
+        j.consume(c -> {
             assertThat(c.isClosed(), is(false));
             assertThat(c.isReadOnly(), is(true));
         });
@@ -145,7 +145,7 @@ public class ProtoTest {
 
     @Test
     public void testBasicSelect() throws Exception {
-        j.con(c -> {
+        j.consume(c -> {
             assertThat(c.isClosed(), is(false));
             assertThat(c.isReadOnly(), is(true));
         });
@@ -155,7 +155,7 @@ public class ProtoTest {
 
     @Test(expected = RuntimeException.class)
     public void testBasicDemo() throws Exception {
-        j.con(c -> {
+        j.consume(c -> {
             assertThat(c.isClosed(), is(false));
             assertThat(c.isReadOnly(), is(true));
         });
@@ -166,7 +166,7 @@ public class ProtoTest {
 
     @Test
     public void testMetadataGetProcedures() throws Exception {
-        j.con(c -> {
+        j.consume(c -> {
             DatabaseMetaData metaData = c.getMetaData();
             ResultSet results = metaData.getProcedures(null, null, null);
             assertThat(results, is(notNullValue()));
@@ -177,7 +177,7 @@ public class ProtoTest {
 
     @Test
     public void testMetadataGetProcedureColumns() throws Exception {
-        j.con(c -> {
+        j.consume(c -> {
             DatabaseMetaData metaData = c.getMetaData();
             ResultSet results = metaData.getProcedureColumns(null, null, null, null);
             assertThat(results, is(notNullValue()));
@@ -188,7 +188,7 @@ public class ProtoTest {
 
     @Test
     public void testMetadataGetTables() throws Exception {
-        j.con(c -> {
+        j.consume(c -> {
             DatabaseMetaData metaData = c.getMetaData();
             ResultSet results = metaData.getTables("elasticsearch", "", "%", null);
             assertThat(results, is(notNullValue()));
@@ -199,7 +199,7 @@ public class ProtoTest {
 
     @Test(expected = RuntimeException.class)
     public void testMetadataColumns() throws Exception {
-        j.con(c -> {
+        j.consume(c -> {
             DatabaseMetaData metaData = c.getMetaData();
             ResultSet results = metaData.getColumns("elasticsearch", "", "dep.dep", "%");
             assertThat(results, is(notNullValue()));

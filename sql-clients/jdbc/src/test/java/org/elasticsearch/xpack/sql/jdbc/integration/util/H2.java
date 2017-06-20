@@ -5,19 +5,25 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.integration.util;
 
+import org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcTemplate.JdbcSupplier;
+import org.junit.rules.ExternalResource;
+
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
-import org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcTemplate.JdbcSupplier;
-import org.h2.Driver;
-import org.junit.rules.ExternalResource;
-
 public class H2 extends ExternalResource implements JdbcSupplier<Connection> {
+    static {
+        try {
+            Class.forName("org.h2.Driver");
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private final String url;
     private final Properties DEFAULT_PROPS = new Properties();
-    private final Driver driver = Driver.load();
     private Connection keepAlive;
 
     public H2() {
@@ -48,6 +54,6 @@ public class H2 extends ExternalResource implements JdbcSupplier<Connection> {
     }
 
     public Connection jdbc() throws SQLException {
-        return driver.connect(url, DEFAULT_PROPS);
+        return DriverManager.getConnection(url, DEFAULT_PROPS);
     }
 }

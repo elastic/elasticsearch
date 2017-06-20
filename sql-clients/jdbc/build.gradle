@@ -37,6 +37,7 @@ dependencies {
   compile project(':x-pack-elasticsearch:sql-clients:jdbc-proto')
 
   testCompile project(":x-pack-elasticsearch:transport-client")
+  testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
   testCompile project(':x-pack-elasticsearch:sql-clients:test-utils')
 
   testRuntime "com.h2database:h2:1.4.194"

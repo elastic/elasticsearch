@@ -91,6 +91,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
@@ -340,19 +341,39 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
                             indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                             final Index shrinkFromIndex = request.shrinkFrom();
-                            int routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());;
-                            if (shrinkFromIndex != null) {
-                                prepareShrinkIndexSettings(currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex,
-                                    request.index());
-                                IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
+                            final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index());
+
+                            final int routingNumShards;
+                            if (shrinkFromIndex == null) {
+                                routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());
+                            } else {
+                                final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
                                 routingNumShards = sourceMetaData.getRoutingNumShards();
                             }
+                            tmpImdBuilder.setRoutingNumShards(routingNumShards);
 
-                            Settings actualIndexSettings = indexSettingsBuilder.build();
-                            IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index())
-                                .setRoutingNumShards(routingNumShards);
+                            if (shrinkFromIndex != null) {
+                                prepareShrinkIndexSettings(
+                                        currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex, request.index());
+                            }
+                            final Settings actualIndexSettings = indexSettingsBuilder.build();
+                            tmpImdBuilder.settings(actualIndexSettings);
+
+                            if (shrinkFromIndex != null) {
+                                final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
+                                final long primaryTerm =
+                                        IntStream
+                                                .range(0, sourceMetaData.getNumberOfShards())
+                                                .mapToLong(sourceMetaData::primaryTerm)
+                                                .max()
+                                                .getAsLong();
+                                for (int shardId = 0; shardId < tmpImdBuilder.numberOfShards(); shardId++) {
+                                    tmpImdBuilder.primaryTerm(shardId, primaryTerm);
+                                }
+                            }
+
                             // Set up everything, now locally create the index to see that things are ok, and apply
-                            final IndexMetaData tmpImd = tmpImdBuilder.settings(actualIndexSettings).build();
+                            final IndexMetaData tmpImd = tmpImdBuilder.build();
                             ActiveShardCount waitForActiveShards = request.waitForActiveShards();
                             if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                                 waitForActiveShards = tmpImd.getWaitForActiveShards();
@@ -408,6 +429,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData.builder(request.index())
                                 .settings(actualIndexSettings)
                                 .setRoutingNumShards(routingNumShards);
+
+                            for (int shardId = 0; shardId < tmpImd.getNumberOfShards(); shardId++) {
+                                indexMetaDataBuilder.primaryTerm(shardId, tmpImd.primaryTerm(shardId));
+                            }
+
                             for (MappingMetaData mappingMd : mappingsMetaData.values()) {
                                 indexMetaDataBuilder.putMapping(mappingMd);
                             }

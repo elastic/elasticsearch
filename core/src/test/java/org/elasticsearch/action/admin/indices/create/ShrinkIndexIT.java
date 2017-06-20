@@ -25,15 +25,14 @@ import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.segments.IndexSegments;
-import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -50,10 +48,13 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ShrinkIndexIT extends ESIntegTestCase {
 
@@ -133,6 +134,55 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("second_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
         assertHitCount(client().prepareSearch("first_shrink").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
         assertHitCount(client().prepareSearch("source").setSize(100).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 20);
+    }
+
+    public void testShrinkIndexPrimaryTerm() throws Exception {
+        final List<Integer> factors = Arrays.asList(2, 2, 2, 2, 2, 2, 2, 2, 2, 2);
+        final List<Integer> numberOfShardsFactors = randomSubsetOf(randomIntBetween(1, factors.size()), factors);
+        final int numberOfShards = numberOfShardsFactors.stream().reduce(1, (x, y) -> x * y);
+        final int numberOfTargetShards = randomSubsetOf(numberOfShardsFactors).stream().reduce(1, (x, y) -> x * y);
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", numberOfShards)).get();
+
+        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
+                .getDataNodes();
+        assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
+        DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
+        String mergeNode = discoveryNodes[0].getName();
+        ensureGreen();
+
+        // restart a random data node several times to force the primary term for some shards to increase
+        for (int i = 0; i < randomIntBetween(0, 16); i++) {
+            internalCluster().restartRandomDataNode();
+            ensureGreen();
+        }
+        // relocate all shards to one node such that we can merge it.
+        client().admin().indices().prepareUpdateSettings("source")
+                .setSettings(Settings.builder()
+                        .put("index.routing.allocation.require._name", mergeNode)
+                        .put("index.blocks.write", true)).get();
+        ensureGreen();
+
+        final IndexMetaData indexMetaData = indexMetaData(client(), "source");
+        final long beforeShrinkPrimaryTerm = IntStream.range(0, numberOfShards).mapToLong(indexMetaData::primaryTerm).max().getAsLong();
+
+        // now merge source into target
+        assertAcked(client().admin().indices().prepareShrinkIndex("source", "target")
+                .setSettings(Settings.builder()
+                        .put("index.number_of_replicas", 0)
+                        .put("index.number_of_shards", numberOfTargetShards).build()).get());
+
+        ensureGreen();
+
+        final IndexMetaData afterShrinkIndexMetaData = indexMetaData(client(), "target");
+        for (int shardId = 0; shardId < numberOfTargetShards; shardId++) {
+            assertThat(afterShrinkIndexMetaData.primaryTerm(shardId), equalTo(beforeShrinkPrimaryTerm + 1));
+        }
+    }
+
+    private static IndexMetaData indexMetaData(final Client client, final String index) {
+        final ClusterStateResponse clusterStateResponse = client.admin().cluster().state(new ClusterStateRequest()).actionGet();
+        return clusterStateResponse.getState().metaData().index(index);
     }
 
     public void testCreateShrinkIndex() {

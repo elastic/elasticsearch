@@ -58,6 +58,9 @@
 
 ---
 "Custom filter in request":
+    - skip:
+        version: " - 5.99.99"
+        reason: token filter name changed in 6.0, so this needs to be skipped on mixed clusters
     - do:
         indices.analyze:
           body:

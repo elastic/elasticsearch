@@ -608,7 +608,6 @@ public class SettingsTests extends ESTestCase {
         Settings settings = Settings.readSettingsFromStream(in);
         assertEquals(1, settings.size());
         assertEquals("blah1", settings.get("test.key1.baz"));
-
     }
 
     public void testSecureSettingConflict() {

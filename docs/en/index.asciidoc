@@ -29,6 +29,7 @@ ifdef::include-xpack[]
 include::setup-xes.asciidoc[]
 endif::include-xpack[]
 
+:edit_url:
 include::{es-repo-dir}/reference/index-shared2.asciidoc[]
 
 ifdef::include-xpack[]
@@ -36,4 +37,5 @@ ifdef::include-xpack[]
 include::rest-api/index.asciidoc[]
 endif::include-xpack[]
 
+:edit_url:
 include::{es-repo-dir}/reference/index-shared3.asciidoc[]

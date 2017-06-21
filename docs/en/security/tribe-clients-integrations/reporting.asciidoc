@@ -7,7 +7,9 @@ response to user actions in Kibana.
 To use Reporting with {security} enabled, you need to <<kibana, set up Kibana
 to work with {security}>>. If you are automatically generating reports with
 <<xpack-alerting, {watcher}>>, you also need to configure {watcher} to trust the
-Kibana server's certificate. For more information, see {kibana-ref}/securing-reporting.html[Securing Reporting].
+Kibana server's certificate.
+//TO-DO: Add link:
+//For more information, see {kibana-ref}/securing-reporting.html[Securing Reporting].
 
 [[reporting-app-users]]
 To enable users to generate reports, assign them the built in `reporting_user`

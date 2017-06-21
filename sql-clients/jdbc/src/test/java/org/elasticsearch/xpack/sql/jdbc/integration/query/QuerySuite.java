@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.sql.jdbc.integration.query;
 import java.sql.Connection;
 import java.util.function.Supplier;
 
-import org.elasticsearch.xpack.sql.jdbc.integration.query.filter.FilterSpecTest;
-import org.elasticsearch.xpack.sql.jdbc.integration.query.function.aggregate.AggSpecTest;
-import org.elasticsearch.xpack.sql.jdbc.integration.query.function.scalar.datetime.DateTimeSpecTest;
-import org.elasticsearch.xpack.sql.jdbc.integration.query.function.scalar.math.MathSpecTest;
+import org.elasticsearch.xpack.sql.jdbc.integration.query.filter.FilterSpecTests;
+import org.elasticsearch.xpack.sql.jdbc.integration.query.function.aggregate.AggSpecTests;
+import org.elasticsearch.xpack.sql.jdbc.integration.query.function.scalar.datetime.DateTimeSpecTests;
+import org.elasticsearch.xpack.sql.jdbc.integration.query.function.scalar.math.MathSpecTests;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.EsDataLoader;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.EsJdbcServer;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.H2;
@@ -25,12 +25,13 @@ import org.junit.runners.Suite.SuiteClasses;
 import static org.junit.Assert.assertNotNull;
 
 @RunWith(Suite.class)
-@SuiteClasses({ SelectSpecTest.class, FilterSpecTest.class, AggSpecTest.class, MathSpecTest.class, DateTimeSpecTest.class })
+@SuiteClasses({ SelectSpecTests.class, FilterSpecTests.class, AggSpecTests.class, MathSpecTests.class, DateTimeSpecTests.class })
 //@SuiteClasses({ DebugSpecTest.class })
 //@SuiteClasses({ AggSpecTest.class })
 //@SuiteClasses({ DateTimeSpecTest.class })
 //@SuiteClasses({ MathSpecTest.class })
 public class QuerySuite {
+    // NOCOMMIT we don't have suites in core so this is hard to figure out
 
     //
     // REMOTE ACCESS

@@ -5,9 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.integration.query;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Assert;
+import org.junit.Test;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.util.ArrayList;
@@ -16,28 +21,24 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import org.elasticsearch.common.Strings;
-import org.junit.Assert;
-import org.junit.Test;
-import org.junit.runners.Parameterized.Parameter;
-
 import static java.lang.String.format;
-
 import static org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcAssert.assertResultSets;
 
-public abstract class CompareToH2BaseTest {
+public abstract class CompareToH2BaseTestCase extends ESTestCase {
+    public final String queryName;
+    public final String query;
+    public final Integer lineNumber;
+    public final Path source;
 
-    @Parameter(0)
-    public String queryName;
-    @Parameter(1)
-    public String query;
-    @Parameter(2)
-    public Integer lineNumber;
-    @Parameter(3)
-    public Path source;
+    public CompareToH2BaseTestCase(String queryName, String query, Integer lineNumber, Path source) {
+        this.queryName = queryName;
+        this.query = query;
+        this.lineNumber = lineNumber;
+        this.source = source;
+    }
 
     protected static List<Object[]> readScriptSpec(String url) throws Exception {
-        Path source = Paths.get(CompareToH2BaseTest.class.getResource(url).toURI());
+        Path source = PathUtils.get(CompareToH2BaseTestCase.class.getResource(url).toURI());
         List<String> lines = Files.readAllLines(source);
 
         Map<String, Integer> testNames = new LinkedHashMap<>();
@@ -73,9 +74,7 @@ public abstract class CompareToH2BaseTest {
         return pairs;
     }
 
-    @Test
     public void testQuery() throws Throwable {
-        // H2 resultset
         try (Connection h2 = QuerySuite.h2Con().get();
              Connection es = QuerySuite.esCon().get()) {
             ResultSet expected, actual;

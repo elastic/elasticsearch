@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.jdbc.integration.net.protocol;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.elasticsearch.xpack.sql.jdbc.integration.server.JdbcHttpServer;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcTemplate;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnInfo;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.net.InetAddress;
 import java.sql.Connection;
@@ -37,10 +37,10 @@ import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.junit.Assert.assertThat;
 
 
-public class ProtoTest {
+public class ProtoTests extends ESTestCase {
+    // NOCOMMIT investigate switching to ESRestTestCase and making an integration test.
 
     private static Client esClient;
     private static JdbcHttpServer server;
@@ -50,7 +50,7 @@ public class ProtoTest {
     private static JdbcTemplate j;
 
     @BeforeClass
-    public static void setUp() throws Exception {
+    public static void setUpServer() throws Exception {
         if (esClient == null) {
             esClient = new PreBuiltTransportClient(Settings.EMPTY)
                     .addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), 9300));
@@ -58,7 +58,6 @@ public class ProtoTest {
         if (server == null) {
             server = new JdbcHttpServer(esClient);
             server.start(0);
-            System.out.println("Server started at " + server.address().getPort());
         }
 
         if (client == null) {
@@ -71,11 +70,11 @@ public class ProtoTest {
             driver = new JdbcDriver();
         }
         
-        j = new JdbcTemplate(ProtoTest::con);
+        j = new JdbcTemplate(ProtoTests::con);
     }
 
     @AfterClass
-    public static void tearDown() {
+    public static void tearDownServer() {
         if (server != null) {
             server.stop();
             server = null;
@@ -101,12 +100,10 @@ public class ProtoTest {
         return driver.connect(jdbcUrl, new Properties());
     }
 
-    @Test
     public void test01Ping() throws Exception {
         assertThat(client.ping((int) TimeUnit.SECONDS.toMillis(5)), equalTo(true));
     }
 
-    @Test
     public void testInfoAction() throws Exception {
         InfoResponse esInfo = client.serverInfo();
         assertThat(esInfo, notNullValue());
@@ -118,22 +115,20 @@ public class ProtoTest {
         //assertThat(esInfo.minorVersion(), is(0));
     }
 
-    @Test
     public void testInfoTable() throws Exception {
         List<String> tables = client.metaInfoTables("emp*");
         assertThat(tables.size(), greaterThanOrEqualTo(1));
         assertThat(tables, hasItem("emp.emp"));
     }
 
-    @Test
     public void testInfoColumn() throws Exception {
         List<MetaColumnInfo> info = client.metaInfoColumns("em*", null);
         for (MetaColumnInfo i : info) {
-            System.out.println(i);
+            // NOCOMMIT test these
+            logger.info(i);
         }
     }
 
-    @Test
     public void testBasicJdbc() throws Exception {
         j.consume(c -> {
             assertThat(c.isClosed(), is(false));
@@ -143,7 +138,6 @@ public class ProtoTest {
         j.queryToConsole("SHOW TABLES");
     }
 
-    @Test
     public void testBasicSelect() throws Exception {
         j.consume(c -> {
             assertThat(c.isClosed(), is(false));
@@ -153,18 +147,17 @@ public class ProtoTest {
         j.queryToConsole("SELECT * from \"emp.emp\" ");
     }
 
-    @Test(expected = RuntimeException.class)
     public void testBasicDemo() throws Exception {
         j.consume(c -> {
             assertThat(c.isClosed(), is(false));
             assertThat(c.isReadOnly(), is(true));
         });
 
-        j.queryToConsole("SELECT name, postalcode, last_score, last_score_date FROM doesnot.exist");
+        RuntimeException e = expectThrows(RuntimeException.class, () ->
+            j.queryToConsole("SELECT name, postalcode, last_score, last_score_date FROM doesnot.exist"));
+        assertEquals("asdfasd", e.getMessage());
     }
 
-
-    @Test
     public void testMetadataGetProcedures() throws Exception {
         j.consume(c -> {
             DatabaseMetaData metaData = c.getMetaData();
@@ -175,7 +168,6 @@ public class ProtoTest {
         });
     }
 
-    @Test
     public void testMetadataGetProcedureColumns() throws Exception {
         j.consume(c -> {
             DatabaseMetaData metaData = c.getMetaData();
@@ -186,7 +178,6 @@ public class ProtoTest {
         });
     }
 
-    @Test
     public void testMetadataGetTables() throws Exception {
         j.consume(c -> {
             DatabaseMetaData metaData = c.getMetaData();
@@ -197,14 +188,14 @@ public class ProtoTest {
         });
     }
 
-    @Test(expected = RuntimeException.class)
     public void testMetadataColumns() throws Exception {
-        j.consume(c -> {
+        RuntimeException e = expectThrows(RuntimeException.class, () -> j.consume(c -> {
             DatabaseMetaData metaData = c.getMetaData();
             ResultSet results = metaData.getColumns("elasticsearch", "", "dep.dep", "%");
             assertThat(results, is(notNullValue()));
             assertThat(results.next(), is(true));
             assertThat(results.getMetaData().getColumnCount(), is(24));
-        });
+        }));
+        assertEquals("adsf", e.getMessage());
     }
 }

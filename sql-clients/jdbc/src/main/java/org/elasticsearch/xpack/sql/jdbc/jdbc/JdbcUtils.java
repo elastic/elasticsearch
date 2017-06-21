@@ -13,8 +13,30 @@ import java.sql.JDBCType;
 import java.sql.Time;
 import java.sql.Timestamp;
 
-import static java.lang.String.format;
-import static java.sql.Types.*;
+import static java.sql.Types.BIGINT;
+import static java.sql.Types.BINARY;
+import static java.sql.Types.BIT;
+import static java.sql.Types.BLOB;
+import static java.sql.Types.BOOLEAN;
+import static java.sql.Types.CHAR;
+import static java.sql.Types.CLOB;
+import static java.sql.Types.DATE;
+import static java.sql.Types.DECIMAL;
+import static java.sql.Types.DOUBLE;
+import static java.sql.Types.FLOAT;
+import static java.sql.Types.INTEGER;
+import static java.sql.Types.LONGVARBINARY;
+import static java.sql.Types.LONGVARCHAR;
+import static java.sql.Types.NULL;
+import static java.sql.Types.NUMERIC;
+import static java.sql.Types.REAL;
+import static java.sql.Types.SMALLINT;
+import static java.sql.Types.TIME;
+import static java.sql.Types.TIMESTAMP;
+import static java.sql.Types.TIMESTAMP_WITH_TIMEZONE;
+import static java.sql.Types.TINYINT;
+import static java.sql.Types.VARBINARY;
+import static java.sql.Types.VARCHAR;
 
 public abstract class JdbcUtils {
 
@@ -99,7 +121,7 @@ public abstract class JdbcUtils {
             case TIMESTAMP_WITH_TIMEZONE:
                 return Long.class;
             default:
-                throw new IllegalArgumentException(format("Unsupported JDBC type %d/%s", jdbcType, nameOf(jdbcType)));
+                throw new IllegalArgumentException("Unsupported JDBC type [" + jdbcType + "/" + nameOf(jdbcType) + "]");
         }
     }
 

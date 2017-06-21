@@ -149,7 +149,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
     private final ColumnInfo column(int column) throws SQLException {
         checkOpen();
         if (column < 1 || column > columns.size()) {
-            throw new SQLException(String.format("Invalid column index %s", column));
+            throw new SQLException("Invalid column index [" + column + "]");
         }
         return columns.get(column - 1);
     }

@@ -5,10 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.debug;
 
+import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
+import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
+import org.elasticsearch.xpack.sql.jdbc.util.IOUtils;
+import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
+
+import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.sql.CallableStatement;
 import java.sql.Connection;
@@ -19,11 +27,8 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
-
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
-import org.elasticsearch.xpack.sql.jdbc.util.IOUtils;
 
 public final class Debug {
 
@@ -94,7 +99,7 @@ public final class Debug {
 
         // System.out/err can be changed so do some checks
         if ("err".equals(out)) {
-            PrintStream sys = System.err;
+            PrintStream sys = stderr();
 
             if (SYS_ERR == null) {
                 SYS_ERR = sys;
@@ -105,13 +110,13 @@ public final class Debug {
                 ERR = null;
             }
             if (ERR == null) {
-                ERR = new DebugLog(new PrintWriter(sys));
+                ERR = new DebugLog(new PrintWriter(new OutputStreamWriter(sys, StandardCharsets.UTF_8)));
             }
             return ERR;
         }
 
         if ("out".equals(out)) {
-            PrintStream sys = System.out;
+            PrintStream sys = stdout();
 
             if (SYS_OUT == null) {
                 SYS_OUT = sys;
@@ -124,7 +129,7 @@ public final class Debug {
             }
 
             if (OUT == null) {
-                OUT = new DebugLog(new PrintWriter(sys));
+                OUT = new DebugLog(new PrintWriter(new OutputStreamWriter(sys, StandardCharsets.UTF_8)));
             }
             return OUT;
         }
@@ -134,7 +139,7 @@ public final class Debug {
             if (log == null) {
                 // must be local file
                 try {
-                    PrintWriter print = new PrintWriter(Paths.get("").resolve(out).toFile(), "UTF-8");
+                    PrintWriter print = new PrintWriter(Files.newBufferedWriter(Paths.get("").resolve(out), StandardCharsets.UTF_8));
                     log = new DebugLog(print);
                     OUTPUT_CACHE.put(out, log);
                     OUTPUT_REFS.put(out, Integer.valueOf(0));
@@ -188,5 +193,15 @@ public final class Debug {
         }
 
         OUTPUT_MANAGED.clear();
+    }
+
+    // NOCOMMIT loggers instead, I think
+    @SuppressForbidden(reason="temporary")
+    private static PrintStream stdout() {
+        return System.out;
+    }
+    @SuppressForbidden(reason="temporary")
+    private static PrintStream stderr() {
+        return System.err;
     }
 }

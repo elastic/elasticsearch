@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -18,25 +19,21 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
-import org.junit.runners.MethodSorters;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.List;
-import java.util.Random;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.junit.Assert.fail;
 
 // used rarely just to load the data (hence why it's marked as abstract)
-@FixMethodOrder(MethodSorters.NAME_ASCENDING)
+// NOCOMMIT we should set this up to run with the tests if we need it
 public abstract class EsDataLoader {
 
     private static final Logger log = ESLoggerFactory.getLogger(EsDataLoader.class.getName());
@@ -261,9 +258,9 @@ public abstract class EsDataLoader {
         log.info("About to parse and load the employee to department nested datasets");
 
         // read the 3 files and do nested-loop joins in memory before sending the data out
-        List<String> deps = Files.readAllLines(Paths.get(EsDataLoader.class.getResource("/departments.csv").toURI()));
-        List<String> dep_emp = Files.readAllLines(Paths.get(EsDataLoader.class.getResource("/dep_emp.csv").toURI()));
-        List<String> emp = Files.readAllLines(Paths.get(EsDataLoader.class.getResource("/employees.csv").toURI()));
+        List<String> deps = Files.readAllLines(PathUtils.get(EsDataLoader.class.getResource("/departments.csv").toURI()));
+        List<String> dep_emp = Files.readAllLines(PathUtils.get(EsDataLoader.class.getResource("/dep_emp.csv").toURI()));
+        List<String> emp = Files.readAllLines(PathUtils.get(EsDataLoader.class.getResource("/employees.csv").toURI()));
 
 
         String[] dCols = { "dept_no", "dept_name" };
@@ -358,9 +355,9 @@ public abstract class EsDataLoader {
         log.info("About to parse and load the department to employee nested datasets");
 
         // read the 3 files and do nested-loop joins in memory before sending the data out
-        List<String> deps = Files.readAllLines(Paths.get(EsDataLoader.class.getResource("/departments.csv").toURI()));
-        List<String> dep_emp = Files.readAllLines(Paths.get(EsDataLoader.class.getResource("/dep_emp.csv").toURI()));
-        List<String> employees = Files.readAllLines(Paths.get(EsDataLoader.class.getResource("/employees.csv").toURI()));
+        List<String> deps = Files.readAllLines(PathUtils.get(EsDataLoader.class.getResource("/departments.csv").toURI()));
+        List<String> dep_emp = Files.readAllLines(PathUtils.get(EsDataLoader.class.getResource("/dep_emp.csv").toURI()));
+        List<String> employees = Files.readAllLines(PathUtils.get(EsDataLoader.class.getResource("/employees.csv").toURI()));
 
 
         String[] dCols = { "dept_no", "dept_name" };
@@ -461,9 +458,9 @@ public abstract class EsDataLoader {
         log.info("About to parse and load the department to employee nested datasets");
 
         // read the 3 files and do nested-loop joins in memory before sending the data out
-        List<String> deps = Files.readAllLines(Paths.get(EsDataLoader.class.getResource("/departments.csv").toURI()));
-        List<String> dep_emp = Files.readAllLines(Paths.get(EsDataLoader.class.getResource("/dep_emp.csv").toURI()));
-        List<String> employees = Files.readAllLines(Paths.get(EsDataLoader.class.getResource("/employees.csv").toURI()));
+        List<String> deps = Files.readAllLines(PathUtils.get(EsDataLoader.class.getResource("/departments.csv").toURI()));
+        List<String> dep_emp = Files.readAllLines(PathUtils.get(EsDataLoader.class.getResource("/dep_emp.csv").toURI()));
+        List<String> employees = Files.readAllLines(PathUtils.get(EsDataLoader.class.getResource("/employees.csv").toURI()));
 
 
         String[] dCols = { "dept_no", "dept_name" };
@@ -471,7 +468,6 @@ public abstract class EsDataLoader {
 
         BulkRequestBuilder brb = client().prepareBulk();
 
-        Random rnd = new Random();
         employees.forEach(emp -> {
             try {
                 String[] eSplit = emp.split(",");
@@ -485,8 +481,7 @@ public abstract class EsDataLoader {
                 for (int i = 0; i < eSplit.length; i++) {
                     sourceBuilder.field(empCol[i], eSplit[i]);
                 }
-                // salary (random between 38000 and 106000)
-                sourceBuilder.field("salary", rnd.nextInt(106000 - 38000 + 1) + 38000);
+                sourceBuilder.field("salary", between(38000, 106000));
                 
                 sourceBuilder.startArray("dep");
                 
@@ -549,7 +544,7 @@ public abstract class EsDataLoader {
 
         BulkRequestBuilder brb = client().prepareBulk();
 
-        try (Stream<String> stream = Files.lines(Paths.get(dataSet.toURI()))) {
+        try (Stream<String> stream = Files.lines(PathUtils.get(dataSet.toURI()))) {
             stream.forEach(s -> {
                 try {
                     XContentBuilder sourceBuilder = jsonBuilder().startObject();
@@ -573,8 +568,4 @@ public abstract class EsDataLoader {
 
         log.info("Dataset loaded in {}", br.getTook().format());
     }
-
-    @Test
-    public void testNoOp() {}
-
 }

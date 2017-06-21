@@ -27,7 +27,7 @@ import static java.util.Calendar.*;
 
 abstract class TypeConverter {
 
-    static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+    static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
 
     private static final long DAY_IN_MILLIS = 60 * 60 * 24;
 

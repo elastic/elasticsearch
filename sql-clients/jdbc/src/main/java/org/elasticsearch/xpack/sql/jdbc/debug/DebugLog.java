@@ -5,18 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.debug;
 
+import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+
 import java.io.PrintWriter;
 import java.lang.reflect.Array;
 import java.lang.reflect.Method;
+import java.util.Locale;
 
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
-
-//
 // Logging is done through PrintWriter (not PrintStream which maps to System.err/out) to plug into the JDBC API
-// For performance reasons the locale is not used since it forces a new Formatter to be created per message in a sync block
-// and the locale does not affect the message printing
-// 
 final class DebugLog {
+    // NOCOMMIT investigate using JDK's logging. It doesn't have any dependencies and should be plenty quick when not logging.
+    // NOCOMMIT there was a message about not using the Locale being faster but that violated forbidden APIs. Investigate further.
 
     private static final String HEADER = "%tF/%tT.%tL - ";
 
@@ -28,7 +27,7 @@ final class DebugLog {
 
     void logMethod(Method m, Object[] args) {
         long time = System.currentTimeMillis();
-        print.printf(HEADER + "Invoke %s#%s(%s)%n",
+        print.printf(Locale.ROOT, HEADER + "Invoke %s#%s(%s)%n",
                 time, time, time,
                 //m.getReturnType().getSimpleName(),
                 m.getDeclaringClass().getSimpleName(),
@@ -40,7 +39,7 @@ final class DebugLog {
 
     void logResult(Method m, Object[] args, Object r) {
         long time = System.currentTimeMillis();
-        print.printf(HEADER + "%s#%s(%s) returned %s%n",
+        print.printf(Locale.ROOT, HEADER + "%s#%s(%s) returned %s%n",
                 time, time, time,
                 //m.getReturnType().getSimpleName(),
                 m.getDeclaringClass().getSimpleName(),
@@ -52,7 +51,7 @@ final class DebugLog {
 
     void logException(Method m, Object[] args, Throwable t) {
         long time = System.currentTimeMillis();
-        print.printf(HEADER + "%s#%s(%s) threw ",
+        print.printf(Locale.ROOT, HEADER + "%s#%s(%s) threw ",
                 time, time, time,
                 m.getDeclaringClass().getSimpleName(),
                 m.getName(),

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.jdbc.integration.util;
 
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -45,7 +46,9 @@ public class JdbcTemplate {
 
     private static final int MAX_WIDTH = 20;
 
+    @SuppressForbidden(reason="temporary")
     public static CheckedFunction<ResultSet, Void, SQLException> resultSetToConsole() {
+        // NOCOMMIT this doesn't really test anything. If we want to log the whole result set we can do that too, but we have to add assertions
         return rs -> {
             ResultSetMetaData metaData = rs.getMetaData();
             StringBuilder sb = new StringBuilder();

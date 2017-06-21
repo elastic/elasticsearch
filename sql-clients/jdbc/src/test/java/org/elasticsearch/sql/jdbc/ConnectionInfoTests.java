@@ -5,46 +5,39 @@
  */
 package org.elasticsearch.sql.jdbc;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
-import org.junit.Test;
-
-import static org.junit.Assert.assertThat;
 
 import static org.hamcrest.Matchers.is;
 
-public class ConnectionInfoTest {
+public class ConnectionInfoTests extends ESTestCase {
 
     private JdbcConfiguration ci(String url) {
         return new JdbcConfiguration(url, null);
     }
 
-    @Test(expected = JdbcException.class)
     public void testJustThePrefix() throws Exception {
-        ci("jdbc:es:");
+       Exception e = expectThrows(JdbcException.class, () -> ci("jdbc:es:"));
+       assertEquals("Invalid URL jdbc:es:, format should be jdbc:es://[host[:port]]*/[prefix]*[?[option=value]&]*", e.getMessage());
     }
 
-    @Test
     public void testJustTheHost() throws Exception {
         assertThat(ci("jdbc:es://localhost").asUrl().toString(), is("http://localhost:9200/"));
     }
 
-    @Test
     public void testHostAndPort() throws Exception {
         assertThat(ci("jdbc:es://localhost:1234").asUrl().toString(), is("http://localhost:1234/"));
     }
 
-    @Test
     public void testTrailingSlashForHost() throws Exception {
         assertThat(ci("jdbc:es://localhost:1234/").asUrl().toString(), is("http://localhost:1234/"));
     }
 
-    @Test
     public void testMultiPathSuffix() throws Exception {
         assertThat(ci("jdbc:es://a:1/foo/bar/tar").asUrl().toString(), is("http://a:1/foo/bar/tar"));
     }
 
-    @Test
     public void testDebug() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://a:1/?debug=true");
         assertThat(ci.asUrl().toString(), is("http://a:1/"));
@@ -52,7 +45,6 @@ public class ConnectionInfoTest {
         assertThat(ci.debugOut(), is("err"));
     }
 
-    @Test
     public void testDebugOut() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://a:1/?debug=true&debug.output=jdbc.out");
         assertThat(ci.asUrl().toString(), is("http://a:1/"));
@@ -60,12 +52,11 @@ public class ConnectionInfoTest {
         assertThat(ci.debugOut(), is("jdbc.out"));
     }
 
-    @Test(expected = JdbcException.class)
     public void testTypeInParam() throws Exception {
-        ci("jdbc:es://a:1/foo/bar/tar?debug=true&debug.out=jdbc.out");
+        Exception e = expectThrows(JdbcException.class, () -> ci("jdbc:es://a:1/foo/bar/tar?debug=true&debug.out=jdbc.out"));
+        assertEquals("Unknown parameter [debug.out] ; did you mean [debug.output]", e.getMessage());
     }
 
-    @Test
     public void testDebugOutWithSuffix() throws Exception {
         JdbcConfiguration ci = ci("jdbc:es://a:1/foo/bar/tar?debug=true&debug.output=jdbc.out");
         assertThat(ci.asUrl().toString(), is("http://a:1/foo/bar/tar"));

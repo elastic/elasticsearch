@@ -9,27 +9,13 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 
-@SuppressWarnings("serial")
 public class JdbcException extends RuntimeException {
-
-    public JdbcException() {
-        super();
-    }
-
-    public JdbcException(String message, Throwable cause, boolean enableSuppression, boolean writableStackTrace) {
-        super(message, cause, enableSuppression, writableStackTrace);
-    }
-
     public JdbcException(String message, Object... args) {
+        // NOCOMMIT we very rarely use this on new classes in core, instead appending strings.
         super(format(Locale.ROOT, message, args));
     }
 
     public JdbcException(Throwable cause, String message, Object... args) {
         super(format(Locale.ROOT, message, args), cause);
     }
-
-    public JdbcException(Throwable cause) {
-        super(cause);
-    }
-
 }

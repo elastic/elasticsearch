@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
+
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
@@ -30,9 +33,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-
-import org.elasticsearch.xpack.sql.jdbc.net.client.Cursor;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
 
 import static java.lang.String.format;
 
@@ -66,7 +66,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     private Object column(int columnIndex) throws SQLException {
         checkOpen();
         if (columnIndex < 1 || columnIndex > cursor.columnSize()) {
-            throw new SQLException(String.format("Invalid column index %s", columnIndex));
+            throw new SQLException("Invalid column index [" + columnIndex + "]");
         }
         Object object = cursor.column(columnIndex - 1);
         wasNull = (object == null);
@@ -77,7 +77,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         checkOpen();
         Integer index = nameToIndex.get(columnName);
         if (index == null) {
-            throw new SQLException(String.format("Invalid column label %s", columnName));
+            throw new SQLException("Invalid column label [" + columnName + "]");
         }
         return index.intValue();
     }
@@ -304,7 +304,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     private <T> T convert(int columnIndex, Class<T> type) throws SQLException {
         checkOpen();
         if (columnIndex < 1 || columnIndex > cursor.columnSize()) {
-            throw new SQLException(String.format("Invalid column index %s", columnIndex));
+            throw new SQLException("Invalid column index [" + columnIndex + "]");
         }
 
         Object val = column(columnIndex);

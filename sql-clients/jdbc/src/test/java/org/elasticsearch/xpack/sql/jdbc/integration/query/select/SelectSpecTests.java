@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.integration.query.select;
 
-import org.elasticsearch.xpack.sql.jdbc.integration.query.CompareToH2BaseTest;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import org.elasticsearch.xpack.sql.jdbc.integration.query.CompareToH2BaseTestCase;
 
-@RunWith(Parameterized.class)
-public class SelectSpecTest extends CompareToH2BaseTest {
+import java.nio.file.Path;
 
-    @Parameters(name = "test{0}")
+public class SelectSpecTests extends CompareToH2BaseTestCase {
+    public SelectSpecTests(String queryName, String query, Integer lineNumber, Path source) {
+        super(queryName, query, lineNumber, source);
+    }
+
     public static Iterable<Object[]> queries() throws Exception {
         return readScriptSpec("/org/elasticsearch/sql/jdbc/integration/query/select/select.spec");
     }

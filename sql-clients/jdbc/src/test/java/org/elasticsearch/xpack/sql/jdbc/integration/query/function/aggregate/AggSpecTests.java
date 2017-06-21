@@ -5,15 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.integration.query.function.aggregate;
 
-import org.elasticsearch.xpack.sql.jdbc.integration.query.CompareToH2BaseTest;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
-import org.junit.runners.Parameterized.Parameters;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-@RunWith(Parameterized.class)
-public class AggSpecTest extends CompareToH2BaseTest {
+import org.elasticsearch.xpack.sql.jdbc.integration.query.CompareToH2BaseTestCase;
 
-    @Parameters(name = "test{0}")
+import java.nio.file.Path;
+
+public class AggSpecTests extends CompareToH2BaseTestCase {
+    public AggSpecTests(String queryName, String query, Integer lineNumber, Path source) {
+        super(queryName, query, lineNumber, source);
+    }
+
+    @ParametersFactory
     public static Iterable<Object[]> queries() throws Exception {
         return readScriptSpec("/org/elasticsearch/sql/jdbc/integration/query/function/aggregate/agg.spec");
     }

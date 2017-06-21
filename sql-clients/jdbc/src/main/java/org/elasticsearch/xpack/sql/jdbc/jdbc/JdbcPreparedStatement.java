@@ -63,7 +63,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         checkOpen();
 
         if (parameterIndex < 0 || parameterIndex > query.paramCount()) {
-            throw new SQLException(String.format("Invalid parameter %s; needs to be between 1 and %s", parameterIndex, query.paramCount()));
+            throw new SQLException("Invalid parameter [ " + parameterIndex + "; needs to be between 1 and [" + query.paramCount() + "]");
         }
 
         query.setParam(parameterIndex, value, JDBCType.valueOf(type));

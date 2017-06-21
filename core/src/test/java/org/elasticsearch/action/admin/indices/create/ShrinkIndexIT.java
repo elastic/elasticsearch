@@ -228,7 +228,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .put("number_of_shards", randomIntBetween(2, 7))
             .put("index.version.created", version)
         ).get();
-        final int docs = randomIntBetween(1, 128);
+        final int docs = randomIntBetween(0, 128);
         for (int i = 0; i < docs; i++) {
             client().prepareIndex("source", "type")
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
@@ -266,7 +266,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             assertThat(seqNoStats.getLocalCheckpoint(), equalTo(maxSeqNo));
         }
 
-        assertHitCount(client().prepareSearch("target").setSize(2 * docs).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+        final int size = docs > 0 ? 2 * docs : 1;
+        assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
 
         if (createWithReplicas == false) {
             // bump replicas
@@ -274,7 +275,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .setSettings(Settings.builder()
                     .put("index.number_of_replicas", 1)).get();
             ensureGreen();
-            assertHitCount(client().prepareSearch("target").setSize(2 * docs).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+            assertHitCount(client().prepareSearch("target").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
         }
 
         for (int i = docs; i < 2 * docs; i++) {
@@ -282,8 +283,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
         flushAndRefresh();
-        assertHitCount(client().prepareSearch("target").setSize(4 * docs).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 2 * docs);
-        assertHitCount(client().prepareSearch("source").setSize(2 * docs).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
+        assertHitCount(client().prepareSearch("target").setSize(2 * size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), 2 * docs);
+        assertHitCount(client().prepareSearch("source").setSize(size).setQuery(new TermsQueryBuilder("foo", "bar")).get(), docs);
         GetSettingsResponse target = client().admin().indices().prepareGetSettings("target").get();
         assertEquals(version, target.getIndexToSettings().get("target").getAsVersion("index.version.created", null));
     }

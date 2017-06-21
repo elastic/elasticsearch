@@ -886,14 +886,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Rolls the tranlog generation and cleans unneeded.
-     *
-     * @throws IOException if any file operations on the translog throw an I/O exception
      */
-    private void rollTranslogAndTrimGeneration() throws IOException {
+    private void rollTranslogGeneration() {
         final Engine engine = getEngine();
-        final Translog translog = engine.getTranslog();
-        translog.rollGeneration();
-        translog.trimUnreferencedReaders();
+        engine.rollTranslogGeneration();
     }
 
     public void forceMerge(ForceMergeRequest forceMerge) throws IOException {
@@ -2109,7 +2105,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                         @Override
                         protected void doRun() throws Exception {
-                            rollTranslogAndTrimGeneration();
+                            rollTranslogGeneration();
                         }
 
                         @Override

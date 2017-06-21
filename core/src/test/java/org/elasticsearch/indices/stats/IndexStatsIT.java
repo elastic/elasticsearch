@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.stats;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -53,14 +54,18 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Random;
@@ -90,6 +95,12 @@ import static org.hamcrest.Matchers.nullValue;
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 2, numClientNodes = 0, randomDynamicTemplates = false)
 @SuppressCodecs("*") // requires custom completion format
 public class IndexStatsIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
@@ -378,7 +389,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testSimpleStats() throws Exception {
-        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
+        assertAcked(prepareCreate("test1").setSettings("index.version.created", Version.V_5_6_0.id)); // allows for multiple types
         createIndex("test2");
         ensureGreen();
 
@@ -508,7 +519,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testMergeStats() {
-        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
+        assertAcked(prepareCreate("test1").setSettings("index.version.created", Version.V_5_6_0.id)); // allows for multiple types
 
         ensureGreen();
 
@@ -545,7 +556,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testSegmentsStats() {
         assertAcked(prepareCreate("test1")
-                .setSettings(SETTING_NUMBER_OF_REPLICAS, between(0, 1), "index.mapping.single_type", false));
+                .setSettings(SETTING_NUMBER_OF_REPLICAS, between(0, 1), "index.version.created", Version.V_5_6_0.id));
         ensureGreen();
 
         NumShards test1 = getNumShards("test1");
@@ -570,7 +581,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testAllFlags() throws Exception {
         // rely on 1 replica for this tests
-        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
+        assertAcked(prepareCreate("test1").setSettings("index.version.created", Version.V_5_6_0.id));
         createIndex("test2");
 
         ensureGreen();
@@ -692,7 +703,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     public void testMultiIndex() throws Exception {
-        assertAcked(prepareCreate("test1").setSettings("index.mapping.single_type", false));
+        assertAcked(prepareCreate("test1").setSettings("index.version.created", Version.V_5_6_0.id));
         createIndex("test2");
 
         ensureGreen();
@@ -732,7 +743,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testFieldDataFieldsParam() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test1")
-                .setSettings("index.mapping.single_type", false)
+                .setSettings("index.version.created", Version.V_5_6_0.id)
                 .addMapping("type", "bar", "type=text,fielddata=true",
                         "baz", "type=text,fielddata=true").get());
 
@@ -780,7 +791,7 @@ public class IndexStatsIT extends ESIntegTestCase {
 
     public void testCompletionFieldsParam() throws Exception {
         assertAcked(prepareCreate("test1")
-                .setSettings("index.mapping.single_type", false)
+                .setSettings("index.version.created", Version.V_5_6_0.id) // allows for multiple types
                 .addMapping(
                         "bar",
                         "{ \"properties\": { \"bar\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}},\"baz\": { \"type\": \"text\", \"fields\": { \"completion\": { \"type\": \"completion\" }}}}}", XContentType.JSON));

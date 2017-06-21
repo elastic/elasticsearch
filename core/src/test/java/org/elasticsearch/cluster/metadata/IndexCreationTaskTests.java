@@ -30,7 +30,10 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -54,6 +57,7 @@ import java.util.Map;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Collections;
+import java.util.Arrays;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -90,13 +94,14 @@ public class IndexCreationTaskTests extends ESTestCase {
     private final MetaData.Builder currentStateMetaDataBuilder = MetaData.builder();
     private final ClusterBlocks currentStateBlocks = mock(ClusterBlocks.class);
     private final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+    private final DocumentMapper docMapper = mock(DocumentMapper.class);
 
     public void testMatchTemplates() throws Exception {
         tplBuilder.put("template_1", createTemplateMetadata("template_1", "te*"));
         tplBuilder.put("template_2", createTemplateMetadata("template_2", "tes*"));
         tplBuilder.put("template_3", createTemplateMetadata("template_3", "zzz*"));
 
-        final ClusterState result = executeTask(state);
+        final ClusterState result = executeTask();
 
         assertTrue(result.metaData().index("test").getAliases().containsKey("alias_from_template_1"));
         assertTrue(result.metaData().index("test").getAliases().containsKey("alias_from_template_2"));
@@ -111,7 +116,7 @@ public class IndexCreationTaskTests extends ESTestCase {
                 .settings(Settings.builder().put("key1", "value1"))
         );
 
-        final ClusterState result = executeTask(state);
+        final ClusterState result = executeTask();
 
         assertTrue(result.metaData().index("test").getAliases().containsKey("alias1"));
         assertTrue(result.metaData().index("test").getCustoms().containsKey("custom1"));
@@ -125,7 +130,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         setupRequestCustom("custom1", createCustom());
         reqSettings.put("key1", "value1");
 
-        final ClusterState result = executeTask(state);
+        final ClusterState result = executeTask();
 
         assertTrue(result.metaData().index("test").getAliases().containsKey("alias1"));
         assertTrue(result.metaData().index("test").getCustoms().containsKey("custom1"));
@@ -154,7 +159,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         setupRequestCustom("custom1", reqCustom);
         reqSettings.put("key1", "reqValue");
 
-        final ClusterState result = executeTask(state);
+        final ClusterState result = executeTask();
 
         assertEquals(mergedCustom, result.metaData().index("test").getCustoms().get("custom1"));
         assertEquals("fromReq", result.metaData().index("test").getAliases().get("alias1").getSearchRouting());
@@ -163,7 +168,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     }
 
     public void testDefaultSettings() throws Exception {
-        final ClusterState result = executeTask(state);
+        final ClusterState result = executeTask();
 
         assertEquals("5", result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS));
     }
@@ -171,7 +176,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     public void testSettingsFromClusterState() throws Exception {
         clusterStateSettings.put(SETTING_NUMBER_OF_SHARDS, 15);
 
-        final ClusterState result = executeTask(state);
+        final ClusterState result = executeTask();
 
         assertEquals("15", result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS));
     }
@@ -192,7 +197,7 @@ public class IndexCreationTaskTests extends ESTestCase {
             .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 12))
             .putAlias(AliasMetaData.builder("alias1").searchRouting("3").build())
         );
-        final ClusterState result = executeTask(state);
+        final ClusterState result = executeTask();
 
         assertEquals("12", result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS));
         assertEquals("3", result.metaData().index("test").getAliases().get("alias1").getSearchRouting());
@@ -214,7 +219,7 @@ public class IndexCreationTaskTests extends ESTestCase {
             .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 10))
             .putAlias(AliasMetaData.builder("alias1").searchRouting("1").build())
         );
-        final ClusterState result = executeTask(state);
+        final ClusterState result = executeTask();
 
         assertEquals("12", result.getMetaData().index("test").getSettings().get(SETTING_NUMBER_OF_SHARDS));
         assertEquals("3", result.metaData().index("test").getAliases().get("alias1").getSearchRouting());
@@ -224,7 +229,7 @@ public class IndexCreationTaskTests extends ESTestCase {
 
         when(request.state()).thenReturn(IndexMetaData.State.OPEN);
 
-        executeTask(state);
+        executeTask();
 
         verify(allocationService, times(1)).reroute(anyObject(), anyObject());
     }
@@ -234,37 +239,56 @@ public class IndexCreationTaskTests extends ESTestCase {
         doThrow(new RuntimeException("oops")).when(mapper).merge(anyMap(), anyObject(), anyBoolean());
 
         try {
-            executeTask(state);
+            executeTask();
             fail("exception not thrown");
         } catch (RuntimeException e) {
             verify(indicesService, times(1)).removeIndex(anyObject(), anyObject(), anyObject());
         }
     }
 
-
     public void testShrink() throws Exception {
-        /*
         final Index source = new Index("source_idx", "aaa111bbb222");
 
         when(request.shrinkFrom()).thenReturn(source);
 
-        final IndexMetaData.Builder builder = IndexMetaData
-            .builder("source_idx")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-            .numberOfShards(2)
-            .numberOfReplicas(2);
-        currentStateMetaDataBuilder.put(builder);
+        currentStateMetaDataBuilder.put(createIndexMetaDataBuilder("source_idx", "aaa111bbb222", 2, 2));
+
+        routingTableBuilder.add(createIndexRoutingTableWithStartedShards(source));
 
         when(currentStateBlocks.indexBlocked(eq(ClusterBlockLevel.WRITE), eq("source_idx"))).thenReturn(true);
         reqSettings.put(SETTING_NUMBER_OF_SHARDS, 1);
 
+        executeTask();
 
-        executeTask(state);
-        */
+        // @todo check values
     }
 
     // @todo test for blocks
     // @todo test templates not applied when shrink
+
+    private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {
+        final IndexRoutingTable idxRoutingTable = mock(IndexRoutingTable.class);
+
+        when(idxRoutingTable.getIndex()).thenReturn(index);
+        when(idxRoutingTable.shardsWithState(eq(ShardRoutingState.STARTED))).thenReturn(Arrays.asList(
+            TestShardRouting.newShardRouting(index.getName(), 0, "1", randomBoolean(), ShardRoutingState.INITIALIZING).moveToStarted(),
+            TestShardRouting.newShardRouting(index.getName(), 0, "1", randomBoolean(), ShardRoutingState.INITIALIZING).moveToStarted()
+
+        ));
+
+        return idxRoutingTable;
+    }
+
+    private IndexMetaData.Builder createIndexMetaDataBuilder(String name, String uuid, int numShards, int numReplicas) {
+        return IndexMetaData
+            .builder(name)
+            .settings(Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_INDEX_UUID, uuid))
+            .putMapping(new MappingMetaData(docMapper))
+            .numberOfShards(numShards)
+            .numberOfReplicas(numReplicas);
+    }
 
     private IndexMetaData.Custom createCustom() {
         return mock(IndexMetaData.Custom.class);
@@ -319,19 +343,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         return new CompressedXContent(mapping);
     }
 
-    @SuppressWarnings("unchecked")
-    private ClusterState executeTask(ClusterState state) throws Exception {
-        setupState();
-        setupRequest();
-        setupClusterState();
-        setupIndicesService();
-        final MetaDataCreateIndexService.IndexCreationTask task = new MetaDataCreateIndexService.IndexCreationTask(
-            logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, clusterStateSettings.build(),
-            validator
-        );
-        return task.execute(state);
-    }
-
     private IndexTemplateMetaData.Builder metaDataBuilder(String name, String pattern) {
         return IndexTemplateMetaData
             .builder(name)
@@ -344,6 +355,17 @@ public class IndexCreationTaskTests extends ESTestCase {
             .patterns(Collections.singletonList(pattern))
             .putAlias(AliasMetaData.builder("alias_from_" + name).build())
             .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private ClusterState executeTask() throws Exception {
+        setupState();
+        setupRequest();
+        final MetaDataCreateIndexService.IndexCreationTask task = new MetaDataCreateIndexService.IndexCreationTask(
+            logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, clusterStateSettings.build(),
+            validator
+        );
+        return task.execute(state);
     }
 
     private void setupState() {
@@ -379,15 +401,23 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(state.nodes()).thenReturn(nodes);
     }
 
+    public void setUp() throws Exception {
+        super.setUp();
+        setupIndicesService();
+        setupClusterState();
+    }
+
     @SuppressWarnings("unchecked")
     private void setupIndicesService() throws Exception {
-        final DocumentMapper docMapper = mock(DocumentMapper.class);
-        when(docMapper.routingFieldMapper()).thenReturn(mock(RoutingFieldMapper.class));
+        final RoutingFieldMapper routingMapper = mock(RoutingFieldMapper.class);
+        when(routingMapper.required()).thenReturn(false);
+
+        when(docMapper.routingFieldMapper()).thenReturn(routingMapper);
         when(docMapper.parentFieldMapper()).thenReturn(mock(ParentFieldMapper.class));
 
         when(mapper.docMappers(anyBoolean())).thenReturn(Collections.singletonList(docMapper));
 
-        final Index index = mock(Index.class);
+        final Index index = new Index("target", "tgt1234");
         final Supplier<Sort> supplier = mock(Supplier.class);
         final IndexService service = mock(IndexService.class);
         when(service.index()).thenReturn(index);

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Platforms;
@@ -99,7 +100,14 @@ final class Spawner implements Closeable {
     private Process spawnNativePluginController(
             final Path spawnPath,
             final Path tmpPath) throws IOException {
-        final ProcessBuilder pb = new ProcessBuilder(spawnPath.toString());
+        final String command;
+        if (Constants.WINDOWS) {
+            // we have to get the short path name or CreateProcessW will fail due to MAX_PATH limitations
+            command = Natives.getShortPathName(spawnPath.toString());
+        } else {
+            command = spawnPath.toString();
+        }
+        final ProcessBuilder pb = new ProcessBuilder(command);
 
         // the only environment variable passes on the path to the temporary directory
         pb.environment().clear();

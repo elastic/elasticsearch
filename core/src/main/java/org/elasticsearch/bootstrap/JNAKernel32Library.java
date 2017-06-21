@@ -24,6 +24,7 @@ import com.sun.jna.Native;
 import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
+import com.sun.jna.WString;
 import com.sun.jna.win32.StdCallLibrary;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
@@ -222,6 +223,18 @@ final class JNAKernel32Library {
      * @return true if the function succeeds.
      */
     native boolean CloseHandle(Pointer handle);
+
+    /**
+     * Retrieves the short path form of the specified path. See
+     * <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa364989.aspx">{@code GetShortPathName}</a>.
+     *
+     * @param lpszLongPath  the path string
+     * @param lpszShortPath a pointer to a buffer to receive the null-terminated short form of the path that {@code lpszLongPath} specifies;
+     *                      passing null and zero for the size of the buffer returns the required buffer size
+     * @param cchBuffer     the size of the buffer that {@code lpszShortPath} points to (zero if {@code lpszShortPath} is null)
+     * @return the length of the string copied into {@code lpszShortPath}, otherwise zero for failure
+     */
+    native int GetShortPathNameW(WString lpszLongPath, char[] lpszShortPath, int cchBuffer);
 
     /**
      * Creates or opens a new job object

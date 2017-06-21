@@ -178,6 +178,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 
 public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
@@ -836,7 +837,11 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         if (enabled == false || transportClientMode) {
             return null;
         }
-        return handler -> new SecurityRestFilter(settings, licenseState, sslService, threadContext, authcService.get(), handler);
+        final boolean ssl = HTTP_SSL_ENABLED.get(settings);
+        Settings httpSSLSettings = SSLService.getHttpTransportSSLSettings(settings);
+        boolean extractClientCertificate = ssl && sslService.isSSLClientAuthEnabled(httpSSLSettings);
+        return handler -> new SecurityRestFilter(licenseState, threadContext, authcService.get(), handler,
+                extractClientCertificate);
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {

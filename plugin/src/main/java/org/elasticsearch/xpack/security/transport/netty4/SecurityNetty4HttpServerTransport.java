@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.xpack.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
@@ -31,16 +32,28 @@ import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isRe
 public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport {
 
     private final IPFilter ipFilter;
+    private final Settings sslSettings;
     private final SSLService sslService;
-    private final boolean ssl;
+    private final SSLConfiguration sslConfiguration;
 
     public SecurityNetty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
                                              SSLService sslService, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
                                              Dispatcher dispatcher) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         this.ipFilter = ipFilter;
-        this.ssl = HTTP_SSL_ENABLED.get(settings);
-        this.sslService =  sslService;
+        final boolean ssl = HTTP_SSL_ENABLED.get(settings);
+        this.sslSettings = SSLService.getHttpTransportSSLSettings(settings);
+        this.sslService = sslService;
+        if (ssl) {
+            if (sslService.isConfigurationValidForServerUsage(sslSettings, false) == false) {
+                throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the " +
+                        "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting");
+            }
+            this.sslConfiguration = sslService.sslConfiguration(sslSettings, Settings.EMPTY);
+        } else {
+            this.sslConfiguration = null;
+        }
+
     }
 
     @Override
@@ -86,33 +99,24 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
 
     @Override
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpSslChannelHandler(this);
+        return new HttpSslChannelHandler();
     }
 
-    private class HttpSslChannelHandler extends HttpChannelHandler {
-
-        private final Settings sslSettings;
-
-        HttpSslChannelHandler(Netty4HttpServerTransport transport) {
-            super(transport, detailedErrorsEnabled, threadPool.getThreadContext());
-            this.sslSettings = SSLService.getHttpTransportSSLSettings(settings);
-            if (ssl && sslService.isConfigurationValidForServerUsage(sslSettings, false) == false) {
-                throw new IllegalArgumentException("a key must be provided to run as a server. the key should be configured using the " +
-                        "[xpack.security.http.ssl.key] or [xpack.security.http.ssl.keystore.path] setting");
-            }
+    private final class HttpSslChannelHandler extends HttpChannelHandler {
+        HttpSslChannelHandler() {
+            super(SecurityNetty4HttpServerTransport.this, detailedErrorsEnabled, threadPool.getThreadContext());
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
-            if (ssl) {
-                final SSLEngine engine = sslService.createSSLEngine(sslSettings, Settings.EMPTY);
-                engine.setUseClientMode(false);
-                ch.pipeline().addFirst("ssl", new SslHandler(engine));
+            if (sslConfiguration != null) {
+                SSLEngine sslEngine = sslService.createSSLEngine(sslConfiguration, null, -1);
+                sslEngine.setUseClientMode(false);
+                ch.pipeline().addFirst("ssl", new SslHandler(sslEngine));
             }
             ch.pipeline().addFirst("ip_filter", new IpFilterRemoteAddressFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME));
         }
-
     }
 
     public static void overrideSettings(Settings.Builder settingsBuilder, Settings settings) {

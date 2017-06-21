@@ -344,16 +344,20 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testSSLStrategy() {
         // this just exhaustively verifies that the right things are called and that it uses the right parameters
-        Settings settings = Settings.builder().build();
+        VerificationMode mode = randomFrom(VerificationMode.values());
+        Settings settings = Settings.builder()
+                .put("supported_protocols", "protocols")
+                .put("cipher_suites", "")
+                .put("verification_mode", mode.name())
+                .build();
         SSLService sslService = mock(SSLService.class);
-        SSLConfiguration sslConfig = mock(SSLConfiguration.class);
+        SSLConfiguration sslConfig = new SSLConfiguration(settings);
         SSLParameters sslParameters = mock(SSLParameters.class);
         SSLContext sslContext = mock(SSLContext.class);
         String[] protocols = new String[] { "protocols" };
         String[] ciphers = new String[] { "ciphers!!!" };
         String[] supportedCiphers = new String[] { "supported ciphers" };
         List<String> requestedCiphers = new ArrayList<>(0);
-        VerificationMode mode = randomFrom(VerificationMode.values());
         ArgumentCaptor<HostnameVerifier> verifier = ArgumentCaptor.forClass(HostnameVerifier.class);
         SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
 
@@ -362,9 +366,6 @@ public class SSLServiceTests extends ESTestCase {
         when(sslService.supportedCiphers(supportedCiphers, requestedCiphers, false)).thenReturn(ciphers);
         when(sslService.sslParameters(sslContext)).thenReturn(sslParameters);
         when(sslParameters.getCipherSuites()).thenReturn(supportedCiphers);
-        when(sslConfig.supportedProtocols()).thenReturn(Arrays.asList(protocols));
-        when(sslConfig.cipherSuites()).thenReturn(requestedCiphers);
-        when(sslConfig.verificationMode()).thenReturn(mode);
         when(sslService.sslIOSessionStrategy(eq(sslContext), eq(protocols), eq(ciphers), verifier.capture())).thenReturn(sslStrategy);
 
         // ensure it actually goes through and calls the real method

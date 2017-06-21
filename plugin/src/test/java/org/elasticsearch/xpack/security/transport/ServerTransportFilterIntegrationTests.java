@@ -55,19 +55,19 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
         Path store;
         try {
-            store = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+            store = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks");
             assertThat(Files.exists(store), is(true));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
-        settingsBuilder.put("transport.profiles.client.xpack.security.truststore.path", store) // settings for client truststore
-                       .put("transport.profiles.client.xpack.security.truststore.password", "testnode")
+        settingsBuilder.put("transport.profiles.client.xpack.security.ssl.truststore.path", store) // settings for client truststore
+                       .put("transport.profiles.client.xpack.security.ssl.truststore.password", "testclient")
                        .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED);
 
         return settingsBuilder
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("transport.profiles.default.xpack.security.type", "node")
+                .put("transport.profiles.default.type", "node")
                 .put("transport.profiles.client.xpack.security.type", "client")
                 .put("transport.profiles.client.port", randomClientPortRange)
                 // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
@@ -126,7 +126,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         Settings nodeSettings = Settings.builder()
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
                 .put("xpack.security.authc.realms.file.order", 0)
-                .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode"))
+                .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .put("node.name", "my-test-node")
                 .put(Security.USER_SETTING.getKey(), "test_user:changeme")
                 .put("cluster.name", internalCluster().getClusterName())

@@ -180,9 +180,9 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
                 .build();
         env = new Environment(settings);
         sslService = new SSLService(settings, env);
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings, mock(NetworkService.class),
-                mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class), xContentRegistry(), new NullDispatcher());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, transport::configureServerChannelHandler);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new SecurityNetty4HttpServerTransport(settings, mock(NetworkService.class), mock(BigArrays.class),
+                        mock(IPFilter.class), sslService, mock(ThreadPool.class), xContentRegistry(), new NullDispatcher()));
         assertThat(e.getMessage(), containsString("key must be provided"));
     }
 

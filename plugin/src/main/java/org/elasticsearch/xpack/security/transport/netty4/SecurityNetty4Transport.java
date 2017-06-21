@@ -19,7 +19,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.xpack.security.transport.ServerTransportFilter;
+import org.elasticsearch.xpack.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
@@ -27,6 +30,9 @@ import javax.net.ssl.SSLEngine;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
@@ -40,7 +46,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     private final SSLService sslService;
     @Nullable private final IPFilter authenticator;
-    private final Settings transportSSLSettings;
+    private final SSLConfiguration sslConfiguration;
+    private final Map<String, SSLConfiguration> profileConfiguration;
 
     public SecurityNetty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                                    NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService,
@@ -48,7 +55,25 @@ public class SecurityNetty4Transport extends Netty4Transport {
         super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
         this.sslService = sslService;
-        this.transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
+        final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
+        sslConfiguration = sslService.sslConfiguration(transportSSLSettings, Settings.EMPTY);
+        Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
+        Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileSettingsMap.size() + 1);
+        for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
+            Settings profileSettings = entry.getValue();
+            final Settings profileSslSettings = profileSslSettings(profileSettings);
+            SSLConfiguration configuration =  sslService.sslConfiguration(profileSslSettings, transportSSLSettings);
+            profileConfiguration.put(entry.getKey(), configuration);
+            assert sslService.isConfigurationValidForServerUsage(profileSslSettings, true) :
+            "the ssl configuration is not valid for server use but we are running as a server. this should have been caught by" +
+                    " the key config validation";
+        }
+
+        if (profileConfiguration.containsKey(TransportSettings.DEFAULT_PROFILE) == false) {
+            profileConfiguration.put(TransportSettings.DEFAULT_PROFILE, sslConfiguration);
+        }
+
+        this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
     }
 
     @Override
@@ -61,7 +86,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     @Override
     protected ChannelHandler getServerChannelInitializer(String name, Settings settings) {
-        return new SecurityServerChannelInitializer(name, settings);
+        SSLConfiguration configuration = profileConfiguration.get(name);
+        if (configuration == null) {
+            throw new IllegalStateException("unknown profile: " + name);
+        }
+        return new SecurityServerChannelInitializer(settings, name, configuration);
     }
 
     @Override
@@ -102,21 +131,18 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     class SecurityServerChannelInitializer extends ServerChannelInitializer {
+        private final SSLConfiguration configuration;
 
-        private final Settings securityProfileSettings;
+        SecurityServerChannelInitializer(Settings settings, String name, SSLConfiguration configuration) {
+            super(name, settings);
+            this.configuration = configuration;
 
-        SecurityServerChannelInitializer(String name, Settings profileSettings) {
-            super(name, profileSettings);
-            this.securityProfileSettings = profileSettings.getByPrefix(setting("ssl."));
-            assert sslService.isConfigurationValidForServerUsage(securityProfileSettings, true) :
-                    "the ssl configuration is not valid for server use but we are running as a server. this should have been caught by" +
-                            " the key config validation";
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
-            SSLEngine serverEngine = sslService.createSSLEngine(securityProfileSettings, transportSSLSettings);
+            SSLEngine serverEngine = sslService.createSSLEngine(configuration, null, -1);
             serverEngine.setUseClientMode(false);
             ch.pipeline().addFirst(new SslHandler(serverEngine));
             if (authenticator != null) {
@@ -130,25 +156,24 @@ public class SecurityNetty4Transport extends Netty4Transport {
         private final boolean hostnameVerificationEnabled;
 
         SecurityClientChannelInitializer() {
-            this.hostnameVerificationEnabled =
-                    sslService.getVerificationMode(transportSSLSettings, Settings.EMPTY).isHostnameVerificationEnabled();
+            this.hostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
-            ch.pipeline().addFirst(new ClientSslHandlerInitializer(transportSSLSettings, sslService, hostnameVerificationEnabled));
+            ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled));
         }
     }
 
     private static class ClientSslHandlerInitializer extends ChannelOutboundHandlerAdapter {
 
         private final boolean hostnameVerificationEnabled;
-        private final Settings sslSettings;
+        private final SSLConfiguration sslConfiguration;
         private final SSLService sslService;
 
-        private ClientSslHandlerInitializer(Settings sslSettings, SSLService sslService, boolean hostnameVerificationEnabled) {
-            this.sslSettings = sslSettings;
+        private ClientSslHandlerInitializer(SSLConfiguration sslConfiguration, SSLService sslService, boolean hostnameVerificationEnabled) {
+            this.sslConfiguration = sslConfiguration;
             this.hostnameVerificationEnabled = hostnameVerificationEnabled;
             this.sslService = sslService;
         }
@@ -160,10 +185,10 @@ public class SecurityNetty4Transport extends Netty4Transport {
             if (hostnameVerificationEnabled) {
                 InetSocketAddress inetSocketAddress = (InetSocketAddress) remoteAddress;
                 // we create the socket based on the name given. don't reverse DNS
-                sslEngine = sslService.createSSLEngine(sslSettings, Settings.EMPTY, inetSocketAddress.getHostString(),
+                sslEngine = sslService.createSSLEngine(sslConfiguration, inetSocketAddress.getHostString(),
                         inetSocketAddress.getPort());
             } else {
-                sslEngine = sslService.createSSLEngine(sslSettings, Settings.EMPTY);
+                sslEngine = sslService.createSSLEngine(sslConfiguration, null, -1);
             }
 
             sslEngine.setUseClientMode(true);

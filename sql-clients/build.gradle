@@ -1,11 +1,11 @@
-description = 'Elasticsearch SQL Clients'
+description = 'SQL clients for Elasticsearch and code shared between those ' +
+    'clients and their backends in :x-pack-elasticsearch:plugin'
 
 import org.gradle.plugins.ide.eclipse.model.*;
+import org.elasticsearch.gradle.precommit.PrecommitTasks
 
 subprojects {
   apply plugin: 'elasticsearch.build'
-  apply plugin: "java"
-  apply plugin: 'eclipse'
 
   sourceSets.test.resources.srcDirs = ["src/test/resources", "src/test/java"]
 
@@ -31,5 +31,18 @@ subprojects {
       exclude group:'org.hamcrest', module:'hamcrest-core'
     }
     testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+  }
+
+  tasks.checkstyle.enabled = false // not worth it yet
+  tasks.checkstyleTest.enabled = false // not worth it yet
+
+  forbiddenApisMain {
+    // does not depend on core, so only jdk and http signatures should be checked
+    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
+  }
+
+  forbiddenApisTest {
+    // does not depend on core, so only jdk signatures should be checked
+    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
   }
 }

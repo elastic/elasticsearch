@@ -38,7 +38,7 @@ public class HttpCliClient implements AutoCloseable {
     }
 
     public InfoResponse serverInfo() {
-        Bytes ba = http.put(out -> ProtoUtils.write(out, new InfoRequest(System.getProperties())));
+        Bytes ba = http.put(out -> ProtoUtils.write(out, new InfoRequest()));
         return doIO(ba, in -> readResponse(in, Action.INFO));
     }
 

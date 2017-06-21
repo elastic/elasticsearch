@@ -2,6 +2,8 @@ import org.elasticsearch.gradle.Version
 
 apply plugin: 'elasticsearch.build'
 
+description = 'JDBC driver for Elasticsearch'
+
 def generatedResources = "$buildDir/generated-resources/main"
 
 sourceSets {

@@ -1,6 +1,8 @@
 apply plugin: 'elasticsearch.build'
 apply plugin: 'application'
 
+description = 'Command line interface to Elasticsearch that speaks SQL'
+
 dependencies {
   compile "org.jline:jline:3.3.0"
   compile project(':x-pack-elasticsearch:sql-clients:net-client')

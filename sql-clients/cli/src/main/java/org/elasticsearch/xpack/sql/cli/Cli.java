@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.cli;
 import org.elasticsearch.xpack.sql.cli.net.client.HttpCliClient;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
+import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 import org.jline.keymap.BindingReader;
 import org.jline.reader.EndOfFileException;
@@ -24,6 +25,7 @@ import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Properties;
 
@@ -155,11 +157,16 @@ public class Cli {
 
     private String displayGraphviz(String str) throws IOException {
         // save the content to a temp file
-        Path dotTempFile = Files.createTempFile("sql-gv", ".dot2img");
+        Path dotTempFile = Files.createTempFile(Paths.get(System.getProperty("java.io.tmpdir")), "sql-gv", ".dot2img");
         Files.write(dotTempFile, str.getBytes(StandardCharsets.UTF_8));
         // run graphviz on it (dot needs to be on the file path)
-        Desktop desktop = Desktop.getDesktop();
-        desktop.open(dotTempFile.toFile());
+        open(dotTempFile);
         return "";
+    }
+
+    @SuppressForbidden(reason="The desktop API needs File instead of Path")
+    private void open(Path path) throws IOException {
+        Desktop desktop = Desktop.getDesktop();
+        desktop.open(path.toFile());
     }
 }

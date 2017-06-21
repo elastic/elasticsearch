@@ -125,8 +125,18 @@ class ClusterConfiguration {
         return tmpFile.exists()
     }
 
-    public ClusterConfiguration(Project project) {
+    ClusterConfiguration(Project project) {
         this.project = project
+
+        // any Gradle project property can be used a setting if prefixed by 'es.run.'
+        // for example:
+        //   'gradle run -Pes.run.node.data=false -Pes.run.node.ingest=false'
+        // This would set two settings upfront without requiring the configuration to be modified in the build.gradle
+        for (String property : project.properties.keySet()) {
+            if (property.startsWith("es.run.")) {
+                settings.put(property.substring("es.run.".length()), project.properties.get(property))
+            }
+        }
     }
 
     Map<String, String> systemProperties = new HashMap<>()
@@ -153,7 +163,9 @@ class ClusterConfiguration {
 
     @Input
     void setting(String name, Object value) {
-        settings.put(name, value)
+        if (project.hasProperty("es.run." + name) == false) {
+            settings.put(name, value)
+        }
     }
 
     @Input

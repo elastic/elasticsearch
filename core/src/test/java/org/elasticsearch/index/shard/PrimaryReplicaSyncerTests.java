@@ -59,6 +59,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         }
 
         long globalCheckPoint = numDocs > 0 ? randomIntBetween(0, numDocs - 1) : 0;
+        boolean syncNeeded = numDocs > 0 && globalCheckPoint < numDocs - 1;
 
         String allocationId = shard.routingEntry().allocationId().getId();
         shard.updateAllocationIdsFromMaster(Collections.singleton(allocationId), Collections.emptySet());
@@ -71,11 +72,11 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         syncer.resync(shard, fut);
         fut.get();
 
-        if (numDocs > 0) {
+        if (syncNeeded) {
             assertTrue("Sync action was not called", syncActionCalled.get());
         }
         assertEquals(numDocs, fut.get().getTotalOperations());
-        if (numDocs > 0) {
+        if (syncNeeded) {
             long skippedOps = globalCheckPoint + 1; // everything up to global checkpoint included
             assertEquals(skippedOps, fut.get().getSkippedOperations());
             assertEquals(numDocs - skippedOps, fut.get().getResyncedOperations());

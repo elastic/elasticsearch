@@ -97,8 +97,8 @@ public class FunctionRef {
         // the Painless$Script class can be inferred if owner is null
         if (delegateMethod.owner == null) {
             delegateClassName = CLASS_NAME;
-        } else if (delegateMethod.augmentation) {
-            delegateClassName = Augmentation.class.getName();
+        } else if (delegateMethod.augmentation != null) {
+            delegateClassName = delegateMethod.augmentation.getName();
         } else {
             delegateClassName = delegateMethod.owner.clazz.getName();
         }

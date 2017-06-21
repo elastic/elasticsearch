@@ -25,6 +25,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -122,7 +123,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"job_id\":\"given-multiple-jobs-job-3\""));
     }
 
-    private Response createFarequoteJob(String jobId) throws Exception {
+    private Response createFarequoteJob(String jobId) throws IOException {
         String job = "{\n" + "    \"description\":\"Analysis of response time by airline\",\n"
                 + "    \"analysis_config\" : {\n" + "        \"bucket_span\": \"3600s\",\n"
                 + "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
@@ -544,6 +545,9 @@ public class MlJobIT extends ESRestTestCase {
         ConcurrentMapLong<Response> responses = ConcurrentCollections.newConcurrentMapLong();
         ConcurrentMapLong<ResponseException> responseExceptions = ConcurrentCollections.newConcurrentMapLong();
         AtomicReference<IOException> ioe = new AtomicReference<>();
+        AtomicInteger recreationGuard = new AtomicInteger(0);
+        AtomicReference<Response> recreationResponse = new AtomicReference<>();
+        AtomicReference<ResponseException> recreationException = new AtomicReference<>();
 
         Runnable deleteJob = () -> {
             try {
@@ -560,6 +564,17 @@ public class MlJobIT extends ESRestTestCase {
                 ioe.set(e);
             }
 
+            // Immediately after the first deletion finishes, recreate the job.  This should pick up
+            // race conditions where another delete request deletes part of the newly created job.
+            if (recreationGuard.getAndIncrement() == 0) {
+                try {
+                    recreationResponse.set(createFarequoteJob(jobId));
+                } catch (ResponseException re) {
+                    recreationException.set(re);
+                } catch (IOException e) {
+                    ioe.set(e);
+                }
+            }
         };
 
         // The idea is to hit the situation where one request waits for
@@ -593,6 +608,25 @@ public class MlJobIT extends ESRestTestCase {
         for (Response response : responses.values()) {
             assertEquals(responseEntityToString(response), 200, response.getStatusLine().getStatusCode());
         }
+
+        assertNotNull(recreationResponse.get());
+        assertEquals(responseEntityToString(recreationResponse.get()), 200, recreationResponse.get().getStatusLine().getStatusCode());
+
+        if (recreationException.get() != null) {
+            assertNull(recreationException.get().getMessage(), recreationException.get());
+        }
+
+        // Check that the job aliases exist.  These are the last thing to be deleted when a job is deleted, so
+        // if there's been a race between deletion and recreation these are what will be missing.
+        Response response = client().performRequest("get", "_aliases");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        String responseAsString = responseEntityToString(response);
+
+        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
+                + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId + "\",\"boost\":1.0}}}}"));
+        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{}"));
+
+        assertEquals(numThreads, recreationGuard.get());
     }
 
     private static String responseEntityToString(Response response) throws Exception {

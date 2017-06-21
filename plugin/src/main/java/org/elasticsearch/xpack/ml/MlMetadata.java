@@ -167,9 +167,9 @@ public class MlMetadata implements MetaData.Custom {
         }
 
         public MlMetadataDiff(StreamInput in) throws IOException {
-            this.jobs =  DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new,
+            this.jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new,
                     MlMetadataDiff::readJobDiffFrom);
-            this.datafeeds =  DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
+            this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
                     MlMetadataDiff::readSchedulerDiffFrom);
         }
 
@@ -356,8 +356,8 @@ public class MlMetadata implements MetaData.Custom {
                 throw ExceptionsHelper.missingJobException(jobId);
             }
             if (job.isDeleted()) {
-                // Job still exists
-                return;
+                // Job still exists but is already being deleted
+                throw new JobAlreadyMarkedAsDeletedException();
             }
 
             checkJobHasNoDatafeed(jobId);
@@ -441,4 +441,6 @@ public class MlMetadata implements MetaData.Custom {
         }
     }
 
+    public static class JobAlreadyMarkedAsDeletedException extends RuntimeException {
+    }
 }

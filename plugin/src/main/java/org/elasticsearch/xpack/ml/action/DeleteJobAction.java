@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.TimeoutException;
 
 public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAction.Response, DeleteJobAction.RequestBuilder> {
 
@@ -199,19 +200,6 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
 
-            // For a normal delete check if the job is already being deleted.
-            if (request.isForce() == false) {
-                MlMetadata currentMlMetadata = state.metaData().custom(MlMetadata.TYPE);
-                if (currentMlMetadata != null) {
-                    Job job = currentMlMetadata.getJobs().get(request.getJobId());
-                    if (job != null && job.isDeleted()) {
-                        // This is a generous timeout value but it's unlikely to ever take this long
-                        waitForDeletingJob(request.getJobId(), MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT, listener);
-                        return;
-                    }
-                }
-            }
-
             ActionListener<Boolean> markAsDeletingListener = ActionListener.wrap(
                     response -> {
                         if (request.isForce()) {
@@ -220,7 +208,28 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
                             normalDeleteJob(request, (JobStorageDeletionTask) task, listener);
                         }
                     },
-                    listener::onFailure);
+                    e -> {
+                        if (e instanceof MlMetadata.JobAlreadyMarkedAsDeletedException) {
+                            // Don't kick off a parallel deletion task, but just wait for
+                            // the in-progress request to finish.  This is much safer in the
+                            // case where the job with the same name might be immediately
+                            // recreated after the delete returns.  However, if a force
+                            // delete times out then eventually kick off a parallel delete
+                            // in case the original completely failed for some reason.
+                            waitForDeletingJob(request.getJobId(), MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT, ActionListener.wrap(
+                                    listener::onResponse,
+                                    e2 -> {
+                                        if (request.isForce() && e2 instanceof TimeoutException) {
+                                            forceDeleteJob(request, (JobStorageDeletionTask) task, listener);
+                                        } else {
+                                            listener.onFailure(e2);
+                                        }
+                                    }
+                            ));
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    });
 
             markJobAsDeleting(request.getJobId(), markAsDeletingListener, request.isForce());
         }
@@ -354,7 +363,7 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        listener.onFailure(new IllegalStateException("timed out after " + timeout));
+                        listener.onFailure(new TimeoutException("timed out after " + timeout));
                     }
                 }, newClusterState -> jobIsDeletedFromState(jobId, newClusterState), timeout);
             }

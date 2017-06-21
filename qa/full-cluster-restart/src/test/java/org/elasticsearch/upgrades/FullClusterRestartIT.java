@@ -746,7 +746,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
         Map<String, Object> expected = new HashMap<>();
         expected.put("transient", emptyMap());
         expected.put("persistent", singletonMap("cluster.routing.allocation.exclude.test_attr", oldClusterVersion.toString()));
-        if (false == expected.equals(map)) {
+        if (expected.equals(map) == false) {
             NotEqualMessageBuilder builder = new NotEqualMessageBuilder();
             builder.compareMaps(map, expected);
             fail("settings don't match:\n" + builder.toString());

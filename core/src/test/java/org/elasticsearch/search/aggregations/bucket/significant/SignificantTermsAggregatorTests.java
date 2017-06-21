@@ -102,10 +102,6 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        indexWriterConfig.setMaxBufferedDocs(100);
-        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a
-                                                   // single segment with
-                                                   // predictable docIds
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             addMixedTextDocs(textFieldType, w);
 
@@ -120,12 +116,12 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             sigNumAgg.executionHint(randomExecutionHint());
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd"
                 SignificantTerms terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
 
+                assertEquals(1, terms.getBuckets().size());
                 assertNull(terms.getBucketByKey("even"));
                 assertNull(terms.getBucketByKey("common"));
                 assertNotNull(terms.getBucketByKey("odd"));
@@ -133,6 +129,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 // Search even
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), sigAgg, textFieldType);
 
+                assertEquals(1, terms.getBuckets().size());
                 assertNull(terms.getBucketByKey("odd"));
                 assertNull(terms.getBucketByKey("common"));
                 assertNotNull(terms.getBucketByKey("even"));
@@ -140,6 +137,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 // Search odd with regex includeexcludes
                 sigAgg.includeExclude(new IncludeExclude("o.d", null));
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
+                assertEquals(1, terms.getBuckets().size());
                 assertNotNull(terms.getBucketByKey("odd"));
                 assertNull(terms.getBucketByKey("common"));
                 assertNull(terms.getBucketByKey("even"));
@@ -151,6 +149,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 sigAgg.includeExclude(new IncludeExclude(oddStrings, evenStrings));
                 sigAgg.significanceHeuristic(SignificanceHeuristicTests.getRandomSignificanceheuristic());
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
+                assertEquals(1, terms.getBuckets().size());
                 assertNotNull(terms.getBucketByKey("odd"));
                 assertNull(terms.getBucketByKey("weird"));
                 assertNull(terms.getBucketByKey("common"));
@@ -159,6 +158,7 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 
                 sigAgg.includeExclude(new IncludeExclude(evenStrings, oddStrings));
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
+                assertEquals(0, terms.getBuckets().size());
                 assertNull(terms.getBucketByKey("odd"));
                 assertNull(terms.getBucketByKey("weird"));
                 assertNull(terms.getBucketByKey("common"));
@@ -182,10 +182,6 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        indexWriterConfig.setMaxBufferedDocs(100);
-        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a
-                                                   // single segment with
-                                                   // predictable docIds
         final long ODD_VALUE = 3;
         final long EVEN_VALUE = 6;
         final long COMMON_VALUE = 2;
@@ -209,17 +205,18 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             sigNumAgg.executionHint(randomExecutionHint());
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd"
                 SignificantLongTerms terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigNumAgg, longFieldType);
+                assertEquals(1, terms.getBuckets().size());
 
                 assertNull(terms.getBucketByKey(Long.toString(EVEN_VALUE)));
                 assertNull(terms.getBucketByKey(Long.toString(COMMON_VALUE)));
                 assertNotNull(terms.getBucketByKey(Long.toString(ODD_VALUE)));
 
                 terms = searchAndReduce(searcher, new TermQuery(new Term("text", "even")), sigNumAgg, longFieldType);
+                assertEquals(1, terms.getBuckets().size());
 
                 assertNull(terms.getBucketByKey(Long.toString(ODD_VALUE)));
                 assertNull(terms.getBucketByKey(Long.toString(COMMON_VALUE)));
@@ -239,10 +236,6 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         textFieldType.setIndexAnalyzer(new NamedAnalyzer("my_analyzer", AnalyzerScope.GLOBAL, new StandardAnalyzer()));
 
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        indexWriterConfig.setMaxBufferedDocs(100);
-        indexWriterConfig.setRAMBufferSizeMB(100); // flush on open to have a
-                                                   // single segment with
-                                                   // predictable docIds
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, indexWriterConfig)) {
             addMixedTextDocs(textFieldType, w);
 
@@ -251,11 +244,11 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             sigAgg.executionHint(randomExecutionHint());
 
             try (IndexReader reader = DirectoryReader.open(w)) {
-                assertEquals("test expects a single segment", 1, reader.leaves().size());
                 IndexSearcher searcher = new IndexSearcher(reader);
 
                 // Search "odd"
                 SignificantTerms terms = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), sigAgg, textFieldType);
+                assertEquals(0, terms.getBuckets().size());
 
                 assertNull(terms.getBucketByKey("even"));
                 assertNull(terms.getBucketByKey("common"));

@@ -19,7 +19,10 @@
 
 package org.elasticsearch.repositories.s3;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -28,24 +31,25 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.util.Locale;
 
 public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
+    private static final Logger logger = Loggers.getLogger(S3BlobStoreContainerTests.class);
+
     private static ServerSocket socket;
 
     @BeforeClass
     public static void openPort() throws IOException {
-        System.out.println("openPort()");
-        socket = new ServerSocket(9200);
+        socket = new ServerSocket(9200, 50, InetAddress.getByName("127.0.0.1"));
         new Thread(() -> {
             while (!socket.isClosed()) {
                 try {
                     socket.accept();
-                    System.out.println("accept!");
                 } catch (IOException e) {
-                    System.out.println(e);
+                    logger.log(Level.ERROR, e);
                 }
             }
         }).start();
@@ -61,7 +65,6 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
     @AfterClass
     public static void closePort() throws IOException {
-        System.out.println("closePort()");
         socket.close();
     }
 }

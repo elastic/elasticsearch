@@ -40,6 +40,7 @@ import com.amazonaws.util.Base64;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.security.DigestInputStream;
 import java.util.ArrayList;
@@ -58,7 +59,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
 
     private void openSocket() {
         try {
-            Socket socket = new Socket("localhost", 9200);
+            Socket socket = new Socket(InetAddress.getByName("127.0.0.1"), 9200);
             socket.close();
         } catch (IOException e) {
             throw new RuntimeException(e);

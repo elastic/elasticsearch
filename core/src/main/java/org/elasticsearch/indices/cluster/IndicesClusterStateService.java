@@ -570,7 +570,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 final Set<String> initializingIds =
                         allocationIdsForShardsOnNodesThatUnderstandSeqNos(indexShardRoutingTable.getAllInitializingShards(), nodes);
                 shard.updatePrimaryTerm(clusterState.metaData().index(shard.shardId().getIndex()).primaryTerm(shard.shardId().id()),
-                    null);
+                    primaryReplicaSyncer::resync);
                 shard.updateAllocationIdsFromMaster(activeIds, initializingIds);
             }
         } catch (Exception e) {

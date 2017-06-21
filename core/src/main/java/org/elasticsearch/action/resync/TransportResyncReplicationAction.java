@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.resync;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
@@ -26,14 +27,13 @@ import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -83,6 +83,18 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     protected ReplicationOperation.Replicas newReplicasProxy() {
         // We treat the resync as best-effort for now and don't mark unavailable shard copies as stale.
         return new ReplicasProxy();
+    }
+
+    @Override
+    protected void sendReplicaRequest(
+        final ConcreteReplicaRequest<ResyncReplicationRequest> replicaRequest,
+        final DiscoveryNode node,
+        final ActionListener<ReplicationOperation.ReplicaResponse> listener) {
+        if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
+            super.sendReplicaRequest(replicaRequest, node, listener);
+        } else {
+            listener.onResponse(new ReplicaResponse(replicaRequest.getTargetAllocationID(), SequenceNumbersService.UNASSIGNED_SEQ_NO));
+        }
     }
 
     @Override
@@ -150,7 +162,12 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
 
                 @Override
                 public void handleException(TransportException exp) {
-                    listener.onFailure(exp);
+                    final Throwable cause = exp.unwrapCause();
+                    if (TransportActions.isShardNotAvailableException(cause)) {
+                        logger.trace("primary became unavailable during resync, ignoring", exp);
+                    } else {
+                        listener.onFailure(exp);
+                    }
                 }
             });
     }

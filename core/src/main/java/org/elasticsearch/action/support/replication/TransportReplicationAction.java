@@ -222,7 +222,12 @@ public abstract class TransportReplicationAction<
                 || TransportActions.isShardNotAvailableException(e);
     }
 
-    public class OperationTransportHandler implements TransportRequestHandler<Request> {
+    protected class OperationTransportHandler implements TransportRequestHandler<Request> {
+
+        public OperationTransportHandler() {
+
+        }
+
         @Override
         public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             execute(task, request, new ActionListener<Response>() {
@@ -255,7 +260,12 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    public class PrimaryOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<Request>> {
+    protected class PrimaryOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<Request>> {
+
+        public PrimaryOperationTransportHandler() {
+
+        }
+
         @Override
         public void messageReceived(final ConcreteShardRequest<Request> request, final TransportChannel channel) throws Exception {
             throw new UnsupportedOperationException("the task parameter is required for this operation");
@@ -1053,7 +1063,11 @@ public abstract class TransportReplicationAction<
      * shards. It also encapsulates the logic required for failing the replica
      * if deemed necessary as well as marking it as stale when needed.
      */
-    public class ReplicasProxy implements ReplicationOperation.Replicas<ReplicaRequest> {
+    protected class ReplicasProxy implements ReplicationOperation.Replicas<ReplicaRequest> {
+
+        public ReplicasProxy() {
+
+        }
 
         @Override
         public void performOn(

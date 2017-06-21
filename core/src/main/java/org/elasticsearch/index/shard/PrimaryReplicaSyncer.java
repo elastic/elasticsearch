@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.resync.ResyncReplicationRequest;
 import org.elasticsearch.action.resync.ResyncReplicationResponse;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -46,7 +45,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -98,6 +96,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 @Override
                 public synchronized Translog.Operation next() throws IOException {
                     if (indexShard.state() != IndexShardState.STARTED) {
+                        assert indexShard.state() != IndexShardState.RELOCATED : "resync should never happen on a relocated shard";
                         throw new IndexShardNotStartedException(shardId, indexShard.state());
                     }
                     return snapshot.next();
@@ -105,13 +104,13 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             };
 
             resync(shardId, indexShard.routingEntry().allocationId().getId(), wrappedSnapshot,
-                indexShard.getGlobalCheckpoint() + 1, indexShard.seqNoStats().getMaxSeqNo(), listener);
+                indexShard.getGlobalCheckpoint() + 1, listener);
         }
     }
 
     private void resync(final ShardId shardId, final String primaryAllocationId, final Translog.Snapshot snapshot,
-                       long startingSeqNo, long endingSeqNo, ActionListener<ResyncTask> listener) {
-        ResyncRequest request = new ResyncRequest(shardId);
+                        long startingSeqNo, ActionListener<ResyncTask> listener) {
+        ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
         ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
         ActionListener<Void> wrappedListener = new ActionListener<Void>() {
             @Override
@@ -130,7 +129,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         };
         try {
             new SnapshotSender(logger, syncAction, resyncTask, shardId, primaryAllocationId, snapshot, chunkSize.bytesAsInt(),
-                startingSeqNo, endingSeqNo, wrappedListener).run();
+                startingSeqNo, wrappedListener).run();
         } catch (Exception e) {
             wrappedListener.onFailure(e);
         }
@@ -149,17 +148,14 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
         private final ShardId shardId;
         private final Translog.Snapshot snapshot;
         private final long startingSeqNo;
-        private final long endingSeqNo;
         private final int chunkSizeInBytes;
         private final ActionListener<Void> listener;
         private final AtomicInteger totalSentOps = new AtomicInteger();
         private final AtomicInteger totalSkippedOps = new AtomicInteger();
         private AtomicBoolean closed = new AtomicBoolean();
-        private AtomicBoolean runOnce = new AtomicBoolean();
 
         SnapshotSender(Logger logger, SyncAction syncAction, ResyncTask task, ShardId shardId, String primaryAllocationId,
-                       Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, long endingSeqNo,
-                       ActionListener<Void> listener) {
+                       Translog.Snapshot snapshot, int chunkSizeInBytes, long startingSeqNo, ActionListener<Void> listener) {
             this.logger = logger;
             this.syncAction = syncAction;
             this.task = task;
@@ -168,7 +164,6 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             this.snapshot = snapshot;
             this.chunkSizeInBytes = chunkSizeInBytes;
             this.startingSeqNo = startingSeqNo;
-            this.endingSeqNo = endingSeqNo;
             this.listener = listener;
             task.setTotalOperations(snapshot.totalOperations());
         }
@@ -198,7 +193,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             while ((operation = snapshot.next()) != null) {
                 final long seqNo = operation.seqNo();
                 if (startingSeqNo >= 0 &&
-                    (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo || seqNo > endingSeqNo)) {
+                    (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
                     totalSkippedOps.incrementAndGet();
                     continue;
                 }
@@ -212,13 +207,13 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
                 }
             }
 
-            if (runOnce.compareAndSet(false, true) || !operations.isEmpty()) {
+            if (!operations.isEmpty()) {
                 ResyncReplicationRequest request = new ResyncReplicationRequest(shardId, operations);
-                logger.trace("sending batch of [{}][{}] (total sent: [{}], skipped: [{}])", operations.size(), new ByteSizeValue(size),
-                    totalSentOps.get(), totalSkippedOps.get());
+                logger.trace("{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])", shardId, operations.size(),
+                    new ByteSizeValue(size), totalSentOps.get(), totalSkippedOps.get());
                 syncAction.sync(request, task, primaryAllocationId, this);
             } else if (closed.compareAndSet(false, true)) {
-                logger.trace("resync completed (total sent: [{}], skipped: [{}])", totalSentOps.get(), totalSkippedOps.get());
+                logger.trace("{} resync completed (total sent: [{}], skipped: [{}])", shardId, totalSentOps.get(), totalSkippedOps.get());
                 listener.onResponse(null);
             }
         }
@@ -227,9 +222,11 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
     public static class ResyncRequest extends ActionRequest {
 
         private final ShardId shardId;
+        private final String allocationId;
 
-        public ResyncRequest(ShardId shardId) {
+        public ResyncRequest(ShardId shardId, String allocationId) {
             this.shardId = shardId;
+            this.allocationId = allocationId;
         }
 
         @Override
@@ -244,7 +241,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
 
         @Override
         public String toString() {
-            return "ResyncRequest{" + shardId + "}";
+            return "ResyncRequest{ " + shardId + ", " + allocationId + " }";
         }
 
         @Override

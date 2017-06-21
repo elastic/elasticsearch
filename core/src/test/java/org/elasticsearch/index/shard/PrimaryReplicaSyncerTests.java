@@ -24,7 +24,9 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.tasks.TaskManager;
 
 import java.io.IOException;
@@ -32,6 +34,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 
 public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
@@ -57,12 +60,10 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
         long globalCheckPoint = numDocs > 0 ? randomIntBetween(0, numDocs - 1) : 0;
 
-        if (numDocs > 0) {
-            String allocationId = shard.routingEntry().allocationId().getId();
-            shard.updateAllocationIdsFromMaster(Collections.singleton(allocationId), Collections.emptySet());
-            shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
-            assertEquals(globalCheckPoint, shard.getGlobalCheckpoint());
-        }
+        String allocationId = shard.routingEntry().allocationId().getId();
+        shard.updateAllocationIdsFromMaster(Collections.singleton(allocationId), Collections.emptySet());
+        shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
+        assertEquals(globalCheckPoint, shard.getGlobalCheckpoint());
 
         logger.info("Total ops: {}, global checkpoint: {}", numDocs, globalCheckPoint);
 
@@ -70,7 +71,9 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         syncer.resync(shard, fut);
         fut.get();
 
-        assertTrue("Sync action was not called", syncActionCalled.get());
+        if (numDocs > 0) {
+            assertTrue("Sync action was not called", syncActionCalled.get());
+        }
         assertEquals(numDocs, fut.get().getTotalOperations());
         if (numDocs > 0) {
             long skippedOps = globalCheckPoint + 1; // everything up to global checkpoint included
@@ -115,5 +118,21 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
 
         PrimaryReplicaSyncer.ResyncTask.Status differentStatus = task.getStatus();
         assertNotEquals(status, differentStatus);
+    }
+
+    public void testStatusReportsCorrectNumbers() throws IOException {
+        PrimaryReplicaSyncer.ResyncTask task = new PrimaryReplicaSyncer.ResyncTask(0, "type", "action", "desc", null);
+        task.setPhase(randomAlphaOfLength(10));
+        task.setResyncedOperations(randomIntBetween(0, 1000));
+        task.setTotalOperations(randomIntBetween(0, 1000));
+        task.setSkippedOperations(randomIntBetween(0, 1000));
+        PrimaryReplicaSyncer.ResyncTask.Status status = task.getStatus();
+        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+        status.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+        String jsonString = jsonBuilder.string();
+        assertThat(jsonString, containsString("\"phase\":\"" + task.getPhase() + "\""));
+        assertThat(jsonString, containsString("\"totalOperations\":" + task.getTotalOperations()));
+        assertThat(jsonString, containsString("\"resyncedOperations\":" + task.getResyncedOperations()));
+        assertThat(jsonString, containsString("\"skippedOperations\":" + task.getSkippedOperations()));
     }
 }

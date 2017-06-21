@@ -279,14 +279,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 new ActionListener<PrimaryReplicaSyncer.ResyncTask>() {
                     @Override
                     public void onResponse(PrimaryReplicaSyncer.ResyncTask resyncTask) {
-                        fut.onResponse(resyncTask);
                         listener.onResponse(resyncTask);
+                        fut.onResponse(resyncTask);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        fut.onFailure(e);
                         listener.onFailure(e);
+                        fut.onFailure(e);
                     }
                 }));
             updateAllocationIDsOnPrimary();

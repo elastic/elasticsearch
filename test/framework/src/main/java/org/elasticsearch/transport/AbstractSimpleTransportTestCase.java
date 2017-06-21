@@ -1462,12 +1462,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        try (Transport.Connection connection = serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE)){
-            serviceB.handshake(connection, 100);
-            fail("exception should be thrown");
-        } catch (IllegalStateException e) {
-            // all is well
-        }
+        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE));
     }
 
     public void testMockUnresponsiveRule() throws IOException {
@@ -1518,12 +1513,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        try (Transport.Connection connection = serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE)){
-            serviceB.handshake(connection, 100);
-            fail("exception should be thrown");
-        } catch (IllegalStateException e) {
-            // all is well
-        }
+        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE));
     }
 
 

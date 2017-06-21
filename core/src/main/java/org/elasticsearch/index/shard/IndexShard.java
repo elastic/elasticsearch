@@ -395,30 +395,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 latch.countDown();
                 // prevent primary relocation handoff while resync is not completed
                 primaryReplicaResyncInProgress = true;
-                try {
-                    primaryReplicaSyncer.accept(IndexShard.this, new ActionListener<ResyncTask>() {
-                        @Override
-                        public void onResponse(ResyncTask resyncTask) {
-                            logger.info("primary-replica resync completed with {} operations",
-                                resyncTask.getResyncedOperations());
-                            synchronized (mutex) {
-                                assert primaryReplicaResyncInProgress : "primary-replica resync aborted early";
-                                primaryReplicaResyncInProgress = false;
+                threadPool.generic().execute(() -> {
+                    try {
+                        primaryReplicaSyncer.accept(IndexShard.this, new ActionListener<ResyncTask>() {
+                            @Override
+                            public void onResponse(ResyncTask resyncTask) {
+                                logger.info("primary-replica resync completed with {} operations",
+                                    resyncTask.getResyncedOperations());
+                                synchronized (mutex) {
+                                    assert primaryReplicaResyncInProgress : "primary-replica resync aborted early";
+                                    primaryReplicaResyncInProgress = false;
+                                }
                             }
-                        }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            if (state == IndexShardState.CLOSED) {
-                                // ignore, shutting down
-                            } else {
-                                failShard("exception during primary-replica resync", e);
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (state == IndexShardState.CLOSED) {
+                                    // ignore, shutting down
+                                } else {
+                                    failShard("exception during primary-replica resync", e);
+                                }
                             }
-                        }
-                    });
-                } catch (IOException e) {
-                    failShard("exception during primary-replica resync initialization", e);
-                }
+                        });
+                    } catch (IOException e) {
+                        failShard("exception during primary-replica resync initialization", e);
+                    }
+                });
             }
         }
     }

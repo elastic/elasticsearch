@@ -131,14 +131,6 @@ public final class IndexSettings {
             Property.IndexScope);
 
     /**
-     * Most of the translog trimming is done on the flying during indexing. However, once indexing stops, we need to revisit old
-     * translog files and clean them up. This setting how often we check for those
-     **/
-    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING =
-        Setting.timeSetting("index.translog.retention.check_interval", new TimeValue(10, TimeUnit.MINUTES),
-            new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic, Property.IndexScope);
-
-    /**
      * The maximum size of a translog generation. This is independent of the maximum size of
      * translog operations that have not been flushed.
      */
@@ -198,7 +190,6 @@ public final class IndexSettings {
     private volatile TimeValue translogRetentionAge;
     private volatile ByteSizeValue translogRetentionSize;
     private volatile ByteSizeValue generationThresholdSize;
-    private volatile TimeValue translogRetentionCheckInterval;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
     private final IndexSortConfig indexSortConfig;
@@ -297,7 +288,6 @@ public final class IndexSettings {
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         translogRetentionAge = scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING);
         translogRetentionSize = scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
-        translogRetentionCheckInterval = scopedSettings.get(INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
@@ -337,7 +327,6 @@ public final class IndexSettings {
                 this::setGenerationThresholdSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
-        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING, this::setTranslogRetentionCheckInterval);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
@@ -357,10 +346,6 @@ public final class IndexSettings {
 
     private void setGenerationThresholdSize(final ByteSizeValue generationThresholdSize) {
         this.generationThresholdSize = generationThresholdSize;
-    }
-
-    private void setTranslogRetentionCheckInterval(TimeValue interval) {
-        this.translogRetentionCheckInterval = interval;
     }
 
     private void setGCDeletes(TimeValue timeValue) {
@@ -526,14 +511,6 @@ public final class IndexSettings {
      * Returns the transaction log retention age which controls the maximum age (time from creation) that translog files will be kept around
      */
     public TimeValue getTranslogRetentionAge() { return translogRetentionAge; }
-
-    /**
-     * Returns how often we need to check if we can clean up translog files (in order to clean up old files after indexing has stopped)
-     */
-    public TimeValue getTranslogRetentionCheckInterval() {
-        return translogRetentionCheckInterval;
-    }
-
 
     /**
      * Returns the generation threshold size. As sequence numbers can cause multiple generations to

@@ -47,6 +47,7 @@ import java.util.Map;
 
 class S3BlobContainer extends AbstractBlobContainer {
 
+    public static final int BUF_SIZE = 8 * 1024;
     protected final S3BlobStore blobStore;
 
     protected final String keyPath;
@@ -91,9 +92,18 @@ class S3BlobContainer extends AbstractBlobContainer {
         if (blobExists(blobName)) {
             throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
         }
-        try (OutputStream stream = createOutput(blobName)) {
-            SocketAccess.doPrivilegedIOException(() -> Streams.copy(inputStream, stream));
-        }
+
+        SocketAccess.doPrivilegedIOException(() -> {
+            try (OutputStream os = createOutput(blobName);
+                 InputStream is = inputStream) {
+                byte[] buf = new byte[BUF_SIZE];
+                int read;
+                while ((read = is.read(buf)) != -1) {
+                    os.write(buf, 0, read);
+                }
+            }
+            return null;
+        });
     }
 
     @Override

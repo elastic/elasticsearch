@@ -47,7 +47,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
-import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -253,6 +252,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
             @Override
             public void close() throws IOException {
                 transportServiceAdapter.onConnectionClosed(this);
+                LocalTransport.this.disconnectFromNode(node);
             }
         };
     }

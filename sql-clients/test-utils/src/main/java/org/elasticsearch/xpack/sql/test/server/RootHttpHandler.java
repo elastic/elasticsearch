@@ -5,18 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.test.server;
 
-import java.io.IOException;
-
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
+
+import java.io.IOException;
+
 class RootHttpHandler implements HttpHandler {
+    private static final Logger logger = ESLoggerFactory.getLogger(RootHttpHandler.class);
 
     @Override
     public void handle(HttpExchange t) throws IOException {
-        System.out.println("Received ping call...");
-        //String m = "SQL Proto testing server";
-        //byte[] bytes = StringUtils.toUTF(m);
+        logger.debug("Received ping call...");
         t.sendResponseHeaders(200, -1);
         t.close();
     }

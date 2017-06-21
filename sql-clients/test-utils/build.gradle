@@ -10,3 +10,9 @@ dependencies {
  * hard to configure and (hopefully) much less important for tests than
  * production code. */
 dependencyLicenses.enabled = false
+
+forbiddenApisMain {
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
+}

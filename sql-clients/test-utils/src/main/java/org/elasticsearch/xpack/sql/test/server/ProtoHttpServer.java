@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.test.server;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.Executors;
 
@@ -30,7 +31,7 @@ public abstract class ProtoHttpServer<R> {
     }
 
     public void start(int port) throws IOException {
-        server = HttpServer.create(new InetSocketAddress(port), 0);
+        server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
         server.createContext(defaultPrefix, new RootHttpHandler());
         server.createContext(defaultPrefix + protoPrefix, handler);
         server.setExecutor(Executors.newCachedThreadPool());
@@ -47,7 +48,7 @@ public abstract class ProtoHttpServer<R> {
     }
 
     public String url() {
-        return server != null ? format("localhost:%d%s%s", address().getPort(), defaultPrefix, protoPrefix): "<not started>";
+        return server != null ? "localhost:" + address().getPort() + defaultPrefix + protoPrefix : "<not started>";
     }
 
     public Client client() {

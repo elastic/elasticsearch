@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Status;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.sql.JDBCType;
 import java.util.Locale;
-
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Status;
 
 import static java.lang.String.format;
 import static java.sql.Types.BIGINT;
@@ -32,7 +32,6 @@ import static java.sql.Types.TIMESTAMP_WITH_TIMEZONE;
 import static java.sql.Types.TINYINT;
 import static java.sql.Types.VARBINARY;
 import static java.sql.Types.VARCHAR;
-
 import static org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.MAGIC_NUMBER;
 import static org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.VERSION;
 
@@ -167,7 +166,7 @@ public abstract class ProtoUtils {
                 result = in.readLong();
                 break;
             default:
-                throw new IOException(format("Don't know how to read type %d / %s", type, JDBCType.valueOf(type)));
+                throw new IOException("Don't know how to read type [" + type + " / " + JDBCType.valueOf(type) + "]");
         }
         return (T) result;
     }

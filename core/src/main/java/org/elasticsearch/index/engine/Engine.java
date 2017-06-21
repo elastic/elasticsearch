@@ -804,9 +804,7 @@ public abstract class Engine implements Closeable {
     public abstract CommitId flush() throws EngineException;
 
     /**
-     * Rolls the tranlog generation and cleans unneeded.
-     *
-     * @throws IOException if any file operations on the translog throw an I/O exception
+     * Rolls the translog generation and cleans unneeded.
      */
     public abstract void rollTranslogGeneration() throws EngineException;
 

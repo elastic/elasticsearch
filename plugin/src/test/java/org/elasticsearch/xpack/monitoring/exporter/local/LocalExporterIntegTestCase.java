@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.security.InternalClient;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import static org.elasticsearch.xpack.monitoring.exporter.Exporter.CLUSTER_ALERTS_MANAGEMENT_SETTING;
+
 /**
  * {@code LocalExporterIntegTestCase} offers a basis for integration tests for the {@link LocalExporter}.
  */
@@ -52,11 +54,21 @@ public abstract class LocalExporterIntegTestCase extends MonitoringIntegTestCase
         return ENABLE_WATCHER;
     }
 
+    /**
+     * Override to disable the creation of Watches because of the setting (regardless of Watcher being enabled).
+     *
+     * @return Always {@code true} by default.
+     */
+    protected boolean useClusterAlerts() {
+        return true;
+    }
+
     protected Settings localExporterSettings() {
         return Settings.builder()
                        .put(MonitoringSettings.INTERVAL.getKey(), "-1")
                        .put("xpack.monitoring.exporters." + exporterName + ".type", LocalExporter.TYPE)
                        .put("xpack.monitoring.exporters." + exporterName +  ".enabled", false)
+                       .put("xpack.monitoring.exporters." + exporterName +  "." + CLUSTER_ALERTS_MANAGEMENT_SETTING, useClusterAlerts())
                        .put(XPackSettings.WATCHER_ENABLED.getKey(), enableWatcher())
                        .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                        .build();

@@ -525,7 +525,8 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
      * @return {@code true} to use Cluster Alerts.
      */
     private boolean canUseWatcher() {
-        return XPackSettings.WATCHER_ENABLED.get(config.globalSettings());
+        return XPackSettings.WATCHER_ENABLED.get(config.globalSettings()) &&
+               config.settings().getAsBoolean(CLUSTER_ALERTS_MANAGEMENT_SETTING, true);
     }
 
     @Override

@@ -46,9 +46,15 @@ import static org.hamcrest.Matchers.notNullValue;
                               numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0.0, supportsDedicatedMasters = false)
 public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase {
 
+    private final boolean useClusterAlerts = enableWatcher() && randomBoolean();
     private final MonitoredSystem system = randomFrom(MonitoredSystem.values());
     private final MockTimestampedIndexNameResolver resolver =
             new MockTimestampedIndexNameResolver(system, Settings.EMPTY, MonitoringTemplateUtils.TEMPLATE_VERSION);
+
+    @Override
+    protected boolean useClusterAlerts() {
+        return useClusterAlerts;
+    }
 
     public void testCreateWhenResourcesNeedToBeAddedOrUpdated() throws Exception {
         // sometimes they need to be added; sometimes they need to be replaced
@@ -257,7 +263,11 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
         assertBusy(() -> {
             assertTemplatesExist();
             assertPipelinesExist();
-            assertWatchesExist();
+            if (useClusterAlerts) {
+                assertWatchesExist();
+            } else {
+                assertWatchesNotUpdated();
+            }
         });
     }
 
@@ -288,8 +298,11 @@ public class LocalExporterResourceIntegTests extends LocalExporterIntegTestCase 
                 final String watchName = ClusterAlertsUtil.createUniqueWatchId(clusterService(), watchId);
                 final GetWatchResponse response = watcherClient.prepareGetWatch(watchName).get();
 
-                // ensure that the watch still contains a value associated with the test rather than the real watch
-                assertThat(response.getSource().getValue("metadata." + getTestName()), notNullValue());
+                // if we didn't find the watch, then we certainly didn't update it
+                if (response.isFound()) {
+                    // ensure that the watch still contains a value associated with the test rather than the real watch
+                    assertThat(response.getSource().getValue("metadata." + getTestName()), notNullValue());
+                }
             }
         }
     }

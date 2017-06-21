@@ -149,6 +149,8 @@ public class Version {
         switch (id) {
             case V_5_5_0_ID_UNRELEASED:
                 return V_5_5_0_UNRELEASED;
+            case V_5_4_3_ID_UNRELEASED:
+                return V_5_4_3_UNRELEASED;
             case V_5_4_2_ID:
                 return V_5_4_2;
             case V_5_4_1_ID:

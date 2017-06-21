@@ -1,6 +1,10 @@
 [[graph-api]]
 == Graph APIs
 
-* <<graph-api-explore>>
+//TO-DO: Update link:
+See {xpack-ref}/xpack-api.html[X-Pack APIs].
 
-include::graph/explore.asciidoc[]
+//* <<graph-api-explore>>
+
+//TO-DO: Create a formatted API reference topic for explore:
+//include::graph/explore.asciidoc[]

@@ -9,8 +9,8 @@ configuration files.
 [options="header,footer"]
 |=======================
 |{xpack} Feature  |{es} Settings                  |{kib} Settings              |Logstash Settings
-|Graph            |No                             |<<graph-settings,Yes>>      |No
-//{kib-ref}/settings-xpack-kb.html[Yes]
+|Graph            |No                             |Yes                         |No
+//TO-DO: Add link: {kib-ref}/settings-xpack-kb.html[Yes]
 |Machine learning |{ref}/settings-xpack.html[Yes] |Yes                         |No
 //{kib-ref}/settings-xpack-kb.html[Yes]
 |Monitoring       |<<monitoring-settings,Yes>>    |<<monitoring-settings,Yes>> |<<monitoring-settings,Yes>>
@@ -27,7 +27,7 @@ configuration files.
 
 include::security-settings.asciidoc[]
 include::monitoring-settings.asciidoc[]
-include::graph-settings.asciidoc[]
+//include::graph-settings.asciidoc[]
 include::notification-settings.asciidoc[]
 //include::reporting-settings.asciidoc[]
 //include::ml-settings.asciidoc[]

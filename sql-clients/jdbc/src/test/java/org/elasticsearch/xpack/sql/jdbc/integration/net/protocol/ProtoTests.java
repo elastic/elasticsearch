@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.startsWith;
 
 
 public class ProtoTests extends ESTestCase {
-    // NOCOMMIT investigate switching to ESRestTestCase and making an integration test.
+    // NOCOMMIT maybe this should be moved to an integration test inside the plugin
 
     private static Client esClient;
     private static JdbcHttpServer server;

@@ -28,6 +28,7 @@ import static java.util.Collections.emptyMap;
 // The proto is based around a simple, single request-response model.
 // Note the field order is _important_.
 // To simplify things, the protocol is not meant to be backwards compatible.
+// NOCOMMIT the protocol kind of should be backwards compatible though....
 //
 public interface Proto {
 

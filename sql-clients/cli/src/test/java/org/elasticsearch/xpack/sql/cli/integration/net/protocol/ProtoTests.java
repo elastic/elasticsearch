@@ -26,6 +26,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ProtoTests extends ESTestCase {
+    // NOCOMMIT maybe this should be moved to an integration test inside the plugin
+
     private static Client esClient;
     private static CliHttpServer server;
     private static HttpCliClient client;

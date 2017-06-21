@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.sql.net.client.util.ObjectUtils;
 // The protocol is very similar (a subset) to the JDBC driver
 //
 // To simplify things, the protocol is NOT meant to be backwards compatible.
+//NOCOMMIT the protocol kind of should be backwards compatible though....
 //
 public interface Proto {
 

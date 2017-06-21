@@ -21,6 +21,7 @@ package org.elasticsearch.common.path;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -137,14 +138,47 @@ public class PathTrie<T> {
                     if (node.value != null) {
                         throw new IllegalArgumentException("Path [" + String.join("/", path)+ "] already has a value ["
                                 + node.value + "]");
-                    }
-                    if (node.value == null) {
+                    } else {
                         node.value = value;
                     }
                 }
             }
 
             node.insert(path, index + 1, value);
+        }
+
+        public synchronized void insertOrUpdate(String[] path, int index, T value, BiFunction<T, T, T> updater) {
+            if (index >= path.length)
+                return;
+
+            String token = path[index];
+            String key = token;
+            if (isNamedWildcard(token)) {
+                key = wildcard;
+            }
+            TrieNode node = children.get(key);
+            if (node == null) {
+                T nodeValue = index == path.length - 1 ? value : null;
+                node = new TrieNode(token, nodeValue, wildcard);
+                addInnerChild(key, node);
+            } else {
+                if (isNamedWildcard(token)) {
+                    node.updateKeyWithNamedWildcard(token);
+                }
+                /*
+                 * If the target node already exists, but is without a value,
+                 *  then the value should be updated.
+                 */
+                if (index == (path.length - 1)) {
+                    if (node.value != null) {
+                        node.value = updater.apply(node.value, value);
+                    } else {
+                        node.value = value;
+                    }
+                }
+            }
+
+            node.insertOrUpdate(path, index + 1, value, updater);
         }
 
         private boolean isNamedWildcard(String key) {
@@ -263,6 +297,31 @@ public class PathTrie<T> {
             index = 1;
         }
         root.insert(strings, index, value);
+    }
+
+    /**
+     * Insert a value for the given path. If the path already exists, replace the value with:
+     * <pre>
+     * value = updater.apply(oldValue, newValue);
+     * </pre>
+     * allowing the value to be updated if desired.
+     */
+    public void insertOrUpdate(String path, T value, BiFunction<T, T, T> updater) {
+        String[] strings = path.split(SEPARATOR);
+        if (strings.length == 0) {
+            if (rootValue != null) {
+                rootValue = updater.apply(rootValue, value);
+            } else {
+                rootValue = value;
+            }
+            return;
+        }
+        int index = 0;
+        // Supports initial delimiter.
+        if (strings.length > 0 && strings[0].isEmpty()) {
+            index = 1;
+        }
+        root.insertOrUpdate(strings, index, value, updater);
     }
 
     public T retrieve(String path) {

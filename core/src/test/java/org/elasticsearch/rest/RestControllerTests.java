@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -99,7 +100,6 @@ public class RestControllerTests extends ESTestCase {
         httpServerTransport.start();
     }
 
-
     public void testApplyRelevantHeaders() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Set<String> headers = new HashSet<>(Arrays.asList("header.1", "header.2"));
@@ -111,11 +111,11 @@ public class RestControllerTests extends ESTestCase {
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestController spyRestController = spy(restController);
         when(spyRestController.getHandler(fakeRequest, PathTrie.TrieMatchingMode.EXPLICIT_NODES_ONLY))
-                .thenReturn((RestRequest request, RestChannel channel, NodeClient client) -> {
+                .thenReturn(Optional.of((RestRequest request, RestChannel channel, NodeClient client) -> {
                     assertEquals("true", threadContext.getHeader("header.1"));
                     assertEquals("true", threadContext.getHeader("header.2"));
                     assertNull(threadContext.getHeader("header.3"));
-                });
+                }));
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
@@ -194,7 +194,7 @@ public class RestControllerTests extends ESTestCase {
                 circuitBreakerService, usageService);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null,
-                threadContext, handler, PathTrie.TrieMatchingMode.EXPLICIT_NODES_ONLY);
+                Optional.of(handler), PathTrie.TrieMatchingMode.EXPLICIT_NODES_ONLY);
         assertTrue(wrapperCalled.get());
         assertFalse(handlerCalled.get());
     }

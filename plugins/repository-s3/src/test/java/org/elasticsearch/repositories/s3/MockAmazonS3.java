@@ -50,6 +50,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 class MockAmazonS3 extends AbstractAmazonS3 {
 
+    private final int mockSocketPort;
+
     private Map<String, InputStream> blobs = new ConcurrentHashMap<>();
 
     // in ESBlobStoreContainerTestCase.java, the maximum
@@ -57,9 +59,14 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     private byte[] byteCounter = new byte[100];
 
 
-    private void openSocket() {
+    MockAmazonS3(int mockSocketPort) {
+        this.mockSocketPort = mockSocketPort;
+    }
+
+    // simulate a socket connection to check that SocketAccess is used correctly
+    private void simulateS3SocketConnection() {
         try {
-            Socket socket = new Socket(InetAddress.getByName("127.0.0.1"), 9200);
+            Socket socket = new Socket(InetAddress.getByName("127.0.0.1"), mockSocketPort);
             socket.close();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -76,7 +83,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     public ObjectMetadata getObjectMetadata(
             GetObjectMetadataRequest getObjectMetadataRequest)
             throws AmazonClientException, AmazonServiceException {
-        openSocket();
+        simulateS3SocketConnection();
         String blobName = getObjectMetadataRequest.getKey();
 
         if (!blobs.containsKey(blobName)) {
@@ -89,7 +96,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public PutObjectResult putObject(PutObjectRequest putObjectRequest)
             throws AmazonClientException, AmazonServiceException {
-        openSocket();
+        simulateS3SocketConnection();
         String blobName = putObjectRequest.getKey();
         DigestInputStream stream = (DigestInputStream) putObjectRequest.getInputStream();
 
@@ -110,7 +117,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public S3Object getObject(GetObjectRequest getObjectRequest)
             throws AmazonClientException, AmazonServiceException {
-        openSocket();
+        simulateS3SocketConnection();
         // in ESBlobStoreContainerTestCase.java, the prefix is empty,
         // so the key and blobName are equivalent to each other
         String blobName = getObjectRequest.getKey();
@@ -130,7 +137,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public ObjectListing listObjects(ListObjectsRequest listObjectsRequest)
             throws AmazonClientException, AmazonServiceException {
-        openSocket();
+        simulateS3SocketConnection();
         MockObjectListing list = new MockObjectListing();
         list.setTruncated(false);
 
@@ -164,7 +171,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public CopyObjectResult copyObject(CopyObjectRequest copyObjectRequest)
             throws AmazonClientException, AmazonServiceException {
-        openSocket();
+        simulateS3SocketConnection();
         String sourceBlobName = copyObjectRequest.getSourceKey();
         String targetBlobName = copyObjectRequest.getDestinationKey();
 
@@ -185,7 +192,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public void deleteObject(DeleteObjectRequest deleteObjectRequest)
             throws AmazonClientException, AmazonServiceException {
-        openSocket();
+        simulateS3SocketConnection();
         String blobName = deleteObjectRequest.getKey();
 
         if (!blobs.containsKey(blobName)) {

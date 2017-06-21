@@ -26,6 +26,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -41,9 +42,10 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
     private static ServerSocket socket;
 
+    // Opens a MockSocket to simulate connections to S3 checking that SocketPermissions are set up correctly
     @BeforeClass
-    public static void openPort() throws IOException {
-        socket = new ServerSocket(9200, 50, InetAddress.getByName("127.0.0.1"));
+    public static void openMockSocket() throws IOException {
+        socket = new MockServerSocket(0, 50, InetAddress.getByName("127.0.0.1"));
         new Thread(() -> {
             while (!socket.isClosed()) {
                 try {
@@ -56,7 +58,7 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
     }
 
     protected BlobStore newBlobStore() throws IOException {
-        MockAmazonS3 client = new MockAmazonS3();
+        MockAmazonS3 client = new MockAmazonS3(socket.getLocalPort());
         String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
 
         return new S3BlobStore(Settings.EMPTY, client, bucket, false,
@@ -64,7 +66,7 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
     }
 
     @AfterClass
-    public static void closePort() throws IOException {
+    public static void closeMockSocket() throws IOException {
         socket.close();
     }
 }

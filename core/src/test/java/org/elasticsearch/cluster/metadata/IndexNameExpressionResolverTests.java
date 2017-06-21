@@ -20,6 +20,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -1025,21 +1027,99 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertArrayEquals(new String[] {"test-alias-0", "test-alias-1", "test-alias-non-filtering"}, strings);
     }
 
-    public void testConcreteIndicesForDeprecatedPattern() {
+    public void testDeleteIndexIgnoresAliases() {
         MetaData.Builder mdBuilder = MetaData.builder()
-            .put(indexBuilder("testXXX").state(State.OPEN))
-            .put(indexBuilder("testXXY").state(State.OPEN))
-            .put(indexBuilder("testYYY").state(State.OPEN));
+                .put(indexBuilder("test-index").state(State.OPEN)
+                        .putAlias(AliasMetaData.builder("test-alias")))
+                .put(indexBuilder("index").state(State.OPEN)
+                        .putAlias(AliasMetaData.builder("test-alias2")));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        {
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, new DeleteIndexRequest("test-alias"));
+            assertEquals(0, indices.length);
+        }
+        {
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, new DeleteIndexRequest("test-a*"));
+            assertEquals(0, indices.length);
+        }
+        {
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, new DeleteIndexRequest("test-index"));
+            assertEquals(1, indices.length);
+            assertEquals("test-index", indices[0]);
+        }
+        {
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, new DeleteIndexRequest("test-*"));
+            assertEquals(1, indices.length);
+            assertEquals("test-index", indices[0]);
+        }
+    }
 
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
-            IndicesOptions.fromOptions(true, true, true, true));
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testX*")),
-            equalTo(newHashSet("testXXX", "testXXY")));
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testXXX", "+testXXY", "+testYYY", "-testYYY")),
-            equalTo(newHashSet("testXXX", "testXXY", "testYYY")));
-        assertThat(newHashSet(indexNameExpressionResolver.concreteIndexNames(context, "+testXX*", "+testY*")),
-            equalTo(newHashSet("testXXX", "testXXY", "testYYY")));
-        assertWarnings("support for '+' as part of index expressions is deprecated");
+    public void testIndicesAliasesRequestIgnoresAliases() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("test-index").state(State.OPEN)
+                        .putAlias(AliasMetaData.builder("test-alias")))
+                .put(indexBuilder("index").state(State.OPEN)
+                        .putAlias(AliasMetaData.builder("test-alias2")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("test-alias");
+            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+        }
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("test-a*");
+            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+        }
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("test-index");
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, aliasActions);
+            assertEquals(1, indices.length);
+            assertEquals("test-index", indices[0]);
+        }
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.add().index("test-*");
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, aliasActions);
+            assertEquals(1, indices.length);
+            assertEquals("test-index", indices[0]);
+        }
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.remove().index("test-alias");
+            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+        }
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.remove().index("test-a*");
+            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+        }
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.remove().index("test-index");
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, aliasActions);
+            assertEquals(1, indices.length);
+            assertEquals("test-index", indices[0]);
+        }
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.remove().index("test-*");
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, aliasActions);
+            assertEquals(1, indices.length);
+            assertEquals("test-index", indices[0]);
+        }
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.removeIndex().index("test-alias");
+            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+        }
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.removeIndex().index("test-a*");
+            expectThrows(IndexNotFoundException.class, () -> indexNameExpressionResolver.concreteIndexNames(state, aliasActions));
+        }
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.removeIndex().index("test-index");
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, aliasActions);
+            assertEquals(1, indices.length);
+            assertEquals("test-index", indices[0]);
+        }
+        {
+            IndicesAliasesRequest.AliasActions aliasActions = IndicesAliasesRequest.AliasActions.removeIndex().index("test-*");
+            String[] indices = indexNameExpressionResolver.concreteIndexNames(state, aliasActions);
+            assertEquals(1, indices.length);
+            assertEquals("test-index", indices[0]);
+        }
     }
 }

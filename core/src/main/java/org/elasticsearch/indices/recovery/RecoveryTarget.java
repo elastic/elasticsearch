@@ -379,29 +379,20 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws MapperException, IOException {
+    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
         if (indexShard().state() != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, indexShard().state());
         }
-        // first convert all translog operations to engine operations to check for mapping updates
-        List<Engine.Operation> engineOps = operations.stream().map(
-            op -> {
-                Engine.Operation engineOp = indexShard().convertToEngineOp(op, Engine.Operation.Origin.PEER_RECOVERY);
-                if (engineOp instanceof Engine.Index && ((Engine.Index) engineOp).parsedDoc().dynamicMappingsUpdate() != null) {
-                    throw new MapperException("mapping updates are not allowed (type: [" + engineOp.type() + "], id: [" +
-                        ((Engine.Index) engineOp).id() + "])");
-                }
-                return engineOp;
-            }
-        ).collect(Collectors.toList());
-        // actually apply engine operations
-        for (Engine.Operation engineOp : engineOps) {
-            indexShard().applyOperation(engineOp);
-            translog.incrementRecoveredOperations();
+        for (Translog.Operation operation : operations) {
+            indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY, update -> {
+                throw new MapperException("mapping updates are not allowed [" + operation + "]");
+            });
         }
+        // update stats only after all operations completed (to ensure that mapping updates don't mess with stats)
+        translog.incrementRecoveredOperations(operations.size());
         indexShard().sync();
         return indexShard().getLocalCheckpoint();
     }

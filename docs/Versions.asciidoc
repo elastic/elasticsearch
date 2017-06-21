@@ -26,12 +26,8 @@ release-state can be: released | prerelease | unreleased
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
 
 :xpack:           X-Pack
-:xpackml:         X-Pack machine learning
-:ml:              machine learning
 :es:              Elasticsearch
 :kib:             Kibana
-
-:xes-repo-dir:    {docdir}/../../../elasticsearch-extra/x-pack-elasticsearch/docs/en
 
 ///////
 Javadoc roots used to generate links from Painless's API reference

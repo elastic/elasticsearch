@@ -37,7 +37,7 @@ public abstract class AbstractAsyncBulkByScrollActionTestCase<
     @Before
     public void setupForTest() {
         threadPool = new TestThreadPool(getTestName());
-        task = new WorkingBulkByScrollTask(1, "test", "test", "test", TaskId.EMPTY_TASK_ID, null, 0);
+        task = new WorkingBulkByScrollTask(1, "test", "test", "test", TaskId.EMPTY_TASK_ID, null, Float.MAX_VALUE);
     }
 
     @After

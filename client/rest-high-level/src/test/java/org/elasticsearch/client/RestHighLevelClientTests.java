@@ -56,10 +56,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
+import org.elasticsearch.join.aggregations.ChildrenAggregationBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -69,6 +71,7 @@ import org.mockito.internal.matchers.VarargMatcher;
 
 import java.io.IOException;
 import java.net.SocketTimeoutException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -613,9 +616,9 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
     }
 
-    public void testNamedXContents() {
+    public void testDefaultNamedXContents() {
         List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getDefaultNamedXContents();
-        assertEquals(45, namedXContents.size());
+        assertEquals(43, namedXContents.size());
         Map<Class<?>, Integer> categories = new HashMap<>();
         for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
             Integer counter = categories.putIfAbsent(namedXContent.categoryClass, 1);
@@ -624,8 +627,26 @@ public class RestHighLevelClientTests extends ESTestCase {
             }
         }
         assertEquals(2, categories.size());
-        assertEquals(Integer.valueOf(42), categories.get(Aggregation.class));
+        assertEquals(Integer.valueOf(40), categories.get(Aggregation.class));
         assertEquals(Integer.valueOf(3), categories.get(Suggest.Suggestion.class));
+    }
+
+    public void testProvidedNamedXContents() {
+        List<NamedXContentRegistry.Entry> namedXContents = RestHighLevelClient.getProvidedNamedXContents();
+        assertEquals(2, namedXContents.size());
+        Map<Class<?>, Integer> categories = new HashMap<>();
+        List<String> names = new ArrayList<>();
+        for (NamedXContentRegistry.Entry namedXContent : namedXContents) {
+            names.add(namedXContent.name.getPreferredName());
+            Integer counter = categories.putIfAbsent(namedXContent.categoryClass, 1);
+            if (counter != null) {
+                categories.put(namedXContent.categoryClass, counter + 1);
+            }
+        }
+        assertEquals(1, categories.size());
+        assertEquals(Integer.valueOf(2), categories.get(Aggregation.class));
+        assertTrue(names.contains(ChildrenAggregationBuilder.NAME));
+        assertTrue(names.contains(MatrixStatsAggregationBuilder.NAME));
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {

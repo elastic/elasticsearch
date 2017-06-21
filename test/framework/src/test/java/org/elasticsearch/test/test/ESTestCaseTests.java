@@ -56,7 +56,8 @@ public class ESTestCaseTests extends ESTestCase {
             });
             fail("expected assertion error");
         } catch (AssertionFailedError assertFailed) {
-            assertEquals("Unexpected exception type, expected IllegalArgumentException", assertFailed.getMessage());
+            assertEquals("Unexpected exception type, expected IllegalArgumentException but got java.lang.IllegalStateException: bad state",
+                    assertFailed.getMessage());
             assertNotNull(assertFailed.getCause());
             assertEquals("bad state", assertFailed.getCause().getMessage());
         }
@@ -66,7 +67,8 @@ public class ESTestCaseTests extends ESTestCase {
             fail("expected assertion error");
         } catch (AssertionFailedError assertFailed) {
             assertNull(assertFailed.getCause());
-            assertEquals("Expected exception IllegalArgumentException", assertFailed.getMessage());
+            assertEquals("Expected exception IllegalArgumentException but no exception was thrown",
+                    assertFailed.getMessage());
         }
     }
 

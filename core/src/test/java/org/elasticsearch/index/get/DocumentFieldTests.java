@@ -22,6 +22,7 @@ package org.elasticsearch.index.get;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -41,62 +42,63 @@ import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
-public class GetFieldTests extends ESTestCase {
+public class DocumentFieldTests extends ESTestCase {
 
     public void testToXContent() {
-        GetField getField = new GetField("field", Arrays.asList("value1", "value2"));
-        String output = Strings.toString(getField);
+        DocumentField documentField = new DocumentField("field", Arrays.asList("value1", "value2"));
+        String output = Strings.toString(documentField);
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", output);
     }
 
     public void testEqualsAndHashcode() {
-        checkEqualsAndHashCode(randomGetField(XContentType.JSON).v1(), GetFieldTests::copyGetField, GetFieldTests::mutateGetField);
+        checkEqualsAndHashCode(randomDocumentField(XContentType.JSON).v1(), DocumentFieldTests::copyDocumentField,
+                DocumentFieldTests::mutateDocumentField);
     }
 
     public void testToAndFromXContent() throws Exception {
         XContentType xContentType = randomFrom(XContentType.values());
-        Tuple<GetField, GetField> tuple = randomGetField(xContentType);
-        GetField getField = tuple.v1();
-        GetField expectedGetField = tuple.v2();
+        Tuple<DocumentField, DocumentField> tuple = randomDocumentField(xContentType);
+        DocumentField documentField = tuple.v1();
+        DocumentField expectedDocumentField = tuple.v2();
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toShuffledXContent(getField, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(documentField, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
         //test that we can parse what we print out
-        GetField parsedGetField;
+        DocumentField parsedDocumentField;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             //we need to move to the next token, the start object one that we manually added is not expected
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-            parsedGetField = GetField.fromXContent(parser);
+            parsedDocumentField = DocumentField.fromXContent(parser);
             assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
         }
-        assertEquals(expectedGetField, parsedGetField);
-        BytesReference finalBytes = toXContent(parsedGetField, xContentType, humanReadable);
+        assertEquals(expectedDocumentField, parsedDocumentField);
+        BytesReference finalBytes = toXContent(parsedDocumentField, xContentType, humanReadable);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
-    private static GetField copyGetField(GetField getField) {
-        return new GetField(getField.getName(), getField.getValues());
+    private static DocumentField copyDocumentField(DocumentField documentField) {
+        return new DocumentField(documentField.getName(), documentField.getValues());
     }
 
-    private static GetField mutateGetField(GetField getField) {
-        List<Supplier<GetField>> mutations = new ArrayList<>();
-        mutations.add(() -> new GetField(randomUnicodeOfCodepointLength(15), getField.getValues()));
-        mutations.add(() -> new GetField(getField.getName(), randomGetField(XContentType.JSON).v1().getValues()));
+    private static DocumentField mutateDocumentField(DocumentField documentField) {
+        List<Supplier<DocumentField>> mutations = new ArrayList<>();
+        mutations.add(() -> new DocumentField(randomUnicodeOfCodepointLength(15), documentField.getValues()));
+        mutations.add(() -> new DocumentField(documentField.getName(), randomDocumentField(XContentType.JSON).v1().getValues()));
         return randomFrom(mutations).get();
     }
 
-    public static Tuple<GetField, GetField> randomGetField(XContentType xContentType) {
+    public static Tuple<DocumentField, DocumentField> randomDocumentField(XContentType xContentType) {
         if (randomBoolean()) {
             String fieldName = randomFrom(ParentFieldMapper.NAME, RoutingFieldMapper.NAME, UidFieldMapper.NAME);
-            GetField getField = new GetField(fieldName, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
-            return Tuple.tuple(getField, getField);
+            DocumentField documentField = new DocumentField(fieldName, Collections.singletonList(randomAlphaOfLengthBetween(3, 10)));
+            return Tuple.tuple(documentField, documentField);
         }
         String fieldName = randomAlphaOfLengthBetween(3, 10);
         Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
-        GetField input = new GetField(fieldName, tuple.v1());
-        GetField expected = new GetField(fieldName, tuple.v2());
+        DocumentField input = new DocumentField(fieldName, tuple.v1());
+        DocumentField expected = new DocumentField(fieldName, tuple.v2());
         return Tuple.tuple(input, expected);
     }
 }

@@ -601,8 +601,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return Stream.concat(readers.stream(), Stream.of(current))
             .filter(reader -> {
                 final long maxSeqNo = reader.getCheckpoint().maxSeqNo;
-                return maxSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO ||
-                    maxSeqNo >= minSeqNo;
+                return maxSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || maxSeqNo >= minSeqNo;
             });
     }
 

@@ -1319,7 +1319,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void rollTranslogGeneration() throws EngineException {
-        try (ReleasableLock lock = readLock.acquire()) {
+        try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
             translog.rollGeneration();
             translog.trimUnreferencedReaders();

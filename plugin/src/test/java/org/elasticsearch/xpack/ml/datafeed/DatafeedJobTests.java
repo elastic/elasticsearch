@@ -30,6 +30,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -152,15 +153,17 @@ public class DatafeedJobTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(1000L + 1L, currentTime - queryDelayMs);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
         flushRequest.setCalcInterim(true);
-        flushRequest.setAdvanceTime("1000");
+        flushRequest.setAdvanceTime("59000");
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
     }
 
-    public void testEmptyDataCount() throws Exception {
+    public void testEmptyDataCountGivenlookback() throws Exception {
         when(dataExtractor.hasNext()).thenReturn(false);
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
         expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+        verify(client, times(1)).execute(same(FlushJobAction.INSTANCE), any());
+        assertThat(flushJobRequests.getValue().getAdvanceTime(), is(nullValue()));
     }
 
     public void testExtractionProblem() throws Exception {
@@ -203,7 +206,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertEquals(1000L, startTimeCaptor.getAllValues().get(1).longValue());
         assertEquals(1000L, endTimeCaptor.getAllValues().get(0).longValue());
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
-        verify(client, times(0)).execute(same(FlushJobAction.INSTANCE), any());
+        verify(client, times(1)).execute(same(FlushJobAction.INSTANCE), any());
     }
 
     public void testPostAnalysisProblemIsConflict() throws Exception {
@@ -226,7 +229,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertEquals(1000L, startTimeCaptor.getAllValues().get(1).longValue());
         assertEquals(1000L, endTimeCaptor.getAllValues().get(0).longValue());
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
-        verify(client, times(0)).execute(same(FlushJobAction.INSTANCE), any());
+        verify(client, times(1)).execute(same(FlushJobAction.INSTANCE), any());
     }
 
     public void testFlushAnalysisProblem() throws Exception {

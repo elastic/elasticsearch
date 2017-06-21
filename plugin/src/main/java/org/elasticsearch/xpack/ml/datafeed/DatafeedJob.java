@@ -121,7 +121,7 @@ class DatafeedJob {
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
         request.setCalcInterim(true);
-        request.setAdvanceTime(String.valueOf(lastEndTimeMs));
+        request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
         return nextRealtimeTimestamp();
     }
@@ -228,15 +228,15 @@ class DatafeedJob {
             throw error;
         }
 
-        if (recordCount == 0) {
-            throw new EmptyDataCountException(nextRealtimeTimestamp());
-        }
-
         // If the datafeed was stopped, then it is possible that by the time
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is still running.
         if (isRunning() && !isIsolated) {
             flushJob(flushRequest);
+        }
+
+        if (recordCount == 0) {
+            throw new EmptyDataCountException(nextRealtimeTimestamp());
         }
     }
 

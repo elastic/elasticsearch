@@ -22,7 +22,12 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermContext;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -183,7 +188,24 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (isEnabled() == false) {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
-            return super.termQuery(value, context);
+            failIfNotIndexed(); // should never fail since we do not allow this field to be not indexed
+            Term term = new Term(name(), indexedValueForSearch(value));
+            TermContext termContext;
+            try {
+                termContext = TermContext.build(context.getIndexReader().getContext(), term);
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
+            if (termContext.docFreq() == context.getIndexReader().maxDoc()) {
+                // what should be the common case: all documents match
+                // BooleanQuery has special rewrite rules for MatchAllDocsQuery so this
+                // can help simplify the query
+                return new MatchAllDocsQuery();
+            } else {
+                // Make sure to pass the term context to the term query so that we do not
+                // pay the price for looking up the term in the terms dict twice
+                return new ConstantScoreQuery(new TermQuery(term, termContext));
+            }
         }
     }
 

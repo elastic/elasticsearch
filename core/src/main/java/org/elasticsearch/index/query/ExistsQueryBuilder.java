@@ -143,8 +143,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         }
 
         if (fields.size() == 1) {
-            Query filter = fieldNamesFieldType.termQuery(fields.iterator().next(), context);
-            return new ConstantScoreQuery(filter);
+            return fieldNamesFieldType.termQuery(fields.iterator().next(), context);
         }
 
         BooleanQuery.Builder boolFilterBuilder = new BooleanQuery.Builder();

@@ -129,7 +129,7 @@ public class BootstrapForTesting {
                 // ... but tests are messy. like file permissions, just let them live in a fantasy for now.
                 // TODO: cut over all tests to bind to ephemeral ports
                 perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
-
+                perms.add(new SocketPermission("localhost:1024-", "accept,resolve"));
                 // read test-framework permissions
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), JarHell.parseClassPath());
                 final Policy esPolicy = new ESPolicy(perms, getPluginPermissions(), true);

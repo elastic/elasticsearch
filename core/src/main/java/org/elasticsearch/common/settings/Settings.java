@@ -586,8 +586,10 @@ public final class Settings implements ToXContent {
     }
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
-        out.writeVInt(settings.size());
-        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+        // pull getAsMap() to exclude secure settings in size()
+        Set<Map.Entry<String, String>> entries = settings.getAsMap().entrySet();
+        out.writeVInt(entries.size());
+        for (Map.Entry<String, String> entry : entries) {
             out.writeString(entry.getKey());
             out.writeOptionalString(entry.getValue());
         }

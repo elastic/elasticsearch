@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.settings;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -519,6 +521,24 @@ public class SettingsTests extends ESTestCase {
         assertTrue(Settings.builder().setSecureSettings(secureSettings).build().isEmpty());
     }
 
+    public void testWriteSettingsToStream() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.key1.foo", "somethingsecure");
+        secureSettings.setString("test.key1.bar", "somethingsecure");
+        secureSettings.setString("test.key2.foo", "somethingsecure");
+        secureSettings.setString("test.key2.bog", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.put("test.key1.baz", "blah1");
+        builder.setSecureSettings(secureSettings);
+        assertEquals(5, builder.build().size());
+        Settings.writeSettingsToStream(builder.build(), out);
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        Settings settings = Settings.readSettingsFromStream(in);
+        assertEquals(1, settings.size());
+        assertEquals("blah1", settings.get("test.key1.baz"));
+    }
+
     public void testSecureSettingConflict() {
         Setting<SecureString> setting = SecureSetting.secureString("something.secure", null);
         Settings settings = Settings.builder().put("something.secure", "notreallysecure").build();
@@ -536,5 +556,4 @@ public class SettingsTests extends ESTestCase {
         final IllegalStateException e = expectThrows(IllegalStateException.class, () -> settings.getAsArray("foobar"));
         assertThat(e, hasToString(containsString("settings object contains values for [foobar=foo] and [foobar.0=bar]")));
     }
-
 }

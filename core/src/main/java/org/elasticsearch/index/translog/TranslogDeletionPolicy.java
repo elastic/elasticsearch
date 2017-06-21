@@ -155,6 +155,6 @@ public class TranslogDeletionPolicy {
     }
 
     synchronized long getViewCount(long viewGen) {
-        return translogRefCounts.computeIfAbsent(viewGen, ignored -> Counter.newCounter(false)).get();
+        return translogRefCounts.getOrDefault(viewGen, Counter.newCounter(false)).get();
     }
 }

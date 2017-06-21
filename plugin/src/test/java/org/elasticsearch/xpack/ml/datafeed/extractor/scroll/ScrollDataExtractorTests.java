@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -86,7 +87,12 @@ public class ScrollDataExtractorTests extends ESTestCase {
         @Override
         protected SearchResponse executeSearchScrollRequest(String scrollId) {
             capturedContinueScrollIds.add(scrollId);
-            return responses.remove();
+            SearchResponse searchResponse = responses.remove();
+            if (searchResponse == null) {
+                throw new SearchPhaseExecutionException("foo", "bar", new ShardSearchFailure[] {});
+            } else {
+                return searchResponse;
+            }
         }
 
         @Override
@@ -100,6 +106,10 @@ public class ScrollDataExtractorTests extends ESTestCase {
 
         public long getInitScrollStartTime() {
             return initScrollStartTime;
+        }
+
+        public Long getLastTimestamp() {
+            return lastTimestamp;
         }
     }
 
@@ -292,7 +302,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("[" + jobId + "] Search request encountered [1] unavailable shards"));
     }
 
-    public void testResetScrollAfterFailure() throws IOException {
+    public void testResetScrollAfterShardFailure() throws IOException {
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
 
         SearchResponse goodResponse = createSearchResponse(
@@ -338,6 +348,40 @@ public class ScrollDataExtractorTests extends ESTestCase {
         expectThrows(IOException.class, () -> extractor.next());
         // the new start time after error is the last record timestamp +1
         assertEquals(1201L, extractor.getInitScrollStartTime());
+    }
+
+    public void testResetScrollAfterSearchPhaseExecutionException() throws IOException {
+        TestDataExtractor extractor = new TestDataExtractor(1000L, 2000L);
+        SearchResponse firstResponse = createSearchResponse(
+                Arrays.asList(1100L, 1200L),
+                Arrays.asList("a1", "a2"),
+                Arrays.asList("b1", "b2")
+        );
+
+        SearchResponse secondResponse = createSearchResponse(
+                Arrays.asList(1300L, 1400L),
+                Arrays.asList("a1", "a2"),
+                Arrays.asList("b1", "b2")
+        );
+
+        extractor.setNextResponse(firstResponse);
+        extractor.setNextResponse(null); // this will throw a SearchPhaseExecutionException
+        extractor.setNextResponse(secondResponse);
+        extractor.setNextResponse(null); // this will throw a SearchPhaseExecutionException
+
+
+        // first response is good
+        assertThat(extractor.hasNext(), is(true));
+        Optional<InputStream> output = extractor.next();
+        assertThat(output.isPresent(), is(true));
+        // this should recover from the SearchPhaseExecutionException and try again
+        assertThat(extractor.hasNext(), is(true));
+        output = extractor.next();
+        assertThat(output.isPresent(), is(true));
+        assertEquals(new Long(1400L), extractor.getLastTimestamp());
+        // A second failure is not tolerated
+        assertThat(extractor.hasNext(), is(true));
+        expectThrows(SearchPhaseExecutionException.class, () -> extractor.next());
     }
 
     public void testDomainSplitScriptField() throws IOException {

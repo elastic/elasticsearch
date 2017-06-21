@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.script.Script;
@@ -51,7 +51,7 @@ class ScrollDataExtractor implements DataExtractor {
     private boolean isCancelled;
     private boolean hasNext;
     private Long timestampOnCancel;
-    private Long lastTimestamp;
+    protected Long lastTimestamp;
     private boolean searchHasShardFailure;
 
     ScrollDataExtractor(Client client, ScrollDataExtractorContext dataExtractorContext) {
@@ -141,15 +141,10 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private InputStream processSearchResponse(SearchResponse searchResponse) throws IOException {
+
         if (searchResponse.getFailedShards() > 0 && searchHasShardFailure == false) {
-            // This could be a transient error with the scroll Id.
-            // Reinitialise the scroll and try again but only once.
             LOGGER.debug("[{}] Resetting scroll search after shard failure", context.jobId);
-            resetScroll();
-            if (lastTimestamp != null) {
-                lastTimestamp++;
-            }
-            searchHasShardFailure = true;
+            markScrollAsErrored();
             return initScroll(lastTimestamp == null ? context.start : lastTimestamp);
         }
 
@@ -186,8 +181,29 @@ class ScrollDataExtractor implements DataExtractor {
 
     private InputStream continueScroll() throws IOException {
         LOGGER.debug("[{}] Continuing scroll with id [{}]", context.jobId, scrollId);
-        SearchResponse searchResponse = executeSearchScrollRequest(scrollId);
+        SearchResponse searchResponse = null;
+        try {
+             searchResponse = executeSearchScrollRequest(scrollId);
+        } catch (SearchPhaseExecutionException searchExecutionException) {
+            if (searchHasShardFailure == false) {
+                LOGGER.debug("[{}] Reinitializing scroll due to SearchPhaseExecutionException", context.jobId);
+                markScrollAsErrored();
+                searchResponse = executeSearchRequest(buildSearchRequest(lastTimestamp == null ? context.start : lastTimestamp));
+            } else {
+                throw searchExecutionException;
+            }
+        }
         return processSearchResponse(searchResponse);
+    }
+
+    private void markScrollAsErrored() {
+        // This could be a transient error with the scroll Id.
+        // Reinitialise the scroll and try again but only once.
+        resetScroll();
+        if (lastTimestamp != null) {
+            lastTimestamp++;
+        }
+        searchHasShardFailure = true;
     }
 
     protected SearchResponse executeSearchScrollRequest(String scrollId) {

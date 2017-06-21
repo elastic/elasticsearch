@@ -28,6 +28,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -350,6 +351,38 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutWatcherIndex, clusterStateWithWatcherIndex));
         verify(watcherService, times(1)).pauseExecution(anyObject());
+    }
+
+    public void testWatcherDoesNotStartWithOldIndexFormat() throws Exception {
+        String index = randomFrom(Watch.INDEX, TriggeredWatchStore.INDEX_NAME);
+        Index watchIndex = new Index(index, "foo");
+        ShardId shardId = new ShardId(watchIndex, 0);
+        IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(watchIndex)
+                .addShard(TestShardRouting.newShardRouting(shardId, "node_1", true, STARTED)).build();
+        DiscoveryNodes nodes = new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")).build();
+
+        Settings.Builder indexSettings = Settings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        // no matter if not set or set to one, watcher should not start
+        if (randomBoolean()) {
+            indexSettings.put(IndexMetaData.INDEX_FORMAT_SETTING.getKey(), 1);
+        }
+        IndexMetaData.Builder newIndexMetaDataBuilder = IndexMetaData.builder(index).settings(indexSettings);
+
+        ClusterState clusterStateWithWatcherIndex = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(nodes)
+                .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
+                .metaData(MetaData.builder().put(newIndexMetaDataBuilder))
+                .build();
+
+        ClusterState emptyClusterState = ClusterState.builder(new ClusterName("my-cluster")).nodes(nodes).build();
+
+        when(watcherService.state()).thenReturn(WatcherState.STOPPED);
+        when(watcherService.validate(eq(clusterStateWithWatcherIndex))).thenReturn(true);
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithWatcherIndex, emptyClusterState));
+        verify(watcherService, never()).start(any(ClusterState.class));
     }
 
     private static DiscoveryNode newNode(String nodeName) {

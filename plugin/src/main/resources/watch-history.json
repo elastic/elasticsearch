@@ -4,6 +4,7 @@
   "settings": {
     "xpack.watcher.template.version": "${xpack.watcher.template.version}",
     "index.number_of_shards": 1,
+    "index.format": 6,
     "index.mapper.dynamic": false
   },
   "mappings": {

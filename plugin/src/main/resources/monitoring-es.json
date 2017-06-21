@@ -4,6 +4,7 @@
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
+    "index.format": 6,
     "index.codec": "best_compression"
   },
   "mappings": {

@@ -318,12 +318,12 @@ public final class AnalysisRegistry implements Closeable {
                 T factory = null;
                 if (typeName == null) {
                     if (currentSettings.get("tokenizer") != null) {
-                        factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
+                        factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
                     } else {
                         throw new IllegalArgumentException(component + " [" + name + "] must specify either an analyzer type, or a tokenizer");
                     }
                 } else if (typeName.equals("custom")) {
-                    factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings);
+                    factory = (T) new CustomAnalyzerProvider(settings, name, currentSettings, environment);
                 }
                 if (factory != null) {
                     factories.put(name, factory);

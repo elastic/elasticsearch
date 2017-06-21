@@ -122,8 +122,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         Map<String, AnalysisProvider<TokenizerFactory>> tokenizers = new TreeMap<>();
-        tokenizers.put("simplepattern", SimplePatternTokenizerFactory::new);
-        tokenizers.put("simplepatternsplit", SimplePatternSplitTokenizerFactory::new);
+        tokenizers.put("simple_pattern", SimplePatternTokenizerFactory::new);
+        tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         return tokenizers;
     }
 

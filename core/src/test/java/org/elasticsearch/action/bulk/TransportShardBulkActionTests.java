@@ -51,7 +51,6 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.rest.RestStatus;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -222,13 +221,13 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Translog.Location location = new Translog.Location(0, 0, 0);
         UpdateHelper updateHelper = null;
 
-        // Pretend the mappings haven't made it to the node yet, and throw  a rejection
-        Exception err = new ReplicationOperation.RetryOnPrimaryException(shardId, "rejection");
+        // Pretend the mappings haven't made it to the node yet, and throw a rejection
+        RuntimeException err = new ReplicationOperation.RetryOnPrimaryException(shardId, "rejection");
 
         try {
             TransportShardBulkAction.executeBulkItemRequest(metaData, shard, bulkShardRequest,
                     location, 0, updateHelper, threadPool::absoluteTimeInMillis,
-                    new ThrowingMappingUpdatePerformer(err));
+                    new ThrowingVerifyingMappingUpdatePerformer(err));
             fail("should have thrown a retry exception");
         } catch (ReplicationOperation.RetryOnPrimaryException e) {
             assertThat(e, equalTo(err));
@@ -252,7 +251,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         UpdateHelper updateHelper = null;
 
         // Return a mapping conflict (IAE) when trying to update the mapping
-        Exception err = new IllegalArgumentException("mapping conflict");
+        RuntimeException err = new IllegalArgumentException("mapping conflict");
 
         Translog.Location newLocation = TransportShardBulkAction.executeBulkItemRequest(metaData,
                 shard, bulkShardRequest, location, 0, updateHelper,
@@ -537,6 +536,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                         .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar")
         );
         final String failureMessage = "simulated primary failure";
+        final IOException exception = new IOException(failureMessage);
         itemRequest.setPrimaryResponse(new BulkItemResponse(0,
                 randomFrom(
                         DocWriteRequest.OpType.CREATE,
@@ -544,7 +544,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                         DocWriteRequest.OpType.INDEX
                 ),
                 new BulkItemResponse.Failure("index", "type", "1",
-                        new IOException(failureMessage), 1L)
+                    exception, 1L)
         ));
         BulkItemRequest[] itemRequests = new BulkItemRequest[1];
         itemRequests[0] = itemRequest;
@@ -552,12 +552,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 shard.shardId(), RefreshPolicy.NONE, itemRequests);
         bulkShardRequest.primaryTerm(randomIntBetween(1, (int) shard.getPrimaryTerm()));
         TransportShardBulkAction.performOnReplica(bulkShardRequest, shard);
-        ArgumentCaptor<Engine.NoOp> noOp = ArgumentCaptor.forClass(Engine.NoOp.class);
-        verify(shard, times(1)).markSeqNoAsNoOp(noOp.capture());
-        final Engine.NoOp noOpValue = noOp.getValue();
-        assertThat(noOpValue.seqNo(), equalTo(1L));
-        assertThat(noOpValue.primaryTerm(), equalTo(bulkShardRequest.primaryTerm()));
-        assertThat(noOpValue.reason(), containsString(failureMessage));
+        verify(shard, times(1)).markSeqNoAsNoop(1, bulkShardRequest.primaryTerm(), exception.toString());
         closeShards(shard);
     }
 
@@ -574,16 +569,14 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         TransportShardBulkAction.executeIndexRequestOnPrimary(request, shard,
                 new MappingUpdatePerformer() {
                     @Override
-                    public void updateMappings(Mapping update, ShardId shardId,
-                                               String type) throws Exception {
+                    public void updateMappings(Mapping update, ShardId shardId, String type) {
                         // There should indeed be a mapping update
                         assertNotNull(update);
                         updateCalled.incrementAndGet();
                     }
 
                     @Override
-                    public void verifyMappings(Mapping update,
-                                               ShardId shardId) throws Exception {
+                    public void verifyMappings(Mapping update, ShardId shardId) {
                         // No-op, will be called
                         logger.info("--> verifying mappings noop");
                         verifyCalled.incrementAndGet();
@@ -593,9 +586,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
         assertThat("mappings were \"verified\" once", verifyCalled.get(), equalTo(1));
 
-        // Verify that the shard "prepared" the operation twice
-        verify(shard, times(2)).prepareIndexOnPrimary(any(), anyLong(), any(),
-                anyLong(), anyBoolean());
+        // Verify that the shard "executed" the operation twice
+        verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean(), any());
 
         // Update the mapping, so the next mapping updater doesn't do anything
         final MapperService mapperService = shard.mapperService();
@@ -605,22 +597,19 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         TransportShardBulkAction.executeIndexRequestOnPrimary(request, shard,
                 new MappingUpdatePerformer() {
                     @Override
-                    public void updateMappings(Mapping update, ShardId shardId,
-                                               String type) throws Exception {
+                    public void updateMappings(Mapping update, ShardId shardId, String type) {
                         fail("should not have had to update the mappings");
                     }
 
                     @Override
-                    public void verifyMappings(Mapping update,
-                                               ShardId shardId) throws Exception {
+                    public void verifyMappings(Mapping update, ShardId shardId) {
                         fail("should not have had to update the mappings");
                     }
         });
 
-        // Verify that the shard "prepared" the operation only once (2 for previous invocations plus
+        // Verify that the shard "executed" the operation only once (2 for previous invocations plus
         // 1 for this execution)
-        verify(shard, times(3)).prepareIndexOnPrimary(any(), anyLong(), any(),
-                anyLong(), anyBoolean());
+        verify(shard, times(3)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyBoolean(), any());
 
         closeShards(shard);
     }
@@ -636,25 +625,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         public Translog.Location getTranslogLocation() {
             return this.location;
         }
-    }
-
-    public void testPrepareIndexOpOnReplica() throws Exception {
-        IndexMetaData metaData = indexMetaData();
-        IndexShard shard = newStartedShard(false);
-
-        DocWriteResponse primaryResponse = new IndexResponse(shardId, "index", "id", 17, 0, 1, randomBoolean());
-        IndexRequest request = new IndexRequest("index", "type", "id")
-                .source(Requests.INDEX_CONTENT_TYPE, "field", "value");
-
-        Engine.Index op = TransportShardBulkAction.prepareIndexOperationOnReplica(
-                primaryResponse, request, shard.getPrimaryTerm(), shard);
-
-        assertThat(op.version(), equalTo(primaryResponse.getVersion()));
-        assertThat(op.seqNo(), equalTo(primaryResponse.getSeqNo()));
-        assertThat(op.versionType(), equalTo(VersionType.EXTERNAL));
-        assertThat(op.primaryTerm(), equalTo(shard.getPrimaryTerm()));
-
-        closeShards(shard);
     }
 
     public void testProcessUpdateResponse() throws Exception {
@@ -870,40 +840,40 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     /** Doesn't perform any mapping updates */
     public static class NoopMappingUpdatePerformer implements MappingUpdatePerformer {
-        public void updateMappings(Mapping update, ShardId shardId, String type) throws Exception {
+        public void updateMappings(Mapping update, ShardId shardId, String type) {
         }
 
-        public void verifyMappings(Mapping update, ShardId shardId) throws Exception {
+        public void verifyMappings(Mapping update, ShardId shardId) {
         }
     }
 
     /** Always throw the given exception */
     private class ThrowingMappingUpdatePerformer implements MappingUpdatePerformer {
-        private final Exception e;
-        ThrowingMappingUpdatePerformer(Exception e) {
+        private final RuntimeException e;
+        ThrowingMappingUpdatePerformer(RuntimeException e) {
             this.e = e;
         }
 
-        public void updateMappings(Mapping update, ShardId shardId, String type) throws Exception {
+        public void updateMappings(Mapping update, ShardId shardId, String type) {
             throw e;
         }
 
-        public void verifyMappings(Mapping update, ShardId shardId) throws Exception {
+        public void verifyMappings(Mapping update, ShardId shardId) {
             fail("should not have gotten to this point");
         }
     }
 
     /** Always throw the given exception */
     private class ThrowingVerifyingMappingUpdatePerformer implements MappingUpdatePerformer {
-        private final Exception e;
-        ThrowingVerifyingMappingUpdatePerformer(Exception e) {
+        private final RuntimeException e;
+        ThrowingVerifyingMappingUpdatePerformer(RuntimeException e) {
             this.e = e;
         }
 
-        public void updateMappings(Mapping update, ShardId shardId, String type) throws Exception {
+        public void updateMappings(Mapping update, ShardId shardId, String type) {
         }
 
-        public void verifyMappings(Mapping update, ShardId shardId) throws Exception {
+        public void verifyMappings(Mapping update, ShardId shardId) {
             throw e;
         }
     }

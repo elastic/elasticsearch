@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -112,10 +113,23 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
                 allocationService.reroute(currentState, request.getCommands(), request.explain(), request.isRetryFailed());
             clusterStateToSend = commandsResult.getClusterState();
             explanations = commandsResult.explanations();
+
             if (request.dryRun()) {
                 return currentState;
             }
+
+            logWarnings();
             return commandsResult.getClusterState();
+        }
+
+        private void logWarnings() {
+            for (RerouteExplanation explanation : explanations.explanations()) {
+                if (explanation.hasWarnings()) {
+                    for (String warning : explanation.warnings()) {
+                        logger.warn("Allocation command warns [{}]: {}", explanation.command().name(), warning);
+                    }
+                }
+            }
         }
     }
 }

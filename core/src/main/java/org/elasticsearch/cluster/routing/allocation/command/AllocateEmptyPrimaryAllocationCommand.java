@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.command;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
@@ -32,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -40,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Allocates an unassigned empty primary shard to a specific node. Use with extreme care as this will result in data loss.
@@ -129,12 +128,12 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
                 shardRouting.unassignedInfo().getLastAllocationStatus());
         }
 
-        Logger logger = Loggers.getLogger(AllocateEmptyPrimaryAllocationCommand.class);
-        logger.warn("Allocating an empty primary for [{}][{}] on node [{}]. This action can cause data loss. If the " +
-            "old primary rejoins the cluster, its copy of this shard will be deleted.", index, shardId, node);
-
         initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate, StoreRecoverySource.EMPTY_STORE_INSTANCE);
 
-        return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
+        Decision decision = allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders");
+        String warning = "Allocating an empty primary for [" + index + "][" + shardId + "] on node [" + node + "]. " +
+            "This action can cause data loss. If the old primary rejoins the cluster, its copy of this shard will be " +
+            "deleted.";
+        return new RerouteExplanation(this, decision, Arrays.asList(warning));
     }
 }

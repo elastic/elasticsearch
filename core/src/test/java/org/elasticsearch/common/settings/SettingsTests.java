@@ -21,6 +21,8 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
@@ -588,6 +590,24 @@ public class SettingsTests extends ESTestCase {
         assertTrue(Settings.EMPTY.isEmpty());
         MockSecureSettings secureSettings = new MockSecureSettings();
         assertTrue(Settings.builder().setSecureSettings(secureSettings).build().isEmpty());
+    }
+
+    public void testWriteSettingsToStream() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("test.key1.foo", "somethingsecure");
+        secureSettings.setString("test.key1.bar", "somethingsecure");
+        secureSettings.setString("test.key2.foo", "somethingsecure");
+        secureSettings.setString("test.key2.bog", "somethingsecure");
+        Settings.Builder builder = Settings.builder();
+        builder.put("test.key1.baz", "blah1");
+        builder.setSecureSettings(secureSettings);
+        assertEquals(5, builder.build().size());
+        Settings.writeSettingsToStream(builder.build(), out);
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        Settings settings = Settings.readSettingsFromStream(in);
+        assertEquals(1, settings.size());
+        assertEquals("blah1", settings.get("test.key1.baz"));
     }
 
     public void testSecureSettingConflict() {

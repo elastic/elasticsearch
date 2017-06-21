@@ -27,22 +27,14 @@ subprojects {
   }
 
   dependencies {
-    testCompile("junit:junit:${versions.junit}") {
-      exclude group:'org.hamcrest', module:'hamcrest-core'
-    }
-    testCompile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
+    testCompile "org.elasticsearch.test:framework:${version}"
   }
 
-  tasks.checkstyle.enabled = false // not worth it yet
+  tasks.checkstyleMain.enabled = false // not worth it yet
   tasks.checkstyleTest.enabled = false // not worth it yet
 
   forbiddenApisMain {
     // does not depend on core, so only jdk and http signatures should be checked
-    signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
-  }
-
-  forbiddenApisTest {
-    // does not depend on core, so only jdk signatures should be checked
     signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]
   }
 }

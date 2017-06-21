@@ -34,7 +34,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         if (!execute(sql)) {
-            throw new SQLException(String.format("Invalid sql query %s", sql));
+            throw new SQLException("Invalid sql query [" +  sql + "]");
         }
         return rs;
     }

@@ -34,3 +34,62 @@ run {
 
 // Needed so we can launch graphviz if it is installed
 project.compactProfile = 'full'
+
+forbiddenApisTest {
+  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
+}
+
+thirdPartyAudit.excludes = [
+  // included by jline but not used
+  // NOCOMMIT maybe we need some of these?
+  'com.sun.jna.Library',
+  'com.sun.jna.Native',
+  'com.sun.jna.NativeLong',
+  'com.sun.jna.Platform',
+  'com.sun.jna.Pointer',
+  'com.sun.jna.Structure$ByReference',
+  'com.sun.jna.Structure$ByValue',
+  'com.sun.jna.Structure',
+  'com.sun.jna.Union',
+  'com.sun.jna.ptr.IntByReference',
+  'com.sun.jna.win32.StdCallLibrary',
+  'com.sun.jna.win32.W32APIOptions',
+  'org.apache.sshd.client.SshClient',
+  'org.apache.sshd.client.auth.keyboard.UserInteraction',
+  'org.apache.sshd.client.channel.ChannelShell',
+  'org.apache.sshd.client.channel.ClientChannel',
+  'org.apache.sshd.client.channel.ClientChannelEvent',
+  'org.apache.sshd.client.future.AuthFuture',
+  'org.apache.sshd.client.future.ConnectFuture',
+  'org.apache.sshd.client.future.OpenFuture',
+  'org.apache.sshd.client.session.ClientSession',
+  'org.apache.sshd.common.Factory',
+  'org.apache.sshd.common.channel.PtyMode',
+  'org.apache.sshd.common.config.keys.FilePasswordProvider',
+  'org.apache.sshd.common.util.io.NoCloseInputStream',
+  'org.apache.sshd.common.util.io.NoCloseOutputStream',
+  'org.apache.sshd.server.Command',
+  'org.apache.sshd.server.Environment',
+  'org.apache.sshd.server.ExitCallback',
+  'org.apache.sshd.server.SessionAware',
+  'org.apache.sshd.server.Signal',
+  'org.apache.sshd.server.SshServer',
+  'org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider',
+  'org.apache.sshd.server.scp.ScpCommandFactory$Builder',
+  'org.apache.sshd.server.session.ServerSession',
+  'org.apache.sshd.server.subsystem.sftp.SftpSubsystemFactory$Builder',
+  'org.fusesource.jansi.Ansi',
+  'org.fusesource.jansi.WindowsAnsiOutputStream',
+  'org.fusesource.jansi.internal.CLibrary$Termios',
+  'org.fusesource.jansi.internal.CLibrary$WinSize',
+  'org.fusesource.jansi.internal.CLibrary',
+  'org.fusesource.jansi.internal.Kernel32$CONSOLE_SCREEN_BUFFER_INFO',
+  'org.fusesource.jansi.internal.Kernel32$COORD',
+  'org.fusesource.jansi.internal.Kernel32$INPUT_RECORD',
+  'org.fusesource.jansi.internal.Kernel32$KEY_EVENT_RECORD',
+  'org.fusesource.jansi.internal.Kernel32',
+  'org.fusesource.jansi.internal.WindowsSupport',
+  'org.mozilla.universalchardet.UniversalDetector'
+]

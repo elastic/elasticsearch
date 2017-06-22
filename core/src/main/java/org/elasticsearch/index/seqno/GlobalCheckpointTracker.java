@@ -30,6 +30,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.security.Security;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -333,6 +334,14 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          * this case, as the cluster state version on the primary context exceeds the applied cluster state version, we replace the tracking
          * map and are safe here too.
          */
+
+        assert StreamSupport
+                .stream(inSyncLocalCheckpoints.spliterator(), false)
+                .allMatch(e -> e.value == SequenceNumbersService.UNASSIGNED_SEQ_NO) : inSyncLocalCheckpoints;
+        assert StreamSupport
+                .stream(trackingLocalCheckpoints.spliterator(), false)
+                .allMatch(e -> e.value == SequenceNumbersService.UNASSIGNED_SEQ_NO) : trackingLocalCheckpoints;
+        assert pendingInSync.isEmpty() : pendingInSync;
 
         if (primaryContext.clusterStateVersion() > appliedClusterStateVersion) {
             final Set<String> activeAllocationIds =

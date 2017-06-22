@@ -379,6 +379,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * incremented.
                  */
                 final CountDownLatch latch = new CountDownLatch(1);
+                // to prevent primary relocation handoff while resync is not completed
+                boolean resyncStarted = primaryReplicaResyncInProgress.compareAndSet(false, true);
+                if (resyncStarted == false) {
+                    throw new IllegalStateException("cannot start resync while it's already in progress");
+                }
                 indexShardOperationPermits.asyncBlockOperations(
                         30,
                         TimeUnit.MINUTES,
@@ -386,6 +391,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             latch.await();
                             try {
                                 getEngine().fillSeqNoGaps(newPrimaryTerm);
+                                primaryReplicaSyncer.accept(IndexShard.this, new ActionListener<ResyncTask>() {
+                                    @Override
+                                    public void onResponse(ResyncTask resyncTask) {
+                                        logger.info("primary-replica resync completed with {} operations",
+                                            resyncTask.getResyncedOperations());
+                                        boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
+                                        assert resyncCompleted : "primary-replica resync finished but was not started";
+                                    }
+
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
+                                        assert resyncCompleted : "primary-replica resync finished but was not started";
+                                        if (state == IndexShardState.CLOSED) {
+                                            // ignore, shutting down
+                                        } else {
+                                            failShard("exception during primary-replica resync", e);
+                                        }
+                                    }
+                                });
                             } catch (final AlreadyClosedException e) {
                                 // okay, the index was deleted
                             }
@@ -393,34 +418,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         e -> failShard("exception during primary term transition", e));
                 primaryTerm = newPrimaryTerm;
                 latch.countDown();
-                // prevent primary relocation handoff while resync is not completed
-                primaryReplicaResyncInProgress = true;
-                threadPool.generic().execute(() -> {
-                    try {
-                        primaryReplicaSyncer.accept(IndexShard.this, new ActionListener<ResyncTask>() {
-                            @Override
-                            public void onResponse(ResyncTask resyncTask) {
-                                logger.info("primary-replica resync completed with {} operations",
-                                    resyncTask.getResyncedOperations());
-                                synchronized (mutex) {
-                                    assert primaryReplicaResyncInProgress : "primary-replica resync aborted early";
-                                    primaryReplicaResyncInProgress = false;
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                if (state == IndexShardState.CLOSED) {
-                                    // ignore, shutting down
-                                } else {
-                                    failShard("exception during primary-replica resync", e);
-                                }
-                            }
-                        });
-                    } catch (IOException e) {
-                        failShard("exception during primary-replica resync initialization", e);
-                    }
-                });
             }
         }
     }
@@ -516,7 +513,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private boolean primaryReplicaResyncInProgress;
+    private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
 
     public void relocated(String reason) throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
@@ -538,7 +535,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
                             ": shard is no longer relocating " + shardRouting);
                     }
-                    if (primaryReplicaResyncInProgress) {
+                    if (primaryReplicaResyncInProgress.get()) {
                         throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
                             ": primary relocation is forbidden while primary-replica resync is in progress " + shardRouting);
                     }

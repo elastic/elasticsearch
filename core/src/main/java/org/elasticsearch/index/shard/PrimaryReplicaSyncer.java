@@ -185,7 +185,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             long size = 0;
             final List<Translog.Operation> operations = new ArrayList<>();
 
-            task.setPhase("syncing");
+            task.setPhase("collecting_ops");
             task.setResyncedOperations(totalSentOps.get());
             task.setSkippedOperations(totalSkippedOps.get());
 
@@ -208,6 +208,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             }
 
             if (!operations.isEmpty()) {
+                task.setPhase("sending_ops");
                 ResyncReplicationRequest request = new ResyncReplicationRequest(shardId, operations);
                 logger.trace("{} sending batch of [{}][{}] (total sent: [{}], skipped: [{}])", shardId, operations.size(),
                     new ByteSizeValue(size), totalSentOps.get(), totalSkippedOps.get());

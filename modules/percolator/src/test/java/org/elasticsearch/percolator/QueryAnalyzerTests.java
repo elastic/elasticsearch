@@ -30,10 +30,12 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.search.spans.SpanFirstQuery;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanNotQuery;
@@ -42,15 +44,18 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
+import org.elasticsearch.percolator.QueryAnalyzer.QueryTerm;
 import org.elasticsearch.percolator.QueryAnalyzer.Result;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.percolator.QueryAnalyzer.UnsupportedQueryException;
 import static org.elasticsearch.percolator.QueryAnalyzer.analyze;
@@ -65,7 +70,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         TermQuery termQuery = new TermQuery(new Term("_field", "_term"));
         Result result = analyze(termQuery);
         assertThat(result.verified, is(true));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery.getTerm().bytes()));
@@ -75,7 +80,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         TermInSetQuery termsQuery = new TermInSetQuery("_field", new BytesRef("_term1"), new BytesRef("_term2"));
         Result result = analyze(termsQuery);
         assertThat(result.verified, is(true));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(2));
         assertThat(terms.get(0).field(), equalTo("_field"));
@@ -88,7 +93,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         PhraseQuery phraseQuery = new PhraseQuery("_field", "_term1", "term2");
         Result result = analyze(phraseQuery);
         assertThat(result.verified, is(false));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
@@ -103,7 +108,7 @@ public class QueryAnalyzerTests extends ESTestCase {
                 .build();
         Result result = analyze(multiPhraseQuery);
         assertThat(result.verified, is(false));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo("_field"));
         assertThat(terms.get(0).bytes().utf8ToString(), equalTo("_very_long_term"));
@@ -126,7 +131,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         BooleanQuery booleanQuery = builder.build();
         Result result = analyze(booleanQuery);
         assertThat("Should clause with phrase query isn't verified, so entire query can't be verified", result.verified, is(false));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(3));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
@@ -154,7 +159,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         BooleanQuery booleanQuery = builder.build();
         Result result = analyze(booleanQuery);
         assertThat(result.verified, is(true));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(4));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
@@ -177,7 +182,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         BooleanQuery booleanQuery = builder.build();
         Result result = analyze(booleanQuery);
         assertThat(result.verified, is(false));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
@@ -242,7 +247,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         ConstantScoreQuery constantScoreQuery = new ConstantScoreQuery(termQuery1);
         Result result = analyze(constantScoreQuery);
         assertThat(result.verified, is(true));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
@@ -253,7 +258,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         BoostQuery constantScoreQuery = new BoostQuery(termQuery1, 1f);
         Result result = analyze(constantScoreQuery);
         assertThat(result.verified, is(true));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
@@ -265,7 +270,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         commonTermsQuery.add(new Term("_field", "_term2"));
         Result result = analyze(commonTermsQuery);
         assertThat(result.verified, is(false));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(2));
         assertThat(terms.get(0).field(), equalTo("_field"));
@@ -279,7 +284,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         BlendedTermQuery commonTermsQuery = BlendedTermQuery.dismaxBlendedQuery(termsArr, 1.0f);
         Result result = analyze(commonTermsQuery);
         assertThat(result.verified, is(true));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(2));
         assertThat(terms.get(0).field(), equalTo("_field"));
@@ -473,7 +478,7 @@ public class QueryAnalyzerTests extends ESTestCase {
 
         Result result = analyze(disjunctionMaxQuery);
         assertThat(result.verified, is(true));
-        List<Term> terms = new ArrayList<>(result.terms);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(4));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
@@ -530,33 +535,119 @@ public class QueryAnalyzerTests extends ESTestCase {
     }
 
     public void testSelectTermsListWithHighestSumOfTermLength() {
-        Set<Term> terms1 = new HashSet<>();
+        Set<QueryTerm> terms1 = new HashSet<>();
         int shortestTerms1Length = Integer.MAX_VALUE;
         int sumTermLength = randomIntBetween(1, 128);
         while (sumTermLength > 0) {
             int length = randomInt(sumTermLength);
             shortestTerms1Length = Math.min(shortestTerms1Length, length);
-            terms1.add(new Term("field", randomAlphaOfLength(length)));
+            terms1.add(new QueryTerm(new Term("field", randomAlphaOfLength(length))));
             sumTermLength -= length;
         }
 
-        Set<Term> terms2 = new HashSet<>();
+        Set<QueryTerm> terms2 = new HashSet<>();
         int shortestTerms2Length = Integer.MAX_VALUE;
         sumTermLength = randomIntBetween(1, 128);
         while (sumTermLength > 0) {
             int length = randomInt(sumTermLength);
             shortestTerms2Length = Math.min(shortestTerms2Length, length);
-            terms2.add(new Term("field", randomAlphaOfLength(length)));
+            terms2.add(new QueryTerm(new Term("field", randomAlphaOfLength(length))));
             sumTermLength -= length;
         }
 
-        Set<Term> result = selectTermListWithTheLongestShortestTerm(terms1, terms2);
-        Set<Term> expected = shortestTerms1Length >= shortestTerms2Length ? terms1 : terms2;
+        Set<QueryTerm> result = selectTermListWithTheLongestShortestTerm(terms1, terms2);
+        Set<QueryTerm> expected = shortestTerms1Length >= shortestTerms2Length ? terms1 : terms2;
         assertThat(result, sameInstance(expected));
     }
 
-    private static void assertTermsEqual(Set<Term> actual, Term... expected) {
-        assertEquals(new HashSet<>(Arrays.asList(expected)), actual);
+    public void testPrefixQuery() {
+        PrefixQuery prefixQuery = new PrefixQuery(new Term("field", "prefix"));
+        Result result = analyze(prefixQuery);
+        assertFalse(result.verified);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
+        assertEquals(1, terms.size());
+        assertEquals("field", terms.get(0).field());
+        assertEquals("prefix", terms.get(0).text());
+        assertTrue(terms.get(0).wildcard);
+    }
+
+    public void testWildQuery() {
+        WildcardQuery wildQuery = new WildcardQuery(new Term("field", "prefix*"));
+        Result result = analyze(wildQuery);
+        assertFalse(result.verified);
+        List<QueryTerm> terms = new ArrayList<>(result.terms);
+        assertEquals(1, terms.size());
+        assertEquals("field", terms.get(0).field());
+        assertEquals("prefix", terms.get(0).text());
+        assertTrue(terms.get(0).wildcard);
+
+        wildQuery = new WildcardQuery(new Term("field", "*prefix*"));
+        result = analyze(wildQuery);
+        assertFalse(result.verified);
+        terms = new ArrayList<>(result.terms);
+        assertEquals(1, terms.size());
+        assertEquals("field", terms.get(0).field());
+        assertEquals("prefix", terms.get(0).text());
+        assertTrue(terms.get(0).wildcard);
+
+        wildQuery = new WildcardQuery(new Term("field", "*p*refix*"));
+        result = analyze(wildQuery);
+        assertFalse(result.verified);
+        terms = new ArrayList<>(result.terms);
+        assertEquals(1, terms.size());
+        assertEquals("field", terms.get(0).field());
+        assertEquals("refix", terms.get(0).text());
+        assertTrue(terms.get(0).wildcard);
+
+        wildQuery = new WildcardQuery(new Term("field", "*p*re?fix*"));
+        result = analyze(wildQuery);
+        assertFalse(result.verified);
+        terms = new ArrayList<>(result.terms);
+        assertEquals(1, terms.size());
+        assertEquals("field", terms.get(0).field());
+        assertEquals("fix", terms.get(0).text());
+        assertTrue(terms.get(0).wildcard);
+
+        BooleanQuery booleanQuery = new BooleanQuery.Builder()
+            .add(new WildcardQuery(new Term("field", "*p*re?fix*")), BooleanClause.Occur.MUST)
+            .add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.MUST)
+            .build();
+        result = analyze(booleanQuery);
+        terms = new ArrayList<>(result.terms);
+        assertFalse(result.verified);
+        assertEquals(1, terms.size());
+        assertEquals("field", terms.get(0).field());
+        assertEquals("value", terms.get(0).text());
+
+        // Prefer the largest term even if was extracted from wildcard. Maybe we shouldn't?
+        booleanQuery = new BooleanQuery.Builder()
+            .add(new WildcardQuery(new Term("field", "*p*re?fix*")), BooleanClause.Occur.MUST)
+            .add(new TermQuery(new Term("field", "ok")), BooleanClause.Occur.MUST)
+            .build();
+        result = analyze(booleanQuery);
+        terms = new ArrayList<>(result.terms);
+        assertFalse(result.verified);
+        assertEquals(1, terms.size());
+        assertEquals("field", terms.get(0).field());
+        assertEquals("fix", terms.get(0).text());
+
+        booleanQuery = new BooleanQuery.Builder()
+            .add(new WildcardQuery(new Term("field", "*p*re?fix*")), BooleanClause.Occur.SHOULD)
+            .add(new TermQuery(new Term("field", "value")), BooleanClause.Occur.SHOULD)
+            .build();
+        result = analyze(booleanQuery);
+        terms = new ArrayList<>(result.terms);
+        terms.sort(Comparator.comparing(QueryTerm::bytes));
+        assertFalse(result.verified);
+        assertEquals(2, terms.size());
+        assertEquals("field", terms.get(0).field());
+        assertEquals("fix", terms.get(0).text());
+        assertEquals("field", terms.get(1).field());
+        assertEquals("value", terms.get(1).text());
+    }
+
+    private static void assertTermsEqual(Set<QueryTerm> actual, Term... expected) {
+        assertEquals(Arrays.stream(expected).map(QueryTerm::new).collect(Collectors.toSet()), actual);
     }
 
 }

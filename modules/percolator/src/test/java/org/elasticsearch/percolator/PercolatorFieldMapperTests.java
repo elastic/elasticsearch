@@ -79,9 +79,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -208,7 +211,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
 
         BooleanQuery candidateQuery = (BooleanQuery) fieldType.createCandidateQuery(indexReader);
-        assertEquals(2, candidateQuery.clauses().size());
+        assertEquals(3, candidateQuery.clauses().size());
         assertEquals(Occur.SHOULD, candidateQuery.clauses().get(0).getOccur());
         TermInSetQuery termsQuery = (TermInSetQuery) candidateQuery.clauses().get(0).getQuery();
 
@@ -231,8 +234,12 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         assertTermIterator(termIterator, "field4\u0000123", fieldType.queryTermsField.name());
 
         assertEquals(Occur.SHOULD, candidateQuery.clauses().get(1).getOccur());
+        termsQuery = (TermInSetQuery) candidateQuery.clauses().get(1).getQuery();
+        // TODO: verify generated terms
+
+        assertEquals(Occur.SHOULD, candidateQuery.clauses().get(2).getOccur());
         assertEquals(new TermQuery(new Term(fieldType.extractionResultField.name(), EXTRACTION_FAILED)),
-                candidateQuery.clauses().get(1).getQuery());
+                candidateQuery.clauses().get(2).getQuery());
     }
 
     private void assertTermIterator(PrefixCodedTerms.TermIterator termIterator, String expectedValue, String expectedField) {
@@ -541,6 +548,69 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
         assertEquals(Script.DEFAULT_SCRIPT_LANG,
                 ((List) XContentMapValues.extractValue("function_score.functions.script_score.script.lang", parsedQuery)).get(0));
+    }
+
+    public void testCreateSuffixTerms() {
+        BytesRef field = new BytesRef("field");
+
+        Set<BytesRef> bytesRefs = new LinkedHashSet<>();
+        PercolatorFieldMapper.FieldType.createSuffixTerms(field, new BytesRef("percolator"), bytesRefs);
+        List<String> results = bytesRefs.stream().map(BytesRef::utf8ToString).collect(Collectors.toList());
+
+        assertEquals(53, results.size());
+        assertEquals("field\0percolator", results.get(0));
+        assertEquals("field\0percolato", results.get(1));
+        assertEquals("field\0percolat", results.get(2));
+        assertEquals("field\0percola", results.get(3));
+        assertEquals("field\0percol", results.get(4));
+        assertEquals("field\0perco", results.get(5));
+        assertEquals("field\0perc", results.get(6));
+        assertEquals("field\0per", results.get(7));
+        assertEquals("field\0pe", results.get(8));
+        assertEquals("field\0p", results.get(9));
+        assertEquals("field\0ercolator", results.get(10));
+        assertEquals("field\0ercolato", results.get(11));
+        assertEquals("field\0ercolat", results.get(12));
+        assertEquals("field\0ercola", results.get(13));
+        assertEquals("field\0ercol", results.get(14));
+        assertEquals("field\0erco", results.get(15));
+        assertEquals("field\0erc", results.get(16));
+        assertEquals("field\0er", results.get(17));
+        assertEquals("field\0e", results.get(18));
+        assertEquals("field\0rcolator", results.get(19));
+        assertEquals("field\0rcolato", results.get(20));
+        assertEquals("field\0rcolat", results.get(21));
+        assertEquals("field\0rcola", results.get(22));
+        assertEquals("field\0rcol", results.get(23));
+        assertEquals("field\0rco", results.get(24));
+        assertEquals("field\0rc", results.get(25));
+        assertEquals("field\0r", results.get(26));
+        assertEquals("field\0colator", results.get(27));
+        assertEquals("field\0colato", results.get(28));
+        assertEquals("field\0colat", results.get(29));
+        assertEquals("field\0cola", results.get(30));
+        assertEquals("field\0col", results.get(31));
+        assertEquals("field\0co", results.get(32));
+        assertEquals("field\0c", results.get(33));
+        assertEquals("field\0olator", results.get(34));
+        assertEquals("field\0olato", results.get(35));
+        assertEquals("field\0olat", results.get(36));
+        assertEquals("field\0ola", results.get(37));
+        assertEquals("field\0ol", results.get(38));
+        assertEquals("field\0o", results.get(39));
+        assertEquals("field\0lator", results.get(40));
+        assertEquals("field\0lato", results.get(41));
+        assertEquals("field\0lat", results.get(42));
+        assertEquals("field\0la", results.get(43));
+        assertEquals("field\0l", results.get(44));
+        assertEquals("field\0ator", results.get(45));
+        assertEquals("field\0ato", results.get(46));
+        assertEquals("field\0at", results.get(47));
+        assertEquals("field\0a", results.get(48));
+        assertEquals("field\0tor", results.get(49));
+        assertEquals("field\0to", results.get(50));
+        assertEquals("field\0t", results.get(51));
+        assertEquals("field\0or", results.get(52));
     }
 
     // Just so that we store scripts in percolator queries, but not really execute these scripts.

@@ -234,6 +234,34 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         duelRun(queryStore, memoryIndex, shardSearcher);
     }
 
+    public void testDuelWildcardPrefixQueries() throws Exception {
+        List<ParseContext.Document> documents = new ArrayList<>();
+        addQuery(new PrefixQuery(new Term("field", "q")), documents);
+        addQuery(new PrefixQuery(new Term("field", "b")), documents);
+        addQuery(new PrefixQuery(new Term("field", "z")), documents);
+        addQuery(new WildcardQuery(new Term("field", "b*")), documents);
+        addQuery(new WildcardQuery(new Term("field", "d*")), documents);
+        addQuery(new WildcardQuery(new Term("field", "t*")), documents);
+        addQuery(new WildcardQuery(new Term("field", "*g")), documents);
+        addQuery(new WildcardQuery(new Term("field", "d?g")), documents);
+        addQuery(new WildcardQuery(new Term("field", "*o*")), documents);
+        addQuery(new WildcardQuery(new Term("field", "z*")), documents);
+        addQuery(new WildcardQuery(new Term("field", "*y")), documents);
+        addQuery(new WildcardQuery(new Term("field", "*a*")), documents);
+
+        indexWriter.addDocuments(documents);
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+        // Disable query cache, because ControlQuery cannot be cached...
+        shardSearcher.setQueryCache(null);
+
+        Document document = new Document();
+        document.add(new TextField("field", "the quick brown fox jumps over the lazy dog", Field.Store.NO));
+        MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
+        duelRun(queryStore, memoryIndex, shardSearcher);
+    }
+
     public void testDuelSpecificQueries() throws Exception {
         List<ParseContext.Document> documents = new ArrayList<>();
 

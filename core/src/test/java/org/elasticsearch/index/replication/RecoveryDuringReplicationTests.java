@@ -29,7 +29,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -115,18 +114,25 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             docs += missingOnReplica;
             replicaHasDocsSinceLastFlushedCheckpoint |= missingOnReplica > 0;
 
-            final boolean flushPrimary = randomBoolean();
-            if (flushPrimary) {
+            final boolean translogTrimmed;
+            if (randomBoolean()) {
                 shards.flush();
+                translogTrimmed = randomBoolean();
+                if (translogTrimmed) {
+                    final Translog translog = shards.getPrimary().getTranslog();
+                    translog.getDeletionPolicy().setRetentionAgeInMillis(0);
+                    translog.trimUnreferencedReaders();
+                }
+            } else {
+                translogTrimmed = false;
             }
-
             originalReplica.close("disconnected", false);
             IOUtils.close(originalReplica.store());
             final IndexShard recoveredReplica =
                 shards.addReplicaWithExistingPath(originalReplica.shardPath(), originalReplica.routingEntry().currentNodeId());
             shards.recoverReplica(recoveredReplica);
-            if (flushPrimary && replicaHasDocsSinceLastFlushedCheckpoint) {
-                // replica has something to catch up with, but since we flushed the primary, we should fall back to full recovery
+            if (translogTrimmed && replicaHasDocsSinceLastFlushedCheckpoint) {
+                // replica has something to catch up with, but since we trimmed the primary translog, we should fall back to full recovery
                 assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), not(empty()));
             } else {
                 assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), empty());
@@ -179,6 +185,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             // index some more
             totalDocs += shards.indexDocs(randomIntBetween(0, 5));
 
+            if (randomBoolean()) {
+                shards.flush();
+            }
+
             oldPrimary.close("demoted", false);
             oldPrimary.store().close();
 
@@ -190,9 +200,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(totalDocs - committedDocs));
             } else {
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
-                assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(totalDocs - committedDocs));
+                assertThat(newReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(totalDocs));
             }
 
+            // roll back the extra ops in the replica
             shards.removeReplica(replica);
             replica.close("resync", false);
             replica.store().close();
@@ -444,7 +455,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
-    private static class BlockingTarget extends RecoveryTarget {
+    public static class BlockingTarget extends RecoveryTarget {
 
         private final CountDownLatch recoveryBlocked;
         private final CountDownLatch releaseRecovery;
@@ -453,8 +464,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             EnumSet.of(RecoveryState.Stage.INDEX, RecoveryState.Stage.TRANSLOG, RecoveryState.Stage.FINALIZE);
         private final Logger logger;
 
-        BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked, CountDownLatch releaseRecovery, IndexShard shard,
-                       DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener, Logger logger) {
+        public BlockingTarget(RecoveryState.Stage stageToBlock, CountDownLatch recoveryBlocked, CountDownLatch releaseRecovery,
+                              IndexShard shard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
+                              Logger logger) {
             super(shard, sourceNode, listener, version -> {});
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;

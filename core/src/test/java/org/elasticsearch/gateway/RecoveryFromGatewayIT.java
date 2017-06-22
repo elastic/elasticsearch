@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
@@ -428,6 +429,10 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 }
 
                 // prevent a sequence-number-based recovery from being possible
+                client(primaryNode).admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder()
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
+                    .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+                ).get();
                 client(primaryNode).admin().indices().prepareFlush("test").setForce(true).get();
                 return super.onNodeStopped(nodeName);
             }

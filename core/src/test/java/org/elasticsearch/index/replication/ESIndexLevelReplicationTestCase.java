@@ -421,36 +421,40 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             this.opType = opType;
         }
 
-        public void execute() throws Exception {
-            new ReplicationOperation<Request, ReplicaRequest, PrimaryResult>(request, new PrimaryRef(),
-                new ActionListener<PrimaryResult>() {
+        public void execute() {
+            try {
+                new ReplicationOperation<Request, ReplicaRequest, PrimaryResult>(request, new PrimaryRef(),
+                    new ActionListener<PrimaryResult>() {
+                        @Override
+                        public void onResponse(PrimaryResult result) {
+                            result.respond(listener);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }, new ReplicasRef(), () -> null, logger, opType) {
+
                     @Override
-                    public void onResponse(PrimaryResult result) {
-                        result.respond(listener);
+                    protected List<ShardRouting> getShards(ShardId shardId, ClusterState state) {
+                        return replicationGroup.shardRoutings();
                     }
 
                     @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
+                    protected String checkActiveShardCount() {
+                        return null;
                     }
-                }, new ReplicasRef(), () -> null, logger, opType) {
 
-                @Override
-                protected List<ShardRouting> getShards(ShardId shardId, ClusterState state) {
-                    return replicationGroup.shardRoutings();
-                }
-
-                @Override
-                protected String checkActiveShardCount() {
-                    return null;
-                }
-
-                @Override
-                protected Set<String> getInSyncAllocationIds(ShardId shardId, ClusterState clusterState) {
-                    return replicationGroup.shardRoutings().stream().filter(ShardRouting::active).map(r -> r.allocationId().getId())
-                        .collect(Collectors.toSet());
-                }
-            }.execute();
+                    @Override
+                    protected Set<String> getInSyncAllocationIds(ShardId shardId, ClusterState clusterState) {
+                        return replicationGroup.shardRoutings().stream().filter(ShardRouting::active).map(r -> r.allocationId().getId())
+                            .collect(Collectors.toSet());
+                    }
+                }.execute();
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
         protected abstract PrimaryResult performOnPrimary(IndexShard primary, Request request) throws Exception;

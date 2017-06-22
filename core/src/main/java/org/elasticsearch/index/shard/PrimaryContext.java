@@ -68,7 +68,7 @@ public class PrimaryContext implements Writeable {
     }
 
     private static ObjectLongMap<String> readMap(final StreamInput in) throws IOException {
-        final int length = in.readInt();
+        final int length = in.readVInt();
         final ObjectLongMap<String> map = new ObjectLongHashMap<>(length);
         for (int i = 0; i < length; i++) {
             final String key = in.readString();
@@ -86,7 +86,7 @@ public class PrimaryContext implements Writeable {
     }
 
     private static void writeMap(final StreamOutput out, final ObjectLongMap<String> map) throws IOException {
-        out.writeInt(map.size());
+        out.writeVInt(map.size());
         for (ObjectLongCursor<String> cursor : map) {
             out.writeString(cursor.key);
             out.writeZLong(cursor.value);

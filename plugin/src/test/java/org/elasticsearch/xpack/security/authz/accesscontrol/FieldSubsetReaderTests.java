@@ -20,6 +20,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexWriter;
@@ -87,8 +88,8 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
         Set<String> seenFields = new HashSet<>();
-        for (String field : segmentReader.fields()) {
-            seenFields.add(field);
+        for (FieldInfo info : segmentReader.getFieldInfos()) {
+            seenFields.add(info.name);
         }
         assertEquals(Collections.singleton("fieldA"), seenFields);
         assertNotNull(segmentReader.terms("fieldA"));
@@ -937,13 +938,12 @@ public class FieldSubsetReaderTests extends ESTestCase {
         
         // see no fields
         LeafReader segmentReader = ir.leaves().get(0).reader();
-        Fields f = segmentReader.fields();
-        assertNotNull(f); // 5.x contract
         Set<String> seenFields = new HashSet<>();
-        for (String field : segmentReader.fields()) {
-            seenFields.add(field);
+        for (FieldInfo info : segmentReader.getFieldInfos()) {
+            seenFields.add(info.name);
         }
         assertEquals(0, seenFields.size());
+        assertNull(segmentReader.terms("foo"));
         
         // see no vectors
         assertNull(segmentReader.getTermVectors(0));

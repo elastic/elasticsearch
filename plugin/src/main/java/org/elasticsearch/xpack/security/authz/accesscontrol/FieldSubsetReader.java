@@ -267,8 +267,8 @@ public final class FieldSubsetReader extends FilterLeafReader {
     }
 
     @Override
-    public Fields fields() throws IOException {
-        return new FieldFilterFields(super.fields());
+    public Terms terms(String field) throws IOException {
+        return wrapTerms(super.terms(field), field);
     }
 
     @Override
@@ -344,24 +344,27 @@ public final class FieldSubsetReader extends FilterLeafReader {
 
         @Override
         public Terms terms(String field) throws IOException {
-            if (!hasField(field)) {
-                return null;
-            } else if (FieldNamesFieldMapper.NAME.equals(field)) {
-                // for the _field_names field, fields for the document
-                // are encoded as postings, where term is the field.
-                // so we hide terms for fields we filter out.
-                Terms terms = super.terms(field);
-                if (terms != null) {
-                    // check for null, in case term dictionary is not a ghostbuster
-                    // So just because its in fieldinfos and "indexed=true" doesn't mean you can go grab a Terms for it.
-                    // It just means at one point there was a document with that field indexed...
-                    // The fields infos isn't updates/removed even if no docs refer to it
-                    terms = new FieldNamesTerms(terms);
-                }
-                return terms;
-            } else {
-                return super.terms(field);
+            return wrapTerms(super.terms(field), field);
+        }
+    }
+
+    private Terms wrapTerms(Terms terms, String field) {
+        if (!hasField(field)) {
+            return null;
+        } else if (FieldNamesFieldMapper.NAME.equals(field)) {
+            // for the _field_names field, fields for the document
+            // are encoded as postings, where term is the field.
+            // so we hide terms for fields we filter out.
+            if (terms != null) {
+                // check for null, in case term dictionary is not a ghostbuster
+                // So just because its in fieldinfos and "indexed=true" doesn't mean you can go grab a Terms for it.
+                // It just means at one point there was a document with that field indexed...
+                // The fields infos isn't updates/removed even if no docs refer to it
+                terms = new FieldNamesTerms(terms);
             }
+            return terms;
+        } else {
+            return terms;
         }
     }
 

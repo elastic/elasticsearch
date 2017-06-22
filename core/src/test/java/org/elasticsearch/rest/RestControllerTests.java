@@ -26,7 +26,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
-import org.elasticsearch.common.path.PathTrie.TrieMatchingMode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -51,6 +50,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -110,12 +110,22 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.3", Collections.singletonList("false"));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
         final RestController spyRestController = spy(restController);
-        when(spyRestController.getHandler(fakeRequest, PathTrie.TrieMatchingMode.EXPLICIT_NODES_ONLY))
-                .thenReturn(Optional.of((RestRequest request, RestChannel channel, NodeClient client) -> {
-                    assertEquals("true", threadContext.getHeader("header.1"));
-                    assertEquals("true", threadContext.getHeader("header.2"));
-                    assertNull(threadContext.getHeader("header.3"));
-                }));
+        when(spyRestController.getAllHandlers(fakeRequest))
+                .thenReturn(new Iterator<MethodHandlers>() {
+                    @Override
+                    public boolean hasNext() {
+                        return false;
+                    }
+
+                    @Override
+                    public MethodHandlers next() {
+                        return new MethodHandlers("/", (RestRequest request, RestChannel channel, NodeClient client) -> {
+                            assertEquals("true", threadContext.getHeader("header.1"));
+                            assertEquals("true", threadContext.getHeader("header.2"));
+                            assertNull(threadContext.getHeader("header.3"));
+                        }, RestRequest.Method.GET);
+                    }
+                });
         AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
@@ -132,13 +142,22 @@ public class RestControllerTests extends ESTestCase {
         controller.registerHandler(RestRequest.Method.GET, "/trip", new FakeRestHandler(true));
         controller.registerHandler(RestRequest.Method.GET, "/do-not-trip", new FakeRestHandler(false));
 
-        assertTrue(controller.canTripCircuitBreaker(new FakeRestRequest.Builder(xContentRegistry()).withPath("/trip").build(),
-                TrieMatchingMode.EXPLICIT_NODES_ONLY));
+        RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/trip").build();
+        for (Iterator<MethodHandlers> it = controller.getAllHandlers(fakeRequest); it.hasNext(); ) {
+            Optional<MethodHandlers> mHandler = Optional.ofNullable(it.next());
+            assertTrue(mHandler.map(mh -> controller.canTripCircuitBreaker(mh.getHandler(RestRequest.Method.GET))).orElse(true));
+        }
         // assume trip even on unknown paths
-        assertTrue(controller.canTripCircuitBreaker(new FakeRestRequest.Builder(xContentRegistry()).withPath("/unknown-path").build(),
-                TrieMatchingMode.EXPLICIT_NODES_ONLY));
-        assertFalse(controller.canTripCircuitBreaker(new FakeRestRequest.Builder(xContentRegistry()).withPath("/do-not-trip").build(),
-                TrieMatchingMode.EXPLICIT_NODES_ONLY));
+        fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/unknown-path").build();
+        for (Iterator<MethodHandlers> it = controller.getAllHandlers(fakeRequest); it.hasNext(); ) {
+            Optional<MethodHandlers> mHandler = Optional.ofNullable(it.next());
+            assertTrue(mHandler.map(mh -> controller.canTripCircuitBreaker(mh.getHandler(RestRequest.Method.GET))).orElse(true));
+        }
+        fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/do-not-trip").build();
+        for (Iterator<MethodHandlers> it = controller.getAllHandlers(fakeRequest); it.hasNext(); ) {
+            Optional<MethodHandlers> mHandler = Optional.ofNullable(it.next());
+            assertFalse(mHandler.map(mh -> controller.canTripCircuitBreaker(mh.getHandler(RestRequest.Method.GET))).orElse(false));
+        }
     }
 
     public void testRegisterAsDeprecatedHandler() {
@@ -193,8 +212,7 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), wrapper, null,
                 circuitBreakerService, usageService);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null,
-                Optional.of(handler), PathTrie.TrieMatchingMode.EXPLICIT_NODES_ONLY);
+        restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null, Optional.of(handler));
         assertTrue(wrapperCalled.get());
         assertFalse(handlerCalled.get());
     }

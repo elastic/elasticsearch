@@ -31,7 +31,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
-import org.elasticsearch.common.path.PathTrie.TrieMatchingMode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -45,6 +44,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -168,11 +168,10 @@ public class RestController extends AbstractComponent implements HttpServerTrans
     }
 
     /**
-     * @param request The current request. Must not be null.
      * @return true iff the circuit breaker limit must be enforced for processing this request.
      */
-    public boolean canTripCircuitBreaker(final RestRequest request, final PathTrie.TrieMatchingMode trieMatchingMode) {
-        return getHandler(request, trieMatchingMode).map(h -> h.canTripCircuitBreaker()).orElse(true);
+    public boolean canTripCircuitBreaker(final Optional<RestHandler> handler) {
+        return handler.map(h -> h.canTripCircuitBreaker()).orElse(true);
     }
 
     @Override
@@ -220,7 +219,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      * Dispatch the request, if possible, returning true if a response was sent or false otherwise.
      */
     boolean dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client,
-                            final Optional<RestHandler> mHandler, final PathTrie.TrieMatchingMode trieMatchingMode) throws Exception {
+                            final Optional<RestHandler> mHandler) throws Exception {
         final int contentLength = request.hasContent() ? request.content().length() : 0;
 
         RestChannel responseChannel = channel;
@@ -239,7 +238,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         } else if (mHandler.isPresent()) {
 
             try {
-                if (canTripCircuitBreaker(request, trieMatchingMode)) {
+                if (canTripCircuitBreaker(mHandler)) {
                     inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
                 } else {
                     inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
@@ -256,19 +255,14 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 requestHandled = true;
             }
         } else {
-            /*
-             * Get the map of matching handlers for a request, for the full set of HTTP methods.
-             */
-            // TODO: don't explicitly use this TrieMatching method
-            final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request, trieMatchingMode);
+            // Get the map of matching handlers for a request, for the full set of HTTP methods.
+            final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request);
             if (validMethodSet.size() > 0
                 && !validMethodSet.contains(request.method())
                 && request.method() != RestRequest.Method.OPTIONS) {
-                /*
-                 * If an alternative handler for an explicit path is registered to a
-                 * different HTTP method than the one supplied - return a 405 Method
-                 * Not Allowed error.
-                 */
+                // If an alternative handler for an explicit path is registered to a
+                // different HTTP method than the one supplied - return a 405 Method
+                // Not Allowed error.
                 handleUnsupportedHttpMethod(request, channel, validMethodSet);
                 requestHandled = true;
             } else if (!validMethodSet.contains(request.method())
@@ -336,10 +330,6 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 threadContext.putHeader(key, httpHeader);
             }
         }
-        // Between retrieving the correct path, we need to reset the parameters,
-        // otherwise parameters are parsed out of the URI that aren't actually handled.
-        final Map<String, String> originalParams = new HashMap<>(request.params());
-
         // Request execution flag
         boolean requestHandled = false;
 
@@ -349,50 +339,32 @@ public class RestController extends AbstractComponent implements HttpServerTrans
             requestHandled = true;
         }
 
-        /*
-         * First try handlers mapped to explicit paths only.
-         */
-        if (requestHandled == false) {
-            final Optional<RestHandler> mHandler = getHandler(request, TrieMatchingMode.EXPLICIT_NODES_ONLY);
-            requestHandled = dispatchRequest(request, channel, client, mHandler, TrieMatchingMode.EXPLICIT_NODES_ONLY);
+        // Loop through all possible handlers, attempting to dispatch the request
+        Iterator<MethodHandlers> allHandlers = getAllHandlers(request);
+        for (Iterator<MethodHandlers> it = allHandlers; it.hasNext(); ) {
+            final Optional<RestHandler> mHandler = Optional.ofNullable(it.next()).flatMap(mh -> mh.getHandler(request.method()));
+            requestHandled = dispatchRequest(request, channel, client, mHandler);
+            if (requestHandled) {
+                break;
+            }
         }
 
-        /*
-         * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a leaf node only.
-         */
-        if (requestHandled == false) {
-            request.params().clear();
-            request.params().putAll(originalParams);
-            final Optional<RestHandler> mHandler = getHandler(request, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED);
-            requestHandled = dispatchRequest(request, channel, client, mHandler, TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED);
-        }
-
-        /*
-         * Fallback to handlers mapped to explicit paths, with a wildcard allowed as a root node only.
-         */
-        if (requestHandled == false) {
-            request.params().clear();
-            request.params().putAll(originalParams);
-            final Optional<RestHandler> mHandler = getHandler(request, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
-            requestHandled = dispatchRequest(request, channel, client, mHandler, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
-        }
-
-        /*
-         * Fallback to handlers mapped to explicit paths, with a wildcard allowed as any node.
-         */
-        if (requestHandled == false) {
-            request.params().clear();
-            request.params().putAll(originalParams);
-            final Optional<RestHandler> mHandler = getHandler(request, TrieMatchingMode.WILDCARD_NODES_ALLOWED);
-            requestHandled = dispatchRequest(request, channel, client, mHandler, TrieMatchingMode.WILDCARD_NODES_ALLOWED);
-        }
-
-        /*
-         * If request has not been handled, fallback to a bad request error.
-         */
+        // If request has not been handled, fallback to a bad request error.
         if (requestHandled == false) {
             handleBadRequest(request, channel);
         }
+    }
+
+    Iterator<MethodHandlers> getAllHandlers(final RestRequest request) {
+        // Between retrieving the correct path, we need to reset the parameters,
+        // otherwise parameters are parsed out of the URI that aren't actually handled.
+        final Map<String, String> originalParams = new HashMap<>(request.params());
+        return handlers.retrieveAll(getPath(request), () -> {
+            // PathTrie modifies the request, so reset the params between each iteration
+            request.params().clear();
+            request.params().putAll(originalParams);
+            return request.params();
+        });
     }
 
     /**
@@ -439,22 +411,16 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
     }
 
-    Optional<RestHandler> getHandler(RestRequest request, PathTrie.TrieMatchingMode trieMatchingMode) {
-        return Optional.ofNullable(handlers.retrieve(getPath(request), request.params(), trieMatchingMode))
-            .flatMap(mh -> mh.getHandler(request.method()));
-    }
-
     /**
      * Get the valid set of HTTP methods for a REST request.
      */
-    private Set<RestRequest.Method> getValidHandlerMethodSet(RestRequest request, PathTrie.TrieMatchingMode trieMatchingMode) {
-        String path = getPath(request);
-        MethodHandlers mHandlers = handlers.retrieve(path, request.params(), trieMatchingMode);
-        if (mHandlers != null) {
-            return mHandlers.getValidMethods();
-        } else {
-            return new HashSet<>();
+    private Set<RestRequest.Method> getValidHandlerMethodSet(RestRequest request) {
+        Set<RestRequest.Method> validMethods = new HashSet<>();
+        Iterator<MethodHandlers> allHandlers = getAllHandlers(request);
+        for (Iterator<MethodHandlers> it = allHandlers; it.hasNext(); ) {
+            Optional.ofNullable(it.next()).map(mh -> validMethods.addAll(mh.getValidMethods()));
         }
+        return validMethods;
     }
 
     private String getPath(RestRequest request) {

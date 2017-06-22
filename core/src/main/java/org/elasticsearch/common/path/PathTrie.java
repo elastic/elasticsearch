@@ -19,28 +19,36 @@
 
 package org.elasticsearch.common.path;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 public class PathTrie<T> {
-    
-    public enum TrieMatchingMode {
+
+    enum TrieMatchingMode {
         /*
-         * Retrieve only explicitly mapped nodes, no wildcards are 
+         * Retrieve only explicitly mapped nodes, no wildcards are
          * matched.
          */
         EXPLICIT_NODES_ONLY,
         /*
-         * Retrieve only explicitly mapped nodes, with wildcards 
+         * Retrieve only explicitly mapped nodes, with wildcards
          * allowed as root nodes.
          */
         WILDCARD_ROOT_NODES_ALLOWED,
         /*
-         * Retrieve only explicitly mapped nodes, with wildcards 
+         * Retrieve only explicitly mapped nodes, with wildcards
          * allowed as leaf nodes.
          */
         WILDCARD_LEAF_NODES_ALLOWED,
@@ -200,7 +208,7 @@ public class PathTrie<T> {
             String token = path[index];
             TrieNode node = children.get(token);
             boolean usedWildcard;
-            
+
             if (node == null) {
                 if (trieMatchingMode == TrieMatchingMode.WILDCARD_NODES_ALLOWED) {
                     node = children.get(wildcard);
@@ -239,7 +247,7 @@ public class PathTrie<T> {
                      */
                     node = children.get(wildcard);
                     usedWildcard = true;
-                } else if (index == 1 && node.value == null && children.get(wildcard) != null 
+                } else if (index == 1 && node.value == null && children.get(wildcard) != null
                         && trieMatchingMode == TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED) {
                     /*
                      * If we are at the root, and root wildcards are allowed, use the child wildcard
@@ -341,12 +349,59 @@ public class PathTrie<T> {
             return rootValue;
         }
         int index = 0;
-        
+
         // Supports initial delimiter.
         if (strings.length > 0 && strings[0].isEmpty()) {
             index = 1;
         }
-        
+
         return root.retrieve(strings, index, params, trieMatchingMode);
+    }
+
+    /**
+     * Returns an iterator of the objects stored in the {@code PathTrie}, using
+     * all possible {@code TrieMatchingMode} modes. The {@code paramSupplier}
+     * is called between each invocation of {@code next()} to supply a new map
+     * of parameters.
+     */
+    public Iterator<T> retrieveAll(String path, Supplier<Map<String, String>> paramSupplier) {
+        return new PathTrieIterator<>(this, path, paramSupplier);
+    }
+
+    class PathTrieIterator<T> implements Iterator<T> {
+
+        private final List<TrieMatchingMode> modes = new ArrayList<>(4);
+        private final Supplier<Map<String, String>> paramSupplier;
+        private final PathTrie<T> trie;
+        private final String path;
+
+        PathTrieIterator(PathTrie trie, String path, Supplier<Map<String, String>> paramSupplier) {
+            this.path = path;
+            this.trie = trie;
+            this.paramSupplier = paramSupplier;
+            modes.add(TrieMatchingMode.EXPLICIT_NODES_ONLY);
+            modes.add(TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
+            modes.add(TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED);
+            modes.add(TrieMatchingMode.WILDCARD_NODES_ALLOWED);
+            assert TrieMatchingMode.values().length == 4 : "missing trie matching mode";
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (modes.isEmpty() == false) {
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public T next() {
+            if (modes.isEmpty()) {
+                throw new NoSuchElementException("called next() without validating hasNext()! no more modes available");
+            }
+            TrieMatchingMode mode = modes.remove(0);
+            Map<String, String> params = paramSupplier.get();
+            return trie.retrieve(path, params, mode);
+        }
     }
 }

@@ -1963,7 +1963,7 @@ public class InternalEngineTests extends ESTestCase {
             final String formattedMessage = event.getMessage().getFormattedMessage();
             if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0] ")) {
                 if (event.getLoggerName().endsWith(".IW") &&
-                    formattedMessage.contains("IW: apply all deletes during flush")) {
+                    formattedMessage.contains("IW: now apply all deletes")) {
                     sawIndexWriterMessage = true;
                 }
                 if (event.getLoggerName().endsWith(".IFD")) {
@@ -2535,7 +2535,7 @@ public class InternalEngineTests extends ESTestCase {
         engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG));
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
-            assertThat(topDocs.totalHits, equalTo(0));
+            assertThat(topDocs.totalHits, equalTo(0L));
         }
     }
 
@@ -2626,7 +2626,7 @@ public class InternalEngineTests extends ESTestCase {
                 engine.refresh("test");
                 try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                     TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + numExtraDocs));
-                    assertThat(topDocs.totalHits, equalTo(numDocs + numExtraDocs));
+                    assertThat(topDocs.totalHits, equalTo((long) numDocs + numExtraDocs));
                 }
             }
             IOUtils.close(store, directory);
@@ -2694,14 +2694,14 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(result.getVersion(), equalTo(2L));
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
-            assertThat(topDocs.totalHits, equalTo(numDocs + 1));
+            assertThat(topDocs.totalHits, equalTo(numDocs + 1L));
         }
 
         engine.close();
         engine = createEngine(store, primaryTranslogDir);
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
-            assertThat(topDocs.totalHits, equalTo(numDocs + 1));
+            assertThat(topDocs.totalHits, equalTo(numDocs + 1L));
         }
         parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
         assertEquals(flush ? 1 : 2, parser.appliedOperations.get());
@@ -2714,7 +2714,7 @@ public class InternalEngineTests extends ESTestCase {
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs);
-            assertThat(topDocs.totalHits, equalTo(numDocs));
+            assertThat(topDocs.totalHits, equalTo((long) numDocs));
         }
     }
 

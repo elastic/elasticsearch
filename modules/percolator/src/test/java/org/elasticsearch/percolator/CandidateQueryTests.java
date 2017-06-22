@@ -40,7 +40,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
-import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
@@ -291,7 +290,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     private void duelRun(PercolateQuery.QueryStore queryStore, MemoryIndex memoryIndex, IndexSearcher shardSearcher) throws IOException {
         boolean requireScore = randomBoolean();
         IndexSearcher percolateSearcher = memoryIndex.createSearcher();
-        Query percolateQuery = fieldType.percolateQuery("type", queryStore, new BytesArray("{}"), percolateSearcher);
+        Query percolateQuery = fieldType.percolateQuery(queryStore, new BytesArray("{}"), percolateSearcher);
         Query query = requireScore ? percolateQuery : new ConstantScoreQuery(percolateQuery);
         TopDocs topDocs = shardSearcher.search(query, 10);
 

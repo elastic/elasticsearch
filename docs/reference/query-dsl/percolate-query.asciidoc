@@ -65,7 +65,6 @@ GET /my-index/_search
     "query" : {
         "percolate" : {
             "field" : "query",
-            "document_type" : "doc",
             "document" : {
                 "message" : "A new bonsai tree in the office"
             }
@@ -190,7 +189,6 @@ GET /my-index/_search
     "query" : {
         "percolate" : {
             "field": "query",
-            "document_type" : "doc",
             "index" : "my-index",
             "type" : "doc",
             "id" : "2",
@@ -261,7 +259,6 @@ GET /my-index/_search
     "query" : {
         "percolate" : {
             "field": "query",
-            "document_type" : "doc",
             "document" : {
                 "message" : "The quick brown fox jumps over the lazy dog"
             }

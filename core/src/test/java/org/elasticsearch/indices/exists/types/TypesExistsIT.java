@@ -18,15 +18,20 @@
  */
 package org.elasticsearch.indices.exists.types;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
@@ -37,10 +42,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBloc
 import static org.hamcrest.Matchers.equalTo;
 
 public class TypesExistsIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
+
     public void testSimple() throws Exception {
         Client client = client();
         CreateIndexResponse response1 = client.admin().indices().prepareCreate("test1")
-                .setSettings("index.mapping.single_type", false)
+                .setSettings("index.version.created", Version.V_5_6_0.id)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1").endObject().endObject())
                 .addMapping("type2", jsonBuilder().startObject().startObject("type2").endObject().endObject())
                 .execute().actionGet();

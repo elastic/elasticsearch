@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -344,5 +345,25 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(2, fields.length);
 
         assertEquals(randomDate.withZone(DateTimeZone.UTC).getMillis(), fields[0].numericValue().longValue());
+    }
+
+    public void testMergeDate() throws IOException {
+        String initMapping = XContentFactory.jsonBuilder().startObject().startObject("movie")
+            .startObject("properties")
+            .startObject("release_date").field("type", "date").field("format", "yyyy/MM/dd").endObject()
+            .endObject().endObject().endObject().string();
+        DocumentMapper initMapper = parser.parse("movie", new CompressedXContent(initMapping));
+
+        assertThat(initMapper.mappers().getMapper("release_date"), notNullValue());
+        assertFalse(initMapper.mappers().getMapper("release_date").fieldType().stored());
+
+        String updateFormatMapping = XContentFactory.jsonBuilder().startObject().startObject("movie")
+            .startObject("properties")
+            .startObject("release_date").field("type", "date").field("format", "epoch_millis").endObject()
+            .endObject().endObject().endObject().string();
+        DocumentMapper updateFormatMapper = parser.parse("movie", new CompressedXContent(updateFormatMapping));
+
+        Exception e = expectThrows(IllegalArgumentException.class, () -> initMapper.merge(updateFormatMapper.mapping(), false));
+        assertThat(e.getMessage(), containsString("date field's format cannot be updated"));
     }
 }

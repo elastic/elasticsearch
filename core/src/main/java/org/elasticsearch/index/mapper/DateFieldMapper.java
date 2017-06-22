@@ -492,7 +492,7 @@ public class DateFieldMapper extends FieldMapper {
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         final DateFieldMapper other = (DateFieldMapper) mergeWith;
         if (!this.fieldType().equals(other.fieldType()))
-            throw new IllegalArgumentException("date field cannot be updated");
+            throw new IllegalArgumentException("date field's format cannot be updated");
         super.doMerge(mergeWith, updateAllTypes);
         this.includeInAll = other.includeInAll;
         if (other.ignoreMalformed.explicit()) {

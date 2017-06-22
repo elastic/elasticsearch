@@ -149,6 +149,9 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      * @param methods GET, POST, etc.
      */
     public void registerHandler(String path, RestHandler handler, RestRequest.Method... methods) {
+        if (handler instanceof BaseRestHandler) {
+            usageService.addRestHandler((BaseRestHandler) handler);
+        }
         handlers.insertOrUpdate(path, new MethodHandlers(path, handler, methods), (mHandlers, newMHandler) -> {
             return mHandlers.addMethods(methods, handler);
         });

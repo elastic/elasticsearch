@@ -19,10 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.PluginInfo;
@@ -62,8 +60,6 @@ final class Spawner implements Closeable {
      * @throws IOException if an I/O error occurs reading the plugins or spawning a native process
      */
     void spawnNativePluginControllers(final Environment environment) throws IOException {
-        final Logger logger = Loggers.getLogger(getClass(), environment.settings());
-
         if (!spawned.compareAndSet(false, true)) {
             throw new IllegalStateException("native controllers already spawned");
         }
@@ -104,7 +100,22 @@ final class Spawner implements Closeable {
     private Process spawnNativePluginController(
             final Path spawnPath,
             final Path tmpPath) throws IOException {
-        final ProcessBuilder pb = new ProcessBuilder(spawnPath.toString());
+        final String command;
+        if (Constants.WINDOWS) {
+            /*
+             * We have to get the short path name or starting the process could fail due to max path limitations. The underlying issue here
+             * is that starting the process on Windows ultimately involves the use of CreateProcessW. CreateProcessW has a limitation that
+             * if its first argument (the application name) is null, then its second argument (the command line for the process to start) is
+             * restricted in length to 260 characters (cf. https://msdn.microsoft.com/en-us/library/windows/desktop/ms682425.aspx). Since
+             * this is exactly how the JDK starts the process on Windows (cf.
+             * http://hg.openjdk.java.net/jdk8/jdk8/jdk/file/687fd7c7986d/src/windows/native/java/lang/ProcessImpl_md.c#l319), this
+             * limitation is in force. As such, we use the short name to avoid any such problems.
+             */
+            command = Natives.getShortPathName(spawnPath.toString());
+        } else {
+            command = spawnPath.toString();
+        }
+        final ProcessBuilder pb = new ProcessBuilder(command);
 
         // the only environment variable passes on the path to the temporary directory
         pb.environment().clear();

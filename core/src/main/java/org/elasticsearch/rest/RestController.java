@@ -375,9 +375,15 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      * 10.4.6 - 405 Method Not Allowed</a>).
      */
     private void handleUnsupportedHttpMethod(RestRequest request, RestChannel channel, Set<RestRequest.Method> validMethodSet) {
-        BytesRestResponse bytesRestResponse = new BytesRestResponse(METHOD_NOT_ALLOWED, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
-        bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
-        channel.sendResponse(bytesRestResponse);
+        try {
+            BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(channel, METHOD_NOT_ALLOWED,
+                "Incorrect HTTP method for uri [" + request.uri() + "] and method [" + request.method() + "], allowed: " + validMethodSet);
+            bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
+            channel.sendResponse(bytesRestResponse);
+        } catch (final IOException e) {
+            logger.warn("failed to send bad request response", e);
+            channel.sendResponse(new BytesRestResponse(INTERNAL_SERVER_ERROR, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        }
     }
 
     /**

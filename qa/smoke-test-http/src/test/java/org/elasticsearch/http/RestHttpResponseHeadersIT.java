@@ -17,28 +17,16 @@
 
 package org.elasticsearch.http;
 
-import org.apache.http.Header;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpOptions;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 
-import java.net.InetSocketAddress;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -84,9 +72,11 @@ public class RestHttpResponseHeadersIT extends HttpSmokeTestCase {
             List<String> responseAllowHeaderStringArray =
                     Arrays.asList(response.getHeader("Allow").split(","));
             assertThat(responseAllowHeaderStringArray, containsInAnyOrder("GET"));
+            assertThat(EntityUtils.toString(response.getEntity()),
+                containsString("Incorrect HTTP method for uri [/_tasks] and method [DELETE], allowed: [GET]"));
         }
     }
-    
+
     /**
      * Test if a POST request to /{index}/_settings matches the update settings
      * handler for /{index}/_settings, and returns a 405 error (see
@@ -105,6 +95,10 @@ public class RestHttpResponseHeadersIT extends HttpSmokeTestCase {
             List<String> responseAllowHeaderStringArray =
                     Arrays.asList(response.getHeader("Allow").split(","));
             assertThat(responseAllowHeaderStringArray, containsInAnyOrder("PUT", "GET"));
+            assertThat(EntityUtils.toString(response.getEntity()),
+                containsString("Incorrect HTTP method for uri [/testindex/_settings] and method [POST], allowed:"));
+            assertThat(EntityUtils.toString(response.getEntity()), containsString("GET"));
+            assertThat(EntityUtils.toString(response.getEntity()), containsString("PUT"));
         }
     }
 

@@ -80,7 +80,8 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
 
     public void resync(IndexShard indexShard, ActionListener<ResyncTask> listener) throws IOException {
         try (Translog.View view = indexShard.acquireTranslogView()) {
-            Translog.Snapshot snapshot = view.snapshot();
+            final long startingSeqNo = indexShard.getGlobalCheckpoint() + 1;
+            Translog.Snapshot snapshot = view.snapshot(startingSeqNo);
             ShardId shardId = indexShard.shardId();
 
             // Wrap translog snapshot to make it synchronized as it is accessed by different threads through SnapshotSender.
@@ -104,7 +105,7 @@ public class PrimaryReplicaSyncer extends AbstractComponent {
             };
 
             resync(shardId, indexShard.routingEntry().allocationId().getId(), wrappedSnapshot,
-                indexShard.getGlobalCheckpoint() + 1, listener);
+                startingSeqNo, listener);
         }
     }
 

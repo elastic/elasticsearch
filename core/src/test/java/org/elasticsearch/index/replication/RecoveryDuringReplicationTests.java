@@ -35,6 +35,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -54,6 +55,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 
@@ -209,6 +211,41 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.recoverReplica(newReplica);
 
             shards.assertAllEqual(totalDocs);
+        }
+    }
+
+    @TestLogging("org.elasticsearch.index.shard:TRACE,org.elasticsearch.action.resync:TRACE")
+    public void testResyncAfterPrimaryPromotion() throws Exception {
+        // TODO: check translog trimming functionality once it's implemented
+        try (ReplicationGroup shards = createGroup(2)) {
+            shards.startAll();
+            int initialDocs = shards.indexDocs(randomInt(10));
+            boolean syncedGlobalCheckPoint = randomBoolean();
+            if (syncedGlobalCheckPoint) {
+                shards.syncGlobalCheckpoint();
+            }
+
+            final IndexShard oldPrimary = shards.getPrimary();
+            final IndexShard newPrimary = shards.getReplicas().get(0);
+            final IndexShard otherReplica = shards.getReplicas().get(1);
+
+            // simulate docs that were inflight when primary failed
+            final int extraDocs = randomIntBetween(0, 5);
+            logger.info("--> indexing {} extra docs", extraDocs);
+            for (int i = 0; i < extraDocs; i++) {
+                final IndexRequest indexRequest = new IndexRequest(index.getName(), "type", "extra_" + i)
+                    .source("{}", XContentType.JSON);
+                final BulkShardRequest bulkShardRequest = indexOnPrimary(indexRequest, oldPrimary);
+                indexOnReplica(bulkShardRequest, newPrimary);
+            }
+            logger.info("--> resyncing replicas");
+            PrimaryReplicaSyncer.ResyncTask task = shards.promoteReplicaToPrimary(newPrimary).get();
+            if (syncedGlobalCheckPoint) {
+                assertEquals(extraDocs, task.getResyncedOperations());
+            } else {
+                assertThat(task.getResyncedOperations(), greaterThanOrEqualTo(extraDocs));
+            }
+            shards.assertAllEqual(initialDocs + extraDocs);
         }
     }
 

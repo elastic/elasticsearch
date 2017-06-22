@@ -191,7 +191,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
     protected int doHashCode() {
         int hashCode = from;
         hashCode = 31 * hashCode + size;
-        hashCode = 31 * hashCode + topDocs.totalHits;
+        hashCode = 31 * hashCode + Long.hashCode(topDocs.totalHits);
         for (int d = 0; d < topDocs.scoreDocs.length; d++) {
             ScoreDoc doc = topDocs.scoreDocs[d];
             hashCode = 31 * hashCode + doc.doc;

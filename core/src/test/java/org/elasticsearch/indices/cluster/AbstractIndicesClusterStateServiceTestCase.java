@@ -19,11 +19,13 @@
 
 package org.elasticsearch.indices.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndex;
@@ -363,8 +366,9 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public void updatePrimaryTerm(long primaryTerm) {
-            term = primaryTerm;
+        public void updatePrimaryTerm(final long newPrimaryTerm,
+                                      CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer) {
+            term = newPrimaryTerm;
         }
 
         @Override

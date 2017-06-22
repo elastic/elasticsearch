@@ -381,6 +381,7 @@ task regen {
   doLast {
     // moves token files to grammar directory for use with IDE's
     ant.move(file: "${outputPath}/SqlBase.tokens", toDir: grammarPath)
+    ant.move(file: "${outputPath}/SqlBaseLexer.tokens", toDir: grammarPath)
     // make the generated classes package private
     ant.replaceregexp(match: 'public ((interface|class) \\QSqlBase\\E\\w+)',
                       replace: '\\1',

@@ -75,7 +75,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         if (syncNeeded) {
             assertTrue("Sync action was not called", syncActionCalled.get());
         }
-        assertEquals(numDocs, fut.get().getTotalOperations());
+        assertEquals(globalCheckPoint == numDocs - 1 ? 0 : numDocs, fut.get().getTotalOperations());
         if (syncNeeded) {
             long skippedOps = globalCheckPoint + 1; // everything up to global checkpoint included
             assertEquals(skippedOps, fut.get().getSkippedOperations());

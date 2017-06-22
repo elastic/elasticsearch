@@ -116,7 +116,7 @@ class DatafeedJob {
     }
 
     long runRealtime() throws Exception {
-        long start = lastEndTimeMs == null ? lookbackStartTimeMs : lastEndTimeMs + 1;
+        long start = lastEndTimeMs == null ? lookbackStartTimeMs : Math.max(lookbackStartTimeMs, lastEndTimeMs + 1);
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);

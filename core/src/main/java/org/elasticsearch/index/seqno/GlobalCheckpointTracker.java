@@ -360,8 +360,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                     : "local checkpoint [" + cursor.v2() + "] violates being at least the global checkpoint [" + globalCheckpoint + "]";
             updateLocalCheckpoint(cursor.v1(), cursor.v2());
             if (trackingLocalCheckpoints.containsKey(cursor.v1())) {
-                final long current = trackingLocalCheckpoints.remove(cursor.v1());
-                inSyncLocalCheckpoints.put(cursor.v1(), current);
+                moveAllocationIdFromTrackingToInSync(cursor.v1(), "relocation");
                 updateGlobalCheckpointOnPrimary();
             }
         }
@@ -418,20 +417,33 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
              */
             final long current = trackingLocalCheckpoints.getOrDefault(allocationId, Long.MIN_VALUE);
             if (current >= globalCheckpoint) {
-                logger.trace("marked [{}] as in-sync with local checkpoint [{}]", allocationId, current);
-                trackingLocalCheckpoints.remove(allocationId);
                 /*
                  * This is prematurely adding the allocation ID to the in-sync map as at this point recovery is not yet finished and could
                  * still abort. At this point we will end up with a shard in the in-sync map holding back the global checkpoint because the
                  * shard never recovered and we would have to wait until either the recovery retries and completes successfully, or the
                  * master fails the shard and issues a cluster state update that removes the shard from the set of active allocation IDs.
                  */
-                inSyncLocalCheckpoints.put(allocationId, current);
+                moveAllocationIdFromTrackingToInSync(allocationId, "recovery");
                 break;
             } else {
                 waitForLocalCheckpointToAdvance();
             }
         }
+    }
+
+    /**
+     * Moves a tracking allocation ID to be in-sync. This can occur when a shard is recovering from the primary and its local checkpoint has
+     * advanced past the global checkpoint, or during relocation hand-off when the relocation target learns of an in-sync shard from the
+     * relocation source.
+     *
+     * @param allocationId the allocation ID to move
+     * @param reason       the reason for the transition
+     */
+    private synchronized void moveAllocationIdFromTrackingToInSync(final String allocationId, final String reason) {
+        assert trackingLocalCheckpoints.containsKey(allocationId);
+        final long current = trackingLocalCheckpoints.remove(allocationId);
+        inSyncLocalCheckpoints.put(allocationId, current);
+        logger.trace("marked [{}] as in-sync with local checkpoint [{}] due to [{}]", allocationId, current, reason);
     }
 
     /**

@@ -19,11 +19,13 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -56,6 +58,7 @@ public class ReindexParentChildTests extends ReindexTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(ParentJoinPlugin.class);
+        plugins.add(InternalSettingsPlugin.class);
         return Collections.unmodifiableList(plugins);
     }
 
@@ -116,7 +119,7 @@ public class ReindexParentChildTests extends ReindexTestCase {
      */
     private void createParentChildIndex(String indexName) throws Exception {
         CreateIndexRequestBuilder create = client().admin().indices().prepareCreate(indexName);
-        create.setSettings("index.mapping.single_type", false);
+        create.setSettings("index.version.created", Version.V_5_6_0.id);
         create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}", XContentType.JSON);
         create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}", XContentType.JSON);
         assertAcked(create);

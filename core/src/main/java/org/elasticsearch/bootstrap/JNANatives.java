@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
+import com.sun.jna.WString;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.logging.Loggers;
@@ -191,6 +192,35 @@ class JNANatives {
             if (process != null) {
                 kernel.CloseHandle(process);
             }
+        }
+    }
+
+    /**
+     * Retrieves the short path form of the specified path.
+     *
+     * @param path the path
+     * @return the short path name (or the original path if getting the short path name fails for any reason)
+     */
+    static String getShortPathName(String path) {
+        assert Constants.WINDOWS;
+        try {
+            final WString longPath = new WString("\\\\?\\" + path);
+            // first we get the length of the buffer needed
+            final int length = JNAKernel32Library.getInstance().GetShortPathNameW(longPath, null, 0);
+            if (length == 0) {
+                logger.warn("failed to get short path name: {}", Native.getLastError());
+                return path;
+            }
+            final char[] shortPath = new char[length];
+            // knowing the length of the buffer, now we get the short name
+            if (JNAKernel32Library.getInstance().GetShortPathNameW(longPath, shortPath, length) > 0) {
+                return Native.toString(shortPath);
+            } else {
+                logger.warn("failed to get short path name: {}", Native.getLastError());
+                return path;
+            }
+        } catch (final UnsatisfiedLinkError e) {
+            return path;
         }
     }
 

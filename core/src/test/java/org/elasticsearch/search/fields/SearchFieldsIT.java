@@ -865,15 +865,11 @@ public class SearchFieldsIT extends ESIntegTestCase {
     }
 
     public void testLoadMetadata() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings("index.version.created", Version.V_5_6_0.id)
-                .addMapping("parent")
-                .addMapping("my-type1", "_parent", "type=parent"));
+        assertAcked(prepareCreate("test"));
 
         indexRandom(true,
-                client().prepareIndex("test", "my-type1", "1")
+                client().prepareIndex("test", "doc", "1")
                         .setRouting("1")
-                        .setParent("parent_1")
                         .setSource(jsonBuilder().startObject().field("field1", "value").endObject()));
 
         SearchResponse response = client().prepareSearch("test").addStoredField("field1").get();
@@ -885,7 +881,5 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(fields.get("field1"), nullValue());
         assertThat(fields.get("_routing").isMetadataField(), equalTo(true));
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
-        assertThat(fields.get("_parent").isMetadataField(), equalTo(true));
-        assertThat(fields.get("_parent").getValue().toString(), equalTo("parent_1"));
     }
 }

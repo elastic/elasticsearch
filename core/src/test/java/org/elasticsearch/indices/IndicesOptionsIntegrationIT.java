@@ -566,6 +566,39 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(client().admin().indices().preparePutMapping("_all").setType("type1").setSource("field", "type=text"), true);
 
         for (String index : Arrays.asList("foo", "foobar", "bar", "barbaz")) {
+            assertAcked(prepareCreate(index));
+        }
+
+        verify(client().admin().indices().preparePutMapping("foo").setType("type").setSource("field", "type=text"), false);
+        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type"), notNullValue());
+        verify(client().admin().indices().preparePutMapping("b*").setType("type").setSource("field", "type=text"), false);
+        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type"), notNullValue());
+        verify(client().admin().indices().preparePutMapping("_all").setType("type").setSource("field", "type=text"), false);
+        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type"), notNullValue());
+        verify(client().admin().indices().preparePutMapping().setType("type").setSource("field", "type=text"), false);
+        assertThat(client().admin().indices().prepareGetMappings("foo").get().mappings().get("foo").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("foobar").get().mappings().get("foobar").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("bar").get().mappings().get("bar").get("type"), notNullValue());
+        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type"), notNullValue());
+
+
+        verify(client().admin().indices().preparePutMapping("c*").setType("type").setSource("field", "type=text"), true);
+
+        assertAcked(client().admin().indices().prepareClose("barbaz").get());
+        verify(client().admin().indices().preparePutMapping("barbaz").setType("type").setSource("field", "type=text"), false);
+        assertThat(client().admin().indices().prepareGetMappings("barbaz").get().mappings().get("barbaz").get("type"), notNullValue());
+    }
+
+    public void testPutMappingMultiType() throws Exception {
+        assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
+        verify(client().admin().indices().preparePutMapping("foo").setType("type1").setSource("field", "type=text"), true);
+        verify(client().admin().indices().preparePutMapping("_all").setType("type1").setSource("field", "type=text"), true);
+
+        for (String index : Arrays.asList("foo", "foobar", "bar", "barbaz")) {
             assertAcked(prepareCreate(index).setSettings("index.version.created", Version.V_5_6_0.id)); // allows for multiple types
         }
 

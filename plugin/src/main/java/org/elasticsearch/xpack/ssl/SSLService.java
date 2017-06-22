@@ -250,15 +250,10 @@ public class SSLService extends AbstractComponent {
 
     /**
      * Returns whether the provided settings results in a valid configuration that can be used for server connections
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix
-     * @param useTransportFallback if {@code true} this will use the transport configuration for fallback, otherwise the global
-     *                             configuration will be used
+     * @param sslConfiguration the configuration to check
      */
-    public boolean isConfigurationValidForServerUsage(Settings settings, boolean useTransportFallback) {
-        SSLConfiguration fallback = useTransportFallback ? transportSSLConfiguration.get() : globalSSLConfiguration;
-        SSLConfiguration sslConfiguration = new SSLConfiguration(settings, fallback);
-        return sslConfiguration.keyConfig() != KeyConfig.NONE
-                || (useTransportFallback && transportSSLConfiguration.get().keyConfig() == KeyConfig.NONE);
+    public boolean isConfigurationValidForServerUsage(SSLConfiguration sslConfiguration) {
+        return sslConfiguration.keyConfig() != KeyConfig.NONE;
     }
 
     /**

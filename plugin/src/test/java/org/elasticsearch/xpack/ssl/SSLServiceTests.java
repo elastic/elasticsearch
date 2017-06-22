@@ -157,10 +157,6 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(sslEngine, notNullValue());
     }
 
-    public void testCreateWithoutAnySettingsValidForServer() throws Exception {
-        SSLService sslService = new SSLService(Settings.EMPTY, env);
-        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, true));
-    }
 
     public void testCreateWithKeystoreIsValidForServer() throws Exception {
         Settings settings = Settings.builder()
@@ -168,7 +164,8 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.keystore.password", "testnode")
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, false));
+
+        assertTrue(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(Settings.EMPTY)));
     }
 
     public void testValidForServerWithFallback() throws Exception {
@@ -177,8 +174,7 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.truststore.password", "testnode")
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        // transport is valid in default config
-        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, true));
+        assertFalse(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(Settings.EMPTY)));
 
         settings = Settings.builder()
                 .put("xpack.ssl.truststore.path", testnodeStore)
@@ -187,10 +183,10 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.security.transport.ssl.keystore.password", "testnode")
                 .build();
         sslService = new SSLService(settings, env);
-        assertFalse(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, false));
-        assertTrue(sslService.isConfigurationValidForServerUsage(
-                settings.getByPrefix("xpack.security.transport.ssl."), false));
-        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, true));
+        assertFalse(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(Settings.EMPTY)));
+        assertTrue(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(
+                settings.getByPrefix("xpack.security.transport.ssl."))));
+        assertFalse(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(Settings.EMPTY)));
     }
 
     public void testGetVerificationMode() throws Exception {

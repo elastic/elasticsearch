@@ -21,7 +21,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
-import org.elasticsearch.xpack.security.transport.ServerTransportFilter;
 import org.elasticsearch.xpack.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -64,13 +63,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
             final Settings profileSslSettings = profileSslSettings(profileSettings);
             SSLConfiguration configuration =  sslService.sslConfiguration(profileSslSettings, transportSSLSettings);
             profileConfiguration.put(entry.getKey(), configuration);
-            assert sslService.isConfigurationValidForServerUsage(profileSslSettings, true) :
-            "the ssl configuration is not valid for server use but we are running as a server. this should have been caught by" +
-                    " the key config validation";
         }
 
         if (profileConfiguration.containsKey(TransportSettings.DEFAULT_PROFILE) == false) {
             profileConfiguration.put(TransportSettings.DEFAULT_PROFILE, sslConfiguration);
+
         }
 
         this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);

@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
@@ -120,7 +121,9 @@ final class StoreRecovery {
                     final Directory directory = indexShard.store().directory(); // don't close this directory!!
                     final Directory[] sources = shards.stream().map(LocalShardSnapshot::getSnapshotDirectory).toArray(Directory[]::new);
                     final long maxSeqNo = shards.stream().mapToLong(LocalShardSnapshot::maxSeqNo).max().getAsLong();
-                    addIndices(indexShard.recoveryState().getIndex(), directory, indexSort, sources, maxSeqNo);
+                    final long maxUnsafeAutoIdTimestamp =
+                            shards.stream().mapToLong(LocalShardSnapshot::maxUnsafeAutoIdTimestamp).max().getAsLong();
+                    addIndices(indexShard.recoveryState().getIndex(), directory, indexSort, sources, maxSeqNo, maxUnsafeAutoIdTimestamp);
                     internalRecoverFromStore(indexShard);
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
@@ -139,7 +142,8 @@ final class StoreRecovery {
             final Directory target,
             final Sort indexSort,
             final Directory[] sources,
-            final long maxSeqNo) throws IOException {
+            final long maxSeqNo,
+            final long maxUnsafeAutoIdTimestamp) throws IOException {
         final Directory hardLinkOrCopyTarget = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
         IndexWriterConfig iwc = new IndexWriterConfig(null)
             .setCommitOnClose(false)
@@ -162,6 +166,7 @@ final class StoreRecovery {
                 final HashMap<String, String> liveCommitData = new HashMap<>(2);
                 liveCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
                 liveCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
+                liveCommitData.put(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(maxUnsafeAutoIdTimestamp));
                 return liveCommitData.entrySet().iterator();
             });
             writer.commit();

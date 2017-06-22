@@ -301,7 +301,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     private static ParsedDocument testParsedDocument(String id, String routing, Document document, BytesReference source, Mapping mappingUpdate) {
-        Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
+        Field uidField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(uidField);
@@ -2344,11 +2344,11 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     protected Term newUid(String id) {
-        return new Term("_id", id);
+        return new Term("_id", Uid.encodeId(id));
     }
 
     protected Term newUid(ParsedDocument doc) {
-        return new Term("_id", doc.id());
+        return newUid(doc.id());
     }
 
     protected Engine.Get newGet(boolean realtime, ParsedDocument doc) {
@@ -2809,6 +2809,7 @@ public class InternalEngineTests extends ESTestCase {
                     final Translog.Index index = (Translog.Index) operation;
                     final String indexName = mapperService.index().getName();
                     final Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()),
+                            mapperService.getIndexSettings().getIndexVersionCreated(),
                         source(indexName, index.type(), index.id(), index.source(), XContentFactory.xContentType(index.source()))
                             .routing(index.routing()).parent(index.parent()), index.seqNo(), index.primaryTerm(),
                         index.version(), index.versionType().versionTypeForReplicationAndRecovery(), origin,

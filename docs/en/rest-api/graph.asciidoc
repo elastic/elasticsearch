@@ -1,8 +1,10 @@
+[role="xpack"]
 [[graph-api]]
 == Graph APIs
 
-//TO-DO: Update link:
-See {xpack-ref}/xpack-api.html[X-Pack APIs].
+The Graph "explore" API is accessible via the
+`/_xpack/graph/_explore` endpoint.
+See {kibana}/graph-api-explore.html[Explore API].
 
 //* <<graph-api-explore>>
 

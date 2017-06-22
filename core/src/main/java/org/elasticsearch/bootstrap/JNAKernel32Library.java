@@ -229,9 +229,8 @@ final class JNAKernel32Library {
      * <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa364989.aspx">{@code GetShortPathName}</a>.
      *
      * @param lpszLongPath  the path string
-     * @param lpszShortPath a pointer to a buffer to receive the null-terminated short form of the path that {@code lpszLongPath} specifies;
-     *                      passing null and zero for the size of the buffer returns the required buffer size
-     * @param cchBuffer     the size of the buffer that {@code lpszShortPath} points to (zero if {@code lpszShortPath} is null)
+     * @param lpszShortPath a buffer to receive the short name
+     * @param cchBuffer     the size of the buffer
      * @return the length of the string copied into {@code lpszShortPath}, otherwise zero for failure
      */
     native int GetShortPathNameW(WString lpszLongPath, char[] lpszShortPath, int cchBuffer);

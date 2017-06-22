@@ -258,13 +258,10 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(currentStateBlocks.indexBlocked(eq(ClusterBlockLevel.WRITE), eq("source_idx"))).thenReturn(true);
         reqSettings.put(SETTING_NUMBER_OF_SHARDS, 1);
 
-        executeTask();
+        final ClusterState result = executeTask();
 
-        // @todo check values
+
     }
-
-    // @todo test for blocks
-    // @todo test templates not applied when shrink
 
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {
         final IndexRoutingTable idxRoutingTable = mock(IndexRoutingTable.class);

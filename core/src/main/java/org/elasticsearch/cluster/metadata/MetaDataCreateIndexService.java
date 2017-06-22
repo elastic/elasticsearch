@@ -167,29 +167,20 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 final Index shrinkFromIndex = request.shrinkFrom();
                 final Map<String, Custom> customs = new HashMap<>(request.customs());
                 // add the request mapping
-                final Map<String, Map<String, Object>> mappings = new HashMap<>();
-                final List<String> templateNames = new ArrayList<>();
-
-                for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-                    mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
-                }
-
-                // @todo we could skip this call for shrinked index
-                final Map<String, AliasMetaData> templatesAliases = new HashMap<>();
+                final Map<String, Map<String, Object>> mappings = getRequestMappings();
                 // we only find a template when its an API call (a new index)
                 // find templates, highest order are better matching
                 final List<IndexTemplateMetaData> templates = findTemplates(request, currentState);
+                final List<String> templateNames = new ArrayList<>();
+                final Map<String, AliasMetaData> templatesAliases = new HashMap<>();
 
-                // @todo apply this block only for non-shrink
                 // apply templates, merging the mappings into the request mapping if exists
                 if (shrinkFromIndex == null) {
                     fillFromTemplates(currentState, customs, mappings, templateNames, templatesAliases, templates);
                 }
 
-                // @todo templates is passed inside
-                Settings.Builder indexSettingsBuilder = getSettingsBuilder(request, currentState, templates);
+                final Settings.Builder indexSettingsBuilder = getSettingsBuilder(request, currentState, templates);
 
-                // @todo if condition for is_shrink for second time
                 if (shrinkFromIndex != null) {
                     prepareShrinkIndexSettings(currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex, request.index());
                 }
@@ -197,7 +188,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 final Settings actualIndexSettings = indexSettingsBuilder.build();
                 final int routingNumShards = getRoutingShardNum(shrinkFromIndex, currentState, actualIndexSettings);
 
-                IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index())
+                final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index())
                     .setRoutingNumShards(routingNumShards)
                     .settings(actualIndexSettings);
 
@@ -207,11 +198,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 // Set up everything, now locally create the index to see that things are ok, and apply
                 final IndexMetaData tmpImd = tmpImdBuilder.build();
-                ActiveShardCount waitForActiveShards = request.waitForActiveShards();
-                if (waitForActiveShards == ActiveShardCount.DEFAULT) {
-                    waitForActiveShards = tmpImd.getWaitForActiveShards();
-                }
-                if (!waitForActiveShards.validate(tmpImd.getNumberOfReplicas())) {
+
+                if (!getWaitForActiveShards(tmpImd).validate(tmpImd.getNumberOfReplicas())) {
                     throw new IllegalArgumentException("invalid wait_for_active_shards[" + request.waitForActiveShards() +
                         "]: cannot be greater than number of shard copies [" +
                         (tmpImd.getNumberOfReplicas() + 1) + "]");
@@ -219,6 +207,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 // create the index here (on the master) to validate it can be created, as well as adding the mapping
                 final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList());
                 createdIndex = indexService.index();
+
                 // now add the mappings
                 final MapperService mapperService = indexService.mapperService();
 
@@ -229,41 +218,17 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     throw e;
                 }
 
-                // @todo third if for shrink
                 if (request.shrinkFrom() == null) {
+                    // now that the mapping is merged we can validate the index sort.
+                    // we cannot validate for index shrinking since the mapping is empty
+                    // at this point. The validation will take place later in the process
+                    // (when all shards are copied in a single place).
                     validateIndexSort(indexService);
                 }
 
-                // the context is only used for validation so it's fine to pass fake values for the shard id and the current
-                // timestamp
-                final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
-
-                request
-                    .aliases()
-                    .stream()
-                    .filter(alias -> Strings.hasLength(alias.filter()))
-                    .forEach(alias -> aliasValidator.validateAliasFilter(alias.name(), alias.filter(),
-                        queryShardContext, xContentRegistry)
-                    );
-
+                final Set<AliasMetaData> aliasesMetaData = getAliasMetaData(templatesAliases, indexService);
                 // now, update the mappings with the actual source
-                final Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
-                for (DocumentMapper mapper : mapperService.docMappers(true)) {
-                    MappingMetaData mappingMd = new MappingMetaData(mapper);
-                    mappingsMetaData.put(mapper.type(), mappingMd);
-                }
-
-                templatesAliases
-                    .values()
-                    .stream()
-                    .filter(aliasMetaData -> aliasMetaData.filter() != null)
-                    .forEach(aliasMetaData -> aliasValidator.validateAliasFilter(aliasMetaData.alias(),
-                        aliasMetaData.filter().uncompressed(), queryShardContext, xContentRegistry)
-                    );
-
-                final Set<AliasMetaData> aliasesMetaData = getAliasesMetadata(request.aliases());
-                // @todo call to templates
-                aliasesMetaData.addAll(templatesAliases.values());
+                final Map<String, MappingMetaData> mappingsMetaData = getMappingsMetaData(mapperService);
 
                 final IndexMetaData.Builder indexMetaDataBuilder = createMetaDataBuilder(request.index(), actualIndexSettings,
                     routingNumShards, mappingsMetaData, request.state(), aliasesMetaData, customs, tmpImd);
@@ -282,18 +247,11 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     .put(indexMetaData, false)
                     .build();
 
-                // @todo templateNames
                 logger.info("[{}] creating index, cause [{}], templates {}, shards [{}]/[{}], mappings {}",
                     request.index(), request.cause(), templateNames, indexMetaData.getNumberOfShards(),
                     indexMetaData.getNumberOfReplicas(), mappings.keySet());
 
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                if (!request.blocks().isEmpty()) {
-                    for (ClusterBlock block : request.blocks()) {
-                        blocks.addIndexBlock(request.index(), block);
-                    }
-                }
-                blocks.updateBlocks(indexMetaData);
+                final ClusterBlocks.Builder blocks = getClusterBlocksBuilder(currentState, indexMetaData);
 
                 ClusterState updatedState = ClusterState.builder(currentState).blocks(blocks).metaData(newMetaData).build();
 
@@ -315,6 +273,60 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
+        private ClusterBlocks.Builder getClusterBlocksBuilder(ClusterState currentState, IndexMetaData indexMetaData) {
+            final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+            if (!request.blocks().isEmpty()) {
+                for (ClusterBlock block : request.blocks()) {
+                    blocks.addIndexBlock(request.index(), block);
+                }
+            }
+            blocks.updateBlocks(indexMetaData);
+            return blocks;
+        }
+
+        private Map<String, Map<String, Object>> getRequestMappings() throws Exception {
+            final Map<String, Map<String, Object>> mappings = new HashMap<>();
+            for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
+                mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
+            }
+            return mappings;
+        }
+
+        private Map<String, MappingMetaData> getMappingsMetaData(MapperService mapperService) {
+            final Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
+            for (DocumentMapper mapper : mapperService.docMappers(true)) {
+                mappingsMetaData.put(mapper.type(), new MappingMetaData(mapper));
+            }
+            return mappingsMetaData;
+        }
+
+        private ActiveShardCount getWaitForActiveShards(IndexMetaData tmpImd) {
+            if (request.waitForActiveShards() == ActiveShardCount.DEFAULT) {
+                return tmpImd.getWaitForActiveShards();
+            }
+
+            return request.waitForActiveShards();
+        }
+
+        private Set<AliasMetaData> getAliasMetaData(Map<String, AliasMetaData> templatesAliases, IndexService indexService) {
+            // the context is only used for validation so it's fine to pass fake values for the shard id and the current
+            // timestamp
+            final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
+
+            final Set<AliasMetaData> aliasesMetaData = aliasesToMetaData(request.aliases());
+            aliasesMetaData.addAll(templatesAliases.values());
+
+            aliasesMetaData
+                .stream()
+                .filter(aliasMetaData -> aliasMetaData.filter() != null)
+                .forEach(aliasMetaData -> aliasValidator.validateAliasFilter(
+                    aliasMetaData.alias(), aliasMetaData.filter().uncompressed(),
+                    queryShardContext, xContentRegistry)
+                );
+
+            return aliasesMetaData;
+        }
+
         private void applyPrimaryTermFromSource(ClusterState currentState, Index shrinkFromIndex, IndexMetaData.Builder tmpImdBuilder) {
             /*
             * We need to arrange that the primary term on all the shards in the shrunken index is at least as large as
@@ -333,10 +345,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
 
         private void validateIndexSort(IndexService indexService) {
-            // now that the mapping is merged we can validate the index sort.
-            // we cannot validate for index shrinking since the mapping is empty
-            // at this point. The validation will take place later in the process
-            // (when all shards are copied in a single place).
             indexService.getIndexSortSupplier().get();
         }
 
@@ -352,7 +360,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
 
         private int getRoutingShardNum(Index shrinkFromIndex, ClusterState currentState, Settings settings) {
-            // @todo move if block to ShrinkIndexCreationTask
             if (shrinkFromIndex != null) {
                 return currentState.metaData().getIndexSafe(shrinkFromIndex).getRoutingNumShards();
             }
@@ -399,7 +406,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        // @todo move to separate class
         private void fillMappingsFromTemplate(Map<String, Map<String, Object>> mappings, IndexTemplateMetaData template) throws Exception {
             for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
                 String mappingString = cursor.value.string();
@@ -413,7 +419,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        private Set<AliasMetaData> getAliasesMetadata(Set<Alias> aliases) {
+        static private Set<AliasMetaData> aliasesToMetaData(Set<Alias> aliases) {
             return aliases
                 .stream().map(alias -> AliasMetaData
                         .builder(alias.name())
@@ -449,7 +455,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             return StreamSupport.stream(iterable.spliterator(), false);
         }
 
-        // @todo move to custom class
         private List<IndexTemplateMetaData> findTemplates(CreateIndexClusterStateUpdateRequest request,
                                                           ClusterState state) throws IOException {
             return asStream(state.metaData().templates().values().iterator())
@@ -462,7 +467,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         private Settings.Builder getSettingsBuilder(CreateIndexClusterStateUpdateRequest request, ClusterState currentState,
                                                     List<IndexTemplateMetaData> templates) {
             Settings.Builder indexSettingsBuilder = Settings.builder();
-            // @todo extract templates from this method
             // apply templates, here, in reverse order, since first ones are better matching
             for (int i = templates.size() - 1; i >= 0; i--) {
                 indexSettingsBuilder.put(templates.get(i).settings());
@@ -510,18 +514,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             super.onFailure(source, e);
         }
     }
-
-    static class ShrinkIndexCreationTask extends IndexCreationTask {
-
-        ShrinkIndexCreationTask (Logger logger, AllocationService allocationService, CreateIndexClusterStateUpdateRequest request,
-                                                         ActionListener<ClusterStateUpdateResponse> listener, IndicesService indicesService,
-                                                         AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
-                                                         Settings settings, IndexValidator validator) {
-            super(logger, allocationService, request, listener, indicesService, aliasValidator, xContentRegistry, settings, validator);
-        }
-
-    }
-
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,

@@ -26,6 +26,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A mock implementation of secure settings for tests to use.
@@ -35,6 +36,7 @@ public class MockSecureSettings implements SecureSettings {
     private Map<String, SecureString> secureStrings = new HashMap<>();
     private Map<String, byte[]> files = new HashMap<>();
     private Set<String> settingNames = new HashSet<>();
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
     @Override
     public boolean isLoaded() {
@@ -48,24 +50,36 @@ public class MockSecureSettings implements SecureSettings {
 
     @Override
     public SecureString getString(String setting) {
+        ensureOpen();
         return secureStrings.get(setting);
     }
 
     @Override
     public InputStream getFile(String setting) {
+        ensureOpen();
         return new ByteArrayInputStream(files.get(setting));
     }
 
     public void setString(String setting, String value) {
+        ensureOpen();
         secureStrings.put(setting, new SecureString(value.toCharArray()));
         settingNames.add(setting);
     }
 
     public void setFile(String setting, byte[] value) {
+        ensureOpen();
         files.put(setting, value);
         settingNames.add(setting);
     }
 
     @Override
-    public void close() throws IOException {}
+    public void close() throws IOException {
+        closed.set(true);
+    }
+
+    private void ensureOpen() {
+        if (closed.get()) {
+            throw new IllegalStateException("secure settings are already closed");
+        }
+    }
 }

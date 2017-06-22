@@ -28,6 +28,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -162,7 +163,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             checkParentFields(name(), parentIdFields);
             MetaJoinFieldMapper unique = new MetaJoinFieldMapper.Builder().build(context);
             return new ParentJoinFieldMapper(name, fieldType, context.indexSettings(),
-                unique, Collections.unmodifiableList(parentIdFields));
+                unique, Collections.unmodifiableList(parentIdFields), eagerGlobalOrdinals);
         }
     }
 
@@ -183,15 +184,21 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                     iterator.remove();
                     continue;
                 }
-                final String parent = entry.getKey();
-                Set<String> children;
-                if (XContentMapValues.isArray(entry.getValue())) {
-                    children = new HashSet<>(Arrays.asList(XContentMapValues.nodeStringArrayValue(entry.getValue())));
-                } else {
-                    children = Collections.singleton(entry.getValue().toString());
+                if ("relations".equals(entry.getKey())) {
+                    Map<String, Object> relations = XContentMapValues.nodeMapValue(entry.getValue(), "relations");
+                    for (Iterator<Map.Entry<String, Object>> relIt = relations.entrySet().iterator(); relIt.hasNext(); ) {
+                        Map.Entry<String, Object> relation = relIt.next();
+                        final String parent = relation.getKey();
+                        Set<String> children;
+                        if (XContentMapValues.isArray(relation.getValue())) {
+                            children = new HashSet<>(Arrays.asList(XContentMapValues.nodeStringArrayValue(relation.getValue())));
+                        } else {
+                            children = Collections.singleton(relation.getValue().toString());
+                        }
+                        builder.addParent(parent, children);
+                    }
+                    iterator.remove();
                 }
-                builder.addParent(parent, children);
-                iterator.remove();
             }
             return builder;
         }
@@ -235,16 +242,19 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     // The meta field that ensures that there is no other parent-join in the mapping
     private MetaJoinFieldMapper uniqueFieldMapper;
     private List<ParentIdFieldMapper> parentIdFields;
+    private boolean eagerGlobalOrdinals;
 
     protected ParentJoinFieldMapper(String simpleName,
                                     MappedFieldType fieldType,
                                     Settings indexSettings,
                                     MetaJoinFieldMapper uniqueFieldMapper,
-                                    List<ParentIdFieldMapper> parentIdFields) {
+                                    List<ParentIdFieldMapper> parentIdFields,
+                                    boolean eagerGlobalOrdinals) {
         super(simpleName, fieldType, Defaults.FIELD_TYPE, indexSettings, MultiFields.empty(), null);
         this.parentIdFields = parentIdFields;
         this.uniqueFieldMapper = uniqueFieldMapper;
         this.uniqueFieldMapper.setFieldMapper(this);
+        this.eagerGlobalOrdinals = eagerGlobalOrdinals;
     }
 
     @Override
@@ -337,6 +347,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         if (conflicts.isEmpty() == false) {
             throw new IllegalStateException("invalid update for join field [" + name() + "]:\n" + conflicts.toString());
         }
+        this.eagerGlobalOrdinals = joinMergeWith.eagerGlobalOrdinals;
         this.parentIdFields = Collections.unmodifiableList(newParentIdFields);
         this.uniqueFieldMapper = (MetaJoinFieldMapper) uniqueFieldMapper.merge(joinMergeWith.uniqueFieldMapper, updateAllTypes);
         uniqueFieldMapper.setFieldMapper(this);
@@ -423,6 +434,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     @Override
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
         builder.field("type", contentType());
+        builder.field("eager_global_ordinals", eagerGlobalOrdinals);
+        builder.startObject("relations");
         for (ParentIdFieldMapper field : parentIdFields) {
             if (field.getChildren().size() == 1) {
                 builder.field(field.getParentName(), field.getChildren().iterator().next());
@@ -430,6 +443,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
                 builder.field(field.getParentName(), field.getChildren());
             }
         }
+        builder.endObject();
     }
 
 }

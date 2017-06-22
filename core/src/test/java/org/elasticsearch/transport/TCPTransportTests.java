@@ -224,8 +224,9 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) throws IOException {
-                    return new NodeChannels(node, new Object[profile.getNumConnections()], profile, c -> {});
+                protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile,
+                                                         Consumer onChannelClose) throws IOException {
+                    return new NodeChannels(node, new Object[profile.getNumConnections()], profile);
                 }
 
                 @Override
@@ -234,14 +235,14 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                public long serverOpen() {
+                public long getNumOpenServerConnections() {
                     return 0;
                 }
 
                 @Override
                 public NodeChannels getConnection(DiscoveryNode node) {
                     return new NodeChannels(node, new Object[MockTcpTransport.LIGHT_PROFILE.getNumConnections()],
-                        MockTcpTransport.LIGHT_PROFILE, c -> {});
+                        MockTcpTransport.LIGHT_PROFILE);
                 }
             };
             DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);

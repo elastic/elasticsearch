@@ -89,6 +89,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -117,9 +118,9 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.shard.TranslogOpToEngineOpConverter;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
@@ -180,6 +181,8 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANS
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.elasticsearch.index.mapper.SourceToParse.source;
+import static org.elasticsearch.index.translog.TranslogDeletionPolicyTests.createTranslogDeletionPolicy;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -336,7 +339,7 @@ public class InternalEngineTests extends ESTestCase {
 
     protected Translog createTranslog(Path translogPath) throws IOException {
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE);
-        return new Translog(translogConfig, null, new TranslogDeletionPolicy(), () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        return new Translog(translogConfig, null, createTranslogDeletionPolicy(INDEX_SETTINGS), () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
     }
 
     protected InternalEngine createEngine(Store store, Path translogPath) throws IOException {
@@ -2715,8 +2718,7 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    public static class TranslogHandler extends TranslogOpToEngineOpConverter
-        implements EngineConfig.TranslogRecoveryRunner {
+    public static class TranslogHandler implements EngineConfig.TranslogRecoveryRunner {
 
         private final MapperService mapperService;
         public Mapping mappingUpdate = null;
@@ -2724,7 +2726,6 @@ public class InternalEngineTests extends ESTestCase {
         private final AtomicLong appliedOperations = new AtomicLong();
 
         public TranslogHandler(NamedXContentRegistry xContentRegistry, IndexSettings indexSettings) {
-            super(new ShardId("test", "_na_", 0), null);
             NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
             IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultAnalyzer, defaultAnalyzer, Collections.emptyMap(), Collections.emptyMap());
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
@@ -2733,8 +2734,7 @@ public class InternalEngineTests extends ESTestCase {
                 () -> null);
         }
 
-        @Override
-        protected DocumentMapperForType docMapper(String type) {
+        private DocumentMapperForType docMapper(String type) {
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type);
             DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
             return new DocumentMapperForType(b.build(mapperService), mappingUpdate);
@@ -2779,6 +2779,33 @@ public class InternalEngineTests extends ESTestCase {
             }
             return opsRecovered;
         }
+
+        private Engine.Operation convertToEngineOp(Translog.Operation operation, Engine.Operation.Origin origin) {
+            switch (operation.opType()) {
+                case INDEX:
+                    final Translog.Index index = (Translog.Index) operation;
+                    final String indexName = mapperService.index().getName();
+                    final Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()),
+                        source(indexName, index.type(), index.id(), index.source(), XContentFactory.xContentType(index.source()))
+                            .routing(index.routing()).parent(index.parent()), index.seqNo(), index.primaryTerm(),
+                        index.version(), index.versionType().versionTypeForReplicationAndRecovery(), origin,
+                        index.getAutoGeneratedIdTimestamp(), true);
+                    return engineIndex;
+                case DELETE:
+                    final Translog.Delete delete = (Translog.Delete) operation;
+                    final Engine.Delete engineDelete = new Engine.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(),
+                        delete.primaryTerm(), delete.version(), delete.versionType().versionTypeForReplicationAndRecovery(),
+                        origin, System.nanoTime());
+                    return engineDelete;
+                case NO_OP:
+                    final Translog.NoOp noOp = (Translog.NoOp) operation;
+                    final Engine.NoOp engineNoOp =
+                        new Engine.NoOp(noOp.seqNo(), noOp.primaryTerm(), origin, System.nanoTime(), noOp.reason());
+                    return engineNoOp;
+                default:
+                    throw new IllegalStateException("No operation defined for [" + operation + "]");
+            }
+        }
     }
 
     public void testRecoverFromForeignTranslog() throws IOException {
@@ -2795,7 +2822,7 @@ public class InternalEngineTests extends ESTestCase {
 
         Translog translog = new Translog(
             new TranslogConfig(shardId, createTempDir(), INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
-            null, new TranslogDeletionPolicy(), () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
+            null, createTranslogDeletionPolicy(INDEX_SETTINGS), () -> SequenceNumbersService.UNASSIGNED_SEQ_NO);
         translog.add(new Translog.Index("test", "SomeBogusId", 0, "{}".getBytes(Charset.forName("UTF-8"))));
         assertEquals(generation.translogFileGeneration, translog.currentFileGeneration());
         translog.close();

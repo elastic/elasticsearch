@@ -92,7 +92,7 @@ import java.util.function.BiFunction;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
+import java.util.stream.IntStream;
 import static java.util.Comparator.comparingInt;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -198,9 +198,15 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 final int routingNumShards = getRoutingShardNum(shrinkFromIndex, currentState, actualIndexSettings);
 
                 IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index())
-                    .setRoutingNumShards(routingNumShards);
+                    .setRoutingNumShards(routingNumShards)
+                    .settings(actualIndexSettings);
+
+                if (shrinkFromIndex != null) {
+                    applyPrimaryTermFromSource(currentState, shrinkFromIndex, tmpImdBuilder);
+                }
+
                 // Set up everything, now locally create the index to see that things are ok, and apply
-                final IndexMetaData tmpImd = tmpImdBuilder.settings(actualIndexSettings).build();
+                final IndexMetaData tmpImd = tmpImdBuilder.build();
                 ActiveShardCount waitForActiveShards = request.waitForActiveShards();
                 if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                     waitForActiveShards = tmpImd.getWaitForActiveShards();
@@ -260,7 +266,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 aliasesMetaData.addAll(templatesAliases.values());
 
                 final IndexMetaData.Builder indexMetaDataBuilder = createMetaDataBuilder(request.index(), actualIndexSettings,
-                    routingNumShards, mappingsMetaData, request.state(), aliasesMetaData, customs);
+                    routingNumShards, mappingsMetaData, request.state(), aliasesMetaData, customs, tmpImd);
 
                 final IndexMetaData indexMetaData;
                 try {
@@ -309,7 +315,24 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        protected void validateIndexSort(IndexService indexService) {
+        private void applyPrimaryTermFromSource(ClusterState currentState, Index shrinkFromIndex, IndexMetaData.Builder tmpImdBuilder) {
+            /*
+            * We need to arrange that the primary term on all the shards in the shrunken index is at least as large as
+            * the maximum primary term on all the shards in the source index. This ensures that we have correct
+            * document-level semantics regarding sequence numbers in the shrunken index.
+            */
+            final IndexMetaData sourceMetaData = currentState.metaData().getIndexSafe(shrinkFromIndex);
+            final long primaryTerm = IntStream
+                                            .range(0, sourceMetaData.getNumberOfShards())
+                                            .mapToLong(sourceMetaData::primaryTerm)
+                                            .max()
+                                            .getAsLong();
+            for (int shardId = 0; shardId < tmpImdBuilder.numberOfShards(); shardId++) {
+                tmpImdBuilder.primaryTerm(shardId, primaryTerm);
+            }
+        }
+
+        private void validateIndexSort(IndexService indexService) {
             // now that the mapping is merged we can validate the index sort.
             // we cannot validate for index shrinking since the mapping is empty
             // at this point. The validation will take place later in the process
@@ -317,7 +340,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             indexService.getIndexSortSupplier().get();
         }
 
-        protected void fillFromTemplates(ClusterState currentState, Map<String, Custom> customs, Map<String, Map<String, Object>> mappings,
+        private void fillFromTemplates(ClusterState currentState, Map<String, Custom> customs, Map<String, Map<String, Object>> mappings,
                                          List<String> templateNames, Map<String, AliasMetaData> templatesAliases,
                                          List<IndexTemplateMetaData> templates) throws Exception {
             for (IndexTemplateMetaData template : templates) {
@@ -402,11 +425,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         private IndexMetaData.Builder createMetaDataBuilder(String index, Settings actualIndexSettings, int routingNumShards,
                                                             Map<String, MappingMetaData> mappingsMetaData, State state,
-                                                            Set<AliasMetaData> aliasesMetaData, Map<String, Custom> customs) {
+                                                            Set<AliasMetaData> aliasesMetaData, Map<String, Custom> customs,
+                                                            IndexMetaData tmpImd) {
             final IndexMetaData.Builder indexMetaDataBuilder = IndexMetaData
                 .builder(index)
                 .settings(actualIndexSettings)
                 .setRoutingNumShards(routingNumShards);
+
+            for (int shardId = 0; shardId < tmpImd.getNumberOfShards(); shardId++) {
+                indexMetaDataBuilder.primaryTerm(shardId, tmpImd.primaryTerm(shardId));
+            }
 
             mappingsMetaData.values().forEach(indexMetaDataBuilder::putMapping);
             aliasesMetaData.forEach(indexMetaDataBuilder::putAlias);
@@ -714,5 +742,4 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());
     }
-
 }

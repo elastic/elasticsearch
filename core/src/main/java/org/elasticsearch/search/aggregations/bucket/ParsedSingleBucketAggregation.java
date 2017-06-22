@@ -83,7 +83,8 @@ public abstract class ParsedSingleBucketAggregation extends ParsedAggregation im
                 if (CommonFields.META.getPreferredName().equals(currentFieldName)) {
                     aggregation.metadata = parser.map();
                 } else {
-                    aggregations.add(XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class));
+                    XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Aggregation.class,
+                            aggregations::add);
                 }
             }
         }

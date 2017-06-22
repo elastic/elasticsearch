@@ -73,3 +73,10 @@ and `cloud.aws.ec2.region`. Instead, specify the full endpoint.
 
 Previous versions of Elasticsearch would skip hidden files and directories when
 scanning the plugins folder. This leniency has been removed.
+
+==== ICU Analysis plugin
+
+The icu4j library has been upgraded to 59.1,
+Indices created in the previous major version will need to be reindexed
+in order to return correct (and correctly ordered) results,
+and to take advantage of new characters.

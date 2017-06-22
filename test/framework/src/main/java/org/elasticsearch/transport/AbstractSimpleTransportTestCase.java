@@ -190,6 +190,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
+
     public void testHelloWorld() {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
             (request, channel) -> {
@@ -748,11 +749,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testNotifyOnShutdown() throws Exception {
         final CountDownLatch latch2 = new CountDownLatch(1);
-
-        serviceA.registerRequestHandler("foobar", StringMessageRequest::new, ThreadPool.Names.GENERIC,
-            new TransportRequestHandler<StringMessageRequest>() {
-                @Override
-                public void messageReceived(StringMessageRequest request, TransportChannel channel) {
+        try {
+            serviceA.registerRequestHandler("foobar", StringMessageRequest::new, ThreadPool.Names.GENERIC,
+                (request, channel) -> {
                     try {
                         latch2.await();
                         logger.info("Stop ServiceB now");
@@ -760,16 +759,19 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     } catch (Exception e) {
                         fail(e.getMessage());
                     }
-                }
-            });
-        TransportFuture<TransportResponse.Empty> foobar = serviceB.submitRequest(nodeA, "foobar",
-            new StringMessageRequest(""), TransportRequestOptions.EMPTY, EmptyTransportResponseHandler.INSTANCE_SAME);
-        latch2.countDown();
-        try {
-            foobar.txGet();
-            fail("TransportException expected");
-        } catch (TransportException ex) {
+                });
+            TransportFuture<TransportResponse.Empty> foobar = serviceB.submitRequest(nodeA, "foobar",
+                new StringMessageRequest(""), TransportRequestOptions.EMPTY, EmptyTransportResponseHandler.INSTANCE_SAME);
+            latch2.countDown();
+            try {
+                foobar.txGet();
+                fail("TransportException expected");
+            } catch (TransportException ex) {
 
+            }
+        } finally {
+            serviceB.close(); // make sure we are fully closed here otherwise we might run into assertions down the road
+            serviceA.disconnectFromNode(nodeB);
         }
     }
 
@@ -1459,22 +1461,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        try (Transport.Connection connection = serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE)) {
-            serviceB.handshake(connection, 100);
-            fail("exception should be thrown");
-        } catch (IllegalStateException e) {
-            // all is well
-        }
+        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE));
     }
 
     public void testMockUnresponsiveRule() throws IOException {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
-            new TransportRequestHandler<StringMessageRequest>() {
-                @Override
-                public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
-                    assertThat("moshe", equalTo(request.message));
-                    throw new RuntimeException("bad message !!!");
-                }
+            (request, channel) -> {
+                assertThat("moshe", equalTo(request.message));
+                throw new RuntimeException("bad message !!!");
             });
 
         serviceB.addUnresponsiveRule(serviceA);
@@ -1518,12 +1512,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        try (Transport.Connection connection = serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE)) {
-            serviceB.handshake(connection, 100);
-            fail("exception should be thrown");
-        } catch (IllegalStateException e) {
-            // all is well
-        }
+        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE));
     }
 
 
@@ -1852,7 +1841,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
         logger.debug("DONE");
         serviceC.close();
-
+        // when we close C here we have to disconnect the service otherwise assertions mit trip with pending connections in tearDown
+        // since the disconnect will then happen concurrently and that might confuse the assertions since we disconnect due to a
+        // connection reset by peer or other exceptions depending on the implementation
+        serviceB.disconnectFromNode(nodeC);
+        serviceA.disconnectFromNode(nodeC);
     }
 
     public void testRegisterHandlerTwice() {
@@ -2137,7 +2130,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             @Override
             public void handleException(TransportException exp) {
                 try {
-                    assertTrue(exp.getClass().toString(), exp instanceof NodeDisconnectedException);
+                    if (exp instanceof SendRequestTransportException) {
+                        assertTrue(exp.getCause().getClass().toString(), exp.getCause() instanceof NodeNotConnectedException);
+                    } else {
+                        // here the concurrent disconnect was faster and invoked the listener first
+                        assertTrue(exp.getClass().toString(), exp instanceof NodeDisconnectedException);
+                    }
                 } finally {
                     latch.countDown();
                 }
@@ -2155,12 +2153,270 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
             TransportRequestOptions.Type.STATE);
-        Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build());
-        serviceB.sendRequest(connection, "action",  new TestRequest(randomFrom("fail", "pass")), TransportRequestOptions.EMPTY,
-            transportResponseHandler);
-        connection.close();
+        try (Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build())) {
+            serviceC.close();
+            serviceB.sendRequest(connection, "action", new TestRequest("boom"), TransportRequestOptions.EMPTY,
+                transportResponseHandler);
+        }
         latch.await();
-        serviceC.close();
     }
 
+    public void testConcurrentDisconnectOnNonPublishedConnection() throws IOException, InterruptedException {
+        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
+        CountDownLatch receivedLatch = new CountDownLatch(1);
+        CountDownLatch sendResponseLatch = new CountDownLatch(1);
+        serviceC.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
+            (request, channel) -> {
+                // don't block on a network thread here
+                threadPool.generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (IOException e1) {
+                            throw new UncheckedIOException(e1);
+                        }
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        receivedLatch.countDown();
+                        sendResponseLatch.await();
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    }
+                });
+            });
+        serviceC.start();
+        serviceC.acceptIncomingRequests();
+        CountDownLatch responseLatch = new CountDownLatch(1);
+        TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
+            @Override
+            public TransportResponse newInstance() {
+                return TransportResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public void handleResponse(TransportResponse response) {
+                responseLatch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                responseLatch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        };
+
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1,
+            TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.PING,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STATE);
+
+        try (Transport.Connection connection = serviceB.openConnection(serviceC.getLocalNode(), builder.build())) {
+            serviceB.sendRequest(connection, "action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
+                transportResponseHandler);
+            receivedLatch.await();
+            serviceC.close();
+            sendResponseLatch.countDown();
+            responseLatch.await();
+        }
+    }
+
+    public void testTransportStats() throws Exception {
+        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
+        CountDownLatch receivedLatch = new CountDownLatch(1);
+        CountDownLatch sendResponseLatch = new CountDownLatch(1);
+        serviceB.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
+            (request, channel) -> {
+                // don't block on a network thread here
+                threadPool.generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (IOException e1) {
+                            throw new UncheckedIOException(e1);
+                        }
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        receivedLatch.countDown();
+                        sendResponseLatch.await();
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    }
+                });
+            });
+        serviceC.start();
+        serviceC.acceptIncomingRequests();
+        CountDownLatch responseLatch = new CountDownLatch(1);
+        TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
+            @Override
+            public TransportResponse newInstance() {
+                return TransportResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public void handleResponse(TransportResponse response) {
+                responseLatch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                responseLatch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        };
+
+        TransportStats stats = serviceC.transport.getStats(); // nothing transmitted / read yet
+        assertEquals(0, stats.getRxCount());
+        assertEquals(0, stats.getTxCount());
+        assertEquals(0, stats.getRxSize().getBytes());
+        assertEquals(0, stats.getTxSize().getBytes());
+
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1,
+            TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.PING,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STATE);
+        try (Transport.Connection connection = serviceC.openConnection(serviceB.getLocalNode(), builder.build())) {
+            assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
+                    TransportStats transportStats = serviceC.transport.getStats(); // we did a single round-trip to do the initial handshake
+                    assertEquals(1, transportStats.getRxCount());
+                    assertEquals(1, transportStats.getTxCount());
+                    assertEquals(25, transportStats.getRxSize().getBytes());
+                    assertEquals(45, transportStats.getTxSize().getBytes());
+                });
+            serviceC.sendRequest(connection, "action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
+                transportResponseHandler);
+            receivedLatch.await();
+            assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
+                    TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
+                    assertEquals(1, transportStats.getRxCount());
+                    assertEquals(2, transportStats.getTxCount());
+                    assertEquals(25, transportStats.getRxSize().getBytes());
+                    assertEquals(91, transportStats.getTxSize().getBytes());
+                });
+            sendResponseLatch.countDown();
+            responseLatch.await();
+            stats = serviceC.transport.getStats(); // response has been received
+            assertEquals(2, stats.getRxCount());
+            assertEquals(2, stats.getTxCount());
+            assertEquals(46, stats.getRxSize().getBytes());
+            assertEquals(91, stats.getTxSize().getBytes());
+        } finally {
+            serviceC.close();
+        }
+    }
+
+    public void testTransportStatsWithException() throws Exception {
+        MockTransportService serviceC = build(Settings.builder().put("name", "TS_TEST").build(), version0, null, true);
+        CountDownLatch receivedLatch = new CountDownLatch(1);
+        CountDownLatch sendResponseLatch = new CountDownLatch(1);
+        Exception ex = new RuntimeException("boom");
+        ex.setStackTrace(new StackTraceElement[0]);
+        serviceB.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
+            (request, channel) -> {
+                // don't block on a network thread here
+                threadPool.generic().execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Exception e) {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (IOException e1) {
+                            throw new UncheckedIOException(e1);
+                        }
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        receivedLatch.countDown();
+                        sendResponseLatch.await();
+                        onFailure(ex);
+                    }
+                });
+            });
+        serviceC.start();
+        serviceC.acceptIncomingRequests();
+        CountDownLatch responseLatch = new CountDownLatch(1);
+        TransportResponseHandler<TransportResponse> transportResponseHandler = new TransportResponseHandler<TransportResponse>() {
+            @Override
+            public TransportResponse newInstance() {
+                return TransportResponse.Empty.INSTANCE;
+            }
+
+            @Override
+            public void handleResponse(TransportResponse response) {
+                responseLatch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                responseLatch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.SAME;
+            }
+        };
+
+        TransportStats stats = serviceC.transport.getStats(); // nothing transmitted / read yet
+        assertEquals(0, stats.getRxCount());
+        assertEquals(0, stats.getTxCount());
+        assertEquals(0, stats.getRxSize().getBytes());
+        assertEquals(0, stats.getTxSize().getBytes());
+
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1,
+            TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.PING,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STATE);
+        try (Transport.Connection connection = serviceC.openConnection(serviceB.getLocalNode(), builder.build())) {
+            assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
+                    TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
+                    assertEquals(1, transportStats.getRxCount());
+                    assertEquals(1, transportStats.getTxCount());
+                    assertEquals(25, transportStats.getRxSize().getBytes());
+                    assertEquals(45, transportStats.getTxSize().getBytes());
+                });
+            serviceC.sendRequest(connection, "action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
+                transportResponseHandler);
+            receivedLatch.await();
+            assertBusy(() -> { // netty for instance invokes this concurrently so we better use assert busy here
+                    TransportStats transportStats = serviceC.transport.getStats(); // request has ben send
+                    assertEquals(1, transportStats.getRxCount());
+                    assertEquals(2, transportStats.getTxCount());
+                    assertEquals(25, transportStats.getRxSize().getBytes());
+                    assertEquals(91, transportStats.getTxSize().getBytes());
+                });
+            sendResponseLatch.countDown();
+            responseLatch.await();
+            stats = serviceC.transport.getStats(); // exception response has been received
+            assertEquals(2, stats.getRxCount());
+            assertEquals(2, stats.getTxCount());
+            int addressLen = serviceB.boundAddress().publishAddress().address().getAddress().getAddress().length;
+            // if we are bound to a IPv6 address the response address is serialized with the exception so it will be different depending
+            // on the stack. The emphemeral port will always be in the same range
+            assertEquals(185 + addressLen, stats.getRxSize().getBytes());
+            assertEquals(91, stats.getTxSize().getBytes());
+        } finally {
+            serviceC.close();
+        }
+    }
 }

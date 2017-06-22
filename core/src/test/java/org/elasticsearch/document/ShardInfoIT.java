@@ -128,24 +128,21 @@ public class ShardInfoIT extends ESIntegTestCase {
     }
 
     private void ensureActiveShardCopies(final int shardId, final int copyCount) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
-                assertThat(state.routingTable().index("idx"), not(nullValue()));
-                assertThat(state.routingTable().index("idx").shard(shardId), not(nullValue()));
-                assertThat(state.routingTable().index("idx").shard(shardId).activeShards().size(), equalTo(copyCount));
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            assertThat(state.routingTable().index("idx"), not(nullValue()));
+            assertThat(state.routingTable().index("idx").shard(shardId), not(nullValue()));
+            assertThat(state.routingTable().index("idx").shard(shardId).activeShards().size(), equalTo(copyCount));
 
-                ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("idx")
-                        .setWaitForNoRelocatingShards(true)
-                        .get();
-                assertThat(healthResponse.isTimedOut(), equalTo(false));
+            ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("idx")
+                    .setWaitForNoRelocatingShards(true)
+                    .get();
+            assertThat(healthResponse.isTimedOut(), equalTo(false));
 
-                RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("idx")
-                        .setActiveOnly(true)
-                        .get();
-                assertThat(recoveryResponse.shardRecoveryStates().get("idx").size(), equalTo(0));
-            }
+            RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("idx")
+                    .setActiveOnly(true)
+                    .get();
+            assertThat(recoveryResponse.shardRecoveryStates().get("idx").size(), equalTo(0));
         });
     }
 }

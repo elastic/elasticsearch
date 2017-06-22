@@ -20,11 +20,12 @@
 package org.elasticsearch.common.lucene.uid;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,26 +37,31 @@ import static org.elasticsearch.common.lucene.uid.Versions.NOT_FOUND;
 /** Utility class to resolve the Lucene doc ID, version, seqNo and primaryTerms for a given uid. */
 public final class VersionsAndSeqNoResolver {
 
-    static final ConcurrentMap<Object, CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup>> lookupStates =
+    static final ConcurrentMap<IndexReader.CacheKey, CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]>> lookupStates =
         ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
 
     // Evict this reader from lookupStates once it's closed:
     private static final IndexReader.ClosedListener removeLookupState = key -> {
-        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> ctl = lookupStates.remove(key);
+        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> ctl = lookupStates.remove(key);
         if (ctl != null) {
             ctl.close();
         }
     };
 
-    private static PerThreadIDVersionAndSeqNoLookup getLookupState(LeafReader reader, String uidField) throws IOException {
-        IndexReader.CacheHelper cacheHelper = reader.getCoreCacheHelper();
-        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> ctl = lookupStates.get(cacheHelper.getKey());
+    private static PerThreadIDVersionAndSeqNoLookup[] getLookupState(IndexReader reader, String uidField) throws IOException {
+        // We cache on the top level
+        // This means cache entries have a shorter lifetime, maybe as low as 1s with the
+        // default refresh interval and a steady indexing rate, but on the other hand it
+        // proved to be cheaper than having to perform a CHM and a TL get for every segment.
+        // See https://github.com/elastic/elasticsearch/pull/19856.
+        IndexReader.CacheHelper cacheHelper = reader.getReaderCacheHelper();
+        CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> ctl = lookupStates.get(cacheHelper.getKey());
         if (ctl == null) {
             // First time we are seeing this reader's core; make a new CTL:
             ctl = new CloseableThreadLocal<>();
-            CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup> other = lookupStates.putIfAbsent(cacheHelper.getKey(), ctl);
+            CloseableThreadLocal<PerThreadIDVersionAndSeqNoLookup[]> other = lookupStates.putIfAbsent(cacheHelper.getKey(), ctl);
             if (other == null) {
-                // Our CTL won, we must remove it when the core is closed:
+                // Our CTL won, we must remove it when the reader is closed:
                 cacheHelper.addClosedListener(removeLookupState);
             } else {
                 // Another thread beat us to it: just use their CTL:
@@ -63,13 +69,22 @@ public final class VersionsAndSeqNoResolver {
             }
         }
 
-        PerThreadIDVersionAndSeqNoLookup lookupState = ctl.get();
+        PerThreadIDVersionAndSeqNoLookup[] lookupState = ctl.get();
         if (lookupState == null) {
-            lookupState = new PerThreadIDVersionAndSeqNoLookup(reader, uidField);
+            lookupState = new PerThreadIDVersionAndSeqNoLookup[reader.leaves().size()];
+            for (LeafReaderContext leaf : reader.leaves()) {
+                lookupState[leaf.ord] = new PerThreadIDVersionAndSeqNoLookup(leaf.reader(), uidField);
+            }
             ctl.set(lookupState);
-        } else if (Objects.equals(lookupState.uidField, uidField) == false) {
+        }
+
+        if (lookupState.length != reader.leaves().size()) {
+            throw new AssertionError("Mismatched numbers of leaves: " + lookupState.length + " != " + reader.leaves().size());
+        }
+
+        if (lookupState.length > 0 && Objects.equals(lookupState[0].uidField, uidField) == false) {
             throw new AssertionError("Index does not consistently use the same uid field: ["
-                    + uidField + "] != [" + lookupState.uidField + "]");
+                    + uidField + "] != [" + lookupState[0].uidField + "]");
         }
 
         return lookupState;
@@ -112,17 +127,14 @@ public final class VersionsAndSeqNoResolver {
      * </ul>
      */
     public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term) throws IOException {
+        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
         List<LeafReaderContext> leaves = reader.leaves();
-        if (leaves.isEmpty()) {
-            return null;
-        }
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments
         for (int i = leaves.size() - 1; i >= 0; i--) {
-            LeafReaderContext context = leaves.get(i);
-            LeafReader leaf = context.reader();
-            PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf, term.field());
-            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), leaf.getLiveDocs(), context);
+            final LeafReaderContext leaf = leaves.get(i);
+            PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            DocIdAndVersion result = lookup.lookupVersion(term.bytes(), leaf);
             if (result != null) {
                 return result;
             }
@@ -137,17 +149,14 @@ public final class VersionsAndSeqNoResolver {
      * </ul>
      */
     public static DocIdAndSeqNo loadDocIdAndSeqNo(IndexReader reader, Term term) throws IOException {
+        PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
         List<LeafReaderContext> leaves = reader.leaves();
-        if (leaves.isEmpty()) {
-            return null;
-        }
         // iterate backwards to optimize for the frequently updated documents
         // which are likely to be in the last segments
         for (int i = leaves.size() - 1; i >= 0; i--) {
-            LeafReaderContext context = leaves.get(i);
-            LeafReader leaf = context.reader();
-            PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf, term.field());
-            DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes(), leaf.getLiveDocs(), context);
+            final LeafReaderContext leaf = leaves.get(i);
+            PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
+            DocIdAndSeqNo result = lookup.lookupSeqNo(term.bytes(), leaf);
             if (result != null) {
                 return result;
             }
@@ -159,9 +168,13 @@ public final class VersionsAndSeqNoResolver {
      * Load the primaryTerm associated with the given {@link DocIdAndSeqNo}
      */
     public static long loadPrimaryTerm(DocIdAndSeqNo docIdAndSeqNo, String uidField) throws IOException {
-        LeafReader leaf = docIdAndSeqNo.context.reader();
-        PerThreadIDVersionAndSeqNoLookup lookup = getLookupState(leaf, uidField);
-        long result = lookup.lookUpPrimaryTerm(docIdAndSeqNo.docId, leaf);
+        NumericDocValues primaryTerms = docIdAndSeqNo.context.reader().getNumericDocValues(SeqNoFieldMapper.PRIMARY_TERM_NAME);
+        long result;
+        if (primaryTerms != null && primaryTerms.advanceExact(docIdAndSeqNo.docId)) {
+            result = primaryTerms.longValue();
+        } else {
+            result = 0;
+        }
         assert result > 0 : "should always resolve a primary term for a resolved sequence number. primary_term [" + result + "]"
             + " docId [" + docIdAndSeqNo.docId + "] seqNo [" + docIdAndSeqNo.seqNo + "]";
         return result;

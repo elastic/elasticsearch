@@ -386,7 +386,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         private List<UnblockTestTaskResponse> tasks;
 
         public UnblockTestTasksResponse() {
-
+            super(null, null);
         }
 
         public UnblockTestTasksResponse(List<UnblockTestTaskResponse> tasks, List<TaskOperationFailure> taskFailures, List<? extends

@@ -259,9 +259,12 @@ public class IndexCreationTaskTests extends ESTestCase {
         reqSettings.put(SETTING_NUMBER_OF_SHARDS, 1);
 
         final ClusterState result = executeTask();
-
+        // @todo check data filled from source
 
     }
+
+    // @todo check exception on validateActiveShards
+    // @todo block priority (currentstate > request > newMetaData
 
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {
         final IndexRoutingTable idxRoutingTable = mock(IndexRoutingTable.class);

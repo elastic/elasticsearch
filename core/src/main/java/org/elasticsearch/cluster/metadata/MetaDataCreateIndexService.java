@@ -35,7 +35,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
-import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData.Custom;
@@ -95,6 +94,7 @@ import java.util.stream.StreamSupport;
 import java.util.stream.IntStream;
 import static java.util.Comparator.comparingInt;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -179,7 +179,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     fillFromTemplates(currentState, customs, mappings, templateNames, templatesAliases, templates);
                 }
 
-                final Settings.Builder indexSettingsBuilder = getSettingsBuilder(request, currentState, templates);
+                final Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder(request, currentState, templates);
 
                 if (shrinkFromIndex != null) {
                     prepareShrinkIndexSettings(currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex, request.index());
@@ -187,10 +187,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                 final Settings actualIndexSettings = indexSettingsBuilder.build();
                 final int routingNumShards = getRoutingShardNum(shrinkFromIndex, currentState, actualIndexSettings);
-
-                final IndexMetaData.Builder tmpImdBuilder = IndexMetaData.builder(request.index())
-                    .setRoutingNumShards(routingNumShards)
-                    .settings(actualIndexSettings);
+                final IndexMetaData.Builder tmpImdBuilder = getTmpIndexMetaDataBuilder(actualIndexSettings, routingNumShards);
 
                 if (shrinkFromIndex != null) {
                     applyPrimaryTermFromSource(currentState, shrinkFromIndex, tmpImdBuilder);
@@ -199,11 +196,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 // Set up everything, now locally create the index to see that things are ok, and apply
                 final IndexMetaData tmpImd = tmpImdBuilder.build();
 
-                if (!getWaitForActiveShards(tmpImd).validate(tmpImd.getNumberOfReplicas())) {
-                    throw new IllegalArgumentException("invalid wait_for_active_shards[" + request.waitForActiveShards() +
-                        "]: cannot be greater than number of shard copies [" +
-                        (tmpImd.getNumberOfReplicas() + 1) + "]");
-                }
+                validateWaitForActiveShardsValue(tmpImd);
+
                 // create the index here (on the master) to validate it can be created, as well as adding the mapping
                 final IndexService indexService = indicesService.createIndex(tmpImd, Collections.emptyList());
                 createdIndex = indexService.index();
@@ -229,7 +223,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 final Set<AliasMetaData> aliasesMetaData = getAliasMetaData(templatesAliases, indexService);
                 // now, update the mappings with the actual source
                 final Map<String, MappingMetaData> mappingsMetaData = getMappingsMetaData(mapperService);
-
                 final IndexMetaData.Builder indexMetaDataBuilder = createMetaDataBuilder(request.index(), actualIndexSettings,
                     routingNumShards, mappingsMetaData, request.state(), aliasesMetaData, customs, tmpImd);
 
@@ -273,13 +266,21 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
+        private void validateWaitForActiveShardsValue(IndexMetaData tmpImd) {
+            if (!getWaitForActiveShards(tmpImd).validate(tmpImd.getNumberOfReplicas())) {
+                throw new IllegalArgumentException("invalid wait_for_active_shards[" + request.waitForActiveShards() +
+                    "]: cannot be greater than number of shard copies [" +
+                    (tmpImd.getNumberOfReplicas() + 1) + "]");
+            }
+        }
+
+        private IndexMetaData.Builder getTmpIndexMetaDataBuilder(Settings actualIndexSettings, int routingNumShards) {
+            return IndexMetaData.builder(request.index()).setRoutingNumShards(routingNumShards).settings(actualIndexSettings);
+        }
+
         private ClusterBlocks.Builder getClusterBlocksBuilder(ClusterState currentState, IndexMetaData indexMetaData) {
             final ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-            if (!request.blocks().isEmpty()) {
-                for (ClusterBlock block : request.blocks()) {
-                    blocks.addIndexBlock(request.index(), block);
-                }
-            }
+            request.blocks().forEach(block -> blocks.addIndexBlock(request.index(), block));
             blocks.updateBlocks(indexMetaData);
             return blocks;
         }
@@ -293,18 +294,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
 
         private Map<String, MappingMetaData> getMappingsMetaData(MapperService mapperService) {
-            final Map<String, MappingMetaData> mappingsMetaData = new HashMap<>();
-            for (DocumentMapper mapper : mapperService.docMappers(true)) {
-                mappingsMetaData.put(mapper.type(), new MappingMetaData(mapper));
-            }
-            return mappingsMetaData;
+            return StreamSupport.stream(mapperService.docMappers(true).spliterator(), false)
+                .collect(toMap(DocumentMapper::type, MappingMetaData::new));
         }
 
         private ActiveShardCount getWaitForActiveShards(IndexMetaData tmpImd) {
             if (request.waitForActiveShards() == ActiveShardCount.DEFAULT) {
                 return tmpImd.getWaitForActiveShards();
             }
-
             return request.waitForActiveShards();
         }
 
@@ -313,17 +310,24 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             // timestamp
             final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
 
-            final Set<AliasMetaData> aliasesMetaData = aliasesToMetaData(request.aliases());
-            aliasesMetaData.addAll(templatesAliases.values());
-
-            aliasesMetaData
+            request
+                .aliases()
                 .stream()
-                .filter(aliasMetaData -> aliasMetaData.filter() != null)
-                .forEach(aliasMetaData -> aliasValidator.validateAliasFilter(
-                    aliasMetaData.alias(), aliasMetaData.filter().uncompressed(),
+                .filter(alias -> Strings.hasLength(alias.filter()))
+                .forEach(alias -> aliasValidator.validateAliasFilter(alias.name(), alias.filter(),
                     queryShardContext, xContentRegistry)
                 );
 
+            templatesAliases
+                .values()
+                .stream()
+                .filter(aliasMetaData -> aliasMetaData.filter() != null)
+                .forEach(aliasMetaData -> aliasValidator.validateAliasFilter(aliasMetaData.alias(),
+                    aliasMetaData.filter().uncompressed(), queryShardContext, xContentRegistry)
+                );
+
+            final Set<AliasMetaData> aliasesMetaData = aliasesToMetaData(request.aliases());
+            aliasesMetaData.addAll(templatesAliases.values());
             return aliasesMetaData;
         }
 
@@ -363,7 +367,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             if (shrinkFromIndex != null) {
                 return currentState.metaData().getIndexSafe(shrinkFromIndex).getRoutingNumShards();
             }
-
             return IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(settings);
         }
 
@@ -419,14 +422,15 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
         }
 
-        static private Set<AliasMetaData> aliasesToMetaData(Set<Alias> aliases) {
+        private static Set<AliasMetaData> aliasesToMetaData(Set<Alias> aliases) {
             return aliases
-                .stream().map(alias -> AliasMetaData
-                        .builder(alias.name())
-                        .filter(alias.filter())
-                        .indexRouting(alias.indexRouting())
-                        .searchRouting(alias.searchRouting()).build()
-                ).collect(toSet());
+                .stream()
+                .map(alias -> AliasMetaData
+                                        .builder(alias.name())
+                                        .filter(alias.filter())
+                                        .indexRouting(alias.indexRouting())
+                                        .searchRouting(alias.searchRouting()).build())
+                .collect(toSet());
         }
 
         private IndexMetaData.Builder createMetaDataBuilder(String index, Settings actualIndexSettings, int routingNumShards,
@@ -464,8 +468,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                 .collect(toList());
         }
 
-        private Settings.Builder getSettingsBuilder(CreateIndexClusterStateUpdateRequest request, ClusterState currentState,
-                                                    List<IndexTemplateMetaData> templates) {
+        private Settings.Builder getIndexSettingsBuilder(CreateIndexClusterStateUpdateRequest request, ClusterState currentState,
+                                                         List<IndexTemplateMetaData> templates) {
             Settings.Builder indexSettingsBuilder = Settings.builder();
             // apply templates, here, in reverse order, since first ones are better matching
             for (int i = templates.size() - 1; i >= 0; i--) {
@@ -473,7 +477,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
             // now, put the request settings, so they override templates
             indexSettingsBuilder.put(request.settings());
-
             applyDefaultSettings(request, currentState, indexSettingsBuilder);
 
             return indexSettingsBuilder;

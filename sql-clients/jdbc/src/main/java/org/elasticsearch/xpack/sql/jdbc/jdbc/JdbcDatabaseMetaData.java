@@ -1209,36 +1209,36 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
     private static ResultSet memorySet(List<ColumnInfo> columns, Object[][] data) {
         return new JdbcResultSet(null, new InMemoryCursor(columns, data));
     }
-}
 
-class InMemoryCursor implements Cursor {
+    static class InMemoryCursor implements Cursor {
 
-    private final List<ColumnInfo> columns;
-    private final Object[][] data;
+        private final List<ColumnInfo> columns;
+        private final Object[][] data;
 
-    private int row = -1;
+        private int row = -1;
 
-    InMemoryCursor(List<ColumnInfo> info, Object[][] data) {
-        this.columns = info;
-        this.data = data;
-    }
-
-    @Override
-    public List<ColumnInfo> columns() {
-        return columns;
-    }
-
-    @Override
-    public boolean next() {
-        if (!ObjectUtils.isEmpty(data) && row < data.length - 1) {
-            row++;
-            return true;
+        InMemoryCursor(List<ColumnInfo> info, Object[][] data) {
+            this.columns = info;
+            this.data = data;
         }
-        return false;
-    }
 
-    @Override
-    public Object column(int column) {
-        return data[row][column];
+        @Override
+        public List<ColumnInfo> columns() {
+            return columns;
+        }
+
+        @Override
+        public boolean next() {
+            if (!ObjectUtils.isEmpty(data) && row < data.length - 1) {
+                row++;
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public Object column(int column) {
+            return data[row][column];
+        }
     }
 }

@@ -30,9 +30,6 @@ subprojects {
     testCompile "org.elasticsearch.test:framework:${version}"
   }
 
-  tasks.checkstyleMain.enabled = false // not worth it yet
-  tasks.checkstyleTest.enabled = false // not worth it yet
-
   forbiddenApisMain {
     // does not depend on core, so only jdk and http signatures should be checked
     signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt')]

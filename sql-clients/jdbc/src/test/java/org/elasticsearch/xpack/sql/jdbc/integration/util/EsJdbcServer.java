@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.sql.jdbc.integration.util;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.xpack.sql.jdbc.integration.server.JdbcHttpServer;
-import org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcTemplate.JdbcSupplier;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver;
 import org.junit.rules.ExternalResource;
 
@@ -17,7 +17,7 @@ import java.util.Properties;
 
 import static org.junit.Assert.assertNotNull;
 
-public class EsJdbcServer extends ExternalResource implements JdbcSupplier<Connection> {
+public class EsJdbcServer extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
     private JdbcHttpServer server;
     private String jdbcUrl;
     private JdbcDriver driver;
@@ -53,7 +53,8 @@ public class EsJdbcServer extends ExternalResource implements JdbcSupplier<Conne
         server = null;
     }
 
-    public Connection jdbc() throws SQLException {
+    @Override
+    public Connection get() throws SQLException {
         assertNotNull("ES JDBC Driver is null - make sure ES is properly run as a @ClassRule", driver);
         return driver.connect(jdbcUrl, properties);
     }

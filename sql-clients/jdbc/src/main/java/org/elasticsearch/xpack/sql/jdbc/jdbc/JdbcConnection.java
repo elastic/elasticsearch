@@ -52,7 +52,7 @@ public class JdbcConnection implements Connection, JdbcWrapper {
         userName = connectionInfo.userName();
     }
 
-    private final void checkOpen() throws SQLException {
+    private void checkOpen() throws SQLException {
         if (isClosed()) {
             throw new SQLException("Connection is closed");
         }

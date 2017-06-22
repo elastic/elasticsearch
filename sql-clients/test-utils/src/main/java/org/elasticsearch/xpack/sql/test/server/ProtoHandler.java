@@ -23,7 +23,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 public abstract class ProtoHandler<R> implements HttpHandler, AutoCloseable {
 
-    protected final static Logger log = ESLoggerFactory.getLogger(ProtoHandler.class.getName());
+    protected static final Logger log = ESLoggerFactory.getLogger(ProtoHandler.class.getName());
     private final TimeValue TV = TimeValue.timeValueSeconds(5);
     protected final NodeInfo info;
     protected final String clusterName;

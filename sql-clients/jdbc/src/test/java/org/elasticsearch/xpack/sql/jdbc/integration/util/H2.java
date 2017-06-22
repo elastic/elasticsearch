@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.integration.util;
 
-import org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcTemplate.JdbcSupplier;
+import org.elasticsearch.common.CheckedSupplier;
 import org.junit.rules.ExternalResource;
 
 import java.sql.Connection;
@@ -13,7 +13,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 
-public class H2 extends ExternalResource implements JdbcSupplier<Connection> {
+public class H2 extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
     static {
         try {
             Class.forName("org.h2.Driver");
@@ -40,7 +40,7 @@ public class H2 extends ExternalResource implements JdbcSupplier<Connection> {
 
     @Override
     protected void before() throws Throwable {
-        keepAlive = jdbc();
+        keepAlive = get();
     }
 
     @Override
@@ -53,7 +53,8 @@ public class H2 extends ExternalResource implements JdbcSupplier<Connection> {
         keepAlive = null;
     }
 
-    public Connection jdbc() throws SQLException {
+    @Override
+    public Connection get() throws SQLException {
         return DriverManager.getConnection(url, DEFAULT_PROPS);
     }
 }

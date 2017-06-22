@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.jdbc.integration.util;
 
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 
 import java.sql.Connection;
@@ -19,32 +20,16 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 // poor's man JdbcTemplate
 public class JdbcTemplate {
+    private static final int MAX_WIDTH = 20;
 
-    private final Supplier<Connection> conn;
+    private final CheckedSupplier<Connection, SQLException> conn;
 
-    public JdbcTemplate(JdbcSupplier<Connection> conn) {
+    public JdbcTemplate(CheckedSupplier<Connection, SQLException> conn) {
         this.conn = conn;
     }
-
-    public static interface JdbcSupplier<T> extends Supplier<T> {
-
-        @Override
-        default T get() {
-            try {
-                return jdbc();
-            } catch (SQLException ex) {
-                throw new RuntimeException(ex);
-            }
-        }
-
-        T jdbc() throws SQLException;
-    }
-
-    private static final int MAX_WIDTH = 20;
 
     @SuppressForbidden(reason="temporary")
     public static CheckedFunction<ResultSet, Void, SQLException> resultSetToConsole() {

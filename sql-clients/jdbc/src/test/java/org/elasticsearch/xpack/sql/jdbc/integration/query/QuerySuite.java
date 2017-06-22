@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.sql.jdbc.integration.query;
 
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.function.Supplier;
 
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.xpack.sql.jdbc.integration.query.filter.FilterSpecTests;
 import org.elasticsearch.xpack.sql.jdbc.integration.query.function.aggregate.AggSpecTests;
 import org.elasticsearch.xpack.sql.jdbc.integration.query.function.scalar.datetime.DateTimeSpecTests;
@@ -69,11 +71,11 @@ public class QuerySuite {
         EsDataLoader.loadData();
     }
 
-    public static Supplier<Connection> h2Con() {
+    public static CheckedSupplier<Connection, SQLException> h2Con() {
         return H2;
     }
 
-    public static Supplier<Connection> esCon() {
+    public static CheckedSupplier<Connection, SQLException> esCon() {
         return ES_JDBC_SERVER;
     }
 

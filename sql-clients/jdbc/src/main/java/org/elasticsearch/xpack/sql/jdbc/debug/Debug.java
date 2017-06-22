@@ -27,7 +27,6 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.Statement;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 
 public final class Debug {

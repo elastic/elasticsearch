@@ -9,7 +9,7 @@ import java.sql.ResultSet;
 
 final class DatabaseMetadataProxy extends DebuggingInvoker {
 
-    public DatabaseMetadataProxy(DebugLog log, Object result, Object parent) {
+    DatabaseMetadataProxy(DebugLog log, Object result, Object parent) {
         super(log, result, parent);
     }
 

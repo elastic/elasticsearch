@@ -968,21 +968,21 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             return f.name().equals(seenFunction.name()) && f.arguments().equals(seenFunction.arguments());
         }
     }
-}
 
-abstract class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
+    static abstract class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 
-    // transformUp (post-order) - that is first children and then the node
-    // but with a twist; only if the tree is not resolved or analyzed
-    @Override
-    public final LogicalPlan apply(LogicalPlan plan) {
-        return plan.transformUp(t -> t.analyzed() || (skipResolved() && t.resolved()) ? t : rule(t), typeToken());
-    }
+        // transformUp (post-order) - that is first children and then the node
+        // but with a twist; only if the tree is not resolved or analyzed
+        @Override
+        public final LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformUp(t -> t.analyzed() || (skipResolved() && t.resolved()) ? t : rule(t), typeToken());
+        }
 
-    @Override
-    protected abstract LogicalPlan rule(SubPlan plan);
+        @Override
+        protected abstract LogicalPlan rule(SubPlan plan);
 
-    protected boolean skipResolved() {
-        return true;
+        protected boolean skipResolved() {
+            return true;
+        }
     }
 }

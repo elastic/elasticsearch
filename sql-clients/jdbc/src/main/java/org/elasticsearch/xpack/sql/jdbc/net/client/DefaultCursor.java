@@ -27,7 +27,7 @@ class DefaultCursor implements Cursor {
         this.page = page;
     }
 
-    private static final String simplifyScrollId(String scrollId) {
+    private static String simplifyScrollId(String scrollId) {
         return StringUtils.hasText(scrollId) ? scrollId : null;
     }
 

@@ -9,7 +9,8 @@
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]parser[/\\]SqlBase(Base(Listener|Visitor)|Lexer|Listener|Parser|Visitor).java" checks="." />
 
   <!-- NOCOMMIT Temporary-->
-  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\].*.java" checks="." />
+  <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\].*.java" checks="LineLength" />
+  <suppress files="sql-clients[/\\].*.java" checks="LineLength" />
 
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]common[/\\]action[/\\]XPackDeleteByQueryAction.java" checks="LineLength" />
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]ml[/\\]action[/\\]StopDatafeedAction.java" checks="LineLength" />

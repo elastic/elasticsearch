@@ -42,4 +42,10 @@ abstract class BinaryPlan extends LogicalPlan {
         return Objects.equals(left(), other.left()) 
                 && Objects.equals(right(), other.right());
     }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(left, right);
+    }
+
 }

@@ -20,7 +20,7 @@ abstract class Verifier {
         private final Node<?> source;
         private final String message;
         
-        public Failure(Node<?> source, String message) {
+        Failure(Node<?> source, String message) {
             this.source = source;
             this.message = message + " " + source.nodeString();
         }

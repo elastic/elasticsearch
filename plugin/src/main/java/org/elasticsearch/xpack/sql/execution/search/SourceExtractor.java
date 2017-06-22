@@ -12,7 +12,7 @@ import org.elasticsearch.search.SearchHit;
 class SourceExtractor implements HitExtractor {
     private final String fieldName;
 
-    public SourceExtractor(String name) {
+    SourceExtractor(String name) {
         this.fieldName = name;
     }
 

@@ -20,7 +20,7 @@ import static java.util.Collections.emptyList;
 
 public class Schema implements Iterable<Entry> {
 
-    public static interface Entry {
+    public interface Entry {
         String name();
         DataType type();
     }

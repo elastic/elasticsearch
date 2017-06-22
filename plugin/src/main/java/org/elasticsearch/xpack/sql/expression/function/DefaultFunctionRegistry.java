@@ -5,16 +5,53 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
+import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.HourOfDay;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfDay;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MinuteOfHour;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYear;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.ACos;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.ASin;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.ATan;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cbrt;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Ceil;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cos;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Cosh;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Degrees;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.E;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Exp;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Expm1;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Floor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Log;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Log10;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Pi;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Radians;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sin;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sinh;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Sqrt;
+import org.elasticsearch.xpack.sql.expression.function.scalar.math.Tan;
+
 import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.net.URL;
-import java.util.*;
-
-import org.elasticsearch.xpack.sql.SqlException;
-import org.elasticsearch.xpack.sql.expression.function.aggregate.*;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.*;
-import org.elasticsearch.xpack.sql.expression.function.scalar.math.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Enumeration;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.of;

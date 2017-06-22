@@ -43,6 +43,7 @@ public abstract class NamedExpression extends Expression {
 
     @Override
     public final int hashCode() {
+        // NOCOMMIT making this final upsets checkstyle.
         return id.hashCode();
     }
 

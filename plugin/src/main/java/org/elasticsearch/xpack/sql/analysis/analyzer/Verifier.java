@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import java.util.*;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.AttributeSet;
 import org.elasticsearch.xpack.sql.expression.Expressions;
@@ -20,6 +18,14 @@ import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.logical.Project;
 import org.elasticsearch.xpack.sql.tree.Node;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
+
 import static java.lang.String.format;
 import static java.util.stream.Collectors.toList; 
 
@@ -29,7 +35,7 @@ abstract class Verifier {
         private final Node<?> source;
         private final String message;
         
-        public Failure(Node<?> source, String message) {
+        Failure(Node<?> source, String message) {
             this.source = source;
             this.message = message;
         }

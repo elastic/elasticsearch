@@ -11,7 +11,7 @@ import org.elasticsearch.search.SearchHitField;
 class DocValueExtractor implements HitExtractor {
     private final String fieldName;
 
-    public DocValueExtractor(String name) {
+    DocValueExtractor(String name) {
         this.fieldName = name;
     }
 

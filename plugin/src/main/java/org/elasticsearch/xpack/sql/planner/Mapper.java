@@ -124,26 +124,26 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
             throw new UnsupportedOperationException("Don't know how to handle join " + join.nodeString());
         }
     }
-}
 
-abstract class MapExecRule<SubPlan extends LogicalPlan> extends Rule<UnplannedExec, PhysicalPlan> {
+    abstract static class MapExecRule<SubPlan extends LogicalPlan> extends Rule<UnplannedExec, PhysicalPlan> {
 
-    private final Class<SubPlan> subPlanToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
+        private final Class<SubPlan> subPlanToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
 
-    @Override
-    public final PhysicalPlan apply(PhysicalPlan plan) {
-        return plan.transformUp(this::rule, UnplannedExec.class);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    protected final PhysicalPlan rule(UnplannedExec plan) {
-        LogicalPlan subPlan = plan.plan();
-        if (subPlanToken.isInstance(subPlan)) {
-            return map((SubPlan) subPlan);
+        @Override
+        public final PhysicalPlan apply(PhysicalPlan plan) {
+            return plan.transformUp(this::rule, UnplannedExec.class);
         }
-        return plan;
-    }
 
-    protected abstract PhysicalPlan map(SubPlan plan);
+        @SuppressWarnings("unchecked")
+        @Override
+        protected final PhysicalPlan rule(UnplannedExec plan) {
+            LogicalPlan subPlan = plan.plan();
+            if (subPlanToken.isInstance(subPlan)) {
+                return map((SubPlan) subPlan);
+            }
+            return plan;
+        }
+
+        protected abstract PhysicalPlan map(SubPlan plan);
+    }
 }

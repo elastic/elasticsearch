@@ -40,7 +40,7 @@ subprojects {
   }
 
   tasks.withType(LicenseHeadersTask.class) {
-    approvedLicenses = ['Elasticsearch Confidential']
+    approvedLicenses = ['Elasticsearch Confidential', 'Generated']
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin']

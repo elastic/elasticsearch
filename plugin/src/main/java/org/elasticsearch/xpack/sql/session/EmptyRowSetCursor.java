@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.type.Schema;
 
 class EmptyRowSetCursor extends AbstractRowSetCursor {
 
-    public EmptyRowSetCursor(Schema schema) {
+    EmptyRowSetCursor(Schema schema) {
         super(schema, null);
     }
 

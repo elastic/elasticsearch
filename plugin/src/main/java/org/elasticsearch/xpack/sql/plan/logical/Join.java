@@ -22,11 +22,12 @@ public class Join extends BinaryPlan {
     private final JoinType type;
     private final Expression condition;
 
-    public static enum JoinType {
-        INNER, LEFT // OUTER
-        , RIGHT // OUTER
-        , FULL // OUTER
-        , IMPLICIT
+    public enum JoinType {
+        INNER,
+        LEFT, // OUTER
+        RIGHT, // OUTER
+        FULL, // OUTER
+        IMPLICIT,
     }
     
     public Join(Location location, LogicalPlan left, LogicalPlan right, JoinType type, Expression condition) {

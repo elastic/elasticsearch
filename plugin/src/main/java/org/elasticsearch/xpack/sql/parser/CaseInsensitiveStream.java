@@ -13,9 +13,10 @@ import org.antlr.v4.runtime.IntStream;
 // extension of ANTLR that does the uppercasing once for the whole stream
 // the ugly part is that it has to duplicate LA method
 class CaseInsensitiveStream extends ANTLRInputStream {
+    // NOCOMMIT maybe we can fix this in the lexer or on the way in so we don't need the LA override
     protected char[] uppedChars;
 
-    public CaseInsensitiveStream(String input) {
+    CaseInsensitiveStream(String input) {
         super(input);
         this.uppedChars = input.toUpperCase(Locale.ROOT).toCharArray();
     }

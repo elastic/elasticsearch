@@ -470,16 +470,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return exec.with(qContainer);
         }
     }
-}
+   
+    /**
+     * Rule for folding physical plans together.
+     */
+    abstract static class FoldingRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
 
-// rule for folding physical plans together
-abstract class FoldingRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
+        @Override
+        public final PhysicalPlan apply(PhysicalPlan plan) {
+            return plan.transformUp(this::rule, typeToken());
+        }
 
-    @Override
-    public final PhysicalPlan apply(PhysicalPlan plan) {
-        return plan.transformUp(this::rule, typeToken());
+        @Override
+        protected abstract PhysicalPlan rule(SubPlan plan);
     }
-
-    @Override
-    protected abstract PhysicalPlan rule(SubPlan plan);
 }
+

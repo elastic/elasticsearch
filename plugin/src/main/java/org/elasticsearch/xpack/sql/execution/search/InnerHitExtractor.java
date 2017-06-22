@@ -17,7 +17,7 @@ class InnerHitExtractor implements HitExtractor {
     private final boolean useDocValue;
     private final String[] tree;
 
-    public InnerHitExtractor(String hitName, String name, boolean useDocValue) {
+    InnerHitExtractor(String hitName, String name, boolean useDocValue) {
         this.hitName = hitName;
         this.fieldName = name;
         this.useDocValue = useDocValue;

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.cluster;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -50,6 +51,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -72,6 +74,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -137,6 +141,87 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
 
         // TODO: check if we can go to green by starting all shards and finishing all iterations
         logger.info("Final cluster state: {}", state);
+    }
+
+    public void testRandomClusterPromotesNewestReplica() {
+        // we have an IndicesClusterStateService per node in the cluster
+        final Map<DiscoveryNode, IndicesClusterStateService> clusterStateServiceMap = new HashMap<>();
+        ClusterState state = randomInitialClusterState(clusterStateServiceMap, MockIndicesService::new);
+
+        // randomly add nodes of mixed versions
+        logger.info("--> adding random nodes");
+        for (int i = 0; i < randomIntBetween(4, 8); i++) {
+            DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes())
+                    .add(createRandomVersionNode()).build();
+            state = ClusterState.builder(state).nodes(newNodes).build();
+            state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after node leave
+            updateNodes(state, clusterStateServiceMap, MockIndicesService::new);
+        }
+
+        // Log the shard versions (for debugging if necessary)
+        for (ObjectCursor<DiscoveryNode> cursor : state.nodes().getDataNodes().values()) {
+            Version nodeVer = cursor.value.getVersion();
+            logger.info("--> node [{}] has version [{}]", cursor.value.getId(), nodeVer);
+        }
+
+        // randomly create some indices
+        logger.info("--> creating some indices");
+        for (int i = 0; i < randomIntBetween(2, 5); i++) {
+            String name = "index_" + randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
+            Settings.Builder settingsBuilder = Settings.builder()
+                    .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
+                    .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 3))
+                    .put("index.routing.allocation.total_shards_per_node", 1);
+            CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
+            state = cluster.createIndex(state, request);
+            assertTrue(state.metaData().hasIndex(name));
+        }
+        state = cluster.reroute(state, new ClusterRerouteRequest());
+
+        ClusterState previousState = state;
+        // apply cluster state to nodes (incl. master)
+        for (DiscoveryNode node : state.nodes()) {
+            IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
+            ClusterState localState = adaptClusterStateToLocalNode(state, node);
+            ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
+            final ClusterChangedEvent event = new ClusterChangedEvent("simulating change", localState, previousLocalState);
+            indicesClusterStateService.applyClusterState(event);
+
+            // check that cluster state has been properly applied to node
+            assertClusterStateMatchesNodeState(localState, indicesClusterStateService);
+        }
+
+        logger.info("--> starting shards");
+        state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));;
+        state = cluster.reroute(state, new ClusterRerouteRequest());
+        logger.info("--> starting replicas");
+        state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));;
+        state = cluster.reroute(state, new ClusterRerouteRequest());
+
+        logger.info("--> state before failing shards: {}", state);
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            for (ShardRouting shardRouting : state.getRoutingNodes().shardsWithState(STARTED)) {
+                if (shardRouting.primary() && randomBoolean()) {
+                    ShardRouting replicaToBePromoted = state.getRoutingNodes()
+                        .activeReplicaWithHighestVersion(shardRouting.shardId());
+                    if (replicaToBePromoted != null) {
+                        Version replicaNodeVersion = state.nodes().getDataNodes()
+                            .get(replicaToBePromoted.currentNodeId()).getVersion();
+                        List<FailedShard> shardsToFail = new ArrayList<>();
+                        logger.info("--> found replica that should be promoted: {}", replicaToBePromoted);
+                        logger.info("--> failing shard {}", shardRouting);
+                        shardsToFail.add(new FailedShard(shardRouting, "failed primary", new Exception()));
+                        state = cluster.applyFailedShards(state, shardsToFail);
+                        ShardRouting newPrimary = state.routingTable().index(shardRouting.index())
+                            .shard(shardRouting.id()).primaryShard();
+
+                        assertThat(newPrimary.allocationId().getId(),
+                            equalTo(replicaToBePromoted.allocationId().getId()));
+                    }
+                }
+                state = cluster.reroute(state, new ClusterRerouteRequest());
+            }
+        }
     }
 
     /**
@@ -386,6 +471,16 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
         return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
             Version.CURRENT);
+    }
+
+    protected DiscoveryNode createRandomVersionNode(DiscoveryNode.Role... mustHaveRoles) {
+        Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Sets.newHashSet(DiscoveryNode.Role.values())));
+        for (DiscoveryNode.Role mustHaveRole : mustHaveRoles) {
+            roles.add(mustHaveRole);
+        }
+        final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
+                VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, null));
     }
 
     private static ClusterState adaptClusterStateToLocalNode(ClusterState state, DiscoveryNode node) {

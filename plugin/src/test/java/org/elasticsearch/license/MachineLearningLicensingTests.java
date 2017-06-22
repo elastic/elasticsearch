@@ -406,6 +406,15 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
             } else {
                 listener.actionGet();
             }
+
+            if (invalidLicense) {
+                // the close due to invalid license happens async, so check if the job turns into closed state:
+                assertBusy(() -> {
+                    GetJobsStatsAction.Response response =
+                            new MachineLearningClient(client).getJobsStats(new GetJobsStatsAction.Request(jobId)).actionGet();
+                    assertEquals(JobState.CLOSED, response.getResponse().results().get(0).getState());
+                });
+            }
         }
     }
 

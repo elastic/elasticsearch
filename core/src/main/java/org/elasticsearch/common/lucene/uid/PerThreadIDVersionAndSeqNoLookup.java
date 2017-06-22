@@ -19,7 +19,6 @@ package org.elasticsearch.common.lucene.uid;
  * under the License.
  */
 
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -67,8 +66,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
      */
     PerThreadIDVersionAndSeqNoLookup(LeafReader reader, String uidField) throws IOException {
         this.uidField = uidField;
-        Fields fields = reader.fields();
-        Terms terms = fields.terms(uidField);
+        Terms terms = reader.terms(uidField);
         if (terms == null) {
             throw new IllegalArgumentException("reader misses the [" + uidField + "] field");
         }

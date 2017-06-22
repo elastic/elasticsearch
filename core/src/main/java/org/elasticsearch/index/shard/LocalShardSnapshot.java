@@ -60,6 +60,10 @@ final class LocalShardSnapshot implements Closeable {
         return shard.indexSettings().getIndex();
     }
 
+    long maxSeqNo() {
+        return shard.getEngine().seqNoService().getMaxSeqNo();
+    }
+
     Directory getSnapshotDirectory() {
         /* this directory will not be used for anything else but reading / copying files to another directory
          * we prevent all write operations on this directory with UOE - nobody should close it either. */

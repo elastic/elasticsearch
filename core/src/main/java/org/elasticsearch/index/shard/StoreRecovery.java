@@ -41,6 +41,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -49,6 +50,8 @@ import org.elasticsearch.repositories.Repository;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -115,9 +118,9 @@ final class StoreRecovery {
                 logger.debug("starting recovery from local shards {}", shards);
                 try {
                     final Directory directory = indexShard.store().directory(); // don't close this directory!!
-                    addIndices(indexShard.recoveryState().getIndex(), directory, indexSort,
-                        shards.stream().map(s -> s.getSnapshotDirectory())
-                        .collect(Collectors.toList()).toArray(new Directory[shards.size()]));
+                    final Directory[] sources = shards.stream().map(LocalShardSnapshot::getSnapshotDirectory).toArray(Directory[]::new);
+                    final long maxSeqNo = shards.stream().mapToLong(LocalShardSnapshot::maxSeqNo).max().getAsLong();
+                    addIndices(indexShard.recoveryState().getIndex(), directory, indexSort, sources, maxSeqNo);
                     internalRecoverFromStore(indexShard);
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
@@ -131,8 +134,13 @@ final class StoreRecovery {
         return false;
     }
 
-    void addIndices(RecoveryState.Index indexRecoveryStats, Directory target, Sort indexSort, Directory... sources) throws IOException {
-        target = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
+    void addIndices(
+            final RecoveryState.Index indexRecoveryStats,
+            final Directory target,
+            final Sort indexSort,
+            final Directory[] sources,
+            final long maxSeqNo) throws IOException {
+        final Directory hardLinkOrCopyTarget = new org.apache.lucene.store.HardlinkCopyDirectoryWrapper(target);
         IndexWriterConfig iwc = new IndexWriterConfig(null)
             .setCommitOnClose(false)
             // we don't want merges to happen here - we call maybe merge on the engine
@@ -143,8 +151,19 @@ final class StoreRecovery {
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
         }
-        try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(target, indexRecoveryStats), iwc)) {
+        try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(hardLinkOrCopyTarget, indexRecoveryStats), iwc)) {
             writer.addIndexes(sources);
+            /*
+             * We set the maximum sequence number and the local checkpoint on the target to the maximum of the maximum sequence numbers on
+             * the source shards. This ensures that history after this maximum sequence number can advance and we have correct
+             * document-level semantics.
+             */
+            writer.setLiveCommitData(() -> {
+                final HashMap<String, String> liveCommitData = new HashMap<>(2);
+                liveCommitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+                liveCommitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
+                return liveCommitData.entrySet().iterator();
+            });
             writer.commit();
         }
     }

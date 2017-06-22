@@ -20,7 +20,7 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -196,14 +196,13 @@ public class PercolatorFieldMapper extends FieldMapper {
         Query createCandidateQuery(IndexReader indexReader) throws IOException {
             List<BytesRef> extractedTerms = new ArrayList<>();
             LeafReader reader = indexReader.leaves().get(0).reader();
-            Fields fields = reader.fields();
-            for (String field : fields) {
-                Terms terms = fields.terms(field);
+            for (FieldInfo info : reader.getFieldInfos()) {
+                Terms terms = reader.terms(info.name);
                 if (terms == null) {
                     continue;
                 }
 
-                BytesRef fieldBr = new BytesRef(field);
+                BytesRef fieldBr = new BytesRef(info.name);
                 TermsEnum tenum = terms.iterator();
                 for (BytesRef term = tenum.next(); term != null; term = tenum.next()) {
                     BytesRefBuilder builder = new BytesRefBuilder();

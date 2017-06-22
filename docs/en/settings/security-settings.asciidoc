@@ -57,6 +57,25 @@ Set to `false` to prevent document and field level security
 from being configured. Defaults to `true`.
 
 [float]
+[[token-service-settings]]
+=== Token Service Settings
+
+You can set the following token service settings in
+`elasticsearch.yml`.
+
+`xpack.security.authc.token.enabled`::
+Set to `false` to disable the built-in token service. Defaults to `true`.
+
+`xpack.security.authc.token.passphrase`::
+A secure passphrase that must be the same on each node and greater than
+8 characters in length. This passphrase is used to derive a cryptographic key
+with which the tokens will be encrypted and authenticated.
+
+`xpack.security.authc.token.timeout`::
+The length of time that a token is valid for. By default this value is `20m` or
+20 minutes. The maximum value is 1 hour.
+
+[float]
 [[realm-settings]]
 === Realm Settings
 You configure realm settings in the `xpack.security.authc.realms` 

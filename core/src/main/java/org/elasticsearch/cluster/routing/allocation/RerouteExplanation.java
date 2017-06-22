@@ -84,6 +84,7 @@ public class RerouteExplanation implements ToXContent {
         builder.field("parameters", command);
         builder.startArray("decisions");
         decisions.toXContent(builder, params);
+        builder.endArray();
         builder.field("warnings", warnings);
         builder.endObject();
         return builder;

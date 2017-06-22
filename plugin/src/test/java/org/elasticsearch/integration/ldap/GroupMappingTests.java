@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.integration.ldap;
 
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.test.junit.annotations.Network;
 
 import java.io.IOException;
@@ -14,6 +16,7 @@ import java.io.IOException;
  * The super class will provide appropriate group mappings via configGroupMappings()
  */
 @Network
+@AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/1823")
 public class GroupMappingTests extends AbstractAdLdapRealmTestCase {
     public void testAuthcAuthz() throws IOException {
         String avenger = realmConfig.loginWithCommonName ? "Natasha Romanoff" : "blackwidow";

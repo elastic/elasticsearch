@@ -525,7 +525,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          * @throws InterruptedException            if blocking operations is interrupted
          */
     public void relocated(final String reason, final Runnable onBlocked) throws IllegalIndexShardStateException, InterruptedException {
-
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {

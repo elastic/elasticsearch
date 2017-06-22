@@ -168,13 +168,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         }
 
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FILE_CHUNK,
-                new RecoveryFileChunkRequest(recoveryId, shardId, fileMetaData, position, content, lastChunk,
-                        totalTranslogOps,
-                                /* we send totalOperations with every request since we collect stats on the target and that way we can
-                                 * see how many translog ops we accumulate while copying files across the network. A future optimization
-                                 * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
-                                 */
-                        throttleTimeInNanos), fileChunkRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+            new RecoveryFileChunkRequest(recoveryId, shardId, fileMetaData, position, content, lastChunk,
+                totalTranslogOps,
+                /* we send estimateTotalOperations with every request since we collect stats on the target and that way we can
+                 * see how many translog ops we accumulate while copying files across the network. A future optimization
+                 * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
+                 */
+                throttleTimeInNanos), fileChunkRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
 
 }

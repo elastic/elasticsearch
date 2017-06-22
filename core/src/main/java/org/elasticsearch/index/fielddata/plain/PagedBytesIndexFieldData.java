@@ -180,8 +180,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
                 LeafReader reader = context.reader();
                 Terms terms = reader.terms(getFieldName());
 
-                Fields fields = reader.fields();
-                final Terms fieldTerms = fields.terms(getFieldName());
+                final Terms fieldTerms = reader.terms(getFieldName());
 
                 if (fieldTerms instanceof FieldReader) {
                     final Stats stats = ((FieldReader) fieldTerms).getStats();

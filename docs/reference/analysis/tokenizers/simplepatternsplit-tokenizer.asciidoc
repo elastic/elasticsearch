@@ -3,14 +3,14 @@
 
 experimental[]
 
-The `simplepatternsplit` tokenizer uses a regular expression to split the
+The `simple_pattern_split` tokenizer uses a regular expression to split the
 input into terms at pattern matches. The set of regular expression features it
 supports is more limited than the <<analysis-pattern-tokenizer,`pattern`>>
 tokenizer, but the tokenization is generally faster.
 
 This tokenizer does not produce terms from the matches themselves. To produce
 terms from matches using patterns in the same restricted regular expression
-subset, see the <<analysis-simplepattern-tokenizer,`simplepattern`>>
+subset, see the <<analysis-simplepattern-tokenizer,`simple_pattern`>>
 tokenizer.
 
 This tokenizer uses {lucene-core-javadoc}/org/apache/lucene/util/automaton/RegExp.html[Lucene regular expressions].
@@ -23,7 +23,7 @@ pattern.
 [float]
 === Configuration
 
-The `simplepatternsplit` tokenizer accepts the following parameters:
+The `simple_pattern_split` tokenizer accepts the following parameters:
 
 [horizontal]
 `pattern`::
@@ -32,7 +32,7 @@ The `simplepatternsplit` tokenizer accepts the following parameters:
 [float]
 === Example configuration
 
-This example configures the `simplepatternsplit` tokenizer to split the input
+This example configures the `simple_pattern_split` tokenizer to split the input
 text on underscores.
 
 [source,js]
@@ -48,7 +48,7 @@ PUT my_index
       },
       "tokenizer": {
         "my_tokenizer": {
-          "type": "simplepatternsplit",
+          "type": "simple_pattern_split",
           "pattern": "_"
         }
       }

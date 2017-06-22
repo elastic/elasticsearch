@@ -151,11 +151,10 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
 
     public void testNestedHaveIdAndTypeFields() throws Exception {
         DocumentMapperParser mapperParser1 = createIndex("index1", Settings.builder()
-            .put("index.mapping.single_type", false).build()
+            .put("index.version.created", Version.V_5_6_0) // allows for multiple types
+            .build()
         ).mapperService().documentMapperParser();
-        DocumentMapperParser mapperParser2 = createIndex("index2", Settings.builder()
-            .put("index.mapping.single_type", true).build()
-        ).mapperService().documentMapperParser();
+        DocumentMapperParser mapperParser2 = createIndex("index2").mapperService().documentMapperParser();
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties");
         {

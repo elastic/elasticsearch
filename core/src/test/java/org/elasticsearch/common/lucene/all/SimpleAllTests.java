@@ -81,7 +81,7 @@ public class SimpleAllTests extends ESTestCase {
 
         Query query = new AllTermQuery(new Term("_all", "else"));
         TopDocs docs = searcher.search(query, 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertExplanationScore(searcher, query, docs.scoreDocs[0]);
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
@@ -89,7 +89,7 @@ public class SimpleAllTests extends ESTestCase {
 
         query = new AllTermQuery(new Term("_all", "something"));
         docs = searcher.search(query, 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertExplanationScore(searcher, query, docs.scoreDocs[0]);
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
@@ -123,7 +123,7 @@ public class SimpleAllTests extends ESTestCase {
         // this one is boosted. so the second doc is more relevant
         Query query = new AllTermQuery(new Term("_all", "else"));
         TopDocs docs = searcher.search(query, 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(1));
         assertExplanationScore(searcher, query, docs.scoreDocs[0]);
         assertThat(docs.scoreDocs[1].doc, equalTo(0));
@@ -131,7 +131,7 @@ public class SimpleAllTests extends ESTestCase {
 
         query = new AllTermQuery(new Term("_all", "something"));
         docs = searcher.search(query, 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertExplanationScore(searcher, query, docs.scoreDocs[0]);
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
@@ -192,22 +192,22 @@ public class SimpleAllTests extends ESTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
 
         docs = searcher.search(new AllTermQuery(new Term("_all", "koo")), 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
 
         docs = searcher.search(new AllTermQuery(new Term("_all", "something")), 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
 
         docs = searcher.search(new AllTermQuery(new Term("_all", "moo")), 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
 
@@ -237,22 +237,22 @@ public class SimpleAllTests extends ESTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new AllTermQuery(new Term("_all", "else")), 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(1));
         assertThat(docs.scoreDocs[1].doc, equalTo(0));
 
         docs = searcher.search(new AllTermQuery(new Term("_all", "koo")), 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(1));
         assertThat(docs.scoreDocs[1].doc, equalTo(0));
 
         docs = searcher.search(new AllTermQuery(new Term("_all", "something")), 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
 
         docs = searcher.search(new AllTermQuery(new Term("_all", "moo")), 10);
-        assertThat(docs.totalHits, equalTo(2));
+        assertThat(docs.totalHits, equalTo(2L));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
         assertThat(docs.scoreDocs[1].doc, equalTo(1));
 
@@ -273,7 +273,7 @@ public class SimpleAllTests extends ESTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs docs = searcher.search(new MatchAllDocsQuery(), 10);
-        assertThat(docs.totalHits, equalTo(1));
+        assertThat(docs.totalHits, equalTo(1L));
         assertThat(docs.scoreDocs[0].doc, equalTo(0));
     }
 }

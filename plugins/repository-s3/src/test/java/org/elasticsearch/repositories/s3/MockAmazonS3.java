@@ -76,20 +76,13 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     public PutObjectResult putObject(PutObjectRequest putObjectRequest)
             throws AmazonClientException, AmazonServiceException {
         String blobName = putObjectRequest.getKey();
-        DigestInputStream stream = (DigestInputStream) putObjectRequest.getInputStream();
 
         if (blobs.containsKey(blobName)) {
             throw new AmazonS3Exception("[" + blobName + "] already exists.");
         }
 
-        blobs.put(blobName, stream);
-
-        // input and output md5 hashes need to match to avoid an exception
-        String md5 = Base64.encodeAsString(stream.getMessageDigest().digest());
-        PutObjectResult result = new PutObjectResult();
-        result.setContentMd5(md5);
-
-        return result;
+        blobs.put(blobName, putObjectRequest.getInputStream());
+        return new PutObjectResult();
     }
 
     @Override

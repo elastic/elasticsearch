@@ -420,3 +420,17 @@ task run(type: Run) {
   group = 'Verification'
   impliesSubProjects = true
 }
+
+/* Remove assemble on all qa projects because we don't need to publish
+ * artifacts for them. */
+gradle.projectsEvaluated {
+  subprojects {
+    if (project.path.startsWith(':qa')) {
+      Task assemble = project.tasks.findByName('assemble')
+      if (assemble) {
+        project.tasks.remove(assemble)
+        project.build.dependsOn.remove('assemble')
+      }
+    }
+  }
+}

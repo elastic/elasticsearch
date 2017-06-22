@@ -29,7 +29,6 @@ import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaderValues;
-import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -172,7 +171,7 @@ final class Netty4HttpChannel extends AbstractRestChannel {
 
     private void addCookies(HttpResponse resp) {
         if (transport.resetCookies) {
-            String cookieString = nettyRequest.headers().get(HttpHeaders.Names.COOKIE);
+            String cookieString = nettyRequest.headers().get(HttpHeaderNames.COOKIE);
             if (cookieString != null) {
                 Set<io.netty.handler.codec.http.cookie.Cookie> cookies = ServerCookieDecoder.STRICT.decode(cookieString);
                 if (!cookies.isEmpty()) {

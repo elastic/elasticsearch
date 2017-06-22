@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.morelikethis;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -32,10 +33,14 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -58,6 +63,12 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class MoreLikeThisIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
+
     public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1",
@@ -82,14 +93,13 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testSimpleMoreLikeOnLongField() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
                 .addMapping("type1", "some_long", "type=long"));
         logger.info("Running Cluster Health");
         assertThat(ensureGreen(), equalTo(ClusterHealthStatus.GREEN));
 
         logger.info("Indexing...");
         client().index(indexRequest("test").type("type1").id("1").source(jsonBuilder().startObject().field("some_long", 1367484649580L).endObject())).actionGet();
-        client().index(indexRequest("test").type("type2").id("2").source(jsonBuilder().startObject().field("some_long", 0).endObject())).actionGet();
+        client().index(indexRequest("test").type("type1").id("2").source(jsonBuilder().startObject().field("some_long", 0).endObject())).actionGet();
         client().index(indexRequest("test").type("type1").id("3").source(jsonBuilder().startObject().field("some_long", -666).endObject())).actionGet();
 
         client().admin().indices().refresh(refreshRequest()).actionGet();
@@ -360,7 +370,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Creating index test");
         int numOfTypes = randomIntBetween(2, 10);
         CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test")
-                .setSettings("index.mapping.single_type", false);
+                .setSettings("index.version.created", Version.V_5_6_0.id);
         for (int i = 0; i < numOfTypes; i++) {
             createRequestBuilder.addMapping("type" + i, jsonBuilder().startObject().startObject("type" + i).startObject("properties")
                     .startObject("text").field("type", "text").endObject()

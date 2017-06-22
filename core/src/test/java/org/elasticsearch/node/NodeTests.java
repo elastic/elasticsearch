@@ -57,14 +57,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class NodeTests extends ESTestCase {
 
     public void testNodeName() throws IOException {
-        final Path tempDir = createTempDir();
         final String name = randomBoolean() ? randomAlphaOfLength(10) : null;
-        Settings.Builder settings = Settings.builder()
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("transport.type", "mock-socket-network")
-            .put(Node.NODE_DATA_SETTING.getKey(), true);
+        Settings.Builder settings = baseSettings();
         if (name != null) {
             settings.put(Node.NODE_NAME_SETTING.getKey(), name);
         }
@@ -97,14 +91,8 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testLoadPluginBootstrapChecks() throws IOException {
-        final Path tempDir = createTempDir();
         final String name = randomBoolean() ? randomAlphaOfLength(10) : null;
-        Settings.Builder settings = Settings.builder()
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("transport.type", "mock-socket-network")
-            .put(Node.NODE_DATA_SETTING.getKey(), true);
+        Settings.Builder settings = baseSettings();
         if (name != null) {
             settings.put(Node.NODE_NAME_SETTING.getKey(), name);
         }
@@ -247,7 +235,7 @@ public class NodeTests extends ESTestCase {
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put("transport.type", "mock-socket-network")
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, "mock-socket-network")
                 .put(Node.NODE_DATA_SETTING.getKey(), true);
     }
 

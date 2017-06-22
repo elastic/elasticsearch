@@ -269,9 +269,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
             shards.assertAllEqual(0);
             for (IndexShard indexShard : shards) {
-                try(Translog.View view = indexShard.acquireTranslogView()) {
-                    assertThat(view.totalOperations(), equalTo(0));
-                }
+                assertThat(indexShard.routingEntry() + " has the wrong number of ops in the translog",
+                    indexShard.translogStats().estimatedNumberOfOperations(), equalTo(0));
             }
 
             // add some replicas
@@ -289,9 +288,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
             shards.assertAllEqual(0);
             for (IndexShard indexShard : shards) {
-                try(Translog.View view = indexShard.acquireTranslogView()) {
-                    assertThat(view.totalOperations(), equalTo(0));
-                }
+                assertThat(indexShard.routingEntry() + " has the wrong number of ops in the translog",
+                    indexShard.translogStats().estimatedNumberOfOperations(), equalTo(0));
             }
         }
     }
@@ -324,8 +322,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             String failureMessage) throws IOException {
         for (IndexShard indexShard : replicationGroup) {
             try(Translog.View view = indexShard.acquireTranslogView()) {
-                assertThat(view.totalOperations(), equalTo(expectedOperation));
-                final Translog.Snapshot snapshot = view.snapshot();
+                assertThat(view.estimateTotalOperations(SequenceNumbersService.NO_OPS_PERFORMED), equalTo(expectedOperation));
+                final Translog.Snapshot snapshot = view.snapshot(SequenceNumbersService.NO_OPS_PERFORMED);
                 long expectedSeqNo = 0L;
                 Translog.Operation op = snapshot.next();
                 do {

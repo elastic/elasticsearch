@@ -32,6 +32,7 @@ import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.DecimalDigitFilter;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.LowerCaseTokenizer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
@@ -121,8 +122,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         Map<String, AnalysisProvider<TokenizerFactory>> tokenizers = new TreeMap<>();
-        tokenizers.put("simplepattern", SimplePatternTokenizerFactory::new);
-        tokenizers.put("simplepatternsplit", SimplePatternSplitTokenizerFactory::new);
+        tokenizers.put("simple_pattern", SimplePatternTokenizerFactory::new);
+        tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         return tokenizers;
     }
 
@@ -215,6 +216,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
         List<PreConfiguredTokenizer> tokenizers = new ArrayList<>();
+        tokenizers.add(PreConfiguredTokenizer.singleton("keyword", KeywordTokenizer::new, null));
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", LowerCaseTokenizer::new, () -> new TokenFilterFactory() {
             @Override
             public String name() {

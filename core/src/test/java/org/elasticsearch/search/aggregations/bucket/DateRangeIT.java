@@ -926,4 +926,67 @@ public class DateRangeIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("cache_test_idx").setRequestCache(true).get().getTotal().getRequestCache()
                 .getMissCount(), equalTo(1L));
     }
+
+    /**
+     * Test range uses type format
+     */
+    public void testRangeUsesDateTypeFormat() throws Exception {
+        String indexName = "dateformat_test_idx";
+        assertAcked(prepareCreate(indexName).addMapping("type", "date", "type=date,format=strict_hour_minute_second"));
+        indexRandom(true,
+                client().prepareIndex(indexName, "type", "1")
+                        .setSource(jsonBuilder().startObject().field("date", "00:16:40").endObject()),
+                client().prepareIndex(indexName, "type", "2")
+                        .setSource(jsonBuilder().startObject().field("date", "00:33:20").endObject()),
+                client().prepareIndex(indexName, "type", "3")
+                        .setSource(jsonBuilder().startObject().field("date", "00:50:00").endObject()));
+
+        SearchResponse searchResponse = client().prepareSearch(indexName).setSize(0).addAggregation(dateRange("date_range").field("date")
+                .format("epoch_millis")
+                .addRange(1000000, 3000000)
+                .addRange(3000000, 4000000))
+                .get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        Range dateRange = searchResponse.getAggregations().get("date_range");
+        List<Range.Bucket> buckets = new ArrayList<>(dateRange.getBuckets());
+        assertThat(dateRange, Matchers.notNullValue());
+        assertThat(dateRange.getName(), equalTo("date_range"));
+        assertThat(buckets.size(), is(2));
+
+        assertThat(buckets.get(0).getDocCount(), equalTo(2L));
+        assertThat((String) buckets.get(0).getKey(), equalTo("1000000-3000000"));
+        assertThat(((DateTime) buckets.get(0).getFrom()).getMillis(), equalTo(1000000L));
+        assertThat(((DateTime) buckets.get(0).getTo()).getMillis(), equalTo(3000000L));
+        assertThat(buckets.get(0).getAggregations().asList().isEmpty(), is(true));
+
+        assertThat(buckets.get(1).getDocCount(), equalTo(1L));
+        assertThat((String) buckets.get(1).getKey(), equalTo("3000000-4000000"));
+        assertThat(((DateTime) buckets.get(1).getFrom()).getMillis(), equalTo(3000000L));
+        assertThat(((DateTime) buckets.get(1).getTo()).getMillis(), equalTo(4000000L));
+        assertThat(buckets.get(1).getAggregations().asList().isEmpty(), is(true));
+
+        searchResponse = client().prepareSearch(indexName).setSize(0).addAggregation(dateRange("date_range").field("date")
+                .addRange("00:16:40", "00:50:00")
+                .addRange("00:50:00", "01:06:40")
+                 .format("HH:mm:ss"))
+                .get();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(3L));
+        dateRange = searchResponse.getAggregations().get("date_range");
+        buckets = new ArrayList<>(dateRange.getBuckets());
+        assertThat(dateRange, Matchers.notNullValue());
+        assertThat(dateRange.getName(), equalTo("date_range"));
+        assertThat(buckets.size(), is(2));
+
+        assertThat(buckets.get(0).getDocCount(), equalTo(2L));
+        assertThat((String) buckets.get(0).getKey(), equalTo("00:16:40-00:50:00"));
+        assertThat(((DateTime) buckets.get(0).getFrom()).getMillis(), equalTo(1000000L));
+        assertThat(((DateTime) buckets.get(0).getTo()).getMillis(), equalTo(3000000L));
+        assertThat(buckets.get(0).getAggregations().asList().isEmpty(), is(true));
+
+        assertThat(buckets.get(1).getDocCount(), equalTo(1L));
+        assertThat((String) buckets.get(1).getKey(), equalTo("00:50:00-01:06:40"));
+        assertThat(((DateTime) buckets.get(1).getFrom()).getMillis(), equalTo(3000000L));
+        assertThat(((DateTime) buckets.get(1).getTo()).getMillis(), equalTo(4000000L));
+        assertThat(buckets.get(1).getAggregations().asList().isEmpty(), is(true));
+    }
 }

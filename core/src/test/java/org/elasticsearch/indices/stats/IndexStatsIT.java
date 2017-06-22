@@ -559,7 +559,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                 .setSettings(SETTING_NUMBER_OF_REPLICAS, between(0, 1)));
         ensureGreen();
 
-        NumShards test1 = getNumShards("test1");
+        NumShards test1 = getNumShards("test_index");
 
         for (int i = 0; i < 100; i++) {
             index("test_index", "doc", Integer.toString(i), "field", "value");

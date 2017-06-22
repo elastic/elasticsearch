@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequest;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -233,8 +235,8 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             client().prepareIndex("source", "type")
                 .setSource("{\"foo\" : \"bar\", \"i\" : " + i + "}", XContentType.JSON).get();
         }
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = client().admin().cluster().prepareState().get().getState().nodes()
-            .getDataNodes();
+        ImmutableOpenMap<String, DiscoveryNode> dataNodes =
+                client().admin().cluster().prepareState().get().getState().nodes().getDataNodes();
         assertTrue("at least 2 nodes but was: " + dataNodes.size(), dataNodes.size() >= 2);
         DiscoveryNode[] discoveryNodes = dataNodes.values().toArray(DiscoveryNode.class);
         String mergeNode = discoveryNodes[0].getName();
@@ -249,9 +251,16 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .put("index.blocks.write", true)).get();
         ensureGreen();
 
-        final IndicesStatsResponse sourceStats = client().admin().indices().prepareStats("source").get();
+        final IndicesStatsResponse sourceStats = client().admin().indices().prepareStats("source").setSegments(true).get();
         final long maxSeqNo =
                 Arrays.stream(sourceStats.getShards()).map(ShardStats::getSeqNoStats).mapToLong(SeqNoStats::getMaxSeqNo).max().getAsLong();
+        final long maxUnsafeAutoIdTimestamp =
+                Arrays.stream(sourceStats.getShards())
+                        .map(ShardStats::getStats)
+                        .map(CommonStats::getSegments)
+                        .mapToLong(SegmentsStats::getMaxUnsafeAutoIdTimestamp)
+                        .max()
+                        .getAsLong();
         // now merge source into a single shard index
 
         final boolean createWithReplicas = randomBoolean();
@@ -264,6 +273,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             final SeqNoStats seqNoStats = shardStats.getSeqNoStats();
             assertThat(seqNoStats.getMaxSeqNo(), equalTo(maxSeqNo));
             assertThat(seqNoStats.getLocalCheckpoint(), equalTo(maxSeqNo));
+            assertThat(shardStats.getStats().getSegments().getMaxUnsafeAutoIdTimestamp(), equalTo(maxUnsafeAutoIdTimestamp));
         }
 
         final int size = docs > 0 ? 2 * docs : 1;

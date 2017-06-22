@@ -3,22 +3,19 @@
 
 [partintro]
 --
-You configure settings for X-Pack features in the `elasticsearch.yml` and `kibana.yml`
-configuration files.
+You configure settings for X-Pack features in the `elasticsearch.yml`,
+`kibana.yml`, and `logstash.yml` configuration files.
 
 [options="header,footer"]
 |=======================
-|{xpack} Feature  |{es} Settings                  |{kib} Settings              |Logstash Settings
-|Graph            |No                             |Yes                         |No
-//TO-DO: Add link: {kib-ref}/settings-xpack-kb.html[Yes]
-|Machine learning |{ref}/settings-xpack.html[Yes] |Yes                         |No
-//{kib-ref}/settings-xpack-kb.html[Yes]
-|Monitoring       |<<monitoring-settings,Yes>>    |<<monitoring-settings,Yes>> |<<monitoring-settings,Yes>>
-//{ref}/settings-xpack.html[Yes] {kib-ref}/settings-xpack-kb.html[Yes]
-|Reporting        |No                             |Yes                          |No
-//{kib-ref}/settings-xpack-kb.html[Yes]
-|Security         |<<security-settings,Yes>>      |<<security-settings,Yes>>   |No
-//{ref}/settings-xpack.html[Yes] {kib-ref}/settings-xpack-kb.html[Yes]
+|{xpack} Feature  |{es} Settings                  |{kib} Settings                                |Logstash Settings
+|Graph            |No                             |{kibana-ref}/graph-settings-kb.html[Yes]      |No
+|Machine learning |{ref}/ml-settings.html[Yes]    |{kibana-ref}/ml-settings-kb.html[Yes]         |No
+|Monitoring       |<<monitoring-settings,Yes>>    |{kibana-ref}/monitoring-settings-kb.html[Yes] |<<monitoring-settings,Yes>>
+//{ref}/settings-xpack.html[Yes]
+|Reporting        |No                             |{kibana-ref}/reporting-settings-kb.html[Yes]  |No
+|Security         |<<security-settings,Yes>>      |{kibana-ref}/security-settings-kb.html[Yes]   |No
+//{ref}/settings-xpack.html[Yes]
 |Watcher          |<<notification-settings,Yes>>  |No                          |No
 //{ref}/settings-xpack.html[Yes] No
 |=======================

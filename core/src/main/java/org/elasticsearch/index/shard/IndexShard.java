@@ -1704,7 +1704,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
         verifyPrimary();
-        assert shardRouting.isRelocationTarget();
+        assert shardRouting.isRelocationTarget()
+                : "only relocation target can update allocation IDs from primary context but was: " + shardRouting;
         final Engine engine = getEngineOrNull();
         if (engine != null) {
             engine.seqNoService().updateAllocationIdsFromPrimaryContext(primaryContext);

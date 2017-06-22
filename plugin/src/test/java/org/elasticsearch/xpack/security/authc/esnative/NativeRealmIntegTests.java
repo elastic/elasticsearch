@@ -479,13 +479,12 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         }
     }
 
-    public void testCannotCreateUserWithLeadingDigitInUserName() throws Exception {
+    public void testCannotCreateUserWithInvalidCharactersInName() throws Exception {
         SecurityClient client = securityClient();
         ValidationException v = expectThrows(ValidationException.class,
-                () -> client.preparePutUser("99bottles", "on-th3-w@ll".toCharArray(), "admin_role").get()
+                () -> client.preparePutUser("fóóbár", "my-am@zing-password".toCharArray(), "admin_role").get()
         );
-        assertThat(v.getMessage(), containsString("valid username"));
-        assertThat(v.getMessage(), containsString("must begin with"));
+        assertThat(v.getMessage(), containsString("names must be"));
     }
 
     public void testUsersAndRolesDoNotInterfereWithIndicesStats() throws Exception {

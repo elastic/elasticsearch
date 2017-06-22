@@ -380,7 +380,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(entries, hasSize(6));
         assertThat(
                 entries.get(0),
-                startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
+                startsWith("invalid role definition [fóóbár] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
         assertThat(
                 entries.get(1),
                 startsWith("invalid role definition [role1] in roles file [" + path.toAbsolutePath() + "]"));
@@ -401,7 +401,7 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(events, hasSize(1));
         assertThat(
                 events.get(0),
-                startsWith("invalid role definition [$dlk39] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
+                startsWith("invalid role definition [fóóbár] in roles file [" + path.toAbsolutePath() + "]. invalid role name"));
     }
 
     public void testReservedRoles() throws Exception {

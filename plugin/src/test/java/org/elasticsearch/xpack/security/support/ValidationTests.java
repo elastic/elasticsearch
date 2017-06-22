@@ -9,62 +9,36 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.Validation.Error;
 import org.elasticsearch.xpack.security.support.Validation.Users;
+import org.elasticsearch.xpack.security.support.Validation.Roles;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
-
-import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ValidationTests extends ESTestCase {
-    private static final char[] alphabet = {
-        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
-    };
 
-    private static final char[] numbers = { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' };
+    private static final Character[] ALLOWED_CHARS = Validation.VALID_NAME_CHARS.toArray(
+        new Character[Validation.VALID_NAME_CHARS.size()]
+    );
 
-    private static final char[] allowedFirstChars = concat(alphabet, new char[]{'_'});
-
-    private static final char[] allowedSubsequent = concat(alphabet, numbers, new char[]{'_', '@', '-', '$', '.'});
-
-    static {
-        Arrays.sort(allowedFirstChars);
-        Arrays.sort(allowedSubsequent);
-    }
-
-    static char[] concat(char[]... arrays) {
-        int length = 0;
-        for (char[] array : arrays) {
-            length += array.length;
-        }
-        char[] newArray = new char[length];
-        int i = 0;
-        for (char[] array : arrays) {
-            System.arraycopy(array, 0, newArray, i, array.length);
-            i += array.length;
-        }
-        return newArray;
-    }
-
-    public void testUsersValidateUsername() throws Exception {
-        int length = randomIntBetween(1, 30);
+    public void testUsernameValid() throws Exception {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
         String name = new String(generateValidName(length));
         assertThat(Users.validateUsername(name, false, Settings.EMPTY), nullValue());
     }
 
-    public void testReservedUsernames() {
+    public void testUsernameReserved() {
         final String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
         final Error error = Users.validateUsername(username, false, Settings.EMPTY);
         assertNotNull(error);
         assertThat(error.toString(), containsString("is reserved"));
     }
 
-    public void testUsersValidateUsernameInvalidLength() throws Exception {
-        int length = frequently() ? randomIntBetween(31, 200) : 0; // invalid length
+    public void testUsernameInvalidLength() throws Exception {
+        int length = frequently() ? randomIntBetween(Validation.MAX_NAME_LENGTH + 1, 2048) : 0;
         char[] name = new char[length];
         if (length > 0) {
             name = generateValidName(length);
@@ -72,9 +46,15 @@ public class ValidationTests extends ESTestCase {
         assertThat(Users.validateUsername(new String(name), false, Settings.EMPTY), notNullValue());
     }
 
-    public void testUsersValidateUsernameInvalidCharacters() throws Exception {
-        int length = randomIntBetween(1, 30); // valid length
-        String name = new String(generateInvalidName(length));
+    public void testUsernameInvalidCharacters() throws Exception {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
+        String name = new String(generateNameInvalidCharacters(length));
+        assertThat(Users.validateUsername(name, false, Settings.EMPTY), notNullValue());
+    }
+
+    public void testUsernameInvalidWhitespace() throws Exception {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
+        String name = new String(generateNameInvalidWhitespace(length));
         assertThat(Users.validateUsername(name, false, Settings.EMPTY), notNullValue());
     }
 
@@ -88,82 +68,92 @@ public class ValidationTests extends ESTestCase {
         }
     }
 
-    public void testRolesValidateRoleName() throws Exception {
-        int length = randomIntBetween(1, 30);
+    public void testRoleNameValid() throws Exception {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
         String name = new String(generateValidName(length));
-        assertThat(Validation.Roles.validateRoleName(name), nullValue());
+        assertThat(Roles.validateRoleName(name), nullValue());
     }
 
-    public void testReservedRoleName() {
+    public void testRoleNameReserved() {
         final String rolename = randomFrom(ReservedRolesStore.names());
-        final Error error = Validation.Roles.validateRoleName(rolename);
+        final Error error = Roles.validateRoleName(rolename);
         assertNotNull(error);
         assertThat(error.toString(), containsString("is reserved"));
 
-        final Error allowed = Validation.Roles.validateRoleName(rolename, true);
+        final Error allowed = Roles.validateRoleName(rolename, true);
         assertNull(allowed);
     }
 
-    public void testRolesValidateRoleNameInvalidLength() throws Exception {
-        int length = frequently() ? randomIntBetween(31, 200) : 0; // invalid length
+    public void testRoleNameInvalidLength() throws Exception {
+        int length = frequently() ? randomIntBetween(Validation.MAX_NAME_LENGTH + 1, 2048) : 0;
         char[] name = new char[length];
         if (length > 0) {
             name = generateValidName(length);
         }
-        assertThat(Users.validateUsername(new String(name), false, Settings.EMPTY), notNullValue());
+        assertThat(Roles.validateRoleName(new String(name), false), notNullValue());
     }
 
-    public void testRolesValidateRoleNameInvalidCharacters() throws Exception {
-        int length = randomIntBetween(1, 30); // valid length
-        String name = new String(generateInvalidName(length));
-        assertThat(Users.validateUsername(name, false, Settings.EMPTY), notNullValue());
+    public void testRoleNameInvalidCharacters() throws Exception {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
+        String name = new String(generateNameInvalidCharacters(length));
+        assertThat(Roles.validateRoleName(name, false), notNullValue());
+    }
+
+    public void testRoleNameInvalidWhitespace() throws Exception {
+        int length = randomIntBetween(Validation.MIN_NAME_LENGTH, Validation.MAX_NAME_LENGTH);
+        String name = new String(generateNameInvalidWhitespace(length));
+        assertThat(Roles.validateRoleName(name, false), notNullValue());
     }
 
     private static char[] generateValidName(int length) {
-        char first = allowedFirstChars[randomIntBetween(0, allowedFirstChars.length - 1)];
-        char[] subsequent = new char[length - 1];
-        for (int i = 0; i < subsequent.length; i++) {
-            subsequent[i] = allowedSubsequent[randomIntBetween(0, allowedSubsequent.length - 1)];
+        char[] name = new char[length];
+        name[0] = chooseValidNonWhitespaceCharacter();
+        if (length > 1) {
+            for (int i = 1; i < length - 1; i++) {
+                name[i] = chooseValidCharacter();
+            }
         }
-        return concat(new char[]{first}, subsequent);
+        name[length - 1] = chooseValidNonWhitespaceCharacter();
+        return name;
     }
 
-    private static char[] generateInvalidName(int length) {
-        if (length == 1 || randomBoolean()) {
-            // invalid name due to characters not allowed in the beginning of the name
-            char first;
-            while (true) {
-                first = randomUnicodeOfLength(1).charAt(0);
-                final char finalChar = first;
-                if (new String(allowedFirstChars).chars()
-                        .mapToObj(c -> (char) c)
-                        .anyMatch(c -> c.equals(finalChar)) == false) {
-                    break;
-                }
-            }
-            char[] subsequent = new char[length - 1];
-            for (int i = 0; i < subsequent.length; i++) {
-                subsequent[i] = allowedSubsequent[randomIntBetween(0, allowedSubsequent.length - 1)];
-            }
-            return concat(new char[]{first}, subsequent);
-        }
+    private static char chooseValidCharacter() {
+        return randomFrom(ALLOWED_CHARS);
+    }
 
-        // invalid name due to charaters not allowed within the name itself
-        char first = allowedFirstChars[randomIntBetween(0, allowedFirstChars.length - 1)];
-        char[] subsequent = new char[length - 1];
-        for (int i = 0; i < subsequent.length; i++) {
+    private static char chooseValidNonWhitespaceCharacter() {
+        char c = chooseValidCharacter();
+        while (c == ' ') {
+            c = chooseValidCharacter();
+        }
+        return c;
+    }
+
+    private static char[] generateNameInvalidCharacters(int length) {
+        char[] name = new char[length];
+        for (int i = 0; i < length; i++) {
             char c;
             while (true) {
                 c = randomUnicodeOfLength(1).charAt(0);
                 final char finalChar = c;
-                if (new String(allowedSubsequent).chars()
-                        .mapToObj(c1 -> (char) c1)
-                        .anyMatch(c1 -> c1.equals(finalChar)) == false) {
+                if (!Validation.VALID_NAME_CHARS.contains(finalChar)) {
                     break;
                 }
             }
-            subsequent[i] = c;
+            name[i] = c;
         }
-        return concat(new char[]{first}, subsequent);
+
+        return name;
     }
+
+    private static char[] generateNameInvalidWhitespace(int length) {
+        char[] name = generateValidName(length);
+        if (randomBoolean()) {
+            name[0] = ' ';
+        } else {
+            name[name.length - 1] = ' ';
+        }
+        return name;
+    }
+
 }

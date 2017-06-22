@@ -108,7 +108,7 @@ final class Spawner implements Closeable {
              * if its first argument (the application name) is null, then its second argument (the command line for the process to start) is
              * restricted in length to 260 characters (cf. https://msdn.microsoft.com/en-us/library/windows/desktop/ms682425.aspx). Since
              * this is exactly how the JDK starts the process on Windows (cf.
-             * http://hg.openjdk.java.net/jdk8/jdk8/jdk/file/687fd7c7986d/src/windows/native/java/lang/ProcessImpl_md.c#l3190), this
+             * http://hg.openjdk.java.net/jdk8/jdk8/jdk/file/687fd7c7986d/src/windows/native/java/lang/ProcessImpl_md.c#l319), this
              * limitation is in force. As such, we use the short name to avoid any such problems.
              */
             command = Natives.getShortPathName(spawnPath.toString());

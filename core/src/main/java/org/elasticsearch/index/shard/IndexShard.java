@@ -1619,8 +1619,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Marks the shard with the provided allocation ID as in-sync with the primary shard. See
      * {@link org.elasticsearch.index.seqno.GlobalCheckpointTracker#markAllocationIdAsInSync(String, long)}
-     * for additional details. Because this operation could be completed asynchronously on another thread, the caller must provide a latch;
-     * this latch will be counted down after the operation completes.
+     * for additional details.
      *
      * @param allocationId    the allocation ID of the shard to mark as in-sync
      * @param localCheckpoint the current local checkpoint on the shard

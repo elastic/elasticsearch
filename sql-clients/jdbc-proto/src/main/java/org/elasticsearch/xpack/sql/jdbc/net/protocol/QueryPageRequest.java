@@ -34,7 +34,7 @@ public class QueryPageRequest extends Request {
 
     public static QueryPageRequest decode(DataInput in) throws IOException {
         String requestId = in.readUTF();
-        TimeoutInfo timeout = TimeoutInfo.readTimeout(in);
+        TimeoutInfo timeout = new TimeoutInfo(in);
         return new QueryPageRequest(requestId, timeout);
     }
 

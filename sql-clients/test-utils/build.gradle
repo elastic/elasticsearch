@@ -4,6 +4,8 @@ description = 'Shared test utilities for jdbc and cli projects'
 
 dependencies {
   compile "org.elasticsearch.client:transport:${version}"
+  compile "junit:junit:${versions.junit}"
+  compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
 }
 
 /* Elasticsearch traditionally disables this for test utilities because it is

@@ -33,6 +33,7 @@ public class MetaColumnResponse extends Response {
         out.writeInt(columns.size());
 
         for (MetaColumnInfo info : columns) {
+            // NOCOMMIT core would make MetaColumnInfo know how to read and write itself which feels cleaner. 
             out.writeUTF(info.name);
             out.writeUTF(info.table);
             out.writeInt(info.type);

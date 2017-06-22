@@ -54,7 +54,7 @@ public abstract class ProtoUtils {
             case META_COLUMN:
                 return MetaColumnRequest.decode(in);
             case QUERY_INIT:
-                return QueryInitRequest.decode(in);
+                return new QueryInitRequest(in);
             case QUERY_PAGE:
                 return QueryPageRequest.decode(in);
             default:
@@ -85,6 +85,7 @@ public abstract class ProtoUtils {
                         return QueryPageResponse.decode(in);
                     default:
                         // cannot find action type
+                        // NOCOMMIT it feels like this should throw *something*
                         return null;
                 }
             default:

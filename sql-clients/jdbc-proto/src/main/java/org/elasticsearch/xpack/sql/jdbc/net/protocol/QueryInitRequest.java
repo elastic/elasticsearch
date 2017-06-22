@@ -9,6 +9,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
 
@@ -27,6 +28,13 @@ public class QueryInitRequest extends Request {
         this.timeout = timeout;
     }
 
+    QueryInitRequest(DataInput in) throws IOException {
+        super(Action.QUERY_INIT);
+        fetchSize = in.readInt();
+        timeout = new TimeoutInfo(in);
+        query = in.readUTF();
+    }
+
     @Override
     public void encode(DataOutput out) throws IOException {
         out.writeInt(action.value());
@@ -35,16 +43,24 @@ public class QueryInitRequest extends Request {
         out.writeUTF(query);
     }
 
-    public static QueryInitRequest decode(DataInput in) throws IOException {
-        int fetchSize = in.readInt();
-        TimeoutInfo timeout = TimeoutInfo.readTimeout(in);
-        String query = in.readUTF();
-
-        return new QueryInitRequest(fetchSize, query, timeout);
-    }
-
     @Override
     public String toString() {
         return format(Locale.ROOT, "SqlInitReq[%s]", query);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        QueryInitRequest other = (QueryInitRequest) obj;
+        return fetchSize == other.fetchSize
+                && Objects.equals(query, other.query)
+                && Objects.equals(timeout, other.timeout);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(fetchSize, query, timeout);
     }
 }

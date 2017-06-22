@@ -5,6 +5,7 @@ description = 'Request and response objects shared by the jdbc driver and ' +
 
 dependencies {
   compile project(":x-pack-elasticsearch:sql-clients:net-client")
+  testCompile project(':x-pack-elasticsearch:sql-clients:test-utils')
 }
 
 dependencyLicenses {

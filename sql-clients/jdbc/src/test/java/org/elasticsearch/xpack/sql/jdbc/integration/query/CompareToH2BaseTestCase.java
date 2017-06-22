@@ -9,7 +9,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
-import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,6 +24,7 @@ import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcAssert.assertResultSets;
 
 public abstract class CompareToH2BaseTestCase extends ESTestCase {
+    // NOCOMMIT subclasses should probably all be integration tests running against a running Elasticsearch
     public final String queryName;
     public final String query;
     public final Integer lineNumber;

@@ -377,6 +377,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         when(shard.state()).thenReturn(IndexShardState.RELOCATED);
         when(shard.acquireIndexCommit(anyBoolean())).thenReturn(mock(Engine.IndexCommitRef.class));
         final AtomicBoolean phase1Called = new AtomicBoolean();
+//        final Engine.IndexCommitRef indexCommitRef = mock(Engine.IndexCommitRef.class);
+//        when(shard.acquireIndexCommit(anyBoolean())).thenReturn(indexCommitRef);
+//        final IndexCommit indexCommit = mock(IndexCommit.class);
+//        when(indexCommitRef.getIndexCommit()).thenReturn(indexCommit);
+//        when(indexCommit.getUserData()).thenReturn(Collections.emptyMap());final AtomicBoolean phase1Called = new AtomicBoolean();
         final AtomicBoolean prepareTargetForTranslogCalled = new AtomicBoolean();
         final AtomicBoolean phase2Called = new AtomicBoolean();
         final RecoverySourceHandler handler = new RecoverySourceHandler(
@@ -394,7 +399,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            public void phase1(final IndexCommit snapshot, final Translog.View translogView) {
+            public void phase1(final IndexCommit snapshot, final Translog.View translogView, final long startSeqNo) {
                 phase1Called.set(true);
             }
 
@@ -451,6 +456,11 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }).when(shard).relocated(any(String.class));
         when(shard.acquireIndexCommit(anyBoolean())).thenReturn(mock(Engine.IndexCommitRef.class));
 
+//        final Engine.IndexCommitRef indexCommitRef = mock(Engine.IndexCommitRef.class);
+//        when(shard.acquireIndexCommit(anyBoolean())).thenReturn(indexCommitRef);
+//        final IndexCommit indexCommit = mock(IndexCommit.class);
+//        when(indexCommitRef.getIndexCommit()).thenReturn(indexCommit);
+//        when(indexCommit.getUserData()).thenReturn(Collections.emptyMap());
         final Supplier<Long> currentClusterStateVersionSupplier = () -> {
             assertFalse(ensureClusterStateVersionCalled.get());
             assertTrue(recoveriesDelayed.get());
@@ -487,7 +497,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            public void phase1(final IndexCommit snapshot, final Translog.View translogView) {
+            public void phase1(final IndexCommit snapshot, final Translog.View translogView, final long startSeqNo) {
                 phase1Called.set(true);
             }
 

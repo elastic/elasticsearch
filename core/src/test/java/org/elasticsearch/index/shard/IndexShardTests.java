@@ -61,7 +61,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -133,9 +132,6 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.VersionType.EXTERNAL;
-import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
-import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
@@ -340,7 +336,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         ShardRoutingState.STARTED,
                         replicaRouting.allocationId());
         indexShard.updateRoutingEntry(primaryRouting);
-        indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
+        indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1, (shard, listener) -> {});
 
         final int delayedOperations = scaledRandomIntBetween(1, 64);
         final CyclicBarrier delayedOperationsBarrier = new CyclicBarrier(1 + delayedOperations);
@@ -431,7 +427,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         ShardRoutingState.STARTED,
                         replicaRouting.allocationId());
         indexShard.updateRoutingEntry(primaryRouting);
-        indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
+        indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1, (shard, listener) -> {});
 
         /*
          * This operation completing means that the delay operation executed as part of increasing the primary term has completed and the
@@ -473,7 +469,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRouting primaryRouting = TestShardRouting.newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
                 true, ShardRoutingState.STARTED, replicaRouting.allocationId());
             indexShard.updateRoutingEntry(primaryRouting);
-            indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
+            indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1, (shard, listener) -> {});
         } else {
             indexShard = newStartedShard(true);
         }

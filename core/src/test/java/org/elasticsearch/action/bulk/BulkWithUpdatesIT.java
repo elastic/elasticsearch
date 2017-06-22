@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -42,6 +43,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,6 +55,8 @@ import static org.elasticsearch.action.DocWriteRequest.OpType;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.test.InternalSettingsPlugin;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -66,7 +70,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -457,7 +461,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
      */
     public void testBulkUpdateChildMissingParentRouting() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
+                .setSettings("index.version.created", Version.V_5_6_0.id) // allows for multiple types
                 .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
                 .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
         ensureGreen();

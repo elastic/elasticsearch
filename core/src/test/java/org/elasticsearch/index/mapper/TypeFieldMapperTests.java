@@ -27,6 +27,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -89,7 +90,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
 
     public void testDefaultsMultipleTypes() throws IOException {
         Settings indexSettings = Settings.builder()
-                .put("index.mapping.single_type", false)
+                .put("index.version.created", Version.V_5_6_0)
                 .build();
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE, false);
@@ -100,9 +101,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testDefaultsSingleType() throws IOException {
-        Settings indexSettings = Settings.builder()
-                .put("index.mapping.single_type", true)
-                .build();
+        Settings indexSettings = Settings.EMPTY;
         MapperService mapperService = createIndex("test", indexSettings).mapperService();
         DocumentMapper mapper = mapperService.merge("type", new CompressedXContent("{\"type\":{}}"), MergeReason.MAPPING_UPDATE, false);
         ParsedDocument document = mapper.parse(SourceToParse.source("index", "type", "id", new BytesArray("{}"), XContentType.JSON));

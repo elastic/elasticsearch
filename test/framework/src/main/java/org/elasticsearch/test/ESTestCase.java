@@ -633,7 +633,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m", "micros", "nanos"};
 
-    public static String randomTimeValue(int lower, int upper, String[] suffixes) {
+    public static String randomTimeValue(int lower, int upper, String... suffixes) {
         return randomIntBetween(lower, upper) + randomFrom(suffixes);
     }
 

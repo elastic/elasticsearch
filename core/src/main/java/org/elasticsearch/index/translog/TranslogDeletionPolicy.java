@@ -69,9 +69,8 @@ public class TranslogDeletionPolicy {
      * acquires the basis generation for a new view. Any translog generation above, and including, the returned generation
      * will not be deleted until a corresponding call to {@link #releaseTranslogGenView(long)} is called.
      */
-    synchronized long acquireTranslogGenForView() {
-        translogRefCounts.computeIfAbsent(minTranslogGenerationForRecovery, l -> Counter.newCounter(false)).addAndGet(1);
-        return minTranslogGenerationForRecovery;
+    synchronized void acquireTranslogGenForView(final long genForView) {
+        translogRefCounts.computeIfAbsent(genForView, l -> Counter.newCounter(false)).addAndGet(1);
     }
 
     /** returns the number of generations that were acquired for views */
@@ -80,7 +79,7 @@ public class TranslogDeletionPolicy {
     }
 
     /**
-     * releases a generation that was acquired by {@link #acquireTranslogGenForView()}
+     * releases a generation that was acquired by {@link #acquireTranslogGenForView(long)}
      */
     synchronized void releaseTranslogGenView(long translogGen) {
         Counter current = translogRefCounts.get(translogGen);
@@ -153,5 +152,10 @@ public class TranslogDeletionPolicy {
     /** returns the translog generation that will be used as a basis of a future store/peer recovery */
     public synchronized long getMinTranslogGenerationForRecovery() {
         return minTranslogGenerationForRecovery;
+    }
+
+    synchronized long getViewCount(long viewGen) {
+        final Counter counter = translogRefCounts.get(viewGen);
+        return counter == null ? 0 : counter.get();
     }
 }

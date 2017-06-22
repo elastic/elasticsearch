@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.mapping;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
@@ -33,13 +34,17 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
@@ -62,6 +67,11 @@ import static org.hamcrest.Matchers.not;
 @ClusterScope(randomDynamicTemplates = false)
 public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
+
     public void testDynamicUpdates() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
@@ -69,7 +79,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
                                 .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
-                                .put("index.mapping.single_type", false)
+                                .put("index.version.created", Version.V_5_6_0) // for multiple types
                 ).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -342,8 +352,9 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     }
 
     public void testUpdateMappingOnAllTypes() throws IOException {
+        assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
         assertAcked(prepareCreate("index")
-                .setSettings("index.mapping.single_type", false)
+                .setSettings("index.version.created", Version.V_5_6_0.id)
                 .addMapping("type1", "f", "type=keyword").addMapping("type2", "f", "type=keyword"));
 
         assertAcked(client().admin().indices().preparePutMapping("index")

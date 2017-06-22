@@ -306,6 +306,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     }
 
     @Network
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1823")
     public void testUserSearchWithActiveDirectory() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -359,6 +360,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     }
 
     @Network
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1823")
     public void testUserSearchwithBindUserOpenLDAP() throws Exception {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";

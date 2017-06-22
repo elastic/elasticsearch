@@ -21,19 +21,14 @@ package org.elasticsearch.test;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.IndexFolderUpgrader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.MergePolicyConfig;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -72,32 +67,6 @@ public class OldIndexUtils {
             // speed up recoveries
             .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 30)
             .build();
-    }
-
-    public static void upgradeIndexFolder(InternalTestCluster cluster, String nodeName) throws Exception {
-        final NodeEnvironment nodeEnvironment = cluster.getInstance(NodeEnvironment.class, nodeName);
-        IndexFolderUpgrader.upgradeIndicesIfNeeded(Settings.EMPTY, nodeEnvironment);
-    }
-
-    public static void loadIndex(String indexName, String indexFile, Path unzipDir, Path bwcPath, Logger logger, Path... paths) throws
-        Exception {
-        Path unzipDataDir = unzipDir.resolve("data");
-
-        Path backwardsIndex = bwcPath.resolve(indexFile);
-        // decompress the index
-        try (InputStream stream = Files.newInputStream(backwardsIndex)) {
-            TestUtil.unzip(stream, unzipDir);
-        }
-
-        // check it is unique
-        assertTrue(Files.exists(unzipDataDir));
-        Path[] list = FileSystemUtils.files(unzipDataDir);
-        if (list.length != 1) {
-            throw new IllegalStateException("Backwards index must contain exactly one cluster");
-        }
-
-        final Path src = getIndexDir(logger, indexName, indexFile, list[0]);
-        copyIndex(logger, src, src.getFileName().toString(), paths);
     }
 
     public static Path getIndexDir(
@@ -165,9 +134,5 @@ public class OldIndexUtils {
                 return FileVisitResult.CONTINUE;
             }
         });
-    }
-
-    public static Version extractVersion(String index) {
-        return Version.fromString(index.substring(index.indexOf('-') + 1, index.lastIndexOf('.')));
     }
 }

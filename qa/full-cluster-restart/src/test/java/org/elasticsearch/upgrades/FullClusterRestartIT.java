@@ -296,6 +296,48 @@ public class FullClusterRestartIT extends ESRestTestCase {
         }
     }
 
+    public void testClusterState() throws Exception {
+        if (runningAgainstOldCluster) {
+            XContentBuilder mappingsAndSettings = jsonBuilder();
+            mappingsAndSettings.startObject();
+            mappingsAndSettings.field("template", index);
+            {
+                mappingsAndSettings.startObject("settings");
+                mappingsAndSettings.field("number_of_shards", 1);
+                mappingsAndSettings.field("number_of_replicas", 0);
+                mappingsAndSettings.endObject();
+            }
+            mappingsAndSettings.endObject();
+            client().performRequest("PUT", "/_template/template_1", Collections.emptyMap(),
+                new StringEntity(mappingsAndSettings.string(), ContentType.APPLICATION_JSON));
+            client().performRequest("PUT", "/" + index);
+        }
+
+        // verifying if we can still read some properties from cluster state api:
+        Map<String, Object> clusterState = toMap(client().performRequest("GET", "/_cluster/state"));
+
+        // Check some global properties:
+        String clusterName = (String) clusterState.get("cluster_name");
+        assertEquals("full-cluster-restart", clusterName);
+        String numberOfShards = (String) XContentMapValues.extractValue(
+            "metadata.templates.template_1.settings.index.number_of_shards", clusterState);
+        assertEquals("1", numberOfShards);
+        String numberOfReplicas = (String) XContentMapValues.extractValue(
+            "metadata.templates.template_1.settings.index.number_of_replicas", clusterState);
+        assertEquals("0", numberOfReplicas);
+
+        // Check some index properties:
+        numberOfShards = (String) XContentMapValues.extractValue("metadata.indices." + index +
+            ".settings.index.number_of_shards", clusterState);
+        assertEquals("1", numberOfShards);
+        numberOfReplicas = (String) XContentMapValues.extractValue("metadata.indices." + index +
+                ".settings.index.number_of_replicas", clusterState);
+        assertEquals("0", numberOfReplicas);
+        Version version = Version.fromId(Integer.valueOf((String) XContentMapValues.extractValue("metadata.indices." + index +
+            ".settings.index.version.created", clusterState)));
+        assertEquals(oldClusterVersion, version);
+
+    }
 
     void assertBasicSearchWorks(int count) throws IOException {
         logger.info("--> testing basic search");

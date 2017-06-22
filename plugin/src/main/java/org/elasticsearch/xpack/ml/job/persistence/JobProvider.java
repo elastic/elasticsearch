@@ -84,6 +84,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
@@ -121,7 +122,6 @@ public class JobProvider {
      */
     public void checkForLeftOverDocuments(Job job, ActionListener<Boolean> listener) {
 
-        String resultsIndexName = job.getResultsIndexName();
         SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
                 .setQuery(QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1),
                         CategorizerState.v54DocumentId(job.getId(), 1)))
@@ -131,6 +131,7 @@ public class JobProvider {
                 .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen());
 
+        String resultsIndexName = job.getResultsIndexName();
         SearchRequestBuilder resultDocSearch = client.prepareSearch(resultsIndexName)
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
@@ -140,16 +141,37 @@ public class JobProvider {
         ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<MultiSearchResponse>() {
             @Override
             public void onResponse(MultiSearchResponse searchResponse) {
-                for (MultiSearchResponse.Item itemResponse : searchResponse.getResponses()) {
-                    if (itemResponse.getResponse().getHits().getTotalHits() > 0) {
-                        listener.onFailure(ExceptionsHelper.conflictStatusException(
-                                "Result and/or state documents exist for a prior job with Id [" + job.getId() + "]. " +
-                                        "Please create the job with a different Id"));
-                        return;
-                    }
-                }
+                List<SearchHit> searchHits = Arrays.stream(searchResponse.getResponses())
+                        .flatMap(item -> Arrays.stream(item.getResponse().getHits().getHits()))
+                        .collect(Collectors.toList());
 
-                listener.onResponse(true);
+                if (searchHits.isEmpty() == false) {
+                    int quantileDocCount = 0;
+                    int categorizerStateDocCount = 0;
+                    int resultDocCount = 0;
+                    for (SearchHit hit : searchHits) {
+                        if (hit.getId().equals(Quantiles.documentId(job.getId())) ||
+                                hit.getId().equals(Quantiles.v54DocumentId(job.getId()))) {
+                            quantileDocCount++;
+                        } else if (hit.getId().startsWith(CategorizerState.documentPrefix(job.getId())) ||
+                                hit.getId().startsWith(CategorizerState.v54DocumentPrefix(job.getId()))) {
+                            categorizerStateDocCount++;
+                        } else {
+                            resultDocCount++;
+                        }
+                    }
+
+                    LOGGER.warn("{} result, {} quantile state and {} categorizer state documents exist for a prior job with Id [{}]",
+                            resultDocCount, quantileDocCount, categorizerStateDocCount, job.getId());
+
+                    listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                    "[" + resultDocCount + "] result and [" + (quantileDocCount + categorizerStateDocCount) +
+                            "] state documents exist for a prior job with Id [" + job.getId() + "]. " +
+                                            "Please create the job with a different Id"));
+                    return;
+                } else {
+                    listener.onResponse(true);
+                }
             }
 
             @Override

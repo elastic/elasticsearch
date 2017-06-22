@@ -19,14 +19,22 @@ public class CategorizerState {
     public static final String TYPE = "categorizer_state";
 
     public static final String documentId(String jobId, int docNum) {
-        return jobId + "_" + TYPE + "#" + docNum;
+        return documentPrefix(jobId) + docNum;
+    }
+
+    public static final String documentPrefix(String jobId) {
+        return jobId + "_" + TYPE + "#";
     }
 
     /**
      * This is how the IDs were formed in v5.4
      */
     public static final String v54DocumentId(String jobId, int docNum) {
-        return jobId + "#" + docNum;
+        return v54DocumentPrefix(jobId) + docNum;
+    }
+
+    public static final String v54DocumentPrefix(String jobId) {
+        return jobId + "#";
     }
 
     private CategorizerState() {

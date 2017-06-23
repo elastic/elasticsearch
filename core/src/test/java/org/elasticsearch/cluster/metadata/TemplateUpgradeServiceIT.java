@@ -32,7 +32,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -41,8 +40,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class TemplateUpgradeServiceIT extends ESIntegTestCase {
@@ -105,10 +104,15 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().preparePutTemplate("test_removed_template").setOrder(1)
             .setPatterns(Collections.singletonList("*")).get());
 
+        AtomicInteger updateCount = new AtomicInteger();
         // Wait for the templates to be updated back to normal
         assertBusy(() -> {
+            // the updates only happen on cluster state updates, so we need to make sure that the cluster state updates are happening
+            // so we need to simulate updates to make sure the template upgrade kicks in
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
+                Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
+            ).get());
             List<IndexTemplateMetaData> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
-            assertThat(templates.size(), equalTo(3));
             boolean addedFound = false;
             boolean changedFound = false;
             boolean dummyFound = false;
@@ -133,10 +137,10 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                         break;
                 }
             }
-
             assertTrue(addedFound);
             assertTrue(changedFound);
             assertTrue(dummyFound);
+            assertThat(templates.size(), equalTo(3));
         });
 
         // Wipe out all templates
@@ -157,7 +161,6 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             ).get());
 
             List<IndexTemplateMetaData> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
-            assertThat(templates.size(), equalTo(2));
             boolean addedFound = false;
             boolean changedFound = false;
             for (int i = 0; i < 2; i++) {
@@ -180,6 +183,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
 
             assertTrue(addedFound);
             assertTrue(changedFound);
+            assertThat(templates, hasSize(2));
         });
     }
 

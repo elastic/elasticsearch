@@ -20,7 +20,7 @@ You can use APIs to perform the following {ml} activities:
 [[ml-api-job-endpoint]]
 === Jobs
 
-* <<ml-valid-detector,Validate detectors>>, <<ml-valid-job,Validate job>>
+//* <<ml-valid-detector,Validate detectors>>, <<ml-valid-job,Validate job>>
 * <<ml-put-job,Create job>>, <<ml-delete-job,Delete job>>
 * <<ml-open-job,Open job>>, <<ml-close-job,Close job>>
 * <<ml-get-job,Get job info>>, <<ml-get-job-stats,Get job statistics>>
@@ -86,5 +86,5 @@ include::ml/update-datafeed.asciidoc[]
 include::ml/update-job.asciidoc[]
 include::ml/update-snapshot.asciidoc[]
 //VALIDATE
-include::ml/validate-detector.asciidoc[]
-include::ml/validate-job.asciidoc[]
+//include::ml/validate-detector.asciidoc[]
+//include::ml/validate-job.asciidoc[]

@@ -14,7 +14,7 @@ The main {ml} resources can be accessed with a variety of endpoints:
 * <<ml-api-datafeeds,+/datafeeds/+>>: Select data from {es} to be analyzed
 * <<ml-api-results,+/results/+>>: Access the results of a {ml} job
 * <<ml-api-snapshots,+/model_snapshots/+>>: Manage model snapshots
-* <<ml-api-validate,+/validate/+>>: Validate subsections of job configurations
+//* <<ml-api-validate,+/validate/+>>: Validate subsections of job configurations
 
 [float]
 [[ml-api-jobs]]
@@ -66,9 +66,11 @@ The main {ml} resources can be accessed with a variety of endpoints:
 * {ref}/ml-update-snapshot.html[POST /model_snapshots/<snapshot_id>/_update]: Update certain settings for a model snapshot
 * {ref}/ml-delete-snapshot.html[DELETE /model_snapshots/<snapshot_id+++>+++]: Delete a model snapshot
 
+////
 [float]
 [[ml-api-validate]]
 === /validate/
 
 * {ref}/ml-valid-detector.html[POST /anomaly_detectors/_validate/detector]: Validate a detector
 * {ref}/ml-valid-job.html[POST /anomaly_detectors/_validate]: Validate a job
+////

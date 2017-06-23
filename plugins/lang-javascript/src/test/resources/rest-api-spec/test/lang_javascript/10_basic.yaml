@@ -24,7 +24,7 @@ setup:
                 script_fields:
                     bar:
                         script: 
-                            inline: "doc['foo.keyword'].value + x"
+                            source: "doc['foo.keyword'].value + x"
                             lang: javascript
                             params:
                                 x: "bbb"

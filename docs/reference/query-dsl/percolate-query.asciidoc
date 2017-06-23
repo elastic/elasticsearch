@@ -118,7 +118,7 @@ The above request will yield the following response:
 The following parameters are required when percolating a document:
 
 [horizontal]
-`field`:: The field of type `percolator` and that holds the indexed queries. This is a required parameter.
+`field`:: The field of type `percolator` that holds the indexed queries. This is a required parameter.
 `document_type`:: The type / mapping of the document being percolated. This is a required parameter.
 `document`:: The source of the document being percolated.
 
@@ -200,7 +200,7 @@ GET /my-index/_search
 // CONSOLE
 // TEST[continued]
 
-<1> The version is optional, but useful in certain cases. We can then ensure that we are try to percolate
+<1> The version is optional, but useful in certain cases. We can ensure that we are trying to percolate
 the document we just have indexed. A change may be made after we have indexed, and if that is the
 case the then the search request would fail with a version conflict error.
 
@@ -341,12 +341,12 @@ the document defined in the `percolate` query.
 ==== How it Works Under the Hood
 
 When indexing a document into an index that has the <<percolator,percolator field type>> mapping configured, the query
-part of the documents gets parsed into a Lucene query and are stored into the Lucene index. A binary representation
+part of the document gets parsed into a Lucene query and is stored into the Lucene index. A binary representation
 of the query gets stored, but also the query's terms are analyzed and stored into an indexed field.
 
 At search time, the document specified in the request gets parsed into a Lucene document and is stored in a in-memory
 temporary Lucene index. This in-memory index can just hold this one document and it is optimized for that. After this
-a special query is build based on the terms in the in-memory index that select candidate percolator queries based on
+a special query is built based on the terms in the in-memory index that select candidate percolator queries based on
 their indexed query terms. These queries are then evaluated by the in-memory index if they actually match.
 
 The selecting of candidate percolator queries matches is an important performance optimization during the execution

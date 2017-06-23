@@ -6,7 +6,7 @@ You configure `xpack.security` settings  to
 and perform message authentication,
 <<field-document-security-settings, set up document and field 
 level security>>, <<realm-settings, configure realms>>, 
-and <<ssl-tls-settings, encrypt communications with SSL>>.
+and  {ref}/security-settings.html#ssl-tls-settings[encrypt communications with SSL].
 
 [float]
 [[general-security-settings]]

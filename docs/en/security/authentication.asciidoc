@@ -89,9 +89,9 @@ elasticsearch.password: kibanapassword
 -----------------------------------------------
 
 The `logstash_system` user is used internally within Logstash when
-<<monitoring-logstash-settings, monitoring>> is enabled for logstash
+monitoring is enabled for Logstash.
 
-If you wish to enable this feature in Logstash, then you need to update the Logstash
+To enable this feature in Logstash, you need to update the Logstash
 configuration with the new password by setting `xpack.monitoring.elasticsearch.password` in
 the `logstash.yml` configuration file:
 

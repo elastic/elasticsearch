@@ -426,7 +426,7 @@ You can control which HTML features are allowed or disallowed by configuring the
 `xpack.notification.email.html.sanitization.allow` and
 `xpack.notification.email.html.sanitization.disallow` settings in
 `elasticsearch.yml`. You can specify individual HTML elements and
-<<html-feature-groups, HTML feature groups>>. By default, {watcher} allows the following
+{ref}/notification-settings.html#html-feature-groups[HTML feature groups]. By default, {watcher} allows the following
 features: `body`, `head`, `_tables`, `_links`, `_blocks`, `_formatting` and
 `img:embedded`.
 

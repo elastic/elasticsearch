@@ -76,8 +76,8 @@ NOTE: By default, both the username and the password are stored in the `.watches
 You can also use PKI-based authentication when submitting requests to a cluster
 secured with {security}. When you use PKI-based authentication instead of HTTP
 basic auth, you don't need to store any authentication information in the watch
-itself. To use PKI-based authentication, you <<ssl-notification-settings,
-configure the SSL key settings>> for {watcher} in `elasticsearch.yml`.
+itself. To use PKI-based authentication, you {ref}/notification-settings.html#ssl-notification-settings
+[configure the SSL key settings] for {watcher} in `elasticsearch.yml`.
 
 
 [[webhook-query-parameters]]

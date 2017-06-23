@@ -413,4 +413,4 @@ NOTE: By default, when you configure {security} to connect to Active Directory
       configuration do not match, {security} does not allow a connection to the
       Active Directory server. This is done to protect against man-in-the-middle
       attacks. If necessary, you can disable this behavior by setting the
-      <<ssl-tls-settings, `ssl.verification_mode`>> property to `none`.
+      {ref}/security-settings.html#ssl-tls-settings[`ssl.verification_mode`] property to `none`.

@@ -29,7 +29,7 @@ To use cross cluster search with secured clusters:
   ** Using the same certificate authority to generate certificates for all
     connected clusters, or
   ** Adding the CA certificate from the local cluster as a trusted CA in
-    each remote cluster (see <<transport-tls-ssl-settings>>).
+    each remote cluster (see {ref}/security-settings.html#transport-tls-ssl-settings[Transport TLS settings]).
 
 * Configure the local cluster to connect to remote clusters as described
   in {ref}/modules-cross-cluster-search.html#_configuring_cross_cluster_search[Configuring Cross Cluster Search].

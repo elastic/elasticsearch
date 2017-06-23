@@ -1,7 +1,8 @@
 [float]
 === {component} TLS/SSL Settings
 You can configure the following TLS/SSL settings. If the settings are not configured,
-the <<ssl-tls-settings, {xpack} defaults>> will be used.
+the {xpack-ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings]
+are used.
 
 ifdef::server[]
 +{ssl-prefix}.ssl.enabled+::

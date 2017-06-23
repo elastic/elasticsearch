@@ -104,7 +104,7 @@ xpack:
                                         the username from the certificate DN. The first match
                                         group is used as the username. Defaults to `CN=(.*?)(?:,\|$)`.
 | `truststore.path`       | no        | The path to the truststore. Defaults to the path
-                                        defined by <<ssl-tls-settings,SSL/TLS settings>>.
+                                        defined by  {ref}/security-settings.html#ssl-tls-settings[SSL/TLS settings].
 | `truststore.password`   | no/yes    | Specifies the password for the truststore. Must be
                                         provided if `truststore.path` is set.
 | `truststore.algorithm`  | no        | Specifies the algorithm used for the truststore.

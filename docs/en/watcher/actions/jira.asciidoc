@@ -137,7 +137,8 @@ xpack.notification.jira:
 WARNING: It is strongly advised to use Basic Authentication with secured HTTPS
  protocol only.
 
-You can also specify defaults for the <<jira-account-attributes, Jira issues>>:
+You can also specify defaults for the
+{ref}/notification-settings.html#jira-account-attributes[Jira issues]:
 
 [source,yaml]
 --------------------------------------------------

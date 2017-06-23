@@ -18,7 +18,6 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/ml/functions/sum.asciidoc',
         'en/ml/functions/time.asciidoc',
         'en/ml/aggregations.asciidoc',
-        'en/ml/transforms.asciidoc',
         'en/rest-api/security/users.asciidoc',
         'en/rest-api/security/tokens.asciidoc',
         'en/rest-api/watcher/put-watch.asciidoc',

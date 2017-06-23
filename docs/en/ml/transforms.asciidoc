@@ -143,7 +143,7 @@ PUT _xpack/ml/datafeeds/datafeed-test1
 }
 ----------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:broken]
 <1> A script field named `total_error_count` is referenced in the detector
 within the job.
 <2> The script field is defined in the {dfeed}.
@@ -253,7 +253,7 @@ PUT _xpack/ml/datafeeds/datafeed-test2
 GET _xpack/ml/datafeeds/datafeed-test2/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:broken]
 <1> The script field has a rather generic name in this case, since it will
 be used for various tests in the subsequent examples.
 <2> The script field uses the plus (+) operator to concatenate strings.
@@ -508,7 +508,7 @@ PUT _xpack/ml/datafeeds/datafeed-test3
 GET _xpack/ml/datafeeds/datafeed-test3/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:broken]
 
 If you have a single field that contains a well-formed DNS domain name, you can
 use the `domainSplit()` function to split the string into its highest registered
@@ -582,7 +582,7 @@ PUT _xpack/ml/datafeeds/datafeed-test4
 GET _xpack/ml/datafeeds/datafeed-test4/_preview
 --------------------------------------------------
 // CONSOLE
-// TEST[continued]
+// TEST[skip:broken]
 
 In {es}, location data can be stored in `geo_point` fields but this data type is
 not supported natively in {xpackml} analytics. This example of a script field

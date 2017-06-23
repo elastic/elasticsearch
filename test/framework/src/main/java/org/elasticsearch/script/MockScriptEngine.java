@@ -219,7 +219,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         @Override
-        public boolean needsScores() {
+        public boolean needs_score() {
             return true;
         }
     }

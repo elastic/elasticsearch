@@ -32,11 +32,17 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.action.search.TransportSearchHelper.internalScrollSearchRequest;
 
@@ -67,13 +73,15 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
     protected final DiscoveryNodes nodes;
     protected final SearchPhaseController searchPhaseController;
     protected final SearchScrollRequest request;
+    protected final SearchTransportService searchTransportService;
     private final long startTime;
     private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
 
     protected SearchScrollAsyncAction(ParsedScrollId scrollId, Logger logger, DiscoveryNodes nodes,
                                       ActionListener<SearchResponse> listener, SearchPhaseController searchPhaseController,
-                                      SearchScrollRequest request) {
+                                      SearchScrollRequest request,
+                                      SearchTransportService searchTransportService) {
         this.startTime = System.currentTimeMillis();
         this.scrollId = scrollId;
         this.successfulOps = new AtomicInteger(scrollId.getContext().length);
@@ -82,6 +90,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         this.nodes = nodes;
         this.searchPhaseController = searchPhaseController;
         this.request = request;
+        this.searchTransportService = searchTransportService;
     }
 
     /**
@@ -97,57 +106,104 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         final ScrollIdForNode[] context = scrollId.getContext();
         if (context.length == 0) {
             listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", ShardSearchFailure.EMPTY_ARRAY));
-            return;
+        } else {
+            collectNodesAndRun(Arrays.asList(context), nodes, searchTransportService, ActionListener.wrap(lookup -> run(lookup, context),
+                listener::onFailure));
         }
+    }
+
+    /**
+     * This method collects nodes from the remote clusters asynchronously if any of the scroll IDs references a remote cluster.
+     * Otherwise the action listener will be invoked immediately with a function based on the given discovery nodes.
+     */
+    static void collectNodesAndRun(final Iterable<ScrollIdForNode> scrollIds, DiscoveryNodes nodes,
+                                   SearchTransportService searchTransportService,
+                                   ActionListener<BiFunction<String, String, DiscoveryNode>> listener) {
+        Set<String> clusters = new HashSet<>();
+        for (ScrollIdForNode target : scrollIds) {
+            if (target.getClusterAlias() != null) {
+                clusters.add(target.getClusterAlias());
+            }
+        }
+        if (clusters.isEmpty()) { // no remote clusters
+            listener.onResponse((cluster, node) -> nodes.get(node));
+        } else {
+            RemoteClusterService remoteClusterService = searchTransportService.getRemoteClusterService();
+            remoteClusterService.collectNodes(clusters, ActionListener.wrap(nodeFunction -> {
+                final BiFunction<String, String, DiscoveryNode> clusterNodeLookup = (clusterAlias, node) -> {
+                    if (clusterAlias == null) {
+                        return nodes.get(node);
+                    } else {
+                        return nodeFunction.apply(clusterAlias, node);
+                    }
+                };
+                listener.onResponse(clusterNodeLookup);
+            }, listener::onFailure));
+        }
+    }
+
+    private void run(BiFunction<String, String, DiscoveryNode> clusterNodeLookup, final ScrollIdForNode[] context) {
         final CountDown counter = new CountDown(scrollId.getContext().length);
         for (int i = 0; i < context.length; i++) {
             ScrollIdForNode target = context[i];
-            DiscoveryNode node = nodes.get(target.getNode());
             final int shardIndex = i;
-            if (node != null) { // it might happen that a node is going down in-between scrolls...
-                InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(target.getScrollId(), request);
-                // we can't create a SearchShardTarget here since we don't know the index and shard ID we are talking to
-                // we only know the node and the search context ID. Yet, the response will contain the SearchShardTarget
-                // from the target node instead...that's why we pass null here
-                SearchActionListener<T> searchActionListener = new SearchActionListener<T>(null, shardIndex) {
+            final Transport.Connection connection;
+            try {
+                DiscoveryNode node = clusterNodeLookup.apply(target.getClusterAlias(), target.getNode());
+                if (node == null) {
+                    throw  new IllegalStateException("node [" + target.getNode() + "] is not available");
+                }
+                connection = getConnection(target.getClusterAlias(), node);
+            } catch (Exception ex) {
+                onShardFailure("query", counter, target.getScrollId(),
+                    ex, null, () -> SearchScrollAsyncAction.this.moveToNextPhase(clusterNodeLookup));
+                continue;
+            }
+            final InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(target.getScrollId(), request);
+            // we can't create a SearchShardTarget here since we don't know the index and shard ID we are talking to
+            // we only know the node and the search context ID. Yet, the response will contain the SearchShardTarget
+            // from the target node instead...that's why we pass null here
+            SearchActionListener<T> searchActionListener = new SearchActionListener<T>(null, shardIndex) {
 
-                    @Override
-                    protected void setSearchShardTarget(T response) {
-                        // don't do this - it's part of the response...
-                        assert response.getSearchShardTarget() != null : "search shard target must not be null";
+                @Override
+                protected void setSearchShardTarget(T response) {
+                    // don't do this - it's part of the response...
+                    assert response.getSearchShardTarget() != null : "search shard target must not be null";
+                    if (target.getClusterAlias() != null) {
+                        // re-create the search target and add the cluster alias if there is any,
+                        // we need this down the road for subseq. phases
+                        SearchShardTarget searchShardTarget = response.getSearchShardTarget();
+                        response.setSearchShardTarget(new SearchShardTarget(searchShardTarget.getNodeId(), searchShardTarget.getShardId(),
+                            target.getClusterAlias(), null));
                     }
+                }
 
-                    @Override
-                    protected void innerOnResponse(T result) {
-                        assert shardIndex == result.getShardIndex() : "shard index mismatch: " + shardIndex + " but got: "
-                            + result.getShardIndex();
-                        onFirstPhaseResult(shardIndex, result);
-                        if (counter.countDown()) {
-                            SearchPhase phase = moveToNextPhase();
-                            try {
-                                phase.run();
-                            } catch (Exception e) {
-                                // we need to fail the entire request here - the entire phase just blew up
-                                // don't call onShardFailure or onFailure here since otherwise we'd countDown the counter
-                                // again which would result in an exception
-                                listener.onFailure(new SearchPhaseExecutionException(phase.getName(), "Phase failed", e,
-                                    ShardSearchFailure.EMPTY_ARRAY));
-                            }
+                @Override
+                protected void innerOnResponse(T result) {
+                    assert shardIndex == result.getShardIndex() : "shard index mismatch: " + shardIndex + " but got: "
+                        + result.getShardIndex();
+                    onFirstPhaseResult(shardIndex, result);
+                    if (counter.countDown()) {
+                        SearchPhase phase = moveToNextPhase(clusterNodeLookup);
+                        try {
+                            phase.run();
+                        } catch (Exception e) {
+                            // we need to fail the entire request here - the entire phase just blew up
+                            // don't call onShardFailure or onFailure here since otherwise we'd countDown the counter
+                            // again which would result in an exception
+                            listener.onFailure(new SearchPhaseExecutionException(phase.getName(), "Phase failed", e,
+                                ShardSearchFailure.EMPTY_ARRAY));
                         }
                     }
+                }
 
-                    @Override
-                    public void onFailure(Exception t) {
-                        onShardFailure("query", shardIndex, counter, target.getScrollId(), t, null,
-                            SearchScrollAsyncAction.this::moveToNextPhase);
-                    }
-                };
-                executeInitialPhase(node, internalRequest, searchActionListener);
-            } else { // the node is not available we treat this as a shard failure here
-                onShardFailure("query", shardIndex, counter, target.getScrollId(),
-                    new IllegalStateException("node [" + target.getNode() + "] is not available"), null,
-                    SearchScrollAsyncAction.this::moveToNextPhase);
-            }
+                @Override
+                public void onFailure(Exception t) {
+                    onShardFailure("query", counter, target.getScrollId(), t, null,
+                        () -> SearchScrollAsyncAction.this.moveToNextPhase(clusterNodeLookup));
+                }
+            };
+            executeInitialPhase(connection, internalRequest, searchActionListener);
         }
     }
 
@@ -164,10 +220,10 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         shardFailures.add(failure);
     }
 
-    protected abstract void executeInitialPhase(DiscoveryNode node, InternalScrollSearchRequest internalRequest,
+    protected abstract void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
                                                 SearchActionListener<T> searchActionListener);
 
-    protected abstract SearchPhase moveToNextPhase();
+    protected abstract SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup);
 
     protected abstract void onFirstPhaseResult(int shardId, T result);
 
@@ -199,9 +255,9 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
         }
     }
 
-    protected void onShardFailure(String phaseName, final int shardIndex, final CountDown counter, final long searchId, Exception failure,
-                                @Nullable SearchShardTarget searchShardTarget,
-                                Supplier<SearchPhase> nextPhaseSupplier) {
+    protected void onShardFailure(String phaseName, final CountDown counter, final long searchId, Exception failure,
+                                  @Nullable SearchShardTarget searchShardTarget,
+                                  Supplier<SearchPhase> nextPhaseSupplier) {
         if (logger.isDebugEnabled()) {
             logger.debug((Supplier<?>) () -> new ParameterizedMessage("[{}] Failed to execute {} phase", searchId, phaseName), failure);
         }
@@ -222,5 +278,9 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> implements R
                 }
             }
         }
+    }
+
+    protected Transport.Connection getConnection(String clusterAlias, DiscoveryNode node) {
+        return searchTransportService.getConnection(clusterAlias, node);
     }
 }

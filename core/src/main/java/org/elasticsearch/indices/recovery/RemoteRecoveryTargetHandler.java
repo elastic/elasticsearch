@@ -28,10 +28,8 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.transport.EmptyTransportResponseHandler;
-import org.elasticsearch.transport.FutureTransportResponseHandler;
 import org.elasticsearch.transport.TransportFuture;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -159,13 +157,13 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         }
 
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.FILE_CHUNK,
-                new RecoveryFileChunkRequest(recoveryId, shardId, fileMetaData, position, content, lastChunk,
-                        totalTranslogOps,
-                                /* we send totalOperations with every request since we collect stats on the target and that way we can
-                                 * see how many translog ops we accumulate while copying files across the network. A future optimization
-                                 * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
-                                 */
-                        throttleTimeInNanos), fileChunkRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+            new RecoveryFileChunkRequest(recoveryId, shardId, fileMetaData, position, content, lastChunk,
+                totalTranslogOps,
+                /* we send estimateTotalOperations with every request since we collect stats on the target and that way we can
+                 * see how many translog ops we accumulate while copying files across the network. A future optimization
+                 * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
+                 */
+                throttleTimeInNanos), fileChunkRequestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
 
 }

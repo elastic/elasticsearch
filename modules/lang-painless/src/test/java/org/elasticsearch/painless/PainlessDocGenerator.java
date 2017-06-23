@@ -164,7 +164,7 @@ public class PainlessDocGenerator {
         emitAnchor(stream, method);
         stream.print("]]");
 
-        if (false == method.augmentation && Modifier.isStatic(method.modifiers)) {
+        if (null == method.augmentation && Modifier.isStatic(method.modifiers)) {
             stream.print("static ");
         }
 
@@ -268,12 +268,12 @@ public class PainlessDocGenerator {
         stream.print("link:{");
         stream.print(root);
         stream.print("-javadoc}/");
-        stream.print((method.augmentation ? Augmentation.class : method.owner.clazz).getName().replace('.', '/'));
+        stream.print((method.augmentation != null ? method.augmentation : method.owner.clazz).getName().replace('.', '/'));
         stream.print(".html#");
         stream.print(methodName(method));
         stream.print("%2D");
         boolean first = true;
-        if (method.augmentation) {
+        if (method.augmentation != null) {
             first = false;
             stream.print(method.owner.clazz.getName());
         }
@@ -309,7 +309,7 @@ public class PainlessDocGenerator {
      * Pick the javadoc root for a {@link Method}.
      */
     private static String javadocRoot(Method method) {
-        if (method.augmentation) {
+        if (method.augmentation != null) {
             return "painless";
         }
         return javadocRoot(method.owner);

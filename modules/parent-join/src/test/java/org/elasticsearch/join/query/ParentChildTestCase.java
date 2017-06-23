@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.join.query;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -27,8 +28,10 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -44,7 +47,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ParentJoinPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, ParentJoinPlugin.class);
     }
 
     @Override
@@ -60,7 +63,7 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
             .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true);
 
         if (legacy()) {
-            builder.put("index.mapping.single_type", false);
+            builder.put("index.version.created", Version.V_5_6_0);
         }
 
         return builder.build();
@@ -82,6 +85,39 @@ public abstract class ParentChildTestCase extends ESIntegTestCase {
                                                    XContentBuilder builder) throws IOException {
         Map<String, Object> source = XContentHelper.convertToMap(JsonXContent.jsonXContent, builder.string(), false);
         return createIndexRequest(index, type, id, parentId, source);
+    }
+
+    public static Map<String, Object> buildParentJoinFieldMappingFromSimplifiedDef(String joinFieldName,
+                                                                                   boolean eagerGlobalOrdinals,
+                                                                                   String... relations) {
+        Map<String, Object> fields = new HashMap<>();
+
+        Map<String, Object> joinField = new HashMap<>();
+        joinField.put("type", "join");
+        joinField.put("eager_global_ordinals", eagerGlobalOrdinals);
+        Map<String, Object> relationMap = new HashMap<>();
+        for (int i = 0; i < relations.length; i+=2) {
+            String[] children = relations[i+1].split(",");
+            if (children.length > 1) {
+                relationMap.put(relations[i], children);
+            } else {
+                relationMap.put(relations[i], children[0]);
+            }
+        }
+        joinField.put("relations", relationMap);
+        fields.put(joinFieldName, joinField);
+        return Collections.singletonMap("properties", fields);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> addFieldMappings(Map<String, Object> map, String... fields) {
+        Map<String, Object> propsMap = (Map<String, Object>) map.get("properties");
+        for (int i = 0; i < fields.length; i+=2) {
+            String field = fields[i];
+            String type = fields[i + 1];
+            propsMap.put(field, Collections.singletonMap("type", type));
+        }
+        return map;
     }
 
     private IndexRequestBuilder createIndexRequest(String index, String type, String id, String parentId, Map<String, Object> source) {

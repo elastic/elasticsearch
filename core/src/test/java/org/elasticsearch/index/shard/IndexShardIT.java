@@ -20,12 +20,12 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -39,8 +39,10 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -51,6 +53,7 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -58,7 +61,7 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -83,7 +86,6 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -343,39 +345,34 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         client().prepareIndex("test", "test", "0")
             .setSource("{}", XContentType.JSON).setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertFalse(shard.shouldFlush());
-        ParsedDocument doc = testParsedDocument(
-            "1",
-            "test",
-            null,
-            SequenceNumbersService.UNASSIGNED_SEQ_NO,
-            new ParseContext.Document(),
-            new BytesArray(new byte[]{1}), XContentType.JSON, null);
-        Engine.Index index = new Engine.Index(new Term("_id", doc.id()), doc);
-        shard.index(index);
+        shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
+            SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
         assertTrue(shard.shouldFlush());
-        assertEquals(2, shard.getEngine().getTranslog().totalOperations());
+        final Translog translog = shard.getEngine().getTranslog();
+        assertEquals(2, translog.uncommittedOperations());
         client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldFlush());
         });
-        assertEquals(0, shard.getEngine().getTranslog().totalOperations());
-        shard.getEngine().getTranslog().sync();
-        long size = shard.getEngine().getTranslog().sizeInBytes();
-        logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", shard.getEngine().getTranslog().sizeInBytes(),
-            shard.getEngine().getTranslog().totalOperations(), shard.getEngine().getTranslog().getGeneration());
+        assertEquals(0, translog.uncommittedOperations());
+        translog.sync();
+        long size = translog.uncommittedSizeInBytes();
+        logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
+            translog.uncommittedOperations(), translog.getGeneration());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
             .build()).get();
         client().prepareDelete("test", "test", "2").get();
-        logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]", shard.getEngine().getTranslog().sizeInBytes(),
-            shard.getEngine().getTranslog().totalOperations(), shard.getEngine().getTranslog().getGeneration());
+        logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
+            translog.uncommittedOperations(), translog.getGeneration());
         assertBusy(() -> { // this is async
-            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]", shard.getEngine().getTranslog().sizeInBytes(),
-                shard.getEngine().getTranslog().totalOperations(), shard.getEngine().getTranslog().getGeneration());
+            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
+                translog.uncommittedOperations(), translog.getGeneration());
             assertFalse(shard.shouldFlush());
         });
-        assertEquals(0, shard.getEngine().getTranslog().totalOperations());
+        assertEquals(0, translog.uncommittedOperations());
     }
 
     public void testMaybeRollTranslogGeneration() throws Exception {
@@ -398,15 +395,9 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         final int numberOfDocuments = randomIntBetween(32, 128);
         for (int i = 0; i < numberOfDocuments; i++) {
             assertThat(translog.currentFileGeneration(), equalTo(generation + rolls));
-            final ParsedDocument doc = testParsedDocument(
-                    "1",
-                    "test",
-                    null,
-                    SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                    new ParseContext.Document(),
-                    new BytesArray(new byte[]{1}), XContentType.JSON, null);
-            final Engine.Index index = new Engine.Index(new Term("_id", doc.id()), doc);
-            final Engine.IndexResult result = shard.index(index);
+            final Engine.IndexResult result = shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
+                SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
             final Translog.Location location = result.getTranslogLocation();
             shard.afterWriteOperation();
             if (location.translogLocation + location.size > generationThreshold) {
@@ -458,7 +449,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             threads[i].start();
         }
         barrier.await();
-        final Runnable check;
+        final CheckedRunnable<Exception> check;
         if (flush) {
             final FlushStats flushStats = shard.flushStats();
             final long total = flushStats.getTotal();

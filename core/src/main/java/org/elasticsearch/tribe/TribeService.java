@@ -49,6 +49,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
@@ -230,6 +232,10 @@ public class TribeService extends AbstractLifecycleComponent {
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
         this.blockIndicesRead = BLOCKS_READ_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
         this.blockIndicesWrite = BLOCKS_WRITE_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+        if (!nodes.isEmpty()) {
+            new DeprecationLogger(Loggers.getLogger(TribeService.class))
+                .deprecated("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
+        }
         this.onConflict = ON_CONFLICT_SETTING.get(settings);
     }
 

@@ -19,9 +19,12 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -184,6 +187,22 @@ public class AggregationsTests extends ESTestCase {
             Aggregations parsedAggregations = Aggregations.fromXContent(parser);
             BytesReference parsedBytes = XContentHelper.toXContent(parsedAggregations, xContentType, randomBoolean());
             ElasticsearchAssertions.assertToXContentEquivalent(originalBytes, parsedBytes, xContentType);
+        }
+    }
+
+    public void testParsingExceptionOnUnknownAggregation() throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        builder.startObject();
+        {
+            builder.startObject("unknownAggregation");
+            builder.endObject();
+        }
+        builder.endObject();
+        BytesReference originalBytes = builder.bytes();
+        try (XContentParser parser = createParser(builder.contentType().xContent(), originalBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            ParsingException ex = expectThrows(ParsingException.class, () -> Aggregations.fromXContent(parser));
+            assertEquals("Could not parse aggregation keyed as [unknownAggregation]", ex.getMessage());
         }
     }
 

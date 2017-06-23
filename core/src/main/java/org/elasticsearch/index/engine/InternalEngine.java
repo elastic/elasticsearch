@@ -150,7 +150,10 @@ public class InternalEngine extends Engine {
         }
         this.uidField = engineConfig.getIndexSettings().isSingleType() ? IdFieldMapper.NAME : UidFieldMapper.NAME;
         this.versionMap = new LiveVersionMap();
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
+            engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
+            engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
+        );
         this.deletionPolicy = new CombinedDeletionPolicy(
             new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), translogDeletionPolicy, openMode);
         store.incRef();
@@ -1212,7 +1215,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             ensureCanFlush();
             String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
-            if (syncId != null && translog.totalOperations() == 0 && indexWriter.hasUncommittedChanges()) {
+            if (syncId != null && translog.uncommittedOperations() == 0 && indexWriter.hasUncommittedChanges()) {
                 logger.trace("start renewing sync commit [{}]", syncId);
                 commitIndexWriter(indexWriter, translog, syncId);
                 logger.debug("successfully sync committed. sync id [{}].", syncId);
@@ -1312,6 +1315,25 @@ public class InternalEngine extends Engine {
             pruneDeletedTombstones();
         }
         return new CommitId(newCommitId);
+    }
+
+    @Override
+    public void rollTranslogGeneration() throws EngineException {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            translog.rollGeneration();
+            translog.trimUnreferencedReaders();
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("translog trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new EngineException(shardId, "failed to roll translog", e);
+        }
     }
 
     private void pruneDeletedTombstones() {
@@ -1854,6 +1876,10 @@ public class InternalEngine extends Engine {
             // the setting will be re-interpreted if it's set to true
             this.maxUnsafeAutoIdTimestamp.set(Long.MAX_VALUE);
         }
+        final TranslogDeletionPolicy translogDeletionPolicy = translog.getDeletionPolicy();
+        final IndexSettings indexSettings = engineConfig.getIndexSettings();
+        translogDeletionPolicy.setRetentionAgeInMillis(indexSettings.getTranslogRetentionAge().getMillis());
+        translogDeletionPolicy.setRetentionSizeInBytes(indexSettings.getTranslogRetentionSize().getBytes());
     }
 
     public MergeStats getMergeStats() {

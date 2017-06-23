@@ -122,10 +122,18 @@ task secureHdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   Path keytabPath = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab")
   Path krb5Config = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf")
 
-  args "-Djava.security.krb5.conf=${krb5Config}", 'hdfs.MiniHDFS',
-          baseDir,
-          "hdfs/hdfs.build.elastic.co@${realm}",
-          "${keytabPath}"
+  final List<String> miniHDFSArgs = ["-Djava.security.krb5.conf=${krb5Config}"]
+
+  if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
+    miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
+  }
+
+  miniHDFSArgs.add('hdfs.MiniHDFS')
+  miniHDFSArgs.add(baseDir)
+  miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
+  miniHDFSArgs.add("${keytabPath}")
+
+  args miniHDFSArgs.toArray()
 }
 
 boolean fixtureSupported = false
@@ -170,10 +178,19 @@ project.afterEvaluate {
   project.integTestSecureCluster.dependsOn(project.bundlePlugin)
   project.integTestSecure.clusterConfig.plugin(project.path)
   project.integTestSecure.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
-  project.integTestSecure.clusterConfig.jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+
+  final String baseJvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
           " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
           " " + "-Djava.security.krb5.conf=${krb5conf}" +
           " " + System.getProperty('tests.jvm.argline', '')
+  final String jvmArgs
+  if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
+    jvmArgs = baseJvmArgs + " " + '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
+  } else {
+    jvmArgs = baseJvmArgs
+  }
+
+  project.integTestSecure.clusterConfig.jvmArgs = jvmArgs
 }
 
 RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', RestIntegTestTask.class) {

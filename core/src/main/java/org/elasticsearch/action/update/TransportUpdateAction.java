@@ -184,7 +184,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                     (request.fields() != null && request.fields().length > 0)) {
                                 Tuple<XContentType, Map<String, Object>> sourceAndContent =
                                         XContentHelper.convertToMap(upsertSourceBytes, true, upsertRequest.getContentType());
-                                update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
+                                update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), upsertSourceBytes));
                             } else {
                                 update.setGetResult(null);
                             }
@@ -201,7 +201,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 bulkAction.execute(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(
                         ActionListener.<IndexResponse>wrap(response -> {
                             UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), response.getResult());
-                            update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
+                            update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
                         }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
@@ -212,7 +212,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 bulkAction.execute(toSingleItemBulkRequest(deleteRequest), wrapBulkResponse(
                         ActionListener.<DeleteResponse>wrap(response -> {
                             UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(), response.getId(), response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(), response.getResult());
-                            update.setGetResult(updateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
+                            update.setGetResult(UpdateHelper.extractGetResult(request, request.concreteIndex(), response.getVersion(), result.updatedSourceAsMap(), result.updateSourceContentType(), null));
                             update.setForcedRefresh(response.forcedRefresh());
                             listener.onResponse(update);
                         }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))

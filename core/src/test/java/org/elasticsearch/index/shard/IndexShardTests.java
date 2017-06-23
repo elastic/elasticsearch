@@ -61,7 +61,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -133,9 +132,6 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.VersionType.EXTERNAL;
-import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
-import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.containsString;
@@ -340,7 +336,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         ShardRoutingState.STARTED,
                         replicaRouting.allocationId());
         indexShard.updateRoutingEntry(primaryRouting);
-        indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
+        indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1, (shard, listener) -> {});
 
         final int delayedOperations = scaledRandomIntBetween(1, 64);
         final CyclicBarrier delayedOperationsBarrier = new CyclicBarrier(1 + delayedOperations);
@@ -402,13 +398,13 @@ public class IndexShardTests extends IndexShardTestCase {
         int max = Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED);
         boolean gap = false;
         for (int i = 0; i < operations; i++) {
-            final String id = Integer.toString(i);
-            final ParsedDocument doc = testParsedDocument(id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
             if (!rarely()) {
-                final Term uid = new Term("_id", doc.id());
-                final Engine.Index index =
-                        new Engine.Index(uid, doc, i, indexShard.getPrimaryTerm(), 1, EXTERNAL, REPLICA, System.nanoTime(), -1, false);
-                indexShard.index(index);
+                final String id = Integer.toString(i);
+                SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "test", id,
+                    new BytesArray("{}"), XContentType.JSON);
+                indexShard.applyIndexOperationOnReplica(i, indexShard.getPrimaryTerm(),
+                    1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse,
+                    getMappingUpdater(indexShard, sourceToParse.type()));
                 max = i;
             } else {
                 gap = true;
@@ -431,7 +427,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         ShardRoutingState.STARTED,
                         replicaRouting.allocationId());
         indexShard.updateRoutingEntry(primaryRouting);
-        indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
+        indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1, (shard, listener) -> {});
 
         /*
          * This operation completing means that the delay operation executed as part of increasing the primary term has completed and the
@@ -473,7 +469,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRouting primaryRouting = TestShardRouting.newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
                 true, ShardRoutingState.STARTED, replicaRouting.allocationId());
             indexShard.updateRoutingEntry(primaryRouting);
-            indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
+            indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1, (shard, listener) -> {});
         } else {
             indexShard = newStartedShard(true);
         }
@@ -976,10 +972,7 @@ public class IndexShardTests extends IndexShardTestCase {
         });
         recoveryShardFromStore(shard);
 
-        ParsedDocument doc = testParsedDocument("1", "test", null, new ParseContext.Document(),
-            new BytesArray(new byte[]{1}), null);
-        Engine.Index index = new Engine.Index(new Term("_id", doc.id()), doc);
-        shard.index(index);
+        indexDoc(shard, "test", "1");
         assertEquals(1, preIndex.get());
         assertEquals(1, postIndexCreate.get());
         assertEquals(0, postIndexUpdate.get());
@@ -988,7 +981,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        shard.index(index);
+        indexDoc(shard, "test", "1");
         assertEquals(2, preIndex.get());
         assertEquals(1, postIndexCreate.get());
         assertEquals(1, postIndexUpdate.get());
@@ -997,8 +990,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(0, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        Engine.Delete delete = new Engine.Delete("test", "1", new Term("_id", doc.id()));
-        shard.delete(delete);
+        deleteDoc(shard, "test", "1");
 
         assertEquals(2, preIndex.get());
         assertEquals(1, postIndexCreate.get());
@@ -1012,7 +1004,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.state = IndexShardState.STARTED; // It will generate exception
 
         try {
-            shard.index(index);
+            indexDoc(shard, "test", "1");
             fail();
         } catch (AlreadyClosedException e) {
 
@@ -1026,7 +1018,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(1, postDelete.get());
         assertEquals(0, postDeleteException.get());
         try {
-            shard.delete(delete);
+            deleteDoc(shard, "test", "1");
             fail();
         } catch (AlreadyClosedException e) {
 
@@ -1256,14 +1248,14 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testRecoverFromStoreWithNoOps() throws IOException {
         final IndexShard shard = newStartedShard(true);
         indexDoc(shard, "test", "0");
-        Engine.Index test = indexDoc(shard, "test", "1");
+        Engine.IndexResult test = indexDoc(shard, "test", "1");
         // start a replica shard and index the second doc
         final IndexShard otherShard = newStartedShard(false);
-        test = otherShard.prepareIndexOnReplica(
-            SourceToParse.source(shard.shardId().getIndexName(), test.type(), test.id(), test.source(),
-                XContentType.JSON),
-            1, 1, 1, EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
-        otherShard.index(test);
+        updateMappings(otherShard, shard.indexSettings().getIndexMetaData());
+        SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), "test", "1",
+            new BytesArray("{}"), XContentType.JSON);
+        otherShard.applyIndexOperationOnReplica(1, 1, 1,
+            VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse, update -> {});
 
         final ShardRouting primaryShardRouting = shard.routingEntry();
         IndexShard newShard = reinitShard(otherShard, ShardRoutingHelper.initWithSameId(primaryShardRouting,
@@ -1682,65 +1674,11 @@ public class IndexShardTests extends IndexShardTestCase {
             null));
         primary.recoverFromStore();
 
+        primary.state = IndexShardState.RECOVERING; // translog recovery on the next line would otherwise fail as we are in POST_RECOVERY
         primary.runTranslogRecovery(primary.getEngine(), snapshot);
         assertThat(primary.recoveryState().getTranslog().totalOperationsOnStart(), equalTo(numTotalEntries));
         assertThat(primary.recoveryState().getTranslog().totalOperations(), equalTo(numTotalEntries));
         assertThat(primary.recoveryState().getTranslog().recoveredOperations(), equalTo(numTotalEntries - numCorruptEntries));
-
-        closeShards(primary);
-    }
-
-    public void testTranslogOpToEngineOpConverter() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
-        IndexMetaData metaData = IndexMetaData.builder("test")
-            .putMapping("test", "{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")
-            .settings(settings)
-            .primaryTerm(0, 1).build();
-        IndexShard primary = newShard(new ShardId(metaData.getIndex(), 0), true, "n1", metaData, null);
-        TranslogOpToEngineOpConverter converter = new TranslogOpToEngineOpConverter(primary.shardId(), primary.mapperService());
-
-        Engine.Operation.Origin origin = randomFrom(Engine.Operation.Origin.values());
-        // convert index op
-        Translog.Index translogIndexOp = new Translog.Index(randomAlphaOfLength(10), randomAlphaOfLength(10), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomFrom(VersionType.values()), "{\"foo\" : \"bar\"}".getBytes(Charset.forName("UTF-8")),
-            randomAlphaOfLength(5), randomAlphaOfLength(5), randomLong());
-        Engine.Index engineIndexOp = (Engine.Index) converter.convertToEngineOp(translogIndexOp, origin);
-        assertEquals(engineIndexOp.origin(), origin);
-        assertEquals(engineIndexOp.primaryTerm(), translogIndexOp.primaryTerm());
-        assertEquals(engineIndexOp.seqNo(), translogIndexOp.seqNo());
-        assertEquals(engineIndexOp.version(), translogIndexOp.version());
-        assertEquals(engineIndexOp.versionType(), translogIndexOp.versionType().versionTypeForReplicationAndRecovery());
-        assertEquals(engineIndexOp.id(), translogIndexOp.id());
-        assertEquals(engineIndexOp.type(), translogIndexOp.type());
-        assertEquals(engineIndexOp.getAutoGeneratedIdTimestamp(), translogIndexOp.getAutoGeneratedIdTimestamp());
-        assertEquals(engineIndexOp.parent(), translogIndexOp.parent());
-        assertEquals(engineIndexOp.routing(), translogIndexOp.routing());
-        assertEquals(engineIndexOp.source(), translogIndexOp.source());
-
-        // convert delete op
-        Translog.Delete translogDeleteOp = new Translog.Delete(randomAlphaOfLength(5), randomAlphaOfLength(5),
-            new Term(randomAlphaOfLength(5), randomAlphaOfLength(5)), randomNonNegativeLong(), randomNonNegativeLong(),
-            randomNonNegativeLong(), randomFrom(VersionType.values()));
-        Engine.Delete engineDeleteOp = (Engine.Delete) converter.convertToEngineOp(translogDeleteOp, origin);
-        assertEquals(engineDeleteOp.origin(), origin);
-        assertEquals(engineDeleteOp.primaryTerm(), translogDeleteOp.primaryTerm());
-        assertEquals(engineDeleteOp.seqNo(), translogDeleteOp.seqNo());
-        assertEquals(engineDeleteOp.version(), translogDeleteOp.version());
-        assertEquals(engineDeleteOp.versionType(), translogDeleteOp.versionType().versionTypeForReplicationAndRecovery());
-        assertEquals(engineDeleteOp.id(), translogDeleteOp.id());
-        assertEquals(engineDeleteOp.type(), translogDeleteOp.type());
-        assertEquals(engineDeleteOp.uid(), translogDeleteOp.uid());
-
-        // convert noop
-        Translog.NoOp translogNoOp = new Translog.NoOp(randomNonNegativeLong(), randomNonNegativeLong(), randomAlphaOfLength(5));
-        Engine.NoOp engineNoOp = (Engine.NoOp) converter.convertToEngineOp(translogNoOp, origin);
-        assertEquals(engineNoOp.origin(), origin);
-        assertEquals(engineNoOp.primaryTerm(), translogNoOp.primaryTerm());
-        assertEquals(engineNoOp.seqNo(), translogNoOp.seqNo());
-        assertEquals(engineNoOp.reason(), translogNoOp.reason());
 
         closeShards(primary);
     }
@@ -1880,22 +1818,7 @@ public class IndexShardTests extends IndexShardTestCase {
             final long numDocsToDelete = randomIntBetween((int) Math.ceil(Math.nextUp(numDocs / 10.0)), Math.toIntExact(numDocs));
             for (int i = 0; i < numDocs; i++) {
                 final String id = Integer.toString(i);
-                final ParsedDocument doc =
-                    testParsedDocument(id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
-                final Engine.Index index =
-                    new Engine.Index(
-                        new Term("_id", doc.id()),
-                        doc,
-                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                        0,
-                        Versions.MATCH_ANY,
-                        VersionType.INTERNAL,
-                        PRIMARY,
-                        System.nanoTime(),
-                        -1,
-                        false);
-                final Engine.IndexResult result = indexShard.index(index);
-                assertThat(result.getVersion(), equalTo(1L));
+                indexDoc(indexShard, "test", id);
             }
 
             indexShard.refresh("test");
@@ -1910,22 +1833,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 IntStream.range(0, Math.toIntExact(numDocs)).boxed().collect(Collectors.toList()));
             for (final Integer i : ids) {
                 final String id = Integer.toString(i);
-                final ParsedDocument doc =
-                    testParsedDocument(id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
-                final Engine.Index index =
-                    new Engine.Index(
-                        new Term("_id", doc.id()),
-                        doc,
-                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                        0,
-                        Versions.MATCH_ANY,
-                        VersionType.INTERNAL,
-                        PRIMARY,
-                        System.nanoTime(),
-                        -1,
-                        false);
-                final Engine.IndexResult result = indexShard.index(index);
-                assertThat(result.getVersion(), equalTo(2L));
+                deleteDoc(indexShard, "test", id);
+                indexDoc(indexShard, "test", id);
             }
 
             // flush the buffered deletes

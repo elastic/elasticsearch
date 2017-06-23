@@ -19,16 +19,6 @@
 
 package org.elasticsearch.search.query;
 
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -55,6 +45,16 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class QueryStringIT extends ESIntegTestCase {
     @Override
@@ -91,10 +91,6 @@ public class QueryStringIT extends ESIntegTestCase {
         resp = client().prepareSearch("test").setQuery(queryStringQuery("Bar")).get();
         assertHitCount(resp, 3L);
         assertHits(resp.getHits(), "1", "2", "3");
-
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("foa")).get();
-        assertHitCount(resp, 1L);
-        assertHits(resp.getHits(), "3");
     }
 
     public void testWithDate() throws Exception {
@@ -161,8 +157,6 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(queryStringQuery("Baz")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("sbaz")).get();
-        assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(queryStringQuery("19")).get();
         assertHits(resp.getHits(), "1");
         // nested doesn't match because it's hidden
@@ -223,11 +217,11 @@ public class QueryStringIT extends ESIntegTestCase {
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test2").setQuery(
-                queryStringQuery("foo eggplent").defaultOperator(Operator.AND)).get();
+                queryStringQuery("foo eggplant").defaultOperator(Operator.AND)).get();
         assertHitCount(resp, 0L);
 
         resp = client().prepareSearch("test2").setQuery(
-                queryStringQuery("foo eggplent").defaultOperator(Operator.AND).useAllFields(true)).get();
+                queryStringQuery("foo eggplant").defaultOperator(Operator.AND).useAllFields(true)).get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
 

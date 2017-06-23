@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -34,11 +35,14 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
 
 public class RemoteClusterServiceTests extends ESTestCase {
 
@@ -265,4 +269,156 @@ public class RemoteClusterServiceTests extends ESTestCase {
         return ActionListener.wrap(x -> latch.countDown(), x -> fail());
     }
 
+
+    public void testCollectNodes() throws InterruptedException, IOException {
+        final Settings settings = Settings.EMPTY;
+        final List<DiscoveryNode> knownNodes_c1 = new CopyOnWriteArrayList<>();
+        final List<DiscoveryNode> knownNodes_c2 = new CopyOnWriteArrayList<>();
+
+        try (MockTransportService c1N1 =
+                 startTransport("cluster_1_node_1", knownNodes_c1, Version.CURRENT);
+             MockTransportService c1N2 =
+                 startTransport("cluster_1_node_2", knownNodes_c1, Version.CURRENT);
+             MockTransportService c2N1 =
+                 startTransport("cluster_2_node_1", knownNodes_c2, Version.CURRENT);
+             MockTransportService c2N2 =
+                 startTransport("cluster_2_node_2", knownNodes_c2, Version.CURRENT)) {
+            final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
+            final DiscoveryNode c1N2Node = c1N2.getLocalDiscoNode();
+            final DiscoveryNode c2N1Node = c2N1.getLocalDiscoNode();
+            final DiscoveryNode c2N2Node = c2N2.getLocalDiscoNode();
+            knownNodes_c1.add(c1N1Node);
+            knownNodes_c1.add(c1N2Node);
+            knownNodes_c2.add(c2N1Node);
+            knownNodes_c2.add(c2N2Node);
+            Collections.shuffle(knownNodes_c1, random());
+            Collections.shuffle(knownNodes_c2, random());
+
+            try (MockTransportService transportService = MockTransportService.createNewService(
+                settings,
+                Version.CURRENT,
+                threadPool,
+                null)) {
+                transportService.start();
+                transportService.acceptIncomingRequests();
+                final Settings.Builder builder = Settings.builder();
+                builder.putArray(
+                    "search.remote.cluster_1.seeds", c1N1Node.getAddress().toString());
+                builder.putArray(
+                    "search.remote.cluster_2.seeds", c2N1Node.getAddress().toString());
+                try (RemoteClusterService service =
+                         new RemoteClusterService(settings, transportService)) {
+                    assertFalse(service.isCrossClusterSearchEnabled());
+                    service.initializeRemoteClusters();
+                    assertFalse(service.isCrossClusterSearchEnabled());
+
+                    final InetSocketAddress c1N1Address = c1N1Node.getAddress().address();
+                    final InetSocketAddress c1N2Address = c1N2Node.getAddress().address();
+                    final InetSocketAddress c2N1Address = c2N1Node.getAddress().address();
+                    final InetSocketAddress c2N2Address = c2N2Node.getAddress().address();
+
+                    final CountDownLatch firstLatch = new CountDownLatch(1);
+                    service.updateRemoteCluster(
+                        "cluster_1",
+                        Arrays.asList(c1N1Address, c1N2Address),
+                        connectionListener(firstLatch));
+                    firstLatch.await();
+
+                    final CountDownLatch secondLatch = new CountDownLatch(1);
+                    service.updateRemoteCluster(
+                        "cluster_2",
+                        Arrays.asList(c2N1Address, c2N2Address),
+                        connectionListener(secondLatch));
+                    secondLatch.await();
+                    CountDownLatch latch = new CountDownLatch(1);
+                    service.collectNodes(new HashSet<>(Arrays.asList("cluster_1", "cluster_2")),
+                        new ActionListener<BiFunction<String, String, DiscoveryNode>>() {
+                        @Override
+                        public void onResponse(BiFunction<String, String, DiscoveryNode> func) {
+                            try {
+                                assertEquals(c1N1Node, func.apply("cluster_1", c1N1Node.getId()));
+                                assertEquals(c1N2Node, func.apply("cluster_1", c1N2Node.getId()));
+                                assertEquals(c2N1Node, func.apply("cluster_2", c2N1Node.getId()));
+                                assertEquals(c2N2Node, func.apply("cluster_2", c2N2Node.getId()));
+                            } finally {
+                                latch.countDown();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            try {
+                                throw new AssertionError(e);
+                            } finally {
+                                latch.countDown();
+                            }
+                        }
+                    });
+                    latch.await();
+                    {
+                        CountDownLatch failLatch = new CountDownLatch(1);
+                        AtomicReference<Exception> ex = new AtomicReference<>();
+                        service.collectNodes(new HashSet<>(Arrays.asList("cluster_1", "cluster_2", "no such cluster")),
+                            new ActionListener<BiFunction<String, String, DiscoveryNode>>() {
+                                @Override
+                                public void onResponse(BiFunction<String, String, DiscoveryNode> stringStringDiscoveryNodeBiFunction) {
+                                    try {
+                                        fail("should not be called");
+                                    } finally {
+                                        failLatch.countDown();
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    try {
+                                        ex.set(e);
+                                    } finally {
+                                        failLatch.countDown();
+                                    }
+                                }
+                            });
+                        failLatch.await();
+                        assertNotNull(ex.get());
+                        assertTrue(ex.get() instanceof IllegalArgumentException);
+                        assertEquals("no such remote cluster: [no such cluster]", ex.get().getMessage());
+                    }
+                    {
+                        // close all targets and check for the transport level failure path
+                        IOUtils.close(c1N1, c1N2, c2N1, c2N2);
+                        CountDownLatch failLatch = new CountDownLatch(1);
+                        AtomicReference<Exception> ex = new AtomicReference<>();
+                        service.collectNodes(new HashSet<>(Arrays.asList("cluster_1", "cluster_2")),
+                            new ActionListener<BiFunction<String, String, DiscoveryNode>>() {
+                                @Override
+                                public void onResponse(BiFunction<String, String, DiscoveryNode> stringStringDiscoveryNodeBiFunction) {
+                                    try {
+                                        fail("should not be called");
+                                    } finally {
+                                        failLatch.countDown();
+                                    }
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    try {
+                                        ex.set(e);
+                                    } finally {
+                                        failLatch.countDown();
+                                    }
+                                }
+                            });
+                        failLatch.await();
+                        assertNotNull(ex.get());
+                        if (ex.get() instanceof TransportException == false) {
+                            // we have an issue for this see #25301
+                            logger.error("expected TransportException but got a different one see #25301", ex.get());
+                        }
+                        assertTrue("expected TransportException but got a different one [" + ex.get().getClass().toString() + "]",
+                            ex.get() instanceof TransportException);
+                    }
+                }
+            }
+        }
+    }
 }

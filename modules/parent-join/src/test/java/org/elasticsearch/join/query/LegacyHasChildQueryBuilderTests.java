@@ -114,7 +114,7 @@ public class LegacyHasChildQueryBuilderTests extends AbstractQueryTestCase<HasCh
     protected Settings indexSettings() {
         return Settings.builder()
             .put(super.indexSettings())
-            .put("index.mapping.single_type", false)
+            .put("index.version.created", Version.V_5_6_0) // multi type
             .build();
     }
 

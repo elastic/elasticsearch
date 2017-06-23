@@ -2,10 +2,10 @@
   "xpack.upgrade.info": {
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/_upgrade",
+      "path": "/_xpack/migration/assistance",
       "paths": [
-        "/_xpack/_upgrade",
-        "/{index}/_xpack/_upgrade"
+        "/_xpack/migration/assistance",
+        "/_xpack/migration/assistance/{index}"
       ],
       "parts": {
         "index": {

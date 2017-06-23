@@ -34,7 +34,7 @@ public class RestIndexUpgradeAction extends BaseRestHandler {
 
     public RestIndexUpgradeAction(Settings settings, RestController controller, Set<String> extraParameters) {
         super(settings);
-        controller.registerHandler(RestRequest.Method.POST, "{index}/_xpack/_upgrade", this);
+        controller.registerHandler(RestRequest.Method.POST, "_xpack/migration/upgrade/{index}", this);
         this.extraParameters = extraParameters;
     }
 

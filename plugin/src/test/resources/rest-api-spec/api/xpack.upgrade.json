@@ -2,9 +2,9 @@
   "xpack.upgrade": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/{index}/_xpack/_upgrade",
+      "path": "/_xpack/migration/upgrade/{index}",
       "paths": [
-        "/{index}/_xpack/_upgrade"
+        "/_xpack/migration/upgrade/{index}"
       ],
       "parts": {
         "index": {

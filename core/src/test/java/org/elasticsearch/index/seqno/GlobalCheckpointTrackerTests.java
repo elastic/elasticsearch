@@ -693,6 +693,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
 
         // invoking any method that mutates the state of the tracker should fail
         assertIllegalStateExceptionWhenSealed(() -> tracker.updateLocalCheckpoint(randomAlphaOfLength(16), randomNonNegativeLong()));
+        assertIllegalStateExceptionWhenSealed(() -> tracker.updateGlobalCheckpointOnReplica(randomNonNegativeLong()));
         assertIllegalStateExceptionWhenSealed(
                 () -> tracker.updateAllocationIdsFromMaster(randomNonNegativeLong(), Collections.emptySet(), Collections.emptySet()));
         assertIllegalStateExceptionWhenSealed(() -> tracker.updateAllocationIdsFromPrimaryContext(mock(PrimaryContext.class)));

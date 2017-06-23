@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
@@ -57,6 +57,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.tartarus.snowball.ext.ArmenianStemmer;
 import org.tartarus.snowball.ext.BasqueStemmer;
 import org.tartarus.snowball.ext.CatalanStemmer;
@@ -86,7 +87,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private String language;
 
-    public StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    StemmerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
     }

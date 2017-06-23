@@ -530,28 +530,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
-                    "in-flight operations in progress while moving shard state to relocated";
+                        "in-flight operations in progress while moving shard state to relocated";
+                /*
+                 * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
+                 * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
+                 */
+                verifyRelocating();
+                onBlocked.run();
                 synchronized (mutex) {
-                    if (state != IndexShardState.STARTED) {
-                        throw new IndexShardNotStartedException(shardId, state);
-                    }
-                    /*
-                     * If the master cancelled recovery, the target will be removed and the recovery will be cancelled. However, it is still
-                     * possible that we concurrently end up here and therefore have to protect that we do not mark the shard as relocated
-                     * when its shard routing says otherwise.
-                     */
-                    if (shardRouting.relocating() == false) {
-                        throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
-                            ": shard is no longer relocating " + shardRouting);
-                    }
-
-                    if (primaryReplicaResyncInProgress.get()) {
-                        throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
-                            ": primary relocation is forbidden while primary-replica resync is in progress " + shardRouting);
-                    }
-
-                    onBlocked.run();
-
+                    verifyRelocating();
                     changeState(IndexShardState.RELOCATED, reason);
                 }
             });
@@ -561,6 +548,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // Fail primary relocation source and target shards.
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+        }
+    }
+
+    private void verifyRelocating() {
+        if (state != IndexShardState.STARTED) {
+            throw new IndexShardNotStartedException(shardId, state);
+        }
+        /*
+         * If the master cancelled recovery, the target will be removed and the recovery will be cancelled. However, it is still possible
+         * that we concurrently end up here and therefore have to protect that we do not mark the shard as relocated when its shard routing
+         * says otherwise.
+         */
+        if (shardRouting.relocating() == false) {
+            throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
+                ": shard is no longer relocating " + shardRouting);
+        }
+
+        if (primaryReplicaResyncInProgress.get()) {
+            throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
+                ": primary relocation is forbidden while primary-replica resync is in progress " + shardRouting);
         }
     }
 

@@ -48,24 +48,8 @@ A {dfeed} resource has the following properties:
   script fields to the {dfeed}.
   The <<ml-detectorconfig,detector configuration objects>> in a job can contain
   functions that use these script fields.
-  For more information, see {ref}/search-request-script-fields.html[Script Fields].
-  For example:
-+
---
-[source,js]
-----------------------------------
-{
-  "script_fields": {
-    "total_error_count": {
-      "script": {
-        "lang": "painless",
-        "source": "doc['error_count'].value + doc['aborted_count'].value"
-      }
-    }
-  }
-}
-----------------------------------
---
+  For more information, see
+  {xpack-ref}/ml-configuring-transform.html[Transforming Data With Script Fields].
 
 `scroll_size`::
   (unsigned integer) The `size` parameter that is used in {es} searches.

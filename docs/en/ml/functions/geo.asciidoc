@@ -74,5 +74,4 @@ format. For example, the following Painless script transforms
 }
 --------------------------------------------------
 
-For more information about `script_fields`, see
-{ref}/ml-datafeed-resource.html[Datafeed Resources].
+For more information, see <<ml-configuring-transform>>.

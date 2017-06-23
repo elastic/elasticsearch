@@ -60,7 +60,7 @@ public class XContentParserUtilsTests extends ESTestCase {
     }
 
     public void testParseStoredFieldsValueInt() throws IOException {
-        final Integer value = randomInt(1_000);
+        final Integer value = randomInt();
         assertParseStoredFieldsValue(value, (xcontentType, result) -> assertEquals(value, result));
     }
 

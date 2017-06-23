@@ -33,3 +33,4 @@ The scenarios in this section describe some best practices for generating useful
 
 include::aggregations.asciidoc[]
 include::categories.asciidoc[]
+include::populations.asciidoc[]

@@ -535,10 +535,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
                  * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
                  */
-                verifyRelocating();
+                verifyRelocationState();
                 onBlocked.run();
                 synchronized (mutex) {
-                    verifyRelocating();
+                    verifyRelocationState();
                     changeState(IndexShardState.RELOCATED, reason);
                 }
             });
@@ -551,7 +551,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private void verifyRelocating() {
+    private void verifyRelocationState() {
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);
         }

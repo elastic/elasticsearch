@@ -25,6 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.LongTuple;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.PrimaryContext;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -80,6 +82,12 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      */
     private long globalCheckpoint;
 
+    /*
+     * During relocation handoff, the state of the global checkpoint tracker is sampled. After sampling, there should be no additional
+     * mutations to this tracker until the handoff has completed.
+     */
+    private boolean sealed = false;
+
     /**
      * Initialize the global checkpoint service. The specified global checkpoint should be set to the last known global checkpoint, or
      * {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
@@ -106,6 +114,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @param localCheckpoint the local checkpoint for the shard
      */
     public synchronized void updateLocalCheckpoint(final String allocationId, final long localCheckpoint) {
+        if (sealed) {
+            throw new IllegalStateException("global checkpoint tracker is sealed");
+        }
         final boolean updated;
         if (updateLocalCheckpoint(allocationId, localCheckpoint, inSyncLocalCheckpoints, "in-sync")) {
             updated = true;
@@ -228,6 +239,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      */
     public synchronized void updateAllocationIdsFromMaster(
             final long applyingClusterStateVersion, final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
+        if (sealed) {
+            throw new IllegalStateException("global checkpoint tracker is sealed");
+        }
         if (applyingClusterStateVersion < appliedClusterStateVersion) {
             return;
         }
@@ -272,10 +286,24 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      *
      * @return the primary context
      */
-    synchronized PrimaryContext primaryContext() {
+    synchronized Releasable primaryContext(final Consumer<PrimaryContext> consumer) {
+        if (sealed) {
+            throw new IllegalStateException("global checkpoint tracker is sealed");
+        }
+        sealed = true;
         final ObjectLongMap<String> inSyncLocalCheckpoints = new ObjectLongHashMap<>(this.inSyncLocalCheckpoints);
         final ObjectLongMap<String> trackingLocalCheckpoints = new ObjectLongHashMap<>(this.trackingLocalCheckpoints);
-        return new PrimaryContext(appliedClusterStateVersion, inSyncLocalCheckpoints, trackingLocalCheckpoints);
+        try {
+            consumer.accept(new PrimaryContext(appliedClusterStateVersion, inSyncLocalCheckpoints, trackingLocalCheckpoints));
+        } catch (final Exception e) {
+            sealed = false;
+            throw e;
+        }
+        return () -> {
+            synchronized (this) {
+                sealed = false;
+            }
+        };
     }
 
     /**
@@ -284,6 +312,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @param primaryContext the primary context
      */
     synchronized void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
+        if (sealed) {
+            throw new IllegalStateException("global checkpoint tracker is sealed");
+        }
         /*
          * We are gathered here today to witness the relocation handoff transferring knowledge from the relocation source to the relocation
          * target. We need to consider the possibility that the version of the cluster state on the relocation source when the primary
@@ -391,6 +422,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @throws InterruptedException if the thread is interrupted waiting for the local checkpoint on the shard to advance
      */
     public synchronized void markAllocationIdAsInSync(final String allocationId, final long localCheckpoint) throws InterruptedException {
+        if (sealed) {
+            throw new IllegalStateException("global checkpoint tracker is sealed");
+        }
         if (!trackingLocalCheckpoints.containsKey(allocationId)) {
             /*
              * This can happen if the recovery target has been failed and the cluster state update from the master has triggered removing

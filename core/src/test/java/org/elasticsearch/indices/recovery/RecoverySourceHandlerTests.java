@@ -77,6 +77,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -454,7 +455,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             relocated.set(true);
             assertTrue(recoveriesDelayed.get());
             return null;
-        }).when(shard).relocated(any(String.class), any(Runnable.class));
+        }).when(shard).relocated(any(String.class), any(Consumer.class));
         when(shard.acquireIndexCommit(anyBoolean())).thenReturn(mock(Engine.IndexCommitRef.class));
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")

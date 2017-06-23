@@ -536,7 +536,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 routing = TestShardRouting.newShardRouting(routing.shardId(), routing.currentNodeId(), "otherNode",
                     true, ShardRoutingState.RELOCATING, AllocationId.newRelocation(routing.allocationId()));
                 indexShard.updateRoutingEntry(routing);
-                indexShard.relocated("test", () -> {});
+                indexShard.relocated("test", primaryContext -> {});
                 engineClosed = false;
                 break;
             }
@@ -1042,7 +1042,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Thread recoveryThread = new Thread(() -> {
             latch.countDown();
             try {
-                shard.relocated("simulated recovery", () -> {});
+                shard.relocated("simulated recovery", primaryContext -> {});
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -1071,7 +1071,7 @@ public class IndexShardTests extends IndexShardTestCase {
         shard.updateRoutingEntry(ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
         Thread recoveryThread = new Thread(() -> {
             try {
-                shard.relocated("simulated recovery", () -> {});
+                shard.relocated("simulated recovery", primaryContext -> {});
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -1124,7 +1124,7 @@ public class IndexShardTests extends IndexShardTestCase {
         AtomicBoolean relocated = new AtomicBoolean();
         final Thread recoveryThread = new Thread(() -> {
             try {
-                shard.relocated("simulated recovery", () -> {});
+                shard.relocated("simulated recovery", primaryContext -> {});
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -1158,7 +1158,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();
         shard.updateRoutingEntry(ShardRoutingHelper.relocate(originalRouting, "other_node"));
-        shard.relocated("test", () -> {});
+        shard.relocated("test", primaryContext -> {});
         expectThrows(IllegalIndexShardStateException.class, () -> shard.updateRoutingEntry(originalRouting));
         closeShards(shard);
     }
@@ -1168,7 +1168,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final ShardRouting originalRouting = shard.routingEntry();
         shard.updateRoutingEntry(ShardRoutingHelper.relocate(originalRouting, "other_node"));
         shard.updateRoutingEntry(originalRouting);
-        expectThrows(IllegalIndexShardStateException.class, () ->  shard.relocated("test", () -> {}));
+        expectThrows(IllegalIndexShardStateException.class, () ->  shard.relocated("test", primaryContext -> {}));
         closeShards(shard);
     }
 
@@ -1187,7 +1187,7 @@ public class IndexShardTests extends IndexShardTestCase {
             @Override
             protected void doRun() throws Exception {
                 cyclicBarrier.await();
-                shard.relocated("test", () -> {});
+                shard.relocated("test", primaryContext -> {});
             }
         });
         relocationThread.start();
@@ -1362,7 +1362,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(shard.state(), equalTo(IndexShardState.STARTED));
         ShardRouting inRecoveryRouting = ShardRoutingHelper.relocate(origRouting, "some_node");
         shard.updateRoutingEntry(inRecoveryRouting);
-        shard.relocated("simulate mark as relocated", () -> {});
+        shard.relocated("simulate mark as relocated", primaryContext -> {});
         assertThat(shard.state(), equalTo(IndexShardState.RELOCATED));
         try {
             shard.updateRoutingEntry(origRouting);

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.PrimaryContext;
@@ -42,6 +43,7 @@ import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -661,20 +663,21 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
 
         tracker.updateAllocationIdsFromPrimaryContext(primaryContext);
 
-        final PrimaryContext trackerPrimaryContext = tracker.primaryContext();
+        final AtomicReference<PrimaryContext> trackerPrimaryContext = new AtomicReference<>();
+        try (Releasable ignored = tracker.primaryContext(trackerPrimaryContext::set)) {
+            final long globalCheckpoint =
+                    StreamSupport
+                            .stream(activeAllocationIdsLocalCheckpoints.values().spliterator(), false)
+                            .mapToLong(e -> e.value)
+                            .min()
+                            .orElse(SequenceNumbersService.UNASSIGNED_SEQ_NO);
 
-        final long globalCheckpoint =
-                StreamSupport
-                        .stream(activeAllocationIdsLocalCheckpoints.values().spliterator(), false)
-                        .mapToLong(e -> e.value)
-                        .min()
-                        .orElse(SequenceNumbersService.UNASSIGNED_SEQ_NO);
-
-        // the primary context contains knowledge of the state of the entire universe
-        assertThat(primaryContext.clusterStateVersion(), equalTo(trackerPrimaryContext.clusterStateVersion()));
-        assertThat(primaryContext.inSyncLocalCheckpoints(), equalTo(trackerPrimaryContext.inSyncLocalCheckpoints()));
-        assertThat(primaryContext.trackingLocalCheckpoints(), equalTo(trackerPrimaryContext.trackingLocalCheckpoints()));
-        assertThat(tracker.getGlobalCheckpoint(), equalTo(globalCheckpoint));
+            // the primary context contains knowledge of the state of the entire universe
+            assertThat(primaryContext.clusterStateVersion(), equalTo(trackerPrimaryContext.get().clusterStateVersion()));
+            assertThat(primaryContext.inSyncLocalCheckpoints(), equalTo(trackerPrimaryContext.get().inSyncLocalCheckpoints()));
+            assertThat(primaryContext.trackingLocalCheckpoints(), equalTo(trackerPrimaryContext.get().trackingLocalCheckpoints()));
+            assertThat(tracker.getGlobalCheckpoint(), equalTo(globalCheckpoint));
+        }
     }
 
     private Tuple<Set<String>, Set<String>> randomActiveAndInitializingAllocationIds(

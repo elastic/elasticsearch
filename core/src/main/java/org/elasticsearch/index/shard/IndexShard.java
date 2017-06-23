@@ -515,16 +515,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
 
-        /**
-         * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
-         * {@link Runnable} is executed after all operations are successfully blocked.
-         *
-         * @param reason    the reason for the relocation
-         * @param onBlocked a {@link Runnable} that is executed after operations are blocked
-         * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
-         * @throws InterruptedException            if blocking operations is interrupted
-         */
-    public void relocated(final String reason, final Runnable onBlocked) throws IllegalIndexShardStateException, InterruptedException {
+    /**
+     * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
+     * {@link Runnable} is executed after all operations are successfully blocked.
+     *
+     * @param reason    the reason for the relocation
+     * @param consumer a {@link Runnable} that is executed after operations are blocked
+     * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
+     * @throws InterruptedException            if blocking operations is interrupted
+     */
+    public void relocated(
+            final String reason, final Consumer<PrimaryContext> consumer) throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
@@ -536,10 +537,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
                  */
                 verifyRelocatingState();
-                onBlocked.run();
-                synchronized (mutex) {
-                    verifyRelocatingState();
-                    changeState(IndexShardState.RELOCATED, reason);
+                try (Releasable ignored = primaryContext(consumer)) {
+                    synchronized (mutex) {
+                        verifyRelocatingState();
+                        changeState(IndexShardState.RELOCATED, reason);
+                    }
                 }
             });
         } catch (TimeoutException e) {
@@ -577,10 +579,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @return the primary for the shard
      */
-    public PrimaryContext primaryContext() {
+    public Releasable primaryContext(final Consumer<PrimaryContext> consumer) {
         verifyPrimary();
         assert shardRouting.relocating() : "primary context can only be obtained from a relocating primary: " + shardRouting;
-        return getEngine().seqNoService().primaryContext();
+        return getEngine().seqNoService().primaryContext(consumer);
     }
 
     public IndexShardState state() {

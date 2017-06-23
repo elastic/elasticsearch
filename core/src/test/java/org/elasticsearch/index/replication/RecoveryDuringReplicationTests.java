@@ -186,7 +186,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             totalDocs += shards.indexDocs(randomIntBetween(0, 5));
 
             if (randomBoolean()) {
-                shards.flush();
+                newPrimary.flush(new FlushRequest());
             }
 
             oldPrimary.close("demoted", false);

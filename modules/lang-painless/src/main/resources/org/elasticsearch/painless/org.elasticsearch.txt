@@ -156,6 +156,8 @@ class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.Featu
   boolean overloadedStatic(boolean)
   Object twoFunctionsOfX(Function,Function)
   void listInput(List)
+  int org.elasticsearch.painless.FeatureTestAugmentation.getTotal()
+  int org.elasticsearch.painless.FeatureTestAugmentation.addToTotal(int)
 }
 
 class org.elasticsearch.search.lookup.FieldLookup -> org.elasticsearch.search.lookup.FieldLookup extends Object {

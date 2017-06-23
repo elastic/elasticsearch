@@ -809,34 +809,24 @@ public class GetActionIT extends ESIntegTestCase {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
-                "    \"index.mapping.single_type\": false," +
                 "    \"refresh_interval\": \"-1\"\n" +
-                "  },\n" +
-                "  \"mappings\": {\n" +
-                "    \"parentdoc\": {\n" +
-                "    },\n" +
-                "    \"doc\": {\n" +
-                "      \"_parent\": {\n" +
-                "        \"type\": \"parentdoc\"\n" +
-                "      }\n" +
-                "    }\n" +
                 "  }\n" +
                 "}";
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("test", "doc").setId("1").setSource("{}", XContentType.JSON).setParent("1").get();
+        client().prepareIndex("test", "doc", "1").setRouting("routingValue").setId("1").setSource("{}", XContentType.JSON).get();
 
-        String[] fieldsList = {"_parent"};
+        String[] fieldsList = {"_routing"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "routingValue");
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "routingValue");
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "routingValue");
     }
 
     public void testUngeneratedFieldsNotPartOfSourceStored() throws IOException {

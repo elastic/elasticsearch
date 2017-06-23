@@ -352,4 +352,12 @@ public class VersionTests extends ESTestCase {
         return result;
     }
 
+    // This exists because 5.1.0 was never released due to a mistake in the release process.
+    // This verifies that we never declare the version as "released" accidentally.
+    // It would never pass qa tests later on, but those come very far in the build and this is quick to check now.
+    public void testUnreleasedVersion() {
+        Version VERSION_5_1_0_UNRELEASED = Version.fromString("5.1.0");
+        VersionTests.assertUnknownVersion(VERSION_5_1_0_UNRELEASED);
+    }
+
 }

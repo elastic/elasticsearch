@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.ArrayList;
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 /** A {@link FieldMapper} for ip addresses. */
@@ -211,16 +212,12 @@ public class DateFieldMapper extends FieldMapper {
         @Override
         public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
             super.checkCompatibility(fieldType, conflicts, strict);
-            if (strict) {
-                DateFieldType other = (DateFieldType)fieldType;
-                if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
-                    conflicts.add("mapper [" + name()
-                        + "] is used by multiple types. Set update_all_types to true to update [format] across all types.");
-                }
-                if (Objects.equals(dateTimeFormatter().locale(), other.dateTimeFormatter().locale()) == false) {
-                    conflicts.add("mapper [" + name()
-                        + "] is used by multiple types. Set update_all_types to true to update [locale] across all types.");
-                }
+            DateFieldType other = (DateFieldType) fieldType;
+            if (Objects.equals(dateTimeFormatter().format(), other.dateTimeFormatter().format()) == false) {
+                conflicts.add("mapper [" + name() + "] has different [format] values");
+            }
+            if (Objects.equals(dateTimeFormatter().locale(), other.dateTimeFormatter().locale()) == false) {
+                conflicts.add("mapper [" + name() + "] has different [locale] values");
             }
         }
 
@@ -491,8 +488,10 @@ public class DateFieldMapper extends FieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         final DateFieldMapper other = (DateFieldMapper) mergeWith;
-        if (!this.fieldType().equals(other.fieldType()))
-            throw new IllegalArgumentException("date field's format cannot be updated");
+        final List<String> conflits = new ArrayList<>();
+        fieldType().checkCompatibility(other.fieldType(), conflits, false);
+        if (!conflits.isEmpty())
+            throw new IllegalArgumentException("Merge conflits: " + conflits);
         super.doMerge(mergeWith, updateAllTypes);
         this.includeInAll = other.includeInAll;
         if (other.ignoreMalformed.explicit()) {

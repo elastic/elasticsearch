@@ -364,6 +364,6 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper updateFormatMapper = parser.parse("movie", new CompressedXContent(updateFormatMapping));
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> initMapper.merge(updateFormatMapper.mapping(), false));
-        assertThat(e.getMessage(), containsString("date field's format cannot be updated"));
+        assertThat(e.getMessage(), containsString("Merge conflits: [mapper [release_date] has different [format] values]"));
     }
 }

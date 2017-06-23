@@ -63,7 +63,6 @@ import org.elasticsearch.test.VersionUtils;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -284,10 +283,6 @@ public class ShrinkIndexIT extends ESIntegTestCase {
             .mapToLong(SegmentsStats::getMaxUnsafeAutoIdTimestamp)
             .max()
             .getAsLong();
-
-        for (ShardStats shard: Arrays.stream(sourceStats.getShards()).filter(shard -> shard.getShardRouting().currentNodeId().equals(mergeNode.getId())).collect(Collectors.toList())) {
-            logger.info("used {}, timestamp: {}", shard.getShardRouting(), shard.getStats().getSegments().getMaxUnsafeAutoIdTimestamp());
-        }
 
         final IndicesStatsResponse targetStats = client().admin().indices().prepareStats("target").get();
         for (final ShardStats shardStats : targetStats.getShards()) {

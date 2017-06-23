@@ -162,6 +162,7 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -2138,6 +2139,7 @@ public class InternalEngineTests extends ESTestCase {
             final int numDocsPerThread = randomIntBetween(500, 1000);
             final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
             final List<Thread> indexingThreads = new ArrayList<>();
+            final CountDownLatch doneLatch = new CountDownLatch(numIndexingThreads);
             // create N indexing threads to index documents simultaneously
             for (int threadNum = 0; threadNum < numIndexingThreads; threadNum++) {
                 final int threadIdx = threadNum;
@@ -2152,7 +2154,10 @@ public class InternalEngineTests extends ESTestCase {
                         }
                     } catch (Exception e) {
                         throw new RuntimeException(e);
+                    } finally {
+                        doneLatch.countDown();
                     }
+
                 });
                 indexingThreads.add(indexingThread);
             }
@@ -2162,12 +2167,19 @@ public class InternalEngineTests extends ESTestCase {
                 thread.start();
             }
             barrier.await(); // wait for indexing threads to all be ready to start
-
+            int commitLimit = randomIntBetween(10, 20);
+            long sleepTime = 1;
             // create random commit points
             boolean doneIndexing;
             do {
-                doneIndexing = indexingThreads.stream().filter(Thread::isAlive).count() == 0;
+                doneIndexing = doneLatch.await(sleepTime, TimeUnit.MILLISECONDS);
                 commits.add(engine.acquireIndexCommit(true));
+                if (commits.size() > commitLimit) { // don't keep on piling up too many commits
+                    IOUtils.close(commits.remove(randomIntBetween(0, commits.size()-1)));
+                    // we increase the wait time to make sure we eventually if things are slow wait for threads to finish.
+                    // this will reduce pressure on disks and will allow threads to make progress without piling up too many commits
+                    sleepTime = sleepTime * 2;
+                }
             } while (doneIndexing == false);
 
             // now, verify all the commits have the correct docs according to the user commit data

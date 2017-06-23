@@ -19,6 +19,7 @@
 package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -59,7 +60,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ChildrenIT extends ParentChildTestCase {
+
+
     private static final Map<String, Control> categoryToControl = new HashMap<>();
+
 
     @Before
     public void setupCluster() throws Exception {
@@ -321,7 +325,7 @@ public class ChildrenIT extends ParentChildTestCase {
                     prepareCreate(indexName)
                             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                                     .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                                    .put("index.mapping.single_type", false))
+                                    .put("index.version.created", Version.V_5_6_0)) // multi type
                             .addMapping(masterType, "brand", "type=text", "name", "type=keyword", "material", "type=text")
                             .addMapping(childType, "_parent", "type=masterprod", "color", "type=keyword", "size", "type=keyword")
             );
@@ -396,7 +400,7 @@ public class ChildrenIT extends ParentChildTestCase {
             assertAcked(
                     prepareCreate(indexName)
                             .setSettings(Settings.builder()
-                                    .put("index.mapping.single_type", false)
+                                .put("index.version.created", Version.V_5_6_0) // multi type
                             ).addMapping(grandParentType, "name", "type=keyword")
                             .addMapping(parentType, "_parent", "type=" + grandParentType)
                             .addMapping(childType, "_parent", "type=" + parentType)

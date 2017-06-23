@@ -238,9 +238,12 @@ final class Bootstrap {
         return keystore;
     }
 
-
-    private static Environment createEnvironment(boolean foreground, Path pidFile,
-                                                 SecureSettings secureSettings, Settings initialSettings) {
+    private static Environment createEnvironment(
+            final boolean foreground,
+            final Path pidFile,
+            final SecureSettings secureSettings,
+            final Settings initialSettings,
+            final Path pathConf) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
@@ -250,7 +253,7 @@ final class Bootstrap {
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap());
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap(), pathConf);
     }
 
     private void start() throws NodeValidationException {
@@ -281,7 +284,7 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         final SecureSettings keystore = loadSecureSettings(initialEnv);
-        Environment environment = createEnvironment(foreground, pidFile, keystore, initialEnv.settings());
+        final Environment environment = createEnvironment(foreground, pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {

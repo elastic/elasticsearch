@@ -68,6 +68,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -77,6 +78,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -216,8 +218,8 @@ public class TribeService extends AbstractLifecycleComponent {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
 
-    public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId,
-                        NamedWriteableRegistry namedWriteableRegistry, Function<Settings, Node> clientNodeBuilder) {
+    public TribeService(Settings settings, Path pathConf, ClusterService clusterService, final String tribeNodeId,
+                        NamedWriteableRegistry namedWriteableRegistry, BiFunction<Settings, Path, Node> clientNodeBuilder) {
         super(settings);
         this.clusterService = clusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -226,7 +228,7 @@ public class TribeService extends AbstractLifecycleComponent {
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
         for (Map.Entry<String, Settings> entry : nodesSettings.entrySet()) {
             Settings clientSettings = buildClientSettings(entry.getKey(), tribeNodeId, settings, entry.getValue());
-            nodes.add(clientNodeBuilder.apply(clientSettings));
+            nodes.add(clientNodeBuilder.apply(clientSettings, pathConf));
         }
 
         this.blockIndicesMetadata = BLOCKS_METADATA_INDICES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
@@ -253,9 +255,6 @@ public class TribeService extends AbstractLifecycleComponent {
         Settings.Builder sb = Settings.builder().put(tribeSettings);
         sb.put(Node.NODE_NAME_SETTING.getKey(), Node.NODE_NAME_SETTING.get(globalSettings) + "/" + tribeName);
         sb.put(Environment.PATH_HOME_SETTING.getKey(), Environment.PATH_HOME_SETTING.get(globalSettings)); // pass through ES home dir
-        if (Environment.PATH_CONF_SETTING.exists(globalSettings)) {
-            sb.put(Environment.PATH_CONF_SETTING.getKey(), Environment.PATH_CONF_SETTING.get(globalSettings));
-        }
         if (Environment.PATH_LOGS_SETTING.exists(globalSettings)) {
             sb.put(Environment.PATH_LOGS_SETTING.getKey(), Environment.PATH_LOGS_SETTING.get(globalSettings));
         }

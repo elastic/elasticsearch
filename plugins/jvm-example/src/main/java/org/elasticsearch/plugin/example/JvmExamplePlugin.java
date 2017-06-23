@@ -31,6 +31,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Supplier;
 
@@ -42,9 +43,8 @@ import static java.util.Collections.singletonList;
 public class JvmExamplePlugin extends Plugin implements ActionPlugin {
     private final ExamplePluginConfiguration config;
 
-    public JvmExamplePlugin(Settings settings) {
-        Environment environment = new Environment(settings);
-        config = new ExamplePluginConfiguration(environment);
+    public JvmExamplePlugin(Settings settings, Path pathConf) {
+        config = new ExamplePluginConfiguration(new Environment(settings, pathConf));
     }
 
     @Override

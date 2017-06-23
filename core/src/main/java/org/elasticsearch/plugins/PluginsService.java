@@ -67,6 +67,8 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
 public class PluginsService extends AbstractComponent {
 
+    private final Path pathConf;
+
     /**
      * We keep around a list of plugins and modules
      */
@@ -90,14 +92,16 @@ public class PluginsService extends AbstractComponent {
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    public PluginsService(Settings settings, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
+    public PluginsService(Settings settings, Path pathConf, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
         super(settings);
+
+        this.pathConf = pathConf;
 
         List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
         List<PluginInfo> pluginsList = new ArrayList<>();
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings);
+            Plugin plugin = loadPlugin(pluginClass, settings, pathConf);
             PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName(), false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
@@ -381,7 +385,7 @@ public class PluginsService extends AbstractComponent {
             reloadLuceneSPI(loader);
             final Class<? extends Plugin> pluginClass =
                 loadPluginClass(bundle.plugin.getClassname(), loader);
-            final Plugin plugin = loadPlugin(pluginClass, settings);
+            final Plugin plugin = loadPlugin(pluginClass, settings, pathConf);
             plugins.add(new Tuple<>(bundle.plugin, plugin));
         }
 
@@ -414,17 +418,21 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
-    private Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings) {
+    private Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path pathConf) {
         try {
             try {
-                return pluginClass.getConstructor(Settings.class).newInstance(settings);
+                return pluginClass.getConstructor(Settings.class, Path.class).newInstance(settings, pathConf);
             } catch (NoSuchMethodException e) {
                 try {
-                    return pluginClass.getConstructor().newInstance();
+                    return pluginClass.getConstructor(Settings.class).newInstance(settings);
                 } catch (NoSuchMethodException e1) {
-                    throw new ElasticsearchException("No constructor for [" + pluginClass + "]. A plugin class must " +
-                        "have either an empty default constructor or a single argument constructor accepting a " +
-                        "Settings instance");
+                    try {
+                        return pluginClass.getConstructor().newInstance();
+                    } catch (NoSuchMethodException e2) {
+                        throw new ElasticsearchException("No constructor for [" + pluginClass + "]. A plugin class must " +
+                                "have either an empty default constructor, a single argument constructor accepting a " +
+                                "Settings instance, or a single argument constructor accepting a pair of Settings, Path instances");
+                    }
                 }
             }
         } catch (Exception e) {

@@ -1731,6 +1731,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return builder.build();
     }
 
+    protected Path nodePathConf(int nodeOrdinal) {
+        return null;
+    }
+
     /**
      * Returns a collection of plugins that should be loaded on each node.
      */
@@ -1837,6 +1841,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                     .put(networkSettings.build()).
                         put(ESIntegTestCase.this.nodeSettings(nodeOrdinal)).build();
+            }
+
+            @Override
+            public Path nodePathConf(int nodeOrdinal) {
+                return ESIntegTestCase.this.nodePathConf(nodeOrdinal);
             }
 
             @Override
@@ -2153,10 +2162,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .put(settings)
             .put(Environment.PATH_DATA_SETTING.getKey(), dataDir.toAbsolutePath());
 
-        Path configDir = indexDir.resolve("config");
-        if (Files.exists(configDir)) {
-            builder.put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath());
-        }
         return builder.build();
     }
 

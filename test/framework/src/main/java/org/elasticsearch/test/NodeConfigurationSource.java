@@ -21,6 +21,7 @@ package org.elasticsearch.test;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -33,6 +34,11 @@ public abstract class NodeConfigurationSource {
         }
 
         @Override
+        public Path nodePathConf(int nodeOrdinal) {
+            return null;
+        }
+
+        @Override
         public Settings transportClientSettings() {
             return Settings.EMPTY;
         }
@@ -42,6 +48,8 @@ public abstract class NodeConfigurationSource {
      * @return the settings for the node represented by the given ordinal, or {@code null} if there are no settings defined
      */
     public abstract Settings nodeSettings(int nodeOrdinal);
+
+    public abstract Path nodePathConf(int nodeOrdinal);
 
     /** Returns plugins that should be loaded on the node */
     public Collection<Class<? extends Plugin>> nodePlugins() {

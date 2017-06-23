@@ -75,10 +75,8 @@ public class UpdateRequestTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        final Path genericConfigFolder = createTempDir();
         final Settings baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
         final Map<String, Function<Map<String, Object>, Object>> scripts =  new HashMap<>();
         scripts.put(

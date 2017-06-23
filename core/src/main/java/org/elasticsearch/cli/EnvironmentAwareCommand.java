@@ -22,10 +22,15 @@ package org.elasticsearch.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.InternalSettingsPreparer;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -34,10 +39,13 @@ import java.util.Map;
 public abstract class EnvironmentAwareCommand extends Command {
 
     private final OptionSpec<KeyValuePair> settingOption;
+    private final OptionSpec<String> pathConfOption;
 
     public EnvironmentAwareCommand(String description) {
         super(description);
         this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
+        this.pathConfOption =
+                parser.acceptsAll(Arrays.asList("c", "path.conf"), "Configure config path").withRequiredArg().ofType(String.class);
     }
 
     @Override
@@ -59,17 +67,22 @@ public abstract class EnvironmentAwareCommand extends Command {
             settings.put(kvp.key, kvp.value);
         }
 
-        putSystemPropertyIfSettingIsMissing(settings, "path.conf", "es.path.conf");
         putSystemPropertyIfSettingIsMissing(settings, "path.data", "es.path.data");
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
 
-        execute(terminal, options, createEnv(terminal, settings));
+        final String pathConf = pathConfOption.value(options);
+        execute(terminal, options, createEnv(terminal, settings, getPathConf(pathConf)));
+    }
+
+    @SuppressForbidden(reason = "need path to construct environment")
+    private static Path getPathConf(final String pathConf) {
+        return pathConf == null ? null : Paths.get(pathConf);
     }
 
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */
-    protected Environment createEnv(Terminal terminal, Map<String, String> settings) {
-        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+    protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path pathConf) {
+        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, pathConf);
     }
 
     /** Ensure the given setting exists, reading it from system properties if not already set. */

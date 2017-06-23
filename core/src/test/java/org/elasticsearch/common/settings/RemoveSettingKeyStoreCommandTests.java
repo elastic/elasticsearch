@@ -19,17 +19,15 @@
 
 package org.elasticsearch.common.settings;
 
-import javax.crypto.SecretKeyFactory;
-import java.security.Provider;
-import java.security.Security;
-import java.util.Map;
-import java.util.Set;
-
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
+
+import java.nio.file.Path;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -39,7 +37,7 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new RemoveSettingKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path pathConf) {
                 return env;
             }
         };

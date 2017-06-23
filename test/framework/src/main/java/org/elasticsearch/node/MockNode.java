@@ -37,13 +37,16 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 
+import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.function.Function;
 
 /**
@@ -57,7 +60,11 @@ public class MockNode extends Node {
     private final Collection<Class<? extends Plugin>> classpathPlugins;
 
     public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(InternalSettingsPreparer.prepareEnvironment(settings, null), classpathPlugins);
+        this(settings, classpathPlugins, null);
+    }
+
+    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path pathConf) {
+        super(InternalSettingsPreparer.prepareEnvironment(settings, null, Collections.emptyMap(), pathConf), classpathPlugins);
         this.classpathPlugins = classpathPlugins;
     }
 
@@ -104,8 +111,8 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
-        return new MockNode(settings, classpathPlugins);
+    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path pathConf) {
+        return new MockNode(settings, classpathPlugins, pathConf);
     }
 
     @Override

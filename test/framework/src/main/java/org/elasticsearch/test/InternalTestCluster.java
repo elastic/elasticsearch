@@ -608,7 +608,7 @@ public final class InternalTestCluster extends TestCluster {
             throw new IllegalArgumentException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured");
         }
         SecureSettings secureSettings = finalSettings.getSecureSettings();
-        MockNode node = new MockNode(finalSettings.build(), plugins);
+        MockNode node = new MockNode(finalSettings.build(), plugins, nodeConfigurationSource.nodePathConf(nodeId));
         try {
             IOUtils.close(secureSettings);
         } catch (IOException e) {

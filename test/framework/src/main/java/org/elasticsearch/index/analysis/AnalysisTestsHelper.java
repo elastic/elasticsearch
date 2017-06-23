@@ -35,9 +35,8 @@ import java.util.Arrays;
 
 public class AnalysisTestsHelper {
 
-    public static ESTestCase.TestAnalysis createTestAnalysisFromClassPath(Path baseDir,
-            String resource) throws IOException {
-        Settings settings = Settings.builder()
+    public static ESTestCase.TestAnalysis createTestAnalysisFromClassPath(final Path baseDir, final String resource) throws IOException {
+        final Settings settings = Settings.builder()
                 .loadFromStream(resource, AnalysisTestsHelper.class.getResourceAsStream(resource))
                 .put(Environment.PATH_HOME_SETTING.getKey(), baseDir.toString())
                 .build();
@@ -46,18 +45,27 @@ public class AnalysisTestsHelper {
     }
 
     public static ESTestCase.TestAnalysis createTestAnalysisFromSettings(
-            Settings settings, AnalysisPlugin... plugins) throws IOException {
-        if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
-            settings = Settings.builder().put(settings)
-                    .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        }
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
-        AnalysisRegistry analysisRegistry =
-                new AnalysisModule(new Environment(settings), Arrays.asList(plugins))
-                .getAnalysisRegistry();
-        return new ESTestCase.TestAnalysis(analysisRegistry.build(indexSettings),
-            analysisRegistry.buildTokenFilterFactories(indexSettings),
-            analysisRegistry.buildTokenizerFactories(indexSettings),
-            analysisRegistry.buildCharFilterFactories(indexSettings));
+            final Settings settings, final AnalysisPlugin... plugins) throws IOException {
+        return createTestAnalysisFromSettings(settings, null, plugins);
     }
+
+    public static ESTestCase.TestAnalysis createTestAnalysisFromSettings(
+            final Settings settings,
+            final Path pathConf,
+            final AnalysisPlugin... plugins) throws IOException {
+        final Settings actualSettings;
+        if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
+            actualSettings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        } else {
+            actualSettings = settings;
+        }
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", actualSettings);
+        final AnalysisRegistry analysisRegistry =
+                new AnalysisModule(new Environment(actualSettings, pathConf), Arrays.asList(plugins)).getAnalysisRegistry();
+        return new ESTestCase.TestAnalysis(analysisRegistry.build(indexSettings),
+                analysisRegistry.buildTokenFilterFactories(indexSettings),
+                analysisRegistry.buildTokenizerFactories(indexSettings),
+                analysisRegistry.buildCharFilterFactories(indexSettings));
+    }
+
 }

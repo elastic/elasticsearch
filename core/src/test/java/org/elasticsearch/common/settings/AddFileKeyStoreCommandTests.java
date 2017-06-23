@@ -37,7 +37,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new AddFileKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path pathConf) {
                 return env;
             }
         };

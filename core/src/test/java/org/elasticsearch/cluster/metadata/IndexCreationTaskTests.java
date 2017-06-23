@@ -96,6 +96,14 @@ public class IndexCreationTaskTests extends ESTestCase {
     private final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
     private final DocumentMapper docMapper = mock(DocumentMapper.class);
 
+    private ActiveShardCount waitForActiveShardsNum = ActiveShardCount.DEFAULT;
+
+    public void setUp() throws Exception {
+        super.setUp();
+        setupIndicesService();
+        setupClusterState();
+    }
+
     public void testMatchTemplates() throws Exception {
         tplBuilder.put("template_1", createTemplateMetadata("template_1", "te*"));
         tplBuilder.put("template_2", createTemplateMetadata("template_2", "tes*"));
@@ -246,7 +254,7 @@ public class IndexCreationTaskTests extends ESTestCase {
         }
     }
 
-    public void testShrink() throws Exception {
+    public void testShrinkIndexIgnoresTemplates() throws Exception {
         final Index source = new Index("source_idx", "aaa111bbb222");
 
         when(request.shrinkFrom()).thenReturn(source);
@@ -258,13 +266,31 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(currentStateBlocks.indexBlocked(eq(ClusterBlockLevel.WRITE), eq("source_idx"))).thenReturn(true);
         reqSettings.put(SETTING_NUMBER_OF_SHARDS, 1);
 
-        final ClusterState result = executeTask();
-        // @todo check data filled from source
+        addMatchingTemplate(builder -> builder
+            .putAlias(AliasMetaData.builder("alias1").searchRouting("fromTpl").build())
+            .putMapping("mapping1", createMapping())
+            .putCustom("custom1", createCustom())
+            .settings(Settings.builder().put("key1", "tplValue"))
+        );
 
+        final ClusterState result = executeTask();
+
+        assertFalse(result.metaData().index("test").getAliases().containsKey("alias1"));
+        assertFalse(result.metaData().index("test").getCustoms().containsKey("custom1"));
+        assertNull(result.metaData().index("test").getSettings().get("key1"));
+        assertFalse(getMappingsFromResponse().containsKey("mapping1"));
     }
 
-    // @todo check exception on validateActiveShards
-    // @todo block priority (currentstate > request > newMetaData
+    public void testValidateWaitForActiveShardsFailure() throws Exception {
+        waitForActiveShardsNum = ActiveShardCount.from(1000);
+
+        try {
+            executeTask();
+            fail("validation exception expected");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("invalid wait_for_active_shards"));
+        }
+    }
 
     private IndexRoutingTable createIndexRoutingTableWithStartedShards(Index index) {
         final IndexRoutingTable idxRoutingTable = mock(IndexRoutingTable.class);
@@ -390,7 +416,7 @@ public class IndexCreationTaskTests extends ESTestCase {
     private void setupRequest() {
         when(request.settings()).thenReturn(reqSettings.build());
         when(request.index()).thenReturn("test");
-        when(request.waitForActiveShards()).thenReturn(ActiveShardCount.DEFAULT);
+        when(request.waitForActiveShards()).thenReturn(waitForActiveShardsNum);
         when(request.blocks()).thenReturn(reqBlocks);
     }
 
@@ -399,12 +425,6 @@ public class IndexCreationTaskTests extends ESTestCase {
         when(nodes.getSmallestNonClientNodeVersion()).thenReturn(Version.CURRENT);
 
         when(state.nodes()).thenReturn(nodes);
-    }
-
-    public void setUp() throws Exception {
-        super.setUp();
-        setupIndicesService();
-        setupClusterState();
     }
 
     @SuppressWarnings("unchecked")

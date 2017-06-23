@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData.Custom;
@@ -179,7 +180,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     fillFromTemplates(currentState, customs, mappings, templateNames, templatesAliases, templates);
                 }
 
-                final Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder(request, currentState, templates);
+                final Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder(request, currentState, templates,
+                    shrinkFromIndex != null);
 
                 if (shrinkFromIndex != null) {
                     prepareShrinkIndexSettings(currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex, request.index());
@@ -469,11 +471,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
 
         private Settings.Builder getIndexSettingsBuilder(CreateIndexClusterStateUpdateRequest request, ClusterState currentState,
-                                                         List<IndexTemplateMetaData> templates) {
+                                                         List<IndexTemplateMetaData> templates, boolean isShrinking) {
             Settings.Builder indexSettingsBuilder = Settings.builder();
-            // apply templates, here, in reverse order, since first ones are better matching
-            for (int i = templates.size() - 1; i >= 0; i--) {
-                indexSettingsBuilder.put(templates.get(i).settings());
+
+            if (!isShrinking) {
+                // apply templates, here, in reverse order, since first ones are better matching
+                for (int i = templates.size() - 1; i >= 0; i--) {
+                    indexSettingsBuilder.put(templates.get(i).settings());
+                }
             }
             // now, put the request settings, so they override templates
             indexSettingsBuilder.put(request.settings());
@@ -650,7 +655,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         } else if (Strings.isEmpty(customPath) == false) {
             Path resolvedPath = PathUtils.get(new Path[]{env.sharedDataFile()}, customPath);
             if (resolvedPath == null) {
-                validationErrors.add("custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
+                validationErrors.add(
+                    "custom path [" + customPath + "] is not a sub-path of path.shared_data [" + env.sharedDataFile() + "]");
             }
         }
         return validationErrors;
@@ -714,7 +720,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         return nodesToAllocateOn;
     }
 
-    static void prepareShrinkIndexSettings(ClusterState currentState, Set<String> mappingKeys, Settings.Builder indexSettingsBuilder, Index shrinkFromIndex, String shrinkIntoName) {
+    static void prepareShrinkIndexSettings(ClusterState currentState, Set<String> mappingKeys, Settings.Builder indexSettingsBuilder,
+                                           Index shrinkFromIndex, String shrinkIntoName) {
         final IndexMetaData sourceMetaData = currentState.metaData().index(shrinkFromIndex.getName());
 
         final List<String> nodesToAllocateOn = validateShrinkIndex(currentState, shrinkFromIndex.getName(),

@@ -366,7 +366,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
         for (final LongTuple<String> cursor : inSync) {
             assert cursor.v2() >= globalCheckpoint
-                    : "local checkpoint [" + cursor.v2() + "] violates being at least the global checkpoint [" + globalCheckpoint + "]";
+                    : "local checkpoint [" + cursor.v2() + "] "
+                    + "for allocation ID [" + cursor.v1() + "] "
+                    + "violates being at least the global checkpoint [" + globalCheckpoint + "]";
             updateLocalCheckpoint(cursor.v1(), cursor.v2());
             if (trackingLocalCheckpoints.containsKey(cursor.v1())) {
                 moveAllocationIdFromTrackingToInSync(cursor.v1(), "relocation");

@@ -1,6 +1,6 @@
 [role="xpack"]
 [[setup-xpack]]
-= Set up X-Pack
+= Set up {xpack}
 
 [partintro]
 --

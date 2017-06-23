@@ -1,8 +1,6 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:include-xpack:         true
-
 :xes-repo-dir:          {docdir}
 :es-repo-dir:           {docdir}/../../../../elasticsearch/docs
 :es-test-dir:           {docdir}/../../../../elasticsearch/docs/src/test
@@ -22,20 +20,17 @@
 :dfeeds-cap:            Datafeeds
 
 include::{es-repo-dir}/Versions.asciidoc[]
+
 include::{es-repo-dir}/reference/index-shared1.asciidoc[]
 
-ifdef::include-xpack[]
 :edit_url!:
 include::setup-xes.asciidoc[]
-endif::include-xpack[]
 
 :edit_url:
 include::{es-repo-dir}/reference/index-shared2.asciidoc[]
 
-ifdef::include-xpack[]
 :edit_url!:
 include::rest-api/index.asciidoc[]
-endif::include-xpack[]
 
 :edit_url:
 include::{es-repo-dir}/reference/index-shared3.asciidoc[]

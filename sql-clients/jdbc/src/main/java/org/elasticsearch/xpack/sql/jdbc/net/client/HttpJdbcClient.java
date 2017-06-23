@@ -120,7 +120,7 @@ public class HttpJdbcClient implements Closeable {
         // read the data
         // allocate columns
         int rows = in.readInt();
-        page.resize(rows);
+        page.resize(rows); // NOCOMMIT I believe this is duplicated with readData
         readData(in, page, rows);
 
         return response.requestId;
@@ -192,6 +192,7 @@ public class HttpJdbcClient implements Closeable {
 
         Response response = ProtoUtils.readResponse(in, header);
 
+        // NOCOMMIT why not move the throw login into readResponse?
         if (response instanceof ExceptionResponse) {
             ExceptionResponse ex = (ExceptionResponse) response;
             throw SqlExceptionType.asException(ex.asSql, ex.message);
@@ -201,6 +202,7 @@ public class HttpJdbcClient implements Closeable {
             throw new JdbcException("%s", error.stack);
         }
         if (response instanceof Response) {
+            // NOCOMMIT I'd feel more comfortable either returning Response and passing the class in and calling responseClass.cast(response)
             return (R) response;
         }
 

@@ -114,7 +114,7 @@ public abstract class ProtoUtils {
     public static <T> T readValue(DataInput in, int type) throws IOException {
         Object result;
         byte hasNext = in.readByte();
-        if (hasNext == 0) {
+        if (hasNext == 0) { // NOCOMMIT feels like a bitmask at the start of the row would be better.
             return null;
         }
         switch (type) {

@@ -30,6 +30,7 @@ The scenarios in this section describe some best practices for generating useful
 
 * <<ml-configuring-aggregation>>
 * <<ml-configuring-categories>>
+* <<ml-configuring-pop>>
 
 include::aggregations.asciidoc[]
 include::categories.asciidoc[]

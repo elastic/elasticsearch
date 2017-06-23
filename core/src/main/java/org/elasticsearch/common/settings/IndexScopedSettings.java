@@ -138,7 +138,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
         MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING,
-        MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING,
         BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
         IndexModule.INDEX_STORE_TYPE_SETTING,
         IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
@@ -197,7 +196,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case MergePolicyConfig.INDEX_MERGE_ENABLED:
             case IndexMetaData.INDEX_SHRINK_SOURCE_UUID_KEY:
             case IndexMetaData.INDEX_SHRINK_SOURCE_NAME_KEY:
-                return true;
+            case IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY:
+                // this was settable in 5.x but not anymore in 6.x so we have to preserve the value ie. make it read-only
+                // this can be removed in later versions
+                    return true;
             default:
                 return IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
         }

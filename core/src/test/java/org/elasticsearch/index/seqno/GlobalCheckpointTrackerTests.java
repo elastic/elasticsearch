@@ -51,9 +51,12 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SEQ_NO;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
 
 public class GlobalCheckpointTrackerTests extends ESTestCase {
 
@@ -678,6 +681,40 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
             assertThat(primaryContext.trackingLocalCheckpoints(), equalTo(trackerPrimaryContext.get().trackingLocalCheckpoints()));
             assertThat(tracker.getGlobalCheckpoint(), equalTo(globalCheckpoint));
         }
+    }
+
+    public void testPrimaryContextSealing() {
+        // the tracker should start in the state of not being sealed
+        assertFalse(tracker.sealed());
+
+        // sampling the primary context should seal the tracker
+        final Releasable releasable = tracker.primaryContext(primaryContext -> {});
+        assertTrue(tracker.sealed());
+
+        // invoking any method that mutates the state of the tracker should fail
+        assertIllegalStateExceptionWhenSealed(() -> tracker.updateLocalCheckpoint(randomAlphaOfLength(16), randomNonNegativeLong()));
+        assertIllegalStateExceptionWhenSealed(
+                () -> tracker.updateAllocationIdsFromMaster(randomNonNegativeLong(), Collections.emptySet(), Collections.emptySet()));
+        assertIllegalStateExceptionWhenSealed(() -> tracker.updateAllocationIdsFromPrimaryContext(mock(PrimaryContext.class)));
+        assertIllegalStateExceptionWhenSealed(() -> tracker.primaryContext(primaryContext -> {}));
+        assertIllegalStateExceptionWhenSealed(() -> tracker.markAllocationIdAsInSync(randomAlphaOfLength(16), randomNonNegativeLong()));
+
+        // closing the releasable should unseal the tracker
+        releasable.close();
+        assertFalse(tracker.sealed());
+
+        // an exception thrown by the consumer should not leave the tracker in a sealed state
+        expectThrows(
+                RuntimeException.class,
+                () -> tracker.primaryContext(primaryContext -> {
+                    throw new RuntimeException();
+                }));
+        assertFalse(tracker.sealed());
+    }
+
+    private void assertIllegalStateExceptionWhenSealed(final ThrowingRunnable runnable) {
+        final IllegalStateException e = expectThrows(IllegalStateException.class, runnable);
+        assertThat(e, hasToString(containsString("global checkpoint tracker is sealed")));
     }
 
     private Tuple<Set<String>, Set<String>> randomActiveAndInitializingAllocationIds(

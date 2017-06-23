@@ -241,7 +241,7 @@ POST _reindex
   },
   "script": {
     "lang": "painless",
-    "inline": "ctx._source.timestamp = ctx._timestamp; ctx._timestamp = null"
+    "source": "ctx._source.timestamp = ctx._timestamp; ctx._timestamp = null"
   }
 }
 ---------------

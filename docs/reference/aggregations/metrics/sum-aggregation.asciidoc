@@ -61,7 +61,7 @@ POST /sales/_search?size=0
         "hat_prices" : {
             "sum" : {
                 "script" : {
-                   "inline": "doc.price.value"
+                   "source": "doc.price.value"
                 }
             }
         }
@@ -124,7 +124,7 @@ POST /sales/_search?size=0
             "sum" : {
                 "field" : "price",
                 "script" : {
-                    "inline": "_value * _value"
+                    "source": "_value * _value"
                 }
             }
         }

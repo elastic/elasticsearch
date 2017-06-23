@@ -20,7 +20,7 @@ Groovy:
   "script_score": {
     "script": {
       "lang": "groovy",
-      "inline": "Math.log(_score * 2) + my_modifier",
+      "source": "Math.log(_score * 2) + my_modifier",
       "params": {
         "my_modifier": 8
       }
@@ -37,7 +37,7 @@ Painless (`my_modifer` is prefixed with `params`):
   "script_score": {
     "script": {
       "lang": "painless",
-      "inline": "Math.log(_score * 2) + params.my_modifier",
+      "source": "Math.log(_score * 2) + params.my_modifier",
       "params": {
         "my_modifier": 8
       }
@@ -84,7 +84,7 @@ and instead this syntax must be used:
   "script_score": {
     "script": {
       "lang": "groovy",
-      "inline": "Math.log(_score * 2) + my_modifier",
+      "source": "Math.log(_score * 2) + my_modifier",
       "params": {
         "my_modifier": 8
       }
@@ -187,7 +187,7 @@ and instead the following syntax should be used:
 {
     "query": {
         "template": {
-            "inline": {"match_{{template}}": {}},
+            "source": {"match_{{template}}": {}},
             "params" : {
                 "template" : "all"
             }
@@ -221,7 +221,7 @@ and instead the following syntax should be used:
 [source,js]
 -----------------------------------
 {
-    "inline" : {
+    "source" : {
         "query": { "match" : { "{{my_field}}" : "{{my_value}}" } },
         "size" : "{{my_size}}"
     },

@@ -56,7 +56,7 @@ POST /sales/_search
         "max_price" : {
             "max" : {
                 "script" : {
-                    "inline" : "doc.price.value"
+                    "source" : "doc.price.value"
                 }
             }
         }
@@ -108,7 +108,7 @@ POST /sales/_search
             "max" : {
                 "field" : "price",
                 "script" : {
-                    "inline" : "_value * params.conversion_rate",
+                    "source" : "_value * params.conversion_rate",
                     "params" : {
                         "conversion_rate" : 1.2
                     }

@@ -45,7 +45,7 @@ GET test/_search
     "function_score": {
       "script_score": {
         "script": {
-          "inline": "doc[\"num\"].value * factor",
+          "source": "doc[\"num\"].value * factor",
           "lang": "python",
           "params": {
             "factor": 2

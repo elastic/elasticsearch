@@ -72,7 +72,7 @@ GET my_index/_search
       "script_score": {
         "script": {
           "lang": "expression",
-          "inline": "_score * doc['popularity']"
+          "source": "_score * doc['popularity']"
         }
       }
     }
@@ -104,7 +104,7 @@ GET my_index/_search
     "sales_price": {
       "script": {
         "lang":   "expression",
-        "inline": "doc['cost_price'] * markup",
+        "source": "doc['cost_price'] * markup",
         "params": {
           "markup": 0.2
         }
@@ -198,12 +198,12 @@ GET my_index/_search
   "script_fields": {
     "source": {
       "script": {
-        "inline": "params._source.title + ' ' + params._source.first_name + ' ' + params._source.last_name" <2>
+        "source": "params._source.title + ' ' + params._source.first_name + ' ' + params._source.last_name" <2>
       }
     },
     "stored_fields": {
       "script": {
-        "inline": "params._fields['first_name'].value + ' ' + params._fields['last_name'].value"
+        "source": "params._fields['first_name'].value + ' ' + params._fields['last_name'].value"
       }
     }
   }

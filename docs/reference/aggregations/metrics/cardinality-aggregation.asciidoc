@@ -187,7 +187,7 @@ POST /sales/_search?size=0
             "cardinality" : {
                 "script": {
                     "lang": "painless",
-                    "inline": "doc['type'].value + ' ' + doc['promoted'].value"
+                    "source": "doc['type'].value + ' ' + doc['promoted'].value"
                 }
             }
         }

@@ -52,7 +52,7 @@ Computing the grades stats based on a script:
              "stats" : {
                  "script" : { 
                      "lang": "painless",
-                     "inline": "doc['grade'].value" 
+                     "source": "doc['grade'].value"
                  }
              } 
          }
@@ -100,7 +100,7 @@ It turned out that the exam was way above the level of the students and a grade 
                     "field" : "grade",
                     "script" : 
                         "lang": "painless",
-                        "inline": "_value * params.correction",
+                        "source": "_value * params.correction",
                         "params" : {
                             "correction" : 1.2
                         }

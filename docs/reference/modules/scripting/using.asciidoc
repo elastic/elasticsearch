@@ -8,13 +8,13 @@ the same pattern:
 -------------------------------------
   "script": {
     "lang":   "...",  <1>
-    "inline" | "stored" | "file": "...", <2>
+    "source" | "id" | "file": "...", <2>
     "params": { ... } <3>
   }
 -------------------------------------
 // NOTCONSOLE
 <1> The language the script is written in, which defaults to `painless`.
-<2> The script itself which may be specified as `inline`, `stored`, or `file`.
+<2> The script itself which may be specified as `source`, `id`, or `file`.
 <3> Any named parameters that should be passed into the script.
 
 For example, the following script is used in a search request to return a
@@ -33,7 +33,7 @@ GET my_index/_search
     "my_doubled_field": {
       "script": {
         "lang":   "expression",
-        "inline": "doc['my_field'] * multiplier",
+        "source": "doc['my_field'] * multiplier",
         "params": {
           "multiplier": 2
         }
@@ -55,10 +55,10 @@ GET my_index/_search
     setting `script.default_lang` to the appropriate language.
 
 
-`inline`, `stored`, `file`::
+`source`, `id`, `file`::
 
-    Specifies the source of the script.  An `inline` script is specified
-    `inline` as in the example above, a `stored` script is specified `stored`
+    Specifies the source of the script.  An `inline` script is specified with
+    `source` as in the example above, a `stored` script is specified with `id`
     and is retrieved from the cluster state (see <<modules-scripting-stored-scripts,Stored Scripts>>),
     and a `file` script is retrieved from a file in the `config/scripts`
     directory (see <<modules-scripting-file-scripts, File Scripts>>).
@@ -88,7 +88,7 @@ multipliers, don't hard-code the multiplier into the script:
 
 [source,js]
 ----------------------
-  "inline": "doc['my_field'] * 2"
+  "source": "doc['my_field'] * 2"
 ----------------------
 // NOTCONSOLE
 
@@ -96,7 +96,7 @@ Instead, pass it in as a named parameter:
 
 [source,js]
 ----------------------
-  "inline": "doc['my_field'] * multiplier",
+  "source": "doc['my_field'] * multiplier",
   "params": {
     "multiplier": 2
   }
@@ -222,7 +222,7 @@ POST _scripts/calculate-score
 {
   "script": {
     "lang": "painless",
-    "code": "Math.log(_score * 2) + params.my_modifier"
+    "source": "Math.log(_score * 2) + params.my_modifier"
   }
 }
 -----------------------------------
@@ -246,7 +246,7 @@ GET _search
   "query": {
     "script": {
       "script": {
-        "stored": "calculate-score",
+        "id": "calculate-score",
         "params": {
           "my_modifier": 2
         }

@@ -19,19 +19,24 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseTypedKeysObject;
+import static org.hamcrest.Matchers.containsString;
 
 public class XContentParserUtilsTests extends ESTestCase {
 
@@ -45,6 +50,76 @@ public class XContentParserUtilsTests extends ESTestCase {
             assertEquals("Failed to parse object: expecting token of type [" + randomToken + "] but found [null]", e.getMessage());
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        }
+    }
+
+    public void testParseStoredFieldsValueString() throws IOException {
+        final String value = randomAlphaOfLengthBetween(0, 10);
+        assertParseStoredFieldsValue(value, (xcontentType, result) -> assertEquals(value, result));
+    }
+
+    public void testParseStoredFieldsValueInt() throws IOException {
+        final Integer value = randomInt();
+        assertParseStoredFieldsValue(value, (xcontentType, result) -> assertEquals(value, result));
+    }
+
+    public void testParseStoredFieldsValueLong() throws IOException {
+        final Long value = randomLong();
+        assertParseStoredFieldsValue(value, (xcontentType, result) -> assertEquals(value, result));
+    }
+
+    public void testParseStoredFieldsValueDouble() throws IOException {
+        final Double value = randomDouble();
+        assertParseStoredFieldsValue(value, (xcontentType, result) -> assertEquals(value, ((Number) result).doubleValue(), 0.0d));
+    }
+
+    public void testParseStoredFieldsValueFloat() throws IOException {
+        final Float value = randomFloat();
+        assertParseStoredFieldsValue(value, (xcontentType, result) -> assertEquals(value, ((Number) result).floatValue(), 0.0f));
+    }
+
+    public void testParseStoredFieldsValueBoolean() throws IOException {
+        final Boolean value = randomBoolean();
+        assertParseStoredFieldsValue(value, (xcontentType, result) -> assertEquals(value, result));
+    }
+
+    public void testParseStoredFieldsValueBinary() throws IOException {
+        final byte[] value = randomUnicodeOfLength(scaledRandomIntBetween(10, 1000)).getBytes("UTF-8");
+        assertParseStoredFieldsValue(value, (xcontentType, result) -> {
+            if (xcontentType == XContentType.JSON || xcontentType == XContentType.YAML) {
+                //binary values will be parsed back and returned as base64 strings when reading from json and yaml
+                assertArrayEquals(value, Base64.getDecoder().decode((String) result));
+            } else {
+                //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
+                assertArrayEquals(value, ((BytesArray) result).array());
+            }
+        });
+    }
+
+    public void testParseStoredFieldsValueUnknown() throws IOException {
+        ParsingException e = expectThrows(ParsingException.class, () ->
+                assertParseStoredFieldsValue(null, (x, r) -> fail("Should have thrown a parsing exception")));
+        assertThat(e.getMessage(), containsString("unexpected token"));
+    }
+
+    private void assertParseStoredFieldsValue(final Object value, final CheckedBiConsumer<XContentType, Object, IOException> consumer)
+            throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            final String fieldName = randomAlphaOfLengthBetween(0, 10);
+
+            builder.startObject();
+            builder.field(fieldName, value);
+            builder.endObject();
+
+            try (XContentParser parser = createParser(builder)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureFieldName(parser, parser.nextToken(), fieldName);
+                assertNotNull(parser.nextToken());
+                consumer.accept(xContentType, XContentParserUtils.parseStoredFieldsValue(parser));
+                ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                assertNull(parser.nextToken());
+            }
         }
     }
 

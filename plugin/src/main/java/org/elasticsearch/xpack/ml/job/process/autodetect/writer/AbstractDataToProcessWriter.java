@@ -170,7 +170,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
      * must see in the csv header
      */
     final Collection<String> inputFields() {
-        Set<String> requiredFields = new HashSet<>(analysisConfig.analysisFields());
+        Set<String> requiredFields = analysisConfig.analysisFields();
         requiredFields.add(dataDescription.getTimeField());
 
         return requiredFields;

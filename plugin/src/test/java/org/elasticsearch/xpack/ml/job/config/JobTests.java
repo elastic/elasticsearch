@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -187,7 +186,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
         ac.setSummaryCountFieldName("agg");
 
-        List<String> analysisFields = ac.build().analysisFields();
+        Set<String> analysisFields = ac.build().analysisFields();
         assertTrue(analysisFields.size() == 5);
 
         assertTrue(analysisFields.contains("agg"));
@@ -199,7 +198,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertFalse(analysisFields.contains("max"));
         assertFalse(analysisFields.contains("median"));
         assertFalse(analysisFields.contains(""));
-        assertFalse(analysisFields.contains(null));
 
         Detector.Builder d3 = new Detector.Builder("count", null);
         d3.setByFieldName("by2");
@@ -221,7 +219,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertFalse(analysisFields.contains("max"));
         assertFalse(analysisFields.contains("median"));
         assertFalse(analysisFields.contains(""));
-        assertFalse(analysisFields.contains(null));
     }
 
     // JobConfigurationVerifierTests:

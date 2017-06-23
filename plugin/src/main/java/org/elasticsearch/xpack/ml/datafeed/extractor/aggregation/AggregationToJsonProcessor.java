@@ -11,8 +11,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
@@ -28,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Processes {@link Aggregation} objects and writes flat JSON documents for each leaf aggregation.
@@ -37,14 +38,25 @@ import java.util.Objects;
 class AggregationToJsonProcessor implements Releasable {
 
     private final String timeField;
+    private final Set<String> fields;
     private final boolean includeDocCount;
     private final XContentBuilder jsonBuilder;
     private final Map<String, Object> keyValuePairs;
     private long keyValueWrittenCount;
 
-    AggregationToJsonProcessor(String timeField, boolean includeDocCount, OutputStream outputStream)
+    /**
+     * Constructs a processor that processes aggregations into JSON
+     *
+     * @param timeField the time field
+     * @param fields the fields to convert into JSON
+     * @param includeDocCount whether to include the doc_count
+     * @param outputStream the stream to write the output
+     * @throws IOException if an error occurs during the processing
+     */
+    AggregationToJsonProcessor(String timeField, Set<String> fields, boolean includeDocCount, OutputStream outputStream)
             throws IOException {
         this.timeField = Objects.requireNonNull(timeField);
+        this.fields = Objects.requireNonNull(fields);
         this.includeDocCount = includeDocCount;
         jsonBuilder = new XContentBuilder(JsonXContent.jsonXContent, outputStream);
         keyValuePairs = new LinkedHashMap<>();
@@ -55,7 +67,7 @@ class AggregationToJsonProcessor implements Releasable {
      * Processes a {@link Histogram.Bucket} and writes a flat JSON document for each of its leaf aggregations.
      * Supported sub-aggregations include:
      *   <ul>
-     *       <li>{@link Terms}</li>
+     *       <li>{@link MultiBucketsAggregation}</li>
      *       <li>{@link NumericMetricsAggregation.SingleValue}</li>
      *       <li>{@link Percentiles}</li>
      *   </ul>
@@ -82,51 +94,66 @@ class AggregationToJsonProcessor implements Releasable {
     }
 
     private void processNestedAggs(long docCount, List<Aggregation> aggs) throws IOException {
-        if (aggs.isEmpty()) {
-            writeJsonObject(docCount);
-            return;
-        }
-        if (aggs.get(0) instanceof Terms) {
-            if (aggs.size() > 1) {
-                throw new IllegalArgumentException("Multiple non-leaf nested aggregations are not supported");
-            }
-            processTerms((Terms) aggs.get(0));
-        } else {
-            List<String> addedKeys = new ArrayList<>();
-            for (Aggregation nestedAgg : aggs) {
-                if (nestedAgg instanceof NumericMetricsAggregation.SingleValue) {
-                    addedKeys.add(processSingleValue((NumericMetricsAggregation.SingleValue) nestedAgg));
-                } else if (nestedAgg instanceof Percentiles) {
-                    addedKeys.add(processPercentiles((Percentiles) nestedAgg));
+        boolean processedBucketAgg = false;
+        List<String> addedLeafKeys = new ArrayList<>();
+        for (Aggregation agg : aggs) {
+            if (fields.contains(agg.getName())) {
+                if (agg instanceof MultiBucketsAggregation) {
+                    if (processedBucketAgg) {
+                        throw new IllegalArgumentException("Multiple bucket aggregations at the same level are not supported");
+                    }
+                    if (addedLeafKeys.isEmpty() == false) {
+                        throw new IllegalArgumentException("Mixing bucket and leaf aggregations at the same level is not supported");
+                    }
+                    processedBucketAgg = true;
+                    processBucket((MultiBucketsAggregation) agg);
                 } else {
-                    throw new IllegalArgumentException("Unsupported aggregation type [" + nestedAgg.getName() + "]");
+                    if (processedBucketAgg) {
+                        throw new IllegalArgumentException("Mixing bucket and leaf aggregations at the same level is not supported");
+                    }
+                    addedLeafKeys.add(processLeaf(agg));
                 }
             }
+        }
+        if (addedLeafKeys.isEmpty() == false) {
             writeJsonObject(docCount);
-            addedKeys.forEach(k -> keyValuePairs.remove(k));
+            addedLeafKeys.forEach(k -> keyValuePairs.remove(k));
+        }
+
+        if (processedBucketAgg == false && addedLeafKeys.isEmpty()) {
+            writeJsonObject(docCount);
         }
     }
 
-    private void processTerms(Terms termsAgg) throws IOException {
-        for (Terms.Bucket bucket : termsAgg.getBuckets()) {
-            keyValuePairs.put(termsAgg.getName(), bucket.getKey());
+    private void processBucket(MultiBucketsAggregation bucketAgg) throws IOException {
+        for (MultiBucketsAggregation.Bucket bucket : bucketAgg.getBuckets()) {
+            keyValuePairs.put(bucketAgg.getName(), bucket.getKey());
             processNestedAggs(bucket.getDocCount(), asList(bucket.getAggregations()));
-            keyValuePairs.remove(termsAgg.getName());
+            keyValuePairs.remove(bucketAgg.getName());
         }
     }
 
-    private String processSingleValue(NumericMetricsAggregation.SingleValue singleValue) throws IOException {
-        keyValuePairs.put(singleValue.getName(), singleValue.value());
-        return singleValue.getName();
+    private String processLeaf(Aggregation agg) throws IOException {
+        if (agg instanceof NumericMetricsAggregation.SingleValue) {
+            processSingleValue((NumericMetricsAggregation.SingleValue) agg);
+        } else if (agg instanceof Percentiles) {
+            processPercentiles((Percentiles) agg);
+        } else {
+            throw new IllegalArgumentException("Unsupported aggregation type [" + agg.getName() + "]");
+        }
+        return agg.getName();
     }
 
-    private String processPercentiles(Percentiles percentiles) throws IOException {
+    private void processSingleValue(NumericMetricsAggregation.SingleValue singleValue) throws IOException {
+        keyValuePairs.put(singleValue.getName(), singleValue.value());
+    }
+
+    private void processPercentiles(Percentiles percentiles) throws IOException {
         Iterator<Percentile> percentileIterator = percentiles.iterator();
         keyValuePairs.put(percentiles.getName(), percentileIterator.next().getValue());
         if (percentileIterator.hasNext()) {
             throw new IllegalArgumentException("Multi-percentile aggregation [" + percentiles.getName() + "] is not supported");
         }
-        return percentiles.getName();
     }
 
     private void writeJsonObject(long docCount) throws IOException {

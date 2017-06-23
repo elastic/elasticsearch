@@ -274,16 +274,16 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     }
 
     /**
-     * Return the list of fields required by the analysis.
+     * Return the set of fields required by the analysis.
      * These are the influencer fields, metric field, partition field,
      * by field and over field of each detector, plus the summary count
      * field and the categorization field name of the job.
      * <code>null</code> and empty strings are filtered from the
      * config.
      *
-     * @return List of required analysis fields - never <code>null</code>
+     * @return Set of required analysis fields - never <code>null</code>
      */
-    public List<String> analysisFields() {
+    public Set<String> analysisFields() {
         Set<String> analysisFields = termFields();
 
         addIfNotNull(analysisFields, categorizationFieldName);
@@ -296,7 +296,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         // remove empty strings
         analysisFields.remove("");
 
-        return new ArrayList<>(analysisFields);
+        return analysisFields;
     }
 
     private static void addIfNotNull(Set<String> fields, String field) {

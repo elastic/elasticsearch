@@ -28,8 +28,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
@@ -49,6 +51,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     private List<SearchRequestBuilder> capturedSearchRequests;
     private String jobId;
     private String timeField;
+    private Set<String> fields;
     private List<String> types;
     private List<String> indices;
     private QueryBuilder query;
@@ -79,6 +82,8 @@ public class AggregationDataExtractorTests extends ESTestCase {
         capturedSearchRequests = new ArrayList<>();
         jobId = "test-job";
         timeField = "time";
+        fields = new HashSet<>();
+        fields.addAll(Arrays.asList("time", "airline", "responsetime"));
         indices = Arrays.asList("index-1", "index-2");
         types = Arrays.asList("type-1", "type-2");
         query = QueryBuilders.matchAllQuery();
@@ -270,7 +275,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
     }
 
     private AggregationDataExtractorContext createContext(long start, long end) {
-        return new AggregationDataExtractorContext(jobId, timeField, indices, types, query, aggs, start, end, true);
+        return new AggregationDataExtractorContext(jobId, timeField, fields, indices, types, query, aggs, start, end, true);
     }
 
     @SuppressWarnings("unchecked")

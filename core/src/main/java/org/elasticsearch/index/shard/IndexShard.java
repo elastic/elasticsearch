@@ -560,6 +560,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
          * that we concurrently end up here and therefore have to protect that we do not mark the shard as relocated when its shard routing
          * says otherwise.
          */
+
         if (shardRouting.relocating() == false) {
             throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
                 ": shard is no longer relocating " + shardRouting);

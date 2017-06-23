@@ -126,20 +126,17 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
             selectedReader = randomIntBetween(0, allGens.size() - 1);
             final long selectedGenerationBySize = allGens.get(selectedReader).generation;
             long size = allGens.stream().skip(selectedReader).map(BaseTranslogReader::sizeInBytes).reduce(Long::sum).get();
-            selectedReader = randomIntBetween(0, allGens.size() - 1);
-            long committedGen = allGens.get(selectedReader).generation;
             deletionPolicy.setRetentionAgeInMillis(maxAge);
             deletionPolicy.setRetentionSizeInBytes(size);
             assertMinGenRequired(deletionPolicy, readersAndWriter, Math.max(selectedGenerationByAge, selectedGenerationBySize));
             // make a new policy as committed gen can't go backwards (for now)
             deletionPolicy = new MockDeletionPolicy(now, size, maxAge);
+            long committedGen = randomFrom(allGens).generation;
             deletionPolicy.setMinTranslogGenerationForRecovery(committedGen);
             assertMinGenRequired(deletionPolicy, readersAndWriter,
                 Math.min(committedGen, Math.max(selectedGenerationByAge, selectedGenerationBySize)));
-            long viewGen = deletionPolicy.acquireTranslogGenForView();
-            selectedReader = randomIntBetween(selectedReader, allGens.size() - 1);
-            committedGen = allGens.get(selectedReader).generation;
-            deletionPolicy.setMinTranslogGenerationForRecovery(committedGen);
+            long viewGen = randomFrom(allGens).generation;
+            deletionPolicy.acquireTranslogGenForView(viewGen);
             assertMinGenRequired(deletionPolicy, readersAndWriter,
                 Math.min(
                     Math.min(committedGen, viewGen),

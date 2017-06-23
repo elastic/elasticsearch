@@ -72,7 +72,9 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, CustomScriptPlugin.class);
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(CustomScriptPlugin.class);
+        return plugins;
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

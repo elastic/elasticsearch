@@ -68,3 +68,8 @@ matching indices).
 Omitting the `+` has the same effect as specifying it, hence support for `+`
 has been removed in index expressions.
 
+==== Translog retention
+
+Translog files are now kept for up to 12 hours (by default), with a maximum size of `512mb` (default), and
+are no longer deleted on `flush`. This is to increase the chance of doing an operation based recovery when
+bringing up replicas up to speed.

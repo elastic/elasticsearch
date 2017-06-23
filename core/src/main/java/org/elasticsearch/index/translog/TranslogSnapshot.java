@@ -99,7 +99,7 @@ final class TranslogSnapshot extends BaseTranslogReader implements Translog.Snap
         return "TranslogSnapshot{" +
                 "readOperations=" + readOperations +
                 ", position=" + position +
-                ", totalOperations=" + totalOperations +
+                ", estimateTotalOperations=" + totalOperations +
                 ", length=" + length +
                 ", reusableBuffer=" + reusableBuffer +
                 '}';

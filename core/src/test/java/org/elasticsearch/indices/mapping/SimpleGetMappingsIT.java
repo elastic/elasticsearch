@@ -19,15 +19,20 @@
 
 package org.elasticsearch.indices.mapping;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_METADATA_BLOCK;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
@@ -41,6 +46,12 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(randomDynamicTemplates = false)
 public class SimpleGetMappingsIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
+
     public void testGetMappingsWhereThereAreNone() {
         createIndex("index");
         GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
@@ -56,14 +67,14 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
 
     public void testSimpleGetMappings() throws Exception {
         client().admin().indices().prepareCreate("indexa")
-                .setSettings("index.mapping.single_type", false)
+                .setSettings("index.version.created", Version.V_5_6_0.id)
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB"))
                 .addMapping("Atype", getMappingForType("Atype"))
                 .addMapping("Btype", getMappingForType("Btype"))
                 .execute().actionGet();
         client().admin().indices().prepareCreate("indexb")
-                .setSettings("index.mapping.single_type", false)
+                .setSettings("index.version.created", Version.V_5_6_0.id)
                 .addMapping("typeA", getMappingForType("typeA"))
                 .addMapping("typeB", getMappingForType("typeB"))
                 .addMapping("Atype", getMappingForType("Atype"))
@@ -145,9 +156,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
 
     public void testGetMappingsWithBlocks() throws IOException {
         client().admin().indices().prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
-                .addMapping("typeA", getMappingForType("typeA"))
-                .addMapping("typeB", getMappingForType("typeB"))
+                .addMapping("doc", getMappingForType("doc"))
                 .execute().actionGet();
         ensureGreen();
 
@@ -156,7 +165,7 @@ public class SimpleGetMappingsIT extends ESIntegTestCase {
                 enableIndexBlock("test", block);
                 GetMappingsResponse response = client().admin().indices().prepareGetMappings().execute().actionGet();
                 assertThat(response.mappings().size(), equalTo(1));
-                assertThat(response.mappings().get("test").size(), equalTo(2));
+                assertThat(response.mappings().get("test").size(), equalTo(1));
             } finally {
                 disableIndexBlock("test", block);
             }

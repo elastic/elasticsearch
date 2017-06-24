@@ -120,10 +120,13 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             return;
         }
 
-
         lastTemplateMetaData = templates;
         Optional<Tuple<Map<String, BytesReference>, Set<String>>> changes = calculateTemplateChanges(templates);
         if (changes.isPresent()) {
+            logger.info("Starting template upgrade to version {}, {} templates will be updated and {} will be removed",
+                Version.CURRENT,
+                changes.get().v1().size(),
+                changes.get().v2().size());
             if (updatesInProgress.compareAndSet(0, changes.get().v1().size() + changes.get().v2().size())) {
                 threadPool.generic().execute(() -> updateTemplates(changes.get().v1(), changes.get().v2()));
             }
@@ -140,8 +143,12 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
         DiscoveryNode localNode = nodes.getLocalNode();
         // Only data and master nodes should update the template
         if (localNode.isDataNode() || localNode.isMasterNode()) {
+            DiscoveryNode masterNode = nodes.getMasterNode();
+            if (masterNode == null) {
+                return false;
+            }
             Version maxVersion = nodes.getLargestNonClientNodeVersion();
-            if (maxVersion.equals(nodes.getMasterNode().getVersion())) {
+            if (maxVersion.equals(masterNode.getVersion())) {
                 // If the master has the latest version - we will allow it to handle the update
                 return nodes.isLocalNodeElectedMaster();
             } else {
@@ -171,7 +178,9 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
             client.admin().indices().putTemplate(request, new ActionListener<PutIndexTemplateResponse>() {
                 @Override
                 public void onResponse(PutIndexTemplateResponse response) {
-                    updatesInProgress.decrementAndGet();
+                    if(updatesInProgress.decrementAndGet() == 0) {
+                        logger.info("Finished upgrading templates to version {}", Version.CURRENT);
+                    }
                     if (response.isAcknowledged() == false) {
                         logger.warn("Error updating template [{}], request was not acknowledged", change.getKey());
                     }
@@ -179,7 +188,9 @@ public class TemplateUpgradeService extends AbstractComponent implements Cluster
 
                 @Override
                 public void onFailure(Exception e) {
-                    updatesInProgress.decrementAndGet();
+                    if(updatesInProgress.decrementAndGet() == 0) {
+                        logger.info("Templates were upgraded to version {}", Version.CURRENT);
+                    }
                     logger.warn(new ParameterizedMessage("Error updating template [{}]", change.getKey()), e);
                 }
             });

@@ -286,13 +286,6 @@ final class Bootstrap {
         }
     }
 
-    /** Set the system property before anything has a chance to trigger its use */
-    // TODO: why? is it just a bad default somewhere? or is it some BS around 'but the client' garbage <-- my guess
-    @SuppressForbidden(reason = "sets logger prefix on initialization")
-    static void initLoggerPrefix() {
-        System.setProperty("es.logger.prefix", "");
-    }
-
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
@@ -301,9 +294,6 @@ final class Bootstrap {
             final Path pidFile,
             final boolean quiet,
             final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
-        // Set the system property before anything has a chance to trigger its use
-        initLoggerPrefix();
-
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init();

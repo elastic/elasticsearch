@@ -199,7 +199,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             case IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY:
                 // this was settable in 5.x but not anymore in 6.x so we have to preserve the value ie. make it read-only
                 // this can be removed in later versions
-                    return true;
+                return true;
             default:
                 return IndexMetaData.INDEX_ROUTING_INITIAL_RECOVERY_GROUP_SETTING.getRawKey().match(key);
         }

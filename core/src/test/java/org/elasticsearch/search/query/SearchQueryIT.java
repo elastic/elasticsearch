@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.util.English;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -41,16 +42,20 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.index.search.MatchQuery;
 import org.elasticsearch.index.search.MatchQuery.Type;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 
@@ -101,6 +106,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SearchQueryIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
 
     @Override
     protected int maximumNumberOfShards() {
@@ -545,7 +555,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTypeFilter() throws Exception {
-        assertAcked(prepareCreate("test").setSettings("index.mapping.single_type", false));
+        assertAcked(prepareCreate("test").setSettings("index.version.created", Version.V_5_6_0.id));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type2", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value1"),
@@ -1181,7 +1191,36 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testBasicQueryById() throws Exception {
-        assertAcked(prepareCreate("test").setSettings("index.mapping.single_type", false));
+        assertAcked(prepareCreate("test"));
+
+        client().prepareIndex("test", "doc", "1").setSource("field1", "value1").get();
+        client().prepareIndex("test", "doc", "2").setSource("field1", "value2").get();
+        client().prepareIndex("test", "doc", "3").setSource("field1", "value3").get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery("doc").addIds("1", "2")).get();
+        assertHitCount(searchResponse, 2L);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1")).get();
+        assertHitCount(searchResponse, 1L);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+
+        searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "2")).get();
+        assertHitCount(searchResponse, 2L);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(2));
+
+        searchResponse = client().prepareSearch().setQuery(idsQuery(Strings.EMPTY_ARRAY).addIds("1")).get();
+        assertHitCount(searchResponse, 1L);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+
+        searchResponse = client().prepareSearch().setQuery(idsQuery("type1", "type2", "doc").addIds("1", "2", "3", "4")).get();
+        assertHitCount(searchResponse, 3L);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(3));
+    }
+
+    public void testBasicQueryByIdMultiType() throws Exception {
+        assertAcked(prepareCreate("test").setSettings("index.version.created", Version.V_5_6_0.id));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         client().prepareIndex("test", "type2", "2").setSource("field1", "value2").get();
@@ -1211,6 +1250,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
     }
+
 
     public void testNumericTermsAndRanges() throws Exception {
         assertAcked(prepareCreate("test")
@@ -1448,10 +1488,9 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testSimpleDFSQuery() throws IOException {
         assertAcked(prepareCreate("test")
-                .setSettings("index.mapping.single_type", false)
-            .addMapping("s", jsonBuilder()
+            .addMapping("doc", jsonBuilder()
                 .startObject()
-                .startObject("s")
+                .startObject("doc")
                 .startObject("_routing")
                 .field("required", true)
                 .endObject()
@@ -1470,13 +1509,17 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .endObject()
                 .endObject()
                 .endObject())
-            .addMapping("bs", "online", "type=boolean", "ts", "type=date,ignore_malformed=false,format=epoch_millis"));
+            );
 
 
-        client().prepareIndex("test", "s", "1").setRouting("Y").setSource("online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100).get();
-        client().prepareIndex("test", "s", "2").setRouting("X").setSource("online", true, "bs", "X", "ts", System.currentTimeMillis() - 10000000).get();
-        client().prepareIndex("test", "bs", "3").setSource("online", false, "ts", System.currentTimeMillis() - 100).get();
-        client().prepareIndex("test", "bs", "4").setSource("online", true, "ts", System.currentTimeMillis() - 123123).get();
+        client().prepareIndex("test", "doc", "1").setRouting("Y").setSource("online", false, "bs", "Y", "ts",
+            System.currentTimeMillis() - 100, "type", "s").get();
+        client().prepareIndex("test", "doc", "2").setRouting("X").setSource("online", true, "bs", "X", "ts",
+            System.currentTimeMillis() - 10000000, "type", "s").get();
+        client().prepareIndex("test", "doc", "3").setRouting(randomAlphaOfLength(2))
+            .setSource("online", false, "ts", System.currentTimeMillis() - 100, "type", "bs").get();
+        client().prepareIndex("test", "doc", "4").setRouting(randomAlphaOfLength(2))
+            .setSource("online", true, "ts", System.currentTimeMillis() - 123123, "type", "bs").get();
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
@@ -1487,11 +1530,11 @@ public class SearchQueryIT extends ESIntegTestCase {
                                 .must(boolQuery()
                                         .should(boolQuery()
                                                 .must(rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000)))
-                                                .must(termQuery("_type", "bs"))
+                                                .must(termQuery("type", "bs"))
                                         )
                                         .should(boolQuery()
                                                 .must(rangeQuery("ts").lt(System.currentTimeMillis() - (15 * 1000)))
-                                                .must(termQuery("_type", "s"))
+                                                .must(termQuery("type", "s"))
                                         )
                                 )
                 )
@@ -1620,29 +1663,33 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testQueryStringWithSlopAndFields() {
-        assertAcked(prepareCreate("test").setSettings("index.mapping.single_type", false));
+        assertAcked(prepareCreate("test"));
 
-        client().prepareIndex("test", "customer", "1").setSource("desc", "one two three").get();
-        client().prepareIndex("test", "product", "2").setSource("desc", "one two three").get();
+        client().prepareIndex("test", "doc", "1").setSource("desc", "one two three", "type", "customer").get();
+        client().prepareIndex("test", "doc", "2").setSource("desc", "one two three", "type", "product").get();
         refresh();
         {
             SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")).get();
             assertHitCount(searchResponse, 2);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setTypes("product").setQuery(QueryBuilders.queryStringQuery("\"one two\"").field("desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setPostFilter(QueryBuilders.termQuery("type", "customer"))
+                .setQuery(QueryBuilders.queryStringQuery("\"one two\"").field("desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setTypes("product").setQuery(QueryBuilders.queryStringQuery("\"one three\"~5").field("desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setPostFilter(QueryBuilders.termQuery("type", "product"))
+                .setQuery(QueryBuilders.queryStringQuery("\"one three\"~5").field("desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setTypes("customer").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setPostFilter(QueryBuilders.termQuery("type", "customer"))
+                .setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")).get();
             assertHitCount(searchResponse, 1);
         }
         {
-            SearchResponse searchResponse = client().prepareSearch("test").setTypes("customer").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")).get();
+            SearchResponse searchResponse = client().prepareSearch("test").setPostFilter(QueryBuilders.termQuery("type", "customer"))
+                .setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")).get();
             assertHitCount(searchResponse, 1);
         }
     }

@@ -25,6 +25,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -54,6 +55,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -81,6 +83,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
@@ -467,44 +470,49 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
 
-    protected Engine.Index indexDoc(IndexShard shard, String type, String id) throws IOException {
+    protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id) throws IOException {
         return indexDoc(shard, type, id, "{}");
     }
 
-    protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
+    protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source) throws IOException {
         return indexDoc(shard, type, id, source, XContentType.JSON);
     }
 
-    protected Engine.Index indexDoc(IndexShard shard, String type, String id, String source, XContentType xContentType) throws IOException {
-        final Engine.Index index;
+    protected Engine.IndexResult indexDoc(IndexShard shard, String type, String id, String source, XContentType xContentType)
+        throws IOException {
+        SourceToParse sourceToParse = SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source), xContentType);
         if (shard.routingEntry().primary()) {
-            index = shard.prepareIndexOnPrimary(
-                SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source),
-                    xContentType),
-                Versions.MATCH_ANY,
-                VersionType.INTERNAL,
-                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
-                false);
+            return shard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL, sourceToParse,
+                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, getMappingUpdater(shard, type));
         } else {
-            index = shard.prepareIndexOnReplica(
-                SourceToParse.source(shard.shardId().getIndexName(), type, id, new BytesArray(source),
-                    xContentType),
-                shard.seqNoStats().getMaxSeqNo() + 1, shard.getPrimaryTerm(), 0,
-                VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+            return shard.applyIndexOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, shard.getPrimaryTerm(), 0,
+                VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse, getMappingUpdater(shard, type));
         }
-        shard.index(index);
-        return index;
     }
 
-    protected Engine.Delete deleteDoc(IndexShard shard, String type, String id) throws IOException {
-        final Engine.Delete delete;
+    protected Consumer<Mapping> getMappingUpdater(IndexShard shard, String type) {
+        return update -> {
+            try {
+                updateMappings(shard, IndexMetaData.builder(shard.indexSettings().getIndexMetaData())
+                    .putMapping(type, update.toString()).build());
+            } catch (IOException e) {
+                ExceptionsHelper.reThrowIfNotNull(e);
+            }
+        };
+    }
+
+    protected void updateMappings(IndexShard shard, IndexMetaData indexMetadata) {
+        shard.indexSettings().updateIndexMetaData(indexMetadata);
+        shard.mapperService().merge(indexMetadata, MapperService.MergeReason.MAPPING_UPDATE, true);
+    }
+
+    protected Engine.DeleteResult deleteDoc(IndexShard shard, String type, String id) throws IOException {
         if (shard.routingEntry().primary()) {
-            delete = shard.prepareDeleteOnPrimary(type, id, Versions.MATCH_ANY, VersionType.INTERNAL);
+            return shard.applyDeleteOperationOnPrimary(Versions.MATCH_ANY, type, id, VersionType.INTERNAL, update -> {});
         } else {
-            delete = shard.prepareDeleteOnPrimary(type, id, 1, VersionType.EXTERNAL);
+            return shard.applyDeleteOperationOnReplica(shard.seqNoStats().getMaxSeqNo() + 1, shard.getPrimaryTerm(),
+                0L, type, id, VersionType.EXTERNAL, update -> {});
         }
-        shard.delete(delete);
-        return delete;
     }
 
     protected void flushShard(IndexShard shard) {

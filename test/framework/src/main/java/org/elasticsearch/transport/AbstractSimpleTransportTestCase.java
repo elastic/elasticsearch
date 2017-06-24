@@ -41,7 +41,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
@@ -61,7 +60,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -169,8 +167,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try {
             assertNoPendingHandshakes(serviceA.getOriginalTransport());
             assertNoPendingHandshakes(serviceB.getOriginalTransport());
-            assertPendingConnections(0, serviceA.getOriginalTransport());
-            assertPendingConnections(0, serviceB.getOriginalTransport());
         } finally {
             IOUtils.close(serviceA, serviceB, () -> {
                 try {
@@ -194,12 +190,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    public void assertPendingConnections(int numConnections, Transport transport) {
-        if (transport instanceof TcpTransport) {
-            TcpTransport tcpTransport = (TcpTransport) transport;
-            assertEquals(numConnections, tcpTransport.getNumOpenConnections() - tcpTransport.getNumConnectedNodes());
-        }
-    }
 
     public void testHelloWorld() {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
@@ -1471,12 +1461,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        try (Transport.Connection connection = serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE)) {
-            serviceB.handshake(connection, 100);
-            fail("exception should be thrown");
-        } catch (IllegalStateException e) {
-            // all is well
-        }
+        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE));
     }
 
     public void testMockUnresponsiveRule() throws IOException {
@@ -1527,12 +1512,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        try (Transport.Connection connection = serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE)) {
-            serviceB.handshake(connection, 100);
-            fail("exception should be thrown");
-        } catch (IllegalStateException e) {
-            // all is well
-        }
+        expectThrows(ConnectTransportException.class, () -> serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE));
     }
 
 
@@ -2243,13 +2223,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceB.sendRequest(connection, "action", new TestRequest("hello world"), TransportRequestOptions.EMPTY,
                 transportResponseHandler);
             receivedLatch.await();
-            assertPendingConnections(1, serviceB.getOriginalTransport());
             serviceC.close();
-            assertPendingConnections(0, serviceC.getOriginalTransport());
             sendResponseLatch.countDown();
             responseLatch.await();
         }
-        assertPendingConnections(0, serviceC.getOriginalTransport());
     }
 
     public void testTransportStats() throws Exception {
@@ -2341,11 +2318,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(46, stats.getRxSize().getBytes());
             assertEquals(91, stats.getTxSize().getBytes());
         } finally {
-            try {
-                assertPendingConnections(0, serviceC.getOriginalTransport());
-            } finally {
-                serviceC.close();
-            }
+            serviceC.close();
         }
     }
 
@@ -2443,11 +2416,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals(185 + addressLen, stats.getRxSize().getBytes());
             assertEquals(91, stats.getTxSize().getBytes());
         } finally {
-            try {
-                assertPendingConnections(0, serviceC.getOriginalTransport());
-            } finally {
-                serviceC.close();
-            }
+            serviceC.close();
         }
     }
 }

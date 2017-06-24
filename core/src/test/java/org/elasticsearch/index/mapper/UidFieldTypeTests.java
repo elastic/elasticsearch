@@ -52,11 +52,11 @@ public class UidFieldTypeTests extends FieldTypeTestCase {
     public void testTermsQueryWhenTypesAreEnabled() throws Exception {
         QueryShardContext context = Mockito.mock(QueryShardContext.class);
         Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_6_0) // to allow for multipel types
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .put("index.mapping.single_type", false).build();
+                .build();
         IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
         IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);
@@ -78,8 +78,7 @@ public class UidFieldTypeTests extends FieldTypeTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                .put("index.mapping.single_type", true).build();
+                .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()).build();
         IndexMetaData indexMetaData = IndexMetaData.builder(IndexMetaData.INDEX_UUID_NA_VALUE).settings(indexSettings).build();
         IndexSettings mockSettings = new IndexSettings(indexMetaData, Settings.EMPTY);
         Mockito.when(context.getIndexSettings()).thenReturn(mockSettings);

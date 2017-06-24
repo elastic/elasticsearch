@@ -31,6 +31,9 @@ import org.elasticsearch.action.bulk.BulkShardResponse;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkActionTests;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.resync.ResyncReplicationRequest;
+import org.elasticsearch.action.resync.ResyncReplicationResponse;
+import org.elasticsearch.action.resync.TransportResyncReplicationAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
@@ -56,13 +59,14 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -124,6 +128,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         private final AtomicInteger replicaId = new AtomicInteger();
         private final AtomicInteger docId = new AtomicInteger();
         boolean closed = false;
+        private final PrimaryReplicaSyncer primaryReplicaSyncer = new PrimaryReplicaSyncer(Settings.EMPTY, new TaskManager(Settings.EMPTY),
+            (request, parentTask, primaryAllocationId, listener) -> {
+                try {
+                    new ResyncAction(request, listener, ReplicationGroup.this).execute();
+                } catch (Exception e) {
+                    throw new AssertionError(e);
+                }
+            });
 
         ReplicationGroup(final IndexMetaData indexMetaData) throws IOException {
             final ShardRouting primaryRouting = this.createShardRouting("s0", true);
@@ -254,7 +266,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         /**
          * promotes the specific replica as the new primary
          */
-        public synchronized void promoteReplicaToPrimary(IndexShard replica) throws IOException {
+        public synchronized Future<PrimaryReplicaSyncer.ResyncTask> promoteReplicaToPrimary(IndexShard replica) throws IOException {
             final long newTerm = indexMetaData.primaryTerm(shardId.id()) + 1;
             IndexMetaData.Builder newMetaData = IndexMetaData.builder(indexMetaData).primaryTerm(shardId.id(), newTerm);
             indexMetaData = newMetaData.build();
@@ -262,8 +274,23 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             closeShards(primary);
             primary = replica;
             primary.updateRoutingEntry(replica.routingEntry().moveActiveReplicaToPrimary());
-            primary.updatePrimaryTerm(newTerm);
+            PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
+            primary.updatePrimaryTerm(newTerm, (shard, listener) -> primaryReplicaSyncer.resync(shard,
+                new ActionListener<PrimaryReplicaSyncer.ResyncTask>() {
+                    @Override
+                    public void onResponse(PrimaryReplicaSyncer.ResyncTask resyncTask) {
+                        listener.onResponse(resyncTask);
+                        fut.onResponse(resyncTask);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onFailure(e);
+                        fut.onFailure(e);
+                    }
+                }));
             updateAllocationIDsOnPrimary();
+            return fut;
         }
 
         synchronized boolean removeReplica(IndexShard replica) {
@@ -394,36 +421,40 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             this.opType = opType;
         }
 
-        public void execute() throws Exception {
-            new ReplicationOperation<Request, ReplicaRequest, PrimaryResult>(request, new PrimaryRef(),
-                new ActionListener<PrimaryResult>() {
+        public void execute() {
+            try {
+                new ReplicationOperation<Request, ReplicaRequest, PrimaryResult>(request, new PrimaryRef(),
+                    new ActionListener<PrimaryResult>() {
+                        @Override
+                        public void onResponse(PrimaryResult result) {
+                            result.respond(listener);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            listener.onFailure(e);
+                        }
+                    }, new ReplicasRef(), () -> null, logger, opType) {
+
                     @Override
-                    public void onResponse(PrimaryResult result) {
-                        result.respond(listener);
+                    protected List<ShardRouting> getShards(ShardId shardId, ClusterState state) {
+                        return replicationGroup.shardRoutings();
                     }
 
                     @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
+                    protected String checkActiveShardCount() {
+                        return null;
                     }
-                }, new ReplicasRef(), () -> null, logger, opType) {
 
-                @Override
-                protected List<ShardRouting> getShards(ShardId shardId, ClusterState state) {
-                    return replicationGroup.shardRoutings();
-                }
-
-                @Override
-                protected String checkActiveShardCount() {
-                    return null;
-                }
-
-                @Override
-                protected Set<String> getInSyncAllocationIds(ShardId shardId, ClusterState clusterState) {
-                    return replicationGroup.shardRoutings().stream().filter(ShardRouting::active).map(r -> r.allocationId().getId())
-                        .collect(Collectors.toSet());
-                }
-            }.execute();
+                    @Override
+                    protected Set<String> getInSyncAllocationIds(ShardId shardId, ClusterState clusterState) {
+                        return replicationGroup.shardRoutings().stream().filter(ShardRouting::active).map(r -> r.allocationId().getId())
+                            .collect(Collectors.toSet());
+                    }
+                }.execute();
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
         }
 
         protected abstract PrimaryResult performOnPrimary(IndexShard primary, Request request) throws Exception;
@@ -625,4 +656,37 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
     }
 
+    class ResyncAction extends ReplicationAction<ResyncReplicationRequest, ResyncReplicationRequest, ResyncReplicationResponse> {
+
+        ResyncAction(ResyncReplicationRequest request, ActionListener<ResyncReplicationResponse> listener, ReplicationGroup replicationGroup) {
+            super(request, listener, replicationGroup, "resync");
+        }
+
+        @Override
+        protected PrimaryResult performOnPrimary(IndexShard primary, ResyncReplicationRequest request) throws Exception {
+            final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
+                executeResyncOnPrimary(primary, request);
+            return new PrimaryResult(result.replicaRequest(), result.finalResponseIfSuccessful);
+        }
+
+        @Override
+        protected void performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
+            executeResyncOnReplica(replica, request);
+        }
+    }
+
+    private TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> executeResyncOnPrimary(
+        IndexShard primary, ResyncReplicationRequest request) throws Exception {
+        final TransportWriteAction.WritePrimaryResult<ResyncReplicationRequest, ResyncReplicationResponse> result =
+            new TransportWriteAction.WritePrimaryResult<>(TransportResyncReplicationAction.performOnPrimary(request, primary),
+                new ResyncReplicationResponse(), null, null, primary, logger);
+        request.primaryTerm(primary.getPrimaryTerm());
+        TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
+        return result;
+    }
+
+    private void executeResyncOnReplica(IndexShard replica, ResyncReplicationRequest request) throws Exception {
+        final Translog.Location location = TransportResyncReplicationAction.performOnReplica(request, replica);
+        TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
+    }
 }

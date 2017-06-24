@@ -27,16 +27,19 @@ import java.nio.ByteBuffer;
 public class ByteBufferReference extends NetworkBytesReference {
 
     private final int offset;
+    private BytesArray bytesArray;
     private final ByteBuffer writeBuffer;
     private final ByteBuffer readBuffer;
 
-    public ByteBufferReference(ByteBuffer writeBuffer, ByteBuffer readBuffer, int offset, int length, int writeIndex, int readIndex) {
-        this.offset = offset;
-        this.length = length;
+    public ByteBufferReference(BytesArray bytesArray, int writeIndex, int readIndex) {
+        this.bytesArray = bytesArray;
+        this.offset = bytesArray.offset();
+        this.length = bytesArray.length();
         this.writeIndex = writeIndex;
         this.readIndex = readIndex;
-        this.writeBuffer = writeBuffer;
-        this.readBuffer = readBuffer;
+        this.writeBuffer = ByteBuffer.wrap(bytesArray.array(), offset, bytesArray.length());
+        this.readBuffer = ByteBuffer.wrap(bytesArray.array(), offset, bytesArray.length());
+        initializePositions(offset, writeIndex, readIndex, writeBuffer, readBuffer);
     }
 
     public static ByteBufferReference heapBuffer(BytesArray bytesArray) {
@@ -47,11 +50,7 @@ public class ByteBufferReference extends NetworkBytesReference {
         if (readIndex > writeIndex) {
             throw new IndexOutOfBoundsException("Read index [" + readIndex + "] was greater than write index [" + writeIndex + "]");
         }
-        int offset = bytesArray.offset();
-        ByteBuffer writeBuffer = ByteBuffer.wrap(bytesArray.array(), offset, bytesArray.length());
-        ByteBuffer readBuffer = ByteBuffer.wrap(bytesArray.array(), offset, bytesArray.length());
-        initializePositions(offset, writeIndex, readIndex, writeBuffer, readBuffer);
-        return new ByteBufferReference(writeBuffer, readBuffer, offset, bytesArray.length(), writeIndex, readIndex);
+        return new ByteBufferReference(bytesArray, writeIndex, readIndex);
     }
 
     @Override
@@ -66,27 +65,17 @@ public class ByteBufferReference extends NetworkBytesReference {
 
     @Override
     public ByteBufferReference slice(int from, int length) {
-        if (from < 0 || (from + length) > this.length) {
-            throw new IllegalArgumentException("can't slice a buffer with length [" + this.length +
-                "], with slice parameters from [" + from + "], length [" + length + "]");
-        }
+        BytesArray newBytesArray = (BytesArray) bytesArray.slice(from, length);
+
         int newReadIndex = Math.min(Math.max(readIndex - from, 0), length);
         int newWriteIndex = Math.min(Math.max(writeIndex - from, 0), length);
 
-        ByteBuffer newWriteBuffer = this.writeBuffer.duplicate();
-        ByteBuffer newReadBuffer = this.readBuffer.duplicate();
-        initializePositions(offset, newReadIndex, newWriteIndex, newWriteBuffer, newReadBuffer);
-        return new ByteBufferReference(newWriteBuffer, newReadBuffer, offset + from, length, newWriteIndex, newReadIndex);
+        return heapBuffer(newBytesArray, newWriteIndex, newReadIndex);
     }
 
     @Override
     public BytesRef toBytesRef() {
-        if (readBuffer.hasArray()) {
-            return new BytesRef(readBuffer.array(), readBuffer.arrayOffset() + offset, length);
-        }
-        final byte[] copy = new byte[length];
-        readBuffer.get(copy, offset, length);
-        return new BytesRef(copy);
+        return bytesArray.toBytesRef();
     }
 
     @Override

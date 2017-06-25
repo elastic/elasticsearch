@@ -694,6 +694,10 @@ public final class Settings implements ToXContent {
             if (secureSettings.isLoaded() == false) {
                 throw new IllegalStateException("Secure settings must already be loaded");
             }
+            if (this.secureSettings.get() != null) {
+                throw new IllegalArgumentException("Secure settings already set. Existing settings: " +
+                    this.secureSettings.get().getSettingNames() + ", new settings: " + secureSettings.getSettingNames());
+            }
             this.secureSettings.set(secureSettings);
             return this;
         }

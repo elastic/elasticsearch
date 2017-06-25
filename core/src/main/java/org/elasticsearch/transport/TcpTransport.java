@@ -693,8 +693,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 continue;
             }
             Settings mergedSettings = Settings.builder()
-                .put(defaultSettings)
-                .put(profileSettings)
+                .put(defaultSettings.getAsMap())
+                .put(profileSettings.getAsMap())
                 .build();
             result.put(name, mergedSettings);
         }

@@ -176,8 +176,6 @@ public abstract class ESSelector implements Closeable {
     private void closeChannel(NioChannel channel) {
         try {
             eventHandler.handleClose(channel);
-        } catch (IOException e) {
-            eventHandler.closeException(channel, e);
         } finally {
             registeredChannels.remove(channel);
         }

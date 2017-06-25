@@ -59,23 +59,15 @@ public abstract class EventHandler {
      *
      * @param channel that should be closed
      */
-    public void handleClose(NioChannel channel) throws IOException {
+    public void handleClose(NioChannel channel) {
         channel.closeFromSelector();
         CloseFuture closeFuture = channel.getCloseFuture();
         assert closeFuture.isDone() : "Should always be done as we are on the selector thread";
         IOException closeException = closeFuture.getCloseException();
         if (closeException != null) {
-            throw closeException;
+            logger.trace("exception while closing channel", closeException);
         }
-    }
 
-    /**
-     * This method is called when an attempt to close a channel throws an exception.
-     *
-     * @param channel that was closed
-     * @param exception that occurred during close()
-     */
-    public void closeException(NioChannel channel, Exception exception) {
-        logger.trace("exception while closing channel", exception);
+
     }
 }

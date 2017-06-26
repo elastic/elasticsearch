@@ -51,17 +51,16 @@ public class MigrateToolIT extends MigrateToolTestCase {
 
     public void testRunMigrateTool() throws Exception {
         logger.info("--> CONF: {}", System.getProperty("tests.config.dir"));
-        Settings settings = Settings.builder()
-                .put("path.home", PathUtils.get(System.getProperty("tests.config.dir")).getParent())
-                .put("path.conf", System.getProperty("tests.config.dir"))
-                .build();
+        Settings settings = Settings.builder().put("path.home", PathUtils.get(System.getProperty("tests.config.dir")).getParent()).build();
         // Cluster should already be up
         String url = "http://" + getHttpURL();
         logger.info("--> using URL: {}", url);
         MockTerminal t = new MockTerminal();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
         OptionParser parser = muor.getParser();
-        OptionSet options = parser.parse("-u", "test_admin", "-p", "changeme", "-U", url);
+
+        OptionSet options =
+                parser.parse("-u", "test_admin", "-p", "changeme", "-U", url, "--path.conf", System.getProperty("tests.config.dir"));
         muor.execute(t, options, new Environment(settings));
 
         logger.info("--> output:\n{}", t.getOutput());

@@ -94,7 +94,7 @@ fi
 declare -a args=("$@")
 
 if [ -e "$CONF_DIR" ]; then
-  args=("${args[@]}" -Edefault.path.conf="$CONF_DIR")
+  args=("${args[@]}" --path.conf "$CONF_DIR")
 fi
 
 cd "$ES_HOME" > /dev/null

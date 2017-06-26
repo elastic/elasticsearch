@@ -206,6 +206,11 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
+    protected Path nodeConfigPath(int nodeOrdinal) {
+        return customSecuritySettingsSource.nodeConfigPath(nodeOrdinal);
+    }
+
+    @Override
     protected Settings transportClientSettings() {
         return Settings.builder().put(super.transportClientSettings())
                 .put(customSecuritySettingsSource.transportClientSettings())

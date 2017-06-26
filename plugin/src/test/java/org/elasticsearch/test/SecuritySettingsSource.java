@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -95,16 +94,21 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         this.hostnameVerificationEnabled = randomBoolean();
     }
 
+    private Path nodePath(final Path parentFolder, final String subfolderPrefix, final int nodeOrdinal) {
+        return parentFolder.resolve(subfolderPrefix + "-" + nodeOrdinal);
+    }
+
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
-        Path home = SecurityTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
-        Path xpackConf = SecurityTestUtils.createFolder(home.resolve("config"), XPackPlugin.NAME);
+        final Path home = nodePath(parentFolder, subfolderPrefix, nodeOrdinal);
+        SecurityTestUtils.createFolder(home);
+        final Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
+        SecurityTestUtils.createFolder(xpackConf);
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
         writeFile(xpackConf, "roles.yml", configRoles());
 
         Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(Environment.PATH_CONF_SETTING.getKey(), home.resolve("config"))
                 //TODO: for now isolate security tests from watcher & monitoring (randomize this later)
                 .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
@@ -120,6 +124,11 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 .put("xpack.security.authc.realms.index.order", "1")
                 .put(getNodeSSLSettings());
         return builder.build();
+    }
+
+    @Override
+    public Path nodeConfigPath(int nodeOrdinal) {
+        return nodePath(parentFolder, subfolderPrefix, nodeOrdinal).resolve("config");
     }
 
     @Override

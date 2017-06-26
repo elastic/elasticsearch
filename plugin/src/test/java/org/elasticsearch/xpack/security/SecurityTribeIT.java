@@ -165,7 +165,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
         final List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>(nodePlugins());
         classpathPlugins.addAll(getMockPlugins());
-        tribeNode = new MockNode(merged, classpathPlugins).start();
+        tribeNode = new MockNode(merged, classpathPlugins, cluster2SettingsSource.nodeConfigPath(0)).start();
         tribeClient = getClientWrapper().apply(tribeNode.client());
         ClusterService tribeClusterService = tribeNode.injector().getInstance(ClusterService.class);
         ClusterState clusterState = tribeClusterService.state();

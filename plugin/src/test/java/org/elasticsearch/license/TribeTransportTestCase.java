@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -84,6 +85,11 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return TribeTransportTestCase.this.nodeSettings(nodeOrdinal);
+            }
+
+            @Override
+            public Path nodeConfigPath(int nodeOrdinal) {
+                return null;
             }
 
             @Override

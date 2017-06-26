@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
@@ -218,10 +219,10 @@ public class WatcherExecutorServiceBenchmark {
 
     public static final class XPackBenchmarkPlugin extends XPackPlugin {
 
-
-        public XPackBenchmarkPlugin(Settings settings) throws IOException, DestroyFailedException, OperatorCreationException,
-                GeneralSecurityException {
-            super(settings);
+        public XPackBenchmarkPlugin(
+                Settings settings,
+                Path configPath) throws IOException, DestroyFailedException, OperatorCreationException, GeneralSecurityException {
+            super(settings, configPath);
             watcher = new BenchmarkWatcher(settings);
         }
 
@@ -238,4 +239,5 @@ public class WatcherExecutorServiceBenchmark {
             }
         }
     }
+
 }

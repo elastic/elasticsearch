@@ -95,7 +95,7 @@ public class SettingsFilterTests extends ESTestCase {
                 .put(configuredSettingsBuilder.build())
                 .build();
 
-        XPackPlugin xPackPlugin = new XPackPlugin(settings);
+        XPackPlugin xPackPlugin = new XPackPlugin(settings, null);
         List<Setting<?>> settingList = new ArrayList<>();
         settingList.add(Setting.simpleString("foo.bar", Setting.Property.NodeScope));
         settingList.add(Setting.simpleString("foo.baz", Setting.Property.NodeScope));

@@ -47,8 +47,10 @@ public class SecurityF {
         if (homeDir == null || Files.exists(PathUtils.get(homeDir)) == false) {
             throw new IllegalStateException("es.path.home must be set and exist");
         }
-        Path folder = SecurityTestUtils.createFolder(SecurityTestUtils.createFolder(PathUtils.get(homeDir), "config"), "x-pack");
-        settings.put(Environment.PATH_CONF_SETTING.getKey(), PathUtils.get(homeDir).resolve("config"));
+        final Path config = PathUtils.get(homeDir).resolve("config");
+        SecurityTestUtils.createFolder(config);
+        final Path folder = config.resolve("x-pack");
+        SecurityTestUtils.createFolder(folder);
         writeFile(folder, "users", SecuritySettingsSource.CONFIG_STANDARD_USER);
         writeFile(folder, "users_roles", SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES);
         writeFile(folder, "roles.yml", SecuritySettingsSource.CONFIG_ROLE_ALLOW_ALL);
@@ -59,7 +61,7 @@ public class SecurityF {
         settings.put("xpack.security.authc.realms.esnative.order", "1");
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Node node = new MockNode(settings.build(), Arrays.asList(XPackPlugin.class));
+        final Node node = new MockNode(settings.build(), Arrays.asList(XPackPlugin.class), config);
         Runtime.getRuntime().addShutdownHook(new Thread() {
 
             @Override

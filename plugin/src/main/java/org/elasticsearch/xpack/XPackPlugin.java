@@ -199,10 +199,12 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected MachineLearning machineLearning;
     protected Logstash logstash;
 
-    public XPackPlugin(Settings settings) throws IOException, DestroyFailedException, OperatorCreationException, GeneralSecurityException {
+    public XPackPlugin(
+            final Settings settings,
+            final Path configPath) throws IOException, DestroyFailedException, OperatorCreationException, GeneralSecurityException {
         this.settings = settings;
         this.transportClientMode = transportClientMode(settings);
-        this.env = transportClientMode ? null : new Environment(settings);
+        this.env = transportClientMode ? null : new Environment(settings, configPath);
         this.licenseState = new XPackLicenseState();
         this.sslService = new SSLService(settings, env);
 

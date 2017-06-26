@@ -8,11 +8,8 @@ package org.elasticsearch.xpack.watcher.transform;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -24,6 +21,7 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -74,15 +72,9 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        Settings baseSettings = super.nodeSettings(nodeOrdinal);
-        Path config;
-        if (Environment.PATH_CONF_SETTING.exists(baseSettings)) {
-            config = PathUtils.get(Environment.PATH_CONF_SETTING.get(baseSettings));
-        } else {
-            config = createTempDir().resolve("config");
-        }
-        Path scripts = config.resolve("scripts");
+    protected Path nodeConfigPath(int nodeOrdinal) {
+        final Path config = createTempDir().resolve("config");
+        final Path scripts = config.resolve("scripts");
 
         try {
             Files.createDirectories(scripts);
@@ -91,15 +83,11 @@ public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCas
             // the name of the file script is used in test method while the source of the file script
             // must match a predefined script from CustomScriptPlugin.pluginScripts() method
             Files.write(scripts.resolve("my-script.mockscript"), "['key3' : ctx.payload.key1 + ctx.payload.key2]".getBytes("UTF-8"));
-        } catch (IOException ex) {
-            throw new RuntimeException("Failed to create scripts", ex);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
 
-        // Set the config path so that the ScriptService will pick up the test scripts
-        return Settings.builder()
-                .put(baseSettings)
-                .put(Environment.PATH_CONF_SETTING.getKey(), config)
-                .build();
+        return config;
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {

@@ -105,11 +105,8 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
 
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
         OptionSet options = muor.getParser().parse("-u", "elastic", "-p", "changeme", "-U", "http://localhost:9200");
-        Settings settings = Settings.builder()
-                .put("path.home", homeDir)
-                .put("path.conf", confDir)
-                .build();
-        Environment environment = new Environment(settings);
+        Settings settings = Settings.builder().put("path.home", homeDir).build();
+        Environment environment = new Environment(settings, confDir);
         MockTerminal mockTerminal = new MockTerminal();
 
         FileNotFoundException fnfe = expectThrows(FileNotFoundException.class,

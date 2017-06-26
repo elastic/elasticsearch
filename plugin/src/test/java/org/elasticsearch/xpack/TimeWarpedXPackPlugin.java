@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.watcher.test.TimeWarpedWatcher;
 
 import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.time.Clock;
 
@@ -20,9 +21,9 @@ public class TimeWarpedXPackPlugin extends XPackPlugin {
     // use a single clock across all nodes using this plugin, this lets keep it static
     private static final ClockMock clock = new ClockMock();
 
-    public TimeWarpedXPackPlugin(Settings settings) throws IOException,
+    public TimeWarpedXPackPlugin(Settings settings, Path configPath) throws IOException,
             DestroyFailedException, OperatorCreationException, GeneralSecurityException {
-        super(settings);
+        super(settings, configPath);
         watcher = new TimeWarpedWatcher(settings);
     }
 
@@ -30,4 +31,5 @@ public class TimeWarpedXPackPlugin extends XPackPlugin {
     protected Clock getClock() {
         return clock;
     }
+
 }

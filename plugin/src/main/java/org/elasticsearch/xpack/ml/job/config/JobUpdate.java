@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
@@ -22,7 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class JobUpdate implements Writeable, ToXContent {
+public class JobUpdate implements Writeable, ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
 
     public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(

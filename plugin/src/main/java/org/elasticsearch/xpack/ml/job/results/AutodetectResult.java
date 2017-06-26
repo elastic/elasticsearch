@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-public class AutodetectResult extends ToXContentToBytes implements Writeable {
+public class AutodetectResult implements ToXContentObject, Writeable {
 
     public static final ParseField TYPE = new ParseField("autodetect_result");
 

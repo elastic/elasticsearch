@@ -9,10 +9,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.RecordWriter;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -86,7 +86,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     @Override
-    protected AnalysisConfig parseInstance(XContentParser parser) {
+    protected AnalysisConfig doParseInstance(XContentParser parser) {
         return AnalysisConfig.PARSER.apply(parser, null).build();
     }
 

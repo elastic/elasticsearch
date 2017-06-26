@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Date;
@@ -39,7 +39,7 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
     }
 
     @Override
-    protected Influencer parseInstance(XContentParser parser) {
+    protected Influencer doParseInstance(XContentParser parser) {
         return Influencer.PARSER.apply(parser, null);
     }
 

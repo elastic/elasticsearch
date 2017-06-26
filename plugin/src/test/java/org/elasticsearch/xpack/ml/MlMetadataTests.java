@@ -8,14 +8,19 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
@@ -26,7 +31,6 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.config.JobTests;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 
 import java.io.IOException;
@@ -74,22 +78,20 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     }
 
     @Override
-    protected MlMetadata parseInstance(XContentParser parser) {
+    protected MlMetadata doParseInstance(XContentParser parser) {
         return MlMetadata.ML_METADATA_PARSER.apply(parser, null).build();
     }
 
     @Override
-    protected XContentBuilder toXContent(MlMetadata instance, XContentType contentType) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        // In Metadata.Builder#toXContent(...) custom metadata always gets wrapped in an start and end object,
-        // so we simulate that here. The MlMetadata depends on that as it direct starts to write a start array.
-        builder.startObject();
-        instance.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        return builder;
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     public void testPutJob() {

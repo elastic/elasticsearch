@@ -5,12 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.action.PutDatafeedAction.Response;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.util.Arrays;
+import java.util.Collections;
 
 public class PutDatafeedActionResponseTests extends AbstractStreamableTestCase<Response> {
 
@@ -28,4 +32,9 @@ public class PutDatafeedActionResponseTests extends AbstractStreamableTestCase<R
         return new Response();
     }
 
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
 }

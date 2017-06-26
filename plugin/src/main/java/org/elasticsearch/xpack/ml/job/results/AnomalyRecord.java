@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -14,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.job.config.Detector;
@@ -35,7 +35,7 @@ import java.util.Objects;
  * Uses the object wrappers Boolean and Double so <code>null</code> values
  * can be returned if the members have not been set.
  */
-public class AnomalyRecord extends ToXContentToBytes implements Writeable {
+public class AnomalyRecord implements ToXContentObject, Writeable {
 
     /**
      * Result type

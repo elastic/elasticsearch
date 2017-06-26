@@ -11,9 +11,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 
 import java.util.Date;
 import java.util.Locale;

@@ -7,9 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
-import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;

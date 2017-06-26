@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
  * <code>fieldname</code> must be set and only one of <code>byFieldName</code>
  * and <code>overFieldName</code> should be set.
  */
-public class Detector extends ToXContentToBytes implements Writeable {
+public class Detector implements ToXContentObject, Writeable {
 
     public enum ExcludeFrequent implements Writeable {
         ALL,

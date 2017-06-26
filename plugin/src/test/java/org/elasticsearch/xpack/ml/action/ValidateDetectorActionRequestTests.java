@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction.Request;
 import org.elasticsearch.xpack.ml.job.config.Detector;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
-public class ValidateDetectorActionRequestTests extends AbstractStreamableXContentTestCase<ValidateDetectorAction.Request> {
+public class ValidateDetectorActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -29,7 +29,7 @@ public class ValidateDetectorActionRequestTests extends AbstractStreamableXConte
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(parser);
     }
 

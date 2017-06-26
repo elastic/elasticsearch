@@ -13,7 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -34,7 +34,7 @@ import java.util.Objects;
  * The main difference between this class and {@link DatafeedConfig} is that here all
  * fields are nullable.
  */
-public class DatafeedUpdate implements Writeable, ToXContent {
+public class DatafeedUpdate implements Writeable, ToXContentObject {
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_update", Builder::new);
 

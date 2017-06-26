@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction.Response;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class GetDatafeedsActionResponseTests extends AbstractStreamableTestCase<Response> {
@@ -29,5 +33,11 @@ public class GetDatafeedsActionResponseTests extends AbstractStreamableTestCase<
     @Override
     protected Response createBlankInstance() {
         return new Response();
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
     }
 }

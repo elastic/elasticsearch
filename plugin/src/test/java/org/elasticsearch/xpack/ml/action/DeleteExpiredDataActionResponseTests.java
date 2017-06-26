@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.action.DeleteExpiredDataAction.Response;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class DeleteExpiredDataActionResponseTests extends AbstractStreamableTestCase<Response> {
 

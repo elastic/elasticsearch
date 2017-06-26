@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.RecordWriter;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -198,7 +198,7 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     @Override
-    protected Detector parseInstance(XContentParser parser) {
+    protected Detector doParseInstance(XContentParser parser) {
         return Detector.PARSER.apply(parser, null).build();
     }
 

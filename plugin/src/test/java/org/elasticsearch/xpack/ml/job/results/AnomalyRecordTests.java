@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,7 +83,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
     }
 
     @Override
-    protected AnomalyRecord parseInstance(XContentParser parser) {
+    protected AnomalyRecord doParseInstance(XContentParser parser) {
         return AnomalyRecord.PARSER.apply(parser, null);
     }
 

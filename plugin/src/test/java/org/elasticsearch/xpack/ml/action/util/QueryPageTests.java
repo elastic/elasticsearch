@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ml.action.util;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
-import org.elasticsearch.xpack.ml.support.AbstractWireSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.Date;

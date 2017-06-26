@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction.Response;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshotTests;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class RevertModelSnapshotActionResponseTests extends AbstractStreamableTestCase<RevertModelSnapshotAction.Response> {
 

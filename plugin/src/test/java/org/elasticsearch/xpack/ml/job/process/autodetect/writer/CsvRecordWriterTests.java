@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Assert;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-
-import org.elasticsearch.test.ESTestCase;
-import org.junit.Assert;
 
 public class CsvRecordWriterTests extends ESTestCase {
 

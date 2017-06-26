@@ -9,6 +9,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction.Response;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -16,7 +17,6 @@ import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCountsTests;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.net.InetAddress;
 import java.util.ArrayList;

@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -49,7 +49,7 @@ import java.util.concurrent.TimeUnit;
  * used around integral types and booleans so they can take <code>null</code>
  * values.
  */
-public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContent {
+public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("datafeeds");

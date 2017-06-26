@@ -13,10 +13,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -45,7 +45,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     @Override
-    protected Job parseInstance(XContentParser parser) {
+    protected Job doParseInstance(XContentParser parser) {
         return Job.PARSER.apply(parser, null).build();
     }
 
@@ -224,7 +224,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     // JobConfigurationVerifierTests:
 
     public void testCopyConstructor() {
-        for (int i = 0; i < NUMBER_OF_TESTQUERIES; i++) {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             Job job = createTestInstance();
             Job copy = new Job.Builder(job).build();
             assertEquals(job, copy);
@@ -375,10 +375,11 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertThat(job.getJobVersion(), is(nullValue()));
 
         // Assert parsing a job without version works as expected
-        XContentBuilder xContentBuilder = toXContent(job, randomFrom(XContentType.values()));
-        try (XContentParser parser = XContentFactory.xContent(xContentBuilder.bytes())
-                .createParser(NAMED_X_CONTENT_REGISTRY, xContentBuilder.bytes())) {
-            Job parsed = Job.PARSER.apply(parser, null).build();
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder xContentBuilder = toXContent(job, xContentType);
+
+        try(XContentParser parser = createParser(XContentFactory.xContent(xContentType), xContentBuilder.bytes())) {
+            Job parsed = parseInstance(parser);
             assertThat(parsed, equalTo(job));
         }
     }

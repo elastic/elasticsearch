@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.results.PartitionScore;
 import org.junit.Before;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.List;
 
 
 public class BucketNormalizableTests extends ESTestCase {

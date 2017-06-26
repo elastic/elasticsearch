@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.action.DeleteDatafeedAction.Request;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class DeleteDatafeedRequestTests extends AbstractStreamableTestCase<Request> {
 

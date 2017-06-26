@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -42,7 +43,7 @@ import java.util.concurrent.TimeUnit;
  * data time fields are {@code null} until the job has seen some data or it is
  * finished respectively.
  */
-public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent {
+public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentObject {
 
     public static final String TYPE = "job";
 
@@ -558,7 +559,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         return compatibleTypes;
     }
 
-    public static class Builder implements Writeable, ToXContent  {
+    public static class Builder implements Writeable, ToXContentObject {
 
         private String id;
         private String jobType = ANOMALY_DETECTOR_JOB_TYPE;

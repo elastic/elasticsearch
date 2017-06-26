@@ -10,9 +10,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.PutJobAction.Request;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
 import java.io.IOException;
 import java.util.Date;
@@ -36,7 +36,7 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(jobId, parser);
     }
 

@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.util.List;
 

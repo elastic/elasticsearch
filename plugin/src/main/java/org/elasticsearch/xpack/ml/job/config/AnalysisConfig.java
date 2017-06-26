@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -13,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
  * Object wrappers are used around integral types &amp; booleans so they can take
  * <code>null</code> values.
  */
-public class AnalysisConfig extends ToXContentToBytes implements Writeable {
+public class AnalysisConfig implements ToXContentObject, Writeable {
     /**
      * Serialisation names
      */

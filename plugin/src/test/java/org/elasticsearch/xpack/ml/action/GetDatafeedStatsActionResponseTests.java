@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsStatsAction.Response;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import java.net.InetAddress;
 import java.util.ArrayList;

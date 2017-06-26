@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
 
 import java.util.Set;
 import java.util.concurrent.ExecutorService;

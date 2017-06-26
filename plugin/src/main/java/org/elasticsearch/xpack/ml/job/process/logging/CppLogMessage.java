@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.job.process.logging;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.util.Objects;
 /**
  * Provide access to the C++ log messages that arrive via a named pipe in JSON format.
  */
-public class CppLogMessage extends ToXContentToBytes implements Writeable {
+public class CppLogMessage implements ToXContentObject, Writeable {
     /**
      * Field Names (these are defined by log4cxx; we have no control over them)
      */

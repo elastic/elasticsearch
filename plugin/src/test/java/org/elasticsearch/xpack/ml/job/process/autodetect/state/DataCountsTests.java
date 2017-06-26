@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.state;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.joda.time.DateTime;
 
 import java.util.Date;
@@ -33,7 +33,7 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     @Override
-    protected DataCounts parseInstance(XContentParser parser) {
+    protected DataCounts doParseInstance(XContentParser parser) {
         return DataCounts.PARSER.apply(parser, null);
     }
 

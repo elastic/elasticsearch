@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -68,7 +68,7 @@ public class CppLogMessageTests extends AbstractSerializingTestCase<CppLogMessag
     }
 
     @Override
-    protected CppLogMessage parseInstance(XContentParser parser) {
+    protected CppLogMessage doParseInstance(XContentParser parser) {
         return CppLogMessage.PARSER.apply(parser, null);
     }
 }

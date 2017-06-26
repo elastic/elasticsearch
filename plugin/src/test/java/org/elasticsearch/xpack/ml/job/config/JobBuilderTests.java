@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.config;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.Collections;
 import java.util.Date;
@@ -81,7 +81,7 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
     }
 
     @Override
-    protected Job.Builder parseInstance(XContentParser parser) {
+    protected Job.Builder doParseInstance(XContentParser parser) {
         return Job.PARSER.apply(parser, null);
     }
 }

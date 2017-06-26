@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.mockito.Mockito;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;

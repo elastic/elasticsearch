@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -14,7 +13,6 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.results.ModelPlot;
-import org.mockito.ArgumentCaptor;
 
 import java.util.Date;
 

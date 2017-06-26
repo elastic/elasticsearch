@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -24,7 +24,7 @@ import java.util.Objects;
  * <p>
  * If an option has not been set it shouldn't be used so the default value is picked up instead.
  */
-public class AnalysisLimits extends ToXContentToBytes implements Writeable {
+public class AnalysisLimits implements ToXContentObject, Writeable {
     /**
      * Serialisation field names
      */

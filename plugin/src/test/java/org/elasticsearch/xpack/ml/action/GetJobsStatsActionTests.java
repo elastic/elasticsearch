@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.ml.action.GetJobsStatsAction.TransportAction.determineNonDeletedJobIdsWithoutLiveStats;
-
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

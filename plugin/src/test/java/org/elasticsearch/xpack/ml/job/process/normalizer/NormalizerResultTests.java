@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.process.normalizer;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 public class NormalizerResultTests extends AbstractSerializingTestCase<NormalizerResult> {
 
@@ -45,7 +45,7 @@ public class NormalizerResultTests extends AbstractSerializingTestCase<Normalize
     }
 
     @Override
-    protected NormalizerResult parseInstance(XContentParser parser) {
+    protected NormalizerResult doParseInstance(XContentParser parser) {
         return NormalizerResult.PARSER.apply(parser, null);
     }
 }

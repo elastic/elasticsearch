@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Assert;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
-
-import org.elasticsearch.test.ESTestCase;
-import org.junit.Assert;
 
 
 public class LengthEncodedWriterTests extends ESTestCase {

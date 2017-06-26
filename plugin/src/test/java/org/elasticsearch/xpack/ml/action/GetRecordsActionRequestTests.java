@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction.Request;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
-public class GetRecordsActionRequestTests extends AbstractStreamableXContentTestCase<GetRecordsAction.Request> {
+public class GetRecordsActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return GetRecordsAction.Request.parseRequest(null, parser);
     }
 

@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction.Request;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
 public class UpdateModelSnapshotActionRequestTests
-        extends AbstractStreamableXContentTestCase<UpdateModelSnapshotAction.Request> {
+        extends AbstractStreamableXContentTestCase<Request> {
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return UpdateModelSnapshotAction.Request.parseRequest(null, null, parser);
     }
 

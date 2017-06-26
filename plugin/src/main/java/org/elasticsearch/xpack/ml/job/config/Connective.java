@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
-import java.io.IOException;
-import java.util.Locale;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
+import java.util.Locale;
 
 public enum Connective implements Writeable {
     OR, AND;

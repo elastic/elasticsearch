@@ -10,15 +10,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessCtrl;
 import org.elasticsearch.xpack.ml.job.process.ProcessPipes;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.AnalysisLimitsWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.FieldConfigWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ModelPlotConfigWriter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;

@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.xpack.ml.job.config.Detector;
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
 
 import java.util.Arrays;
 import java.util.HashSet;

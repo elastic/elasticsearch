@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -13,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -26,7 +26,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class DetectionRule extends ToXContentToBytes implements Writeable {
+public class DetectionRule implements ToXContentObject, Writeable {
 
     public static final ParseField DETECTION_RULE_FIELD = new ParseField("detection_rule");
     public static final ParseField RULE_ACTION_FIELD = new ParseField("rule_action");

@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -35,7 +35,7 @@ import java.util.Objects;
  * delineated formats is {@value #DEFAULT_QUOTE_CHAR} but any other character can be
  * used.
  */
-public class DataDescription extends ToXContentToBytes implements Writeable {
+public class DataDescription implements ToXContentObject, Writeable {
     /**
      * Enum of the acceptable data formats.
      */

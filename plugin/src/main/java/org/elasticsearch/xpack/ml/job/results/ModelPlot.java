@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * Model Plot POJO.
  */
-public class ModelPlot extends ToXContentToBytes implements Writeable {
+public class ModelPlot implements ToXContentObject, Writeable {
     /**
      * Result type
      */

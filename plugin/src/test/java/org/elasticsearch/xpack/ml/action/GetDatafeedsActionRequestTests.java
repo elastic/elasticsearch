@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.action.GetDatafeedsAction.Request;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class GetDatafeedsActionRequestTests extends AbstractStreamableTestCase<Request> {
 

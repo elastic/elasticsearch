@@ -12,9 +12,9 @@ import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -269,7 +269,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
     }
 
     @Override
-    protected DataDescription parseInstance(XContentParser parser) {
+    protected DataDescription doParseInstance(XContentParser parser) {
         return DataDescription.PARSER.apply(parser, null).build();
     }
 }

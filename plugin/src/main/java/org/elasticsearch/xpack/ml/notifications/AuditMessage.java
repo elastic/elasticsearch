@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.notifications;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.Objects;
 
-public class AuditMessage extends ToXContentToBytes implements Writeable {
+public class AuditMessage implements ToXContentObject, Writeable {
     public static final ParseField TYPE = new ParseField("audit_message");
 
     public static final ParseField MESSAGE = new ParseField("message");

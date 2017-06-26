@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
@@ -35,7 +34,6 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWri
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;

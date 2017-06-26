@@ -7,18 +7,22 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -85,6 +89,18 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         return builder.build();
     }
 
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
     public static List<String> randomStringList(int min, int max) {
         int size = scaledRandomIntBetween(min, max);
         List<String> list = new ArrayList<>();
@@ -100,12 +116,12 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     }
 
     @Override
-    protected DatafeedConfig parseInstance(XContentParser parser) {
+    protected DatafeedConfig doParseInstance(XContentParser parser) {
         return DatafeedConfig.PARSER.apply(parser, null).build();
     }
 
     public void testCopyConstructor() {
-        for (int i = 0; i < NUMBER_OF_TESTQUERIES; i++) {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             DatafeedConfig datafeedConfig = createTestInstance();
             DatafeedConfig copy = new DatafeedConfig.Builder(datafeedConfig).build();
             assertEquals(datafeedConfig, copy);

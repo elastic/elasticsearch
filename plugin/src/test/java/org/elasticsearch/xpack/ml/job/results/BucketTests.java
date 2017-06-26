@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -80,7 +80,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     }
 
     @Override
-    protected Bucket parseInstance(XContentParser parser) {
+    protected Bucket doParseInstance(XContentParser parser) {
         return Bucket.PARSER.apply(parser, null);
     }
 

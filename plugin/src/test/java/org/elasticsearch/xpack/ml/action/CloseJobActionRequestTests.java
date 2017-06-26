@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.ml.action.CloseJobAction.Request;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
@@ -64,7 +64,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(null, parser);
     }
 

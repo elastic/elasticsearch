@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCountsTests;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class PostDataActionResponseTests extends AbstractStreamableTestCase<PostDataAction.Response> {
 

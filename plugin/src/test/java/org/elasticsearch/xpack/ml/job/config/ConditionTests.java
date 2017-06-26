@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 public class ConditionTests extends AbstractSerializingTestCase<Condition> {
 
@@ -59,7 +59,7 @@ public class ConditionTests extends AbstractSerializingTestCase<Condition> {
     }
 
     @Override
-    protected Condition parseInstance(XContentParser parser) {
+    protected Condition doParseInstance(XContentParser parser) {
         return Condition.PARSER.apply(parser, null);
     }
 

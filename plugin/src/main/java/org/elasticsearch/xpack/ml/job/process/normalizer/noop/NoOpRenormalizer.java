@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer.noop;
 
-import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.normalizer.Renormalizer;
 
 /**
  * A {@link Renormalizer} implementation that does absolutely nothing

@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 public class FlushAcknowledgementTests extends AbstractSerializingTestCase<FlushAcknowledgement> {
 
     @Override
-    protected FlushAcknowledgement parseInstance(XContentParser parser) {
+    protected FlushAcknowledgement doParseInstance(XContentParser parser) {
         return FlushAcknowledgement.PARSER.apply(parser, null);
     }
 

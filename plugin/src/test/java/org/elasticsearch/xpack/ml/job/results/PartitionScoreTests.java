@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 public class PartitionScoreTests extends AbstractSerializingTestCase<PartitionScore> {
 
@@ -23,7 +23,7 @@ public class PartitionScoreTests extends AbstractSerializingTestCase<PartitionSc
     }
 
     @Override
-    protected PartitionScore parseInstance(XContentParser parser) {
+    protected PartitionScore doParseInstance(XContentParser parser) {
         return PartitionScore.PARSER.apply(parser, null);
     }
 

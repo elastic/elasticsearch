@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.ml.action.util;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
@@ -26,7 +26,7 @@ import java.util.Objects;
  * not be equal to the actual length of the {@linkplain #results()} list if from
  * &amp; take or some cursor was used in the database query.
  */
-public final class QueryPage<T extends ToXContent & Writeable> extends ToXContentToBytes implements Writeable {
+public final class QueryPage<T extends ToXContent & Writeable> implements ToXContentObject, Writeable {
 
     public static final ParseField COUNT = new ParseField("count");
     public static final ParseField DEFAULT_RESULTS_FIELD = new ParseField("results_field");

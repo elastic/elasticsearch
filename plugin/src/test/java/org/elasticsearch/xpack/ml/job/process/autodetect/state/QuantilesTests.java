@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.state;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.Date;
 
@@ -77,7 +77,7 @@ public class QuantilesTests extends AbstractSerializingTestCase<Quantiles> {
     }
 
     @Override
-    protected Quantiles parseInstance(XContentParser parser) {
+    protected Quantiles doParseInstance(XContentParser parser) {
         return Quantiles.PARSER.apply(parser, null);
     }
 }

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -19,7 +19,7 @@ import java.util.Objects;
 /**
  * Simple class to parse and store a flush ID.
  */
-public class FlushAcknowledgement extends ToXContentToBytes implements Writeable {
+public class FlushAcknowledgement implements ToXContentObject, Writeable {
     /**
      * Field Names
      */

@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.ml.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction.DatafeedParams;
 import org.elasticsearch.xpack.ml.action.StartDatafeedAction.Request;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class StartDatafeedActionRequestTests extends AbstractStreamableXContentTestCase<StartDatafeedAction.Request> {
+public class StartDatafeedActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -34,7 +34,7 @@ public class StartDatafeedActionRequestTests extends AbstractStreamableXContentT
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(null, parser);
     }
 

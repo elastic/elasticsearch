@@ -237,9 +237,6 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      */
     public synchronized void updateAllocationIdsFromMaster(
             final long applyingClusterStateVersion, final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
-        if (sealed) {
-            throw new IllegalStateException("global checkpoint tracker is sealed");
-        }
         if (applyingClusterStateVersion < appliedClusterStateVersion) {
             return;
         }

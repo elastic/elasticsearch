@@ -51,8 +51,8 @@ public class CppLogMessageHandler implements Closeable {
     private final Deque<String> errorStore;
     private final CountDownLatch pidLatch;
     private final CountDownLatch cppCopyrightLatch;
+    private final CountDownLatch logStreamClosedLatch;
     private MessageSummary lastMessageSummary = new MessageSummary();
-    private volatile boolean hasLogStreamEnded;
     private volatile boolean seenFatalError;
     private volatile long pid;
     private volatile String cppCopyright;
@@ -76,7 +76,7 @@ public class CppLogMessageHandler implements Closeable {
         errorStore = ConcurrentCollections.newDeque();
         pidLatch = new CountDownLatch(1);
         cppCopyrightLatch = new CountDownLatch(1);
-        hasLogStreamEnded = false;
+        logStreamClosedLatch = new CountDownLatch(1);
     }
 
     @Override
@@ -104,7 +104,7 @@ public class CppLogMessageHandler implements Closeable {
                 readBuf = new byte[readBufSize];
             }
         } finally {
-            hasLogStreamEnded = true;
+            logStreamClosedLatch.countDown();
 
             // check if there is some leftover from log summarization
             if (lastMessageSummary.count > 0) {
@@ -114,11 +114,20 @@ public class CppLogMessageHandler implements Closeable {
     }
 
     public boolean hasLogStreamEnded() {
-        return hasLogStreamEnded;
+        return logStreamClosedLatch.getCount() == 0;
     }
 
     public boolean seenFatalError() {
         return seenFatalError;
+    }
+
+    public boolean waitForLogStreamClose(Duration timeout) {
+        try {
+            return logStreamClosedLatch.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        return false;
     }
 
     /**

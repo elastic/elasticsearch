@@ -47,6 +47,8 @@ import java.util.concurrent.TimeoutException;
 class NativeAutodetectProcess implements AutodetectProcess {
     private static final Logger LOGGER = Loggers.getLogger(NativeAutodetectProcess.class);
 
+    private static final Duration WAIT_FOR_KILL_TIMEOUT = Duration.ofMillis(1000);
+
     private final String jobId;
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream processInStream;
@@ -207,6 +209,10 @@ class NativeAutodetectProcess implements AutodetectProcess {
             // but if the wait times out it implies the process has only just started, in which
             // case it should die very quickly when we close its input stream.
             NativeControllerHolder.getNativeController().killProcess(cppLogHandler.getPid(Duration.ZERO));
+
+            // Wait for the process to die before closing processInStream as if the process
+            // is still alive when processInStream is closed autodetect will start persisting state
+            cppLogHandler.waitForLogStreamClose(WAIT_FOR_KILL_TIMEOUT);
         } catch (TimeoutException e) {
             LOGGER.warn("[{}] Failed to get PID of autodetect process to kill", jobId);
         } finally {

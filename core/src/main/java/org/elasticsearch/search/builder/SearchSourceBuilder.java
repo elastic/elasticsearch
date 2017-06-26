@@ -347,7 +347,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      */
     public SearchSourceBuilder size(int size) {
         if (size < 0) {
-            throw new IllegalArgumentException("[size] parameter cannot be negative");
+            throw new IllegalArgumentException("[size] parameter cannot be negative, found " + size);
         }
         this.size = size;
         return this;

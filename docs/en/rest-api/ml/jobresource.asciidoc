@@ -306,5 +306,5 @@ The `model_plot_config` object has the following properties:
 
 `terms`::
   (string) Limits data collection to this comma separated list of _partition_
-  or _by_ field names. If terms are not specified or it is an empty string,
+  or _by_ field values. If terms are not specified or it is an empty string,
   no filtering is applied. For example, `"CPU,NetworkIn,DiskWrites"`

@@ -23,13 +23,20 @@ import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.collect.LongTuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * This class is responsible of tracking the global checkpoint. The global checkpoint is the highest sequence number for which all lower (or
@@ -41,6 +48,8 @@ import java.util.Set;
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas (via {@link GlobalCheckpointSyncAction}).
  */
 public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
+
+    long appliedClusterStateVersion;
 
     /*
      * This map holds the last known local checkpoint for every active shard and initializing shard copies that has been brought up to speed
@@ -68,6 +77,12 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      */
     private long globalCheckpoint;
 
+    /*
+     * During relocation handoff, the state of the global checkpoint tracker is sampled. After sampling, there should be no additional
+     * mutations to this tracker until the handoff has completed.
+     */
+    private boolean sealed = false;
+
     /**
      * Initialize the global checkpoint service. The specified global checkpoint should be set to the last known global checkpoint, or
      * {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
@@ -94,6 +109,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @param localCheckpoint the local checkpoint for the shard
      */
     public synchronized void updateLocalCheckpoint(final String allocationId, final long localCheckpoint) {
+        if (sealed) {
+            throw new IllegalStateException("global checkpoint tracker is sealed");
+        }
         final boolean updated;
         if (updateLocalCheckpoint(allocationId, localCheckpoint, inSyncLocalCheckpoints, "in-sync")) {
             updated = true;
@@ -210,11 +228,18 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     /**
      * Notifies the service of the current allocation ids in the cluster state. This method trims any shards that have been removed.
      *
-     * @param activeAllocationIds       the allocation IDs of the currently active shard copies
-     * @param initializingAllocationIds the allocation IDs of the currently initializing shard copies
+     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
+     * @param activeAllocationIds         the allocation IDs of the currently active shard copies
+     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
      */
     public synchronized void updateAllocationIdsFromMaster(
-            final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
+            final long applyingClusterStateVersion, final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
+        if (applyingClusterStateVersion < appliedClusterStateVersion) {
+            return;
+        }
+
+        appliedClusterStateVersion = applyingClusterStateVersion;
+
         // remove shards whose allocation ID no longer exists
         inSyncLocalCheckpoints.removeAll(a -> !activeAllocationIds.contains(a) && !initializingAllocationIds.contains(a));
 
@@ -249,6 +274,135 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     }
 
     /**
+     * Get the primary context for the shard. This includes the state of the global checkpoint tracker.
+     *
+     * @return the primary context
+     */
+    synchronized PrimaryContext primaryContext() {
+        if (sealed) {
+            throw new IllegalStateException("global checkpoint tracker is sealed");
+        }
+        sealed = true;
+        final ObjectLongMap<String> inSyncLocalCheckpoints = new ObjectLongHashMap<>(this.inSyncLocalCheckpoints);
+        final ObjectLongMap<String> trackingLocalCheckpoints = new ObjectLongHashMap<>(this.trackingLocalCheckpoints);
+        return new PrimaryContext(appliedClusterStateVersion, inSyncLocalCheckpoints, trackingLocalCheckpoints);
+    }
+
+    /**
+     * Releases a previously acquired primary context.
+     */
+    synchronized void releasePrimaryContext() {
+        assert sealed;
+        sealed = false;
+    }
+
+    /**
+     * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
+     *
+     * @param primaryContext the primary context
+     */
+    synchronized void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
+        if (sealed) {
+            throw new IllegalStateException("global checkpoint tracker is sealed");
+        }
+        /*
+         * We are gathered here today to witness the relocation handoff transferring knowledge from the relocation source to the relocation
+         * target. We need to consider the possibility that the version of the cluster state on the relocation source when the primary
+         * context was sampled is different than the version of the cluster state on the relocation target at this exact moment. We define
+         * the following values:
+         *  - version(source) = the cluster state version on the relocation source used to ensure a minimum cluster state version on the
+         *    relocation target
+         *  - version(context) = the cluster state version on the relocation source when the primary context was sampled
+         *  - version(target) = the current cluster state version on the relocation target
+         *
+         * We know that version(source) <= version(target) and version(context) < version(target), version(context) = version(target), and
+         * version(target) < version(context) are all possibilities.
+         *
+         * The case of version(context) = version(target) causes no issues as in this case the knowledge of the in-sync and initializing
+         * shards the target receives from the master will be equal to the knowledge of the in-sync and initializing shards the target
+         * receives from the relocation source via the primary context.
+         *
+         * Let us now consider the case that version(context) < version(target). In this case, the active allocation IDs in the primary
+         * context can be a superset of the active allocation IDs contained in the applied cluster state. This is because no new shards can
+         * have been started as marking a shard as in-sync is blocked during relocation handoff. Note however that the relocation target
+         * itself will have been marked in-sync during recovery and therefore is an active allocation ID from the perspective of the primary
+         * context.
+         *
+         * Finally, we consider the case that version(target) < version(context). In this case, the active allocation IDs in the primary
+         * context can be a subset of the active allocation IDs contained the applied cluster state. This is again because no new shards can
+         * have been started. Moreover, existing active allocation IDs could have been removed from the cluster state.
+         *
+         * In each of these latter two cases, consider initializing shards that are contained in the primary context but not contained in
+         * the cluster state applied on the target.
+         *
+         * If version(context) < version(target) it means that the shard has been removed by a later cluster state update that is already
+         * applied on the target and we only need to ensure that we do not add it to the tracking map on the target. The call to
+         * GlobalCheckpointTracker#updateLocalCheckpoint(String, long) is a no-op for such shards and this is safe.
+         *
+         * If version(target) < version(context) it means that the shard has started initializing by a later cluster state update has not
+         * yet arrived on the target. However, there is a delay on recoveries before we ensure that version(source) <= version(target).
+         * Therefore, such a shard can never initialize from the relocation source and will have to await the handoff completing. As such,
+         * these shards are not problematic.
+         *
+         * Lastly, again in these two cases, what about initializing shards that are contained in cluster state applied on the target but
+         * not contained in the cluster state applied on the target.
+         *
+         * If version(context) < version(target) it means that a shard has started initializing by a later cluster state that is applied on
+         * the target but not yet known to what would be the relocation source. As recoveries are delayed at this time, these shards can not
+         * cause a problem and we do not mutate remove these shards from the tracking map, so we are safe here.
+         *
+         * If version(target) < version(context) it means that a shard has started initializing but was removed by a later cluster state. In
+         * this case, as the cluster state version on the primary context exceeds the applied cluster state version, we replace the tracking
+         * map and are safe here too.
+         */
+
+        assert StreamSupport
+                .stream(inSyncLocalCheckpoints.spliterator(), false)
+                .allMatch(e -> e.value == SequenceNumbersService.UNASSIGNED_SEQ_NO) : inSyncLocalCheckpoints;
+        assert StreamSupport
+                .stream(trackingLocalCheckpoints.spliterator(), false)
+                .allMatch(e -> e.value == SequenceNumbersService.UNASSIGNED_SEQ_NO) : trackingLocalCheckpoints;
+        assert pendingInSync.isEmpty() : pendingInSync;
+
+        if (primaryContext.clusterStateVersion() > appliedClusterStateVersion) {
+            final Set<String> activeAllocationIds =
+                    new HashSet<>(Arrays.asList(primaryContext.inSyncLocalCheckpoints().keys().toArray(String.class)));
+            final Set<String> initializingAllocationIds =
+                    new HashSet<>(Arrays.asList(primaryContext.trackingLocalCheckpoints().keys().toArray(String.class)));
+            updateAllocationIdsFromMaster(primaryContext.clusterStateVersion(), activeAllocationIds, initializingAllocationIds);
+        }
+
+        /*
+         * As we are updating the local checkpoints for the in-sync allocation IDs, the global checkpoint will advance in place; this means
+         * that we have to sort the incoming local checkpoints from smallest to largest lest we violate that the global checkpoint does not
+         * regress.
+         */
+        final List<LongTuple<String>> inSync =
+                StreamSupport
+                        .stream(primaryContext.inSyncLocalCheckpoints().spliterator(), false)
+                        .map(e -> LongTuple.tuple(e.key, e.value))
+                        .collect(Collectors.toList());
+
+        inSync.sort(Comparator.comparingLong(LongTuple::v2));
+
+        for (final LongTuple<String> cursor : inSync) {
+            assert cursor.v2() >= globalCheckpoint
+                    : "local checkpoint [" + cursor.v2() + "] "
+                    + "for allocation ID [" + cursor.v1() + "] "
+                    + "violates being at least the global checkpoint [" + globalCheckpoint + "]";
+            updateLocalCheckpoint(cursor.v1(), cursor.v2());
+            if (trackingLocalCheckpoints.containsKey(cursor.v1())) {
+                moveAllocationIdFromTrackingToInSync(cursor.v1(), "relocation");
+                updateGlobalCheckpointOnPrimary();
+            }
+        }
+
+        for (final ObjectLongCursor<String> cursor : primaryContext.trackingLocalCheckpoints()) {
+            updateLocalCheckpoint(cursor.key, cursor.value);
+        }
+    }
+
+    /**
      * Marks the shard with the provided allocation ID as in-sync with the primary shard. This method will block until the local checkpoint
      * on the specified shard advances above the current global checkpoint.
      *
@@ -258,6 +412,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @throws InterruptedException if the thread is interrupted waiting for the local checkpoint on the shard to advance
      */
     public synchronized void markAllocationIdAsInSync(final String allocationId, final long localCheckpoint) throws InterruptedException {
+        if (sealed) {
+            throw new IllegalStateException("global checkpoint tracker is sealed");
+        }
         if (!trackingLocalCheckpoints.containsKey(allocationId)) {
             /*
              * This can happen if the recovery target has been failed and the cluster state update from the master has triggered removing
@@ -295,20 +452,33 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
              */
             final long current = trackingLocalCheckpoints.getOrDefault(allocationId, Long.MIN_VALUE);
             if (current >= globalCheckpoint) {
-                logger.trace("marked [{}] as in-sync with local checkpoint [{}]", allocationId, current);
-                trackingLocalCheckpoints.remove(allocationId);
                 /*
                  * This is prematurely adding the allocation ID to the in-sync map as at this point recovery is not yet finished and could
                  * still abort. At this point we will end up with a shard in the in-sync map holding back the global checkpoint because the
                  * shard never recovered and we would have to wait until either the recovery retries and completes successfully, or the
                  * master fails the shard and issues a cluster state update that removes the shard from the set of active allocation IDs.
                  */
-                inSyncLocalCheckpoints.put(allocationId, current);
+                moveAllocationIdFromTrackingToInSync(allocationId, "recovery");
                 break;
             } else {
                 waitForLocalCheckpointToAdvance();
             }
         }
+    }
+
+    /**
+     * Moves a tracking allocation ID to be in-sync. This can occur when a shard is recovering from the primary and its local checkpoint has
+     * advanced past the global checkpoint, or during relocation hand-off when the relocation target learns of an in-sync shard from the
+     * relocation source.
+     *
+     * @param allocationId the allocation ID to move
+     * @param reason       the reason for the transition
+     */
+    private synchronized void moveAllocationIdFromTrackingToInSync(final String allocationId, final String reason) {
+        assert trackingLocalCheckpoints.containsKey(allocationId);
+        final long current = trackingLocalCheckpoints.remove(allocationId);
+        inSyncLocalCheckpoints.put(allocationId, current);
+        logger.trace("marked [{}] as in-sync with local checkpoint [{}] due to [{}]", allocationId, current, reason);
     }
 
     /**
@@ -324,10 +494,19 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     /**
      * Check if there are any recoveries pending in-sync.
      *
-     * @return {@code true} if there is at least one shard pending in-sync, otherwise false
+     * @return true if there is at least one shard pending in-sync, otherwise false
      */
-    public boolean pendingInSync() {
+    boolean pendingInSync() {
         return !pendingInSync.isEmpty();
+    }
+
+    /**
+     * Check if the tracker is sealed.
+     *
+     * @return true if the tracker is sealed, otherwise false.
+     */
+    boolean sealed() {
+        return sealed;
     }
 
     /**

@@ -515,31 +515,37 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
 
-    public void relocated(String reason) throws IllegalIndexShardStateException, InterruptedException {
+    /**
+     * Completes the relocation. Operations are blocked and current operations are drained before changing state to relocated. The provided
+     * {@link Runnable} is executed after all operations are successfully blocked.
+     *
+     * @param reason    the reason for the relocation
+     * @param consumer a {@link Runnable} that is executed after operations are blocked
+     * @throws IllegalIndexShardStateException if the shard is not relocating due to concurrent cancellation
+     * @throws InterruptedException            if blocking operations is interrupted
+     */
+    public void relocated(
+            final String reason, final Consumer<PrimaryContext> consumer) throws IllegalIndexShardStateException, InterruptedException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
         try {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == 0 :
-                    "in-flight operations in progress while moving shard state to relocated";
-                synchronized (mutex) {
-                    if (state != IndexShardState.STARTED) {
-                        throw new IndexShardNotStartedException(shardId, state);
+                        "in-flight operations in progress while moving shard state to relocated";
+                /*
+                 * We should not invoke the runnable under the mutex as the expected implementation is to handoff the primary context via a
+                 * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
+                 */
+                verifyRelocatingState();
+                final PrimaryContext primaryContext = getEngine().seqNoService().primaryContext();
+                try {
+                    consumer.accept(primaryContext);
+                    synchronized (mutex) {
+                        verifyRelocatingState();
+                        changeState(IndexShardState.RELOCATED, reason);
                     }
-                    // if the master cancelled the recovery, the target will be removed
-                    // and the recovery will stopped.
-                    // However, it is still possible that we concurrently end up here
-                    // and therefore have to protect we don't mark the shard as relocated when
-                    // its shard routing says otherwise.
-                    if (shardRouting.relocating() == false) {
-                        throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
-                            ": shard is no longer relocating " + shardRouting);
-                    }
-                    if (primaryReplicaResyncInProgress.get()) {
-                        throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
-                            ": primary relocation is forbidden while primary-replica resync is in progress " + shardRouting);
-                    }
-                    changeState(IndexShardState.RELOCATED, reason);
+                } catch (final Exception e) {
+                    getEngine().seqNoService().releasePrimaryContext();
                 }
             });
         } catch (TimeoutException e) {
@@ -551,6 +557,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    private void verifyRelocatingState() {
+        if (state != IndexShardState.STARTED) {
+            throw new IndexShardNotStartedException(shardId, state);
+        }
+        /*
+         * If the master cancelled recovery, the target will be removed and the recovery will be cancelled. However, it is still possible
+         * that we concurrently end up here and therefore have to protect that we do not mark the shard as relocated when its shard routing
+         * says otherwise.
+         */
+
+        if (shardRouting.relocating() == false) {
+            throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
+                ": shard is no longer relocating " + shardRouting);
+        }
+
+        if (primaryReplicaResyncInProgress.get()) {
+            throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
+                ": primary relocation is forbidden while primary-replica resync is in progress " + shardRouting);
+        }
+    }
 
     public IndexShardState state() {
         return state;
@@ -1319,7 +1345,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void verifyPrimary() {
         if (shardRouting.primary() == false) {
-            throw new IllegalStateException("shard is not a primary " + shardRouting);
+            throw new IllegalStateException("shard " + shardRouting + " is not a primary");
         }
     }
 
@@ -1327,8 +1353,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexShardState state = state();
         if (shardRouting.primary() && shardRouting.active() && state != IndexShardState.RELOCATED) {
             // must use exception that is not ignored by replication logic. See TransportActions.isShardNotAvailableException
-            throw new IllegalStateException("active primary shard cannot be a replication target before " +
-                " relocation hand off " + shardRouting + ", state is [" + state + "]");
+            throw new IllegalStateException("active primary shard " + shardRouting + " cannot be a replication target before " +
+                "relocation hand off, state is [" + state + "]");
         }
     }
 
@@ -1603,8 +1629,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         verifyPrimary();
         getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
         /*
-         * We could have blocked waiting for the replica to catch up that we fell idle and there will not be a background sync to the
-         * replica; mark our self as active to force a future background sync.
+         * We could have blocked so long waiting for the replica to catch up that we fell idle and there will not be a background sync to
+         * the replica; mark our self as active to force a future background sync.
          */
         active.compareAndSet(false, true);
     }
@@ -1654,18 +1680,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Notifies the service of the current allocation IDs in the cluster state. See
-     * {@link org.elasticsearch.index.seqno.GlobalCheckpointTracker#updateAllocationIdsFromMaster(Set, Set)}
+     * {@link org.elasticsearch.index.seqno.GlobalCheckpointTracker#updateAllocationIdsFromMaster(long, Set, Set)}
      * for details.
      *
-     * @param activeAllocationIds       the allocation IDs of the currently active shard copies
-     * @param initializingAllocationIds the allocation IDs of the currently initializing shard copies
+     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
+     * @param activeAllocationIds         the allocation IDs of the currently active shard copies
+     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
      */
-    public void updateAllocationIdsFromMaster(final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
+    public void updateAllocationIdsFromMaster(
+            final long applyingClusterStateVersion, final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
         verifyPrimary();
         final Engine engine = getEngineOrNull();
         // if the engine is not yet started, we are not ready yet and can just ignore this
         if (engine != null) {
-            engine.seqNoService().updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+            engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, activeAllocationIds, initializingAllocationIds);
+        }
+    }
+
+    /**
+     * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
+     *
+     * @param primaryContext the sequence number context
+     */
+    public void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
+        verifyPrimary();
+        assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
+        final Engine engine = getEngineOrNull();
+        if (engine != null) {
+            engine.seqNoService().updateAllocationIdsFromPrimaryContext(primaryContext);
         }
     }
 

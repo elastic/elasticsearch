@@ -571,7 +571,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         allocationIdsForShardsOnNodesThatUnderstandSeqNos(indexShardRoutingTable.getAllInitializingShards(), nodes);
                 shard.updatePrimaryTerm(clusterState.metaData().index(shard.shardId().getIndex()).primaryTerm(shard.shardId().id()),
                     primaryReplicaSyncer::resync);
-                shard.updateAllocationIdsFromMaster(activeIds, initializingIds);
+                shard.updateAllocationIdsFromMaster(clusterState.version(), activeIds, initializingIds);
             }
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
@@ -758,12 +758,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
         /**
          * Notifies the service of the current allocation ids in the cluster state.
-         * See {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(Set, Set)} for details.
+         * See {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(long, Set, Set)} for details.
          *
-         * @param activeAllocationIds       the allocation ids of the currently active shard copies
-         * @param initializingAllocationIds the allocation ids of the currently initializing shard copies
+         * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
+         * @param activeAllocationIds         the allocation ids of the currently active shard copies
+         * @param initializingAllocationIds   the allocation ids of the currently initializing shard copies
          */
-        void updateAllocationIdsFromMaster(Set<String> activeAllocationIds, Set<String> initializingAllocationIds);
+        void updateAllocationIdsFromMaster(
+                long applyingClusterStateVersion, Set<String> activeAllocationIds, Set<String> initializingAllocationIds);
     }
 
     public interface AllocatedIndex<T extends Shard> extends Iterable<T>, IndexComponent {

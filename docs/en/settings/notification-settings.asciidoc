@@ -2,7 +2,8 @@
 == {watcher} Settings
 
 You configure `xpack.notification` settings in `elasticsearch.yml` to 
-send set up {watcher} and send notifications via <<email-notification-settings, email>>, <<hipchat-notification-settings, HipChat>>, <<slack-notification-settings, 
+send set up {watcher} and send notifications via <<email-notification-settings, email>>,
+<<hipchat-notification-settings, HipChat>>, <<slack-notification-settings, 
 Slack>>, and <<pagerduty-notification-settings, PagerDuty>>.
 
 [float]
@@ -34,7 +35,7 @@ include::ssl-settings.asciidoc[]
 === Email Notification Settings
 You can configure the following email notification settings in 
 `elasticsearch.yml`. For more information about sending notifications 
-via email, see <<configuring-email, Configuring Email>>.
+via email, see {xpack-ref}/actions-email.html#configuring-email-actions[Configuring Email].
 
 `xpack.notification.email.account`::
 Specifies account information for sending notifications via email. You 
@@ -42,14 +43,14 @@ can specify the following email account attributes:
 
 [[email-account-attributes]]
   `profile`;; 
-  The <<email-profile, profile>> to use to build the MIME messages
-  that are sent from the account. Valid values: `standard`, `gmail` and 
+  The {xpack-ref}/actions-email.html#configuring-email[email profile] to use to build the MIME
+  messages that are sent from the account. Valid values: `standard`, `gmail` and 
   `outlook`. Defaults to `standard`.
 
   `email_defaults.*`;; 
   An optional set of email attributes to use as defaults 
-  for the emails sent from the account. See <<email-action-attributes, Email Action 
-  Attributes>> for the supported attributes.
+  for the emails sent from the account. See {xpack-ref}/actions-email.html#email-action-attributes[
+  Email Action Attributes] for the supported attributes.
 
   `smtp.auth`;; 
   Set to `true` to attempt to authenticate the user using the 
@@ -83,8 +84,8 @@ can specify the following email account attributes:
 
 `xpack.notification.email.html.sanitization.allow`::
 Specifies the HTML elements that are allowed in email notifications. For
-more information, see <<email-html-sanitization, Configuring HTML 
-Sanitization Options>>. You can specify individual HTML elements
+more information, see {xpack-ref}/actions-email.html#email-html-sanitization[Configuring HTML 
+Sanitization Options]. You can specify individual HTML elements
 and the following HTML feature groups:
 
 [[html-feature-groups]]
@@ -134,7 +135,7 @@ Defaults to `true`.
 === HipChat Notification Settings
 You can configure the following HipChat notification settings in 
 `elasticsearch.yml`. For more information about sending notifications 
-via HipChat, see <<configuring-hipchat, Configuring HipChat>>.
+via HipChat, see {xpack-ref}/actions-hipchat.html#configuring-hipchat-actions[Configuring HipChat].
 
 `xpack.notification.hipchat` ::
 Specifies account information for sending notifications
@@ -183,7 +184,7 @@ via HipChat. You can specify the following HipChat account attributes:
 === Slack Notification Settings
 You can configure the following Slack notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via Slack, see  <<configuring-slack, Configuring Slack>>.
+via Slack, see  {xpack-ref}/actions-slack.html#configuring-slack-actions[Configuring Slack].
 
 `xpack.notification.slack` ::
 Specifies account information for sending notifications
@@ -224,7 +225,7 @@ via Slack. You can specify the following Slack account attributes:
 === Jira Notification Settings
 You can configure the following Jira notification settings in
 `elasticsearch.yml`. For more information about using notifications
-to create issues in Jira, see  <<configuring-jira, Configuring Jira>>.
+to create issues in Jira, see  {xpack-ref}/actions-jira.html#configuring-jira-actions[Configuring Jira].
 
 `xpack.notification.jira` ::
 Specifies account information for using notifications to create
@@ -243,7 +244,7 @@ issues in Jira. You can specify the following Jira account attributes:
 
   `issue_defaults`;;
   Default fields values for the issue created in Jira. See
-  <<jira-action-attributes, Jira Action Attributes>> for more information.
+  {xpack-ref}/actions-jira.html#jira-action-attributes[Jira Action Attributes] for more information.
   Optional.
 
 
@@ -252,7 +253,7 @@ issues in Jira. You can specify the following Jira account attributes:
 === PagerDuty Notification Settings
 You can configure the following PagerDuty notification settings in 
 `elasticsearch.yml`. For more information about sending notifications 
-via PagerDuty, see  <<configuring-pagerduty, Configuring PagerDuty>>.
+via PagerDuty, see  {xpack-ref}/actions-pagerduty.html#configuring-pagerduty-actions[Configuring PagerDuty].
 
 
 [[pagerduty-account-attributes]]
@@ -270,7 +271,8 @@ via PagerDuty. You can specify the following PagerDuty account attributes:
 
   
   `event_defaults`;;
-  Default values for  <<pagerduty-event-trigger-incident-attributes,PagerDuty event attributes>>. Optional.
+  Default values for  {xpack-ref}/actions-pagerduty.html#pagerduty-event-trigger-incident-attributes[
+  PagerDuty event attributes]. Optional.
 
         `description`::
         A string that contains the default description for PagerDuty events.

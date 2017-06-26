@@ -28,6 +28,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -42,6 +43,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Type;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
@@ -418,24 +421,33 @@ public class PluginsService extends AbstractComponent {
     }
 
     private Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
+        final Constructor<?>[] constructors = pluginClass.getConstructors();
+        if (constructors.length == 0) {
+            throw new IllegalStateException("no public constructor for [" + pluginClass.getName() + "]");
+        }
+
+        if (constructors.length > 1) {
+            throw new IllegalStateException("no unique public constructor for [" + pluginClass.getName() + "]");
+        }
+
+        final Constructor<?> constructor = constructors[0];
+        if (constructor.getParameterCount() > 2) {
+            throw new IllegalStateException("no public constructor of correct signature for [" + pluginClass.getName() + "]");
+        }
+
+        final Class[] parameterTypes = constructor.getParameterTypes();
         try {
-            try {
-                return pluginClass.getConstructor(Settings.class, Path.class).newInstance(settings, configPath);
-            } catch (NoSuchMethodException e) {
-                try {
-                    return pluginClass.getConstructor(Settings.class).newInstance(settings);
-                } catch (NoSuchMethodException e1) {
-                    try {
-                        return pluginClass.getConstructor().newInstance();
-                    } catch (NoSuchMethodException e2) {
-                        throw new ElasticsearchException("No constructor for [" + pluginClass + "]. A plugin class must " +
-                                "have either an empty default constructor, a single argument constructor accepting a " +
-                                "Settings instance, or a single argument constructor accepting a pair of Settings, Path instances");
-                    }
-                }
+            if (constructor.getParameterCount() == 2 && parameterTypes[0] == Settings.class && parameterTypes[1] == Path.class) {
+                return (Plugin)constructor.newInstance(settings, configPath);
+            } else if (constructor.getParameterCount() == 1 && parameterTypes[0] == Settings.class) {
+                return (Plugin)constructor.newInstance(settings);
+            } else if (constructor.getParameterCount() == 0) {
+                return (Plugin)constructor.newInstance();
+            } else {
+                throw new IllegalStateException("no public constructor of correct signature for [" + pluginClass.getName() + "]");
             }
-        } catch (Exception e) {
-            throw new ElasticsearchException("Failed to load plugin class [" + pluginClass.getName() + "]", e);
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException("failed to load plugin class [" + pluginClass.getName() + "]", e);
         }
     }
 

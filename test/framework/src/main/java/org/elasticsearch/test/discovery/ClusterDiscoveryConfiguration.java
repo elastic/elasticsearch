@@ -59,7 +59,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
     }
 
     @Override
-    public Path nodePathConf(int nodeOrdinal) {
+    public Path nodeConfigPath(int nodeOrdinal) {
         return null;
     }
 

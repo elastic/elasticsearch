@@ -1731,7 +1731,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         return builder.build();
     }
 
-    protected Path nodePathConf(int nodeOrdinal) {
+    protected Path nodeConfigPath(int nodeOrdinal) {
         return null;
     }
 
@@ -1844,8 +1844,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
             }
 
             @Override
-            public Path nodePathConf(int nodeOrdinal) {
-                return ESIntegTestCase.this.nodePathConf(nodeOrdinal);
+            public Path nodeConfigPath(int nodeOrdinal) {
+                return ESIntegTestCase.this.nodeConfigPath(nodeOrdinal);
             }
 
             @Override

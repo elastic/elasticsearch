@@ -144,21 +144,21 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.logsFile(), equalTo(pathHome.resolve("logs")));
     }
 
-    public void testDefaultPathConf() {
+    public void testDefaultConfigPath() {
         final Path path = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", path).build();
         final Environment environment = new Environment(settings, null);
         assertThat(environment.configFile(), equalTo(path.resolve("config")));
     }
 
-    public void testPathConf() {
-        final Path pathConf = createTempDir().toAbsolutePath();
+    public void testConfigPath() {
+        final Path configPath = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", createTempDir().toAbsolutePath()).build();
-        final Environment environment = new Environment(settings, pathConf);
-        assertThat(environment.configFile(), equalTo(pathConf));
+        final Environment environment = new Environment(settings, configPath);
+        assertThat(environment.configFile(), equalTo(configPath));
     }
 
-    public void testPathConfWhenNotSet() {
+    public void testConfigPathWhenNotSet() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings);

@@ -56,14 +56,14 @@ public class HunspellServiceTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .build();
 
-        final Path pathConf = getDataPath("/indices/analyze/conf_dir");
-        final Environment environment = new Environment(settings, pathConf);
+        final Path configPath = getDataPath("/indices/analyze/conf_dir");
+        final Environment environment = new Environment(settings, configPath);
         Dictionary dictionary = new HunspellService(settings, environment, emptyMap()).getDictionary("en_US");
         assertThat(dictionary, notNullValue());
         assertFalse(dictionary.getIgnoreCase());
 
         // testing that dictionary specific settings override node level settings
-        dictionary = new HunspellService(settings, new Environment(settings, pathConf), emptyMap()).getDictionary("en_US_custom");
+        dictionary = new HunspellService(settings, new Environment(settings, configPath), emptyMap()).getDictionary("en_US_custom");
         assertThat(dictionary, notNullValue());
         assertTrue(dictionary.getIgnoreCase());
     }

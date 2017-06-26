@@ -92,7 +92,7 @@ public class Environment {
         this(settings, null);
     }
 
-    public Environment(final Settings settings, final Path pathConf) {
+    public Environment(final Settings settings, final Path configPath) {
         final Path homeFile;
         if (PATH_HOME_SETTING.exists(settings)) {
             homeFile = PathUtils.get(PATH_HOME_SETTING.get(settings)).normalize();
@@ -100,8 +100,8 @@ public class Environment {
             throw new IllegalStateException(PATH_HOME_SETTING.getKey() + " is not configured");
         }
 
-        if (pathConf != null) {
-            configFile = pathConf.normalize();
+        if (configPath != null) {
+            configFile = configPath.normalize();
         } else {
             configFile = homeFile.resolve("config");
         }

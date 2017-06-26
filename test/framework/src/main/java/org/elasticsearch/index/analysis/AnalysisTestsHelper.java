@@ -51,7 +51,7 @@ public class AnalysisTestsHelper {
 
     public static ESTestCase.TestAnalysis createTestAnalysisFromSettings(
             final Settings settings,
-            final Path pathConf,
+            final Path configPath,
             final AnalysisPlugin... plugins) throws IOException {
         final Settings actualSettings;
         if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
@@ -61,7 +61,7 @@ public class AnalysisTestsHelper {
         }
         final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", actualSettings);
         final AnalysisRegistry analysisRegistry =
-                new AnalysisModule(new Environment(actualSettings, pathConf), Arrays.asList(plugins)).getAnalysisRegistry();
+                new AnalysisModule(new Environment(actualSettings, configPath), Arrays.asList(plugins)).getAnalysisRegistry();
         return new ESTestCase.TestAnalysis(analysisRegistry.build(indexSettings),
                 analysisRegistry.buildTokenFilterFactories(indexSettings),
                 analysisRegistry.buildTokenizerFactories(indexSettings),

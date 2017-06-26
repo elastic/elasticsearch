@@ -34,7 +34,7 @@ public abstract class NodeConfigurationSource {
         }
 
         @Override
-        public Path nodePathConf(int nodeOrdinal) {
+        public Path nodeConfigPath(int nodeOrdinal) {
             return null;
         }
 
@@ -49,7 +49,7 @@ public abstract class NodeConfigurationSource {
      */
     public abstract Settings nodeSettings(int nodeOrdinal);
 
-    public abstract Path nodePathConf(int nodeOrdinal);
+    public abstract Path nodeConfigPath(int nodeOrdinal);
 
     /** Returns plugins that should be loaded on the node */
     public Collection<Class<? extends Plugin>> nodePlugins() {

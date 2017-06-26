@@ -43,8 +43,8 @@ import static java.util.Collections.singletonList;
 public class JvmExamplePlugin extends Plugin implements ActionPlugin {
     private final ExamplePluginConfiguration config;
 
-    public JvmExamplePlugin(Settings settings, Path pathConf) {
-        config = new ExamplePluginConfiguration(new Environment(settings, pathConf));
+    public JvmExamplePlugin(Settings settings, Path configPath) {
+        config = new ExamplePluginConfiguration(new Environment(settings, configPath));
     }
 
     @Override

@@ -276,7 +276,7 @@ public class ScriptedMetricIT extends ESIntegTestCase {
     }
 
     @Override
-    protected Path nodePathConf(int nodeOrdinal) {
+    protected Path nodeConfigPath(int nodeOrdinal) {
         return config;
     }
 

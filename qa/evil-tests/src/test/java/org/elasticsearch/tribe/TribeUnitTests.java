@@ -96,7 +96,7 @@ public class TribeUnitTests extends ESTestCase {
         assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
     }
 
-    private static void assertTribeNodeSuccessfullyCreated(Path pathConf) throws Exception {
+    private static void assertTribeNodeSuccessfullyCreated(Path configPath) throws Exception {
         // the tribe clients do need it to make sure they can find their corresponding tribes using the proper transport
         Settings settings = Settings.builder().put(NetworkModule.HTTP_ENABLED.getKey(), false).put("node.name", "tribe_node")
                 .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).put("discovery.type", "local")
@@ -107,7 +107,7 @@ public class TribeUnitTests extends ESTestCase {
 
         final List<Class<? extends Plugin>> classpathPlugins =
                 Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class);
-        try (Node node = new MockNode(settings, classpathPlugins, pathConf).start()) {
+        try (Node node = new MockNode(settings, classpathPlugins, configPath).start()) {
             try (Client client = node.client()) {
                 assertBusy(() -> {
                     ClusterState state = client.admin().cluster().prepareState().clear().setNodes(true).get().getState();

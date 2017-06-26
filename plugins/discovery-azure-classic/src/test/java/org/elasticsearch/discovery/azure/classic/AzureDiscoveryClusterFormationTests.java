@@ -125,7 +125,7 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Path nodePathConf(int nodeOrdinal) {
+    protected Path nodeConfigPath(int nodeOrdinal) {
         return keyStoreFile.getParent();
     }
 

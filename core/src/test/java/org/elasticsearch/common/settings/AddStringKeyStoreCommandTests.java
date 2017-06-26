@@ -40,7 +40,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new AddStringKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path pathConf) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
                 return env;
             }
             @Override

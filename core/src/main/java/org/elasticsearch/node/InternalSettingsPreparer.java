@@ -75,14 +75,14 @@ public class InternalSettingsPreparer {
      * @param input      the custom settings to use; these are not overwritten by settings in the configuration file
      * @param terminal   the Terminal to use for input/output
      * @param properties map of properties key/value pairs (usually from the command-line)
-     * @param pathConf   path to config directory; (use null to indicate the default)
+     * @param configPath path to config directory; (use null to indicate the default)
      * @return the {@link Settings} and {@link Environment} as a {@link Tuple}
      */
-    public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties, Path pathConf) {
+    public static Environment prepareEnvironment(Settings input, Terminal terminal, Map<String, String> properties, Path configPath) {
         // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, properties);
-        Environment environment = new Environment(output.build(), pathConf);
+        Environment environment = new Environment(output.build(), configPath);
 
         if (Files.exists(environment.configFile().resolve("elasticsearch.yaml"))) {
             throw new SettingsException("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml");
@@ -106,11 +106,11 @@ public class InternalSettingsPreparer {
         initializeSettings(output, input, properties);
         finalizeSettings(output, terminal);
 
-        environment = new Environment(output.build(), pathConf);
+        environment = new Environment(output.build(), configPath);
 
         // we put back the path.logs so we can use it in the logging configuration file
         output.put(Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile().toAbsolutePath().normalize().toString());
-        return new Environment(output.build(), pathConf);
+        return new Environment(output.build(), configPath);
     }
 
     /**

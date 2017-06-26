@@ -50,9 +50,9 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
             final AtomicBoolean init = new AtomicBoolean();
             final int status = Elasticsearch.main(args, new Elasticsearch() {
                 @Override
-                protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path pathConf) {
+                protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
                     final Settings realSettings = Settings.builder().put("path.home", home).put(settings).build();
-                    return new Environment(realSettings, pathConf);
+                    return new Environment(realSettings, configPath);
                 }
                 @Override
                 void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv) {

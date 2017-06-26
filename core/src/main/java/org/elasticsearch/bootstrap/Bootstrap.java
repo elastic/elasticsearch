@@ -243,7 +243,7 @@ final class Bootstrap {
             final Path pidFile,
             final SecureSettings secureSettings,
             final Settings initialSettings,
-            final Path pathConf) {
+            final Path configPath) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
@@ -253,7 +253,7 @@ final class Bootstrap {
         if (secureSettings != null) {
             builder.setSecureSettings(secureSettings);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap(), pathConf);
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap(), configPath);
     }
 
     private void start() throws NodeValidationException {

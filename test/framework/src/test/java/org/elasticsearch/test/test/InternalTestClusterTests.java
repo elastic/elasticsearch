@@ -194,7 +194,7 @@ public class InternalTestClusterTests extends ESTestCase {
             }
 
             @Override
-            public Path nodePathConf(int nodeOrdinal) {
+            public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
             }
 
@@ -265,7 +265,7 @@ public class InternalTestClusterTests extends ESTestCase {
             }
 
             @Override
-            public Path nodePathConf(int nodeOrdinal) {
+            public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
             }
 
@@ -376,7 +376,7 @@ public class InternalTestClusterTests extends ESTestCase {
             }
 
             @Override
-            public Path nodePathConf(int nodeOrdinal) {
+            public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
             }
 
@@ -457,7 +457,7 @@ public class InternalTestClusterTests extends ESTestCase {
             }
 
             @Override
-            public Path nodePathConf(int nodeOrdinal) {
+            public Path nodeConfigPath(int nodeOrdinal) {
                 return null;
             }
 

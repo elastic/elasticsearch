@@ -23,7 +23,6 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.InternalSettingsPreparer;
@@ -72,17 +71,17 @@ public abstract class EnvironmentAwareCommand extends Command {
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
 
         final String pathConf = pathConfOption.value(options);
-        execute(terminal, options, createEnv(terminal, settings, getPathConf(pathConf)));
+        execute(terminal, options, createEnv(terminal, settings, getConfigPath(pathConf)));
     }
 
     @SuppressForbidden(reason = "need path to construct environment")
-    private static Path getPathConf(final String pathConf) {
+    private static Path getConfigPath(final String pathConf) {
         return pathConf == null ? null : Paths.get(pathConf);
     }
 
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */
-    protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path pathConf) {
-        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, pathConf);
+    protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
+        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings, configPath);
     }
 
     /** Ensure the given setting exists, reading it from system properties if not already set. */

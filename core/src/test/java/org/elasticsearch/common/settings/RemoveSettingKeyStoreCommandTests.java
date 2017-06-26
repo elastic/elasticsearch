@@ -37,7 +37,7 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new RemoveSettingKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path pathConf) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
                 return env;
             }
         };

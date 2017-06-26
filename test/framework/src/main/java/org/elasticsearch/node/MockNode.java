@@ -63,8 +63,8 @@ public class MockNode extends Node {
         this(settings, classpathPlugins, null);
     }
 
-    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path pathConf) {
-        super(InternalSettingsPreparer.prepareEnvironment(settings, null, Collections.emptyMap(), pathConf), classpathPlugins);
+    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
+        super(InternalSettingsPreparer.prepareEnvironment(settings, null, Collections.emptyMap(), configPath), classpathPlugins);
         this.classpathPlugins = classpathPlugins;
     }
 
@@ -111,8 +111,8 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path pathConf) {
-        return new MockNode(settings, classpathPlugins, pathConf);
+    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
+        return new MockNode(settings, classpathPlugins, configPath);
     }
 
     @Override

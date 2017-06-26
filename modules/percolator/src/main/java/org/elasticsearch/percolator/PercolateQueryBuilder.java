@@ -63,6 +63,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -531,8 +532,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docSearcher.setQueryCache(null);
         }
 
-        boolean mapUnmappedFieldsAsString = context.getIndexSettings()
-                .getValue(PercolatorFieldMapper.INDEX_MAP_UNMAPPED_FIELDS_AS_STRING_SETTING);
+        PercolatorFieldMapper percolatorFieldMapper = (PercolatorFieldMapper) docMapper.mappers().getMapper(field);
+        boolean mapUnmappedFieldsAsString = percolatorFieldMapper.isMapUnmappedFieldAsText();
         QueryShardContext percolateShardContext = wrap(context);
 
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;

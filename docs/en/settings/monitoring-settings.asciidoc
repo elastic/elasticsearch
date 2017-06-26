@@ -55,8 +55,8 @@ Sets the timeout for collecting total indices statistics. Defaults to `10m`.
 
 Configures where the agent stores monitoring data. By default, the agent uses a local exporter that
 indexes monitoring data on the cluster where it is installed. Use an HTTP exporter to send data to
-a separate monitoring cluster. For more information, see <<monitoring-cluster, Setting up a Separate
-Monitoring Cluster>>.
+a separate monitoring cluster. For more information, see {xpack-ref}/monitoring-cluster.html[Setting
+up a Separate Monitoring Cluster].
 
 `xpack.monitoring.collection.index.recovery.active_only`::
 

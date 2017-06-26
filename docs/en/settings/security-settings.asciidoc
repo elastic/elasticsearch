@@ -2,7 +2,7 @@
 == Security Settings
 
 You configure `xpack.security` settings  to 
-<<anonymous-access-settings enable anonymous access>>
+<<anonymous-access-settings, enable anonymous access>>
 and perform message authentication,
 <<field-document-security-settings, set up document and field 
 level security>>, <<realm-settings, configure realms>>, 

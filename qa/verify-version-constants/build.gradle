@@ -17,7 +17,9 @@
  * under the License.
  */
 
+import java.util.Locale
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.standalone-test'
@@ -62,4 +64,28 @@ task integTest {
     dependsOn = ["v${indexCompatVersions[-1]}#bwcTest"]
 }
 
-check.dependsOn(integTest)
+task verifyDocsLuceneVersion {
+  doFirst {
+    File docsVersionsFile = rootProject.file('docs/Versions.asciidoc')
+    List<String> versionLines = docsVersionsFile.readLines('UTF-8')
+    String docsLuceneVersion = null
+    for (String line : versionLines) {
+      if (line.startsWith(':lucene_version:')) {
+        docsLuceneVersion = line.split()[1]
+      }
+    }
+    if (docsLuceneVersion == null) {
+      throw new GradleException('Could not find lucene version in docs version file')
+    }
+    String expectedLuceneVersion = VersionProperties.lucene
+    if (expectedLuceneVersion.contains('-snapshot-')) {
+      expectedLuceneVersion = expectedLuceneVersion.substring(0, expectedLuceneVersion.lastIndexOf('-'))
+      expectedLuceneVersion = expectedLuceneVersion.toUpperCase(Locale.ROOT)
+    }
+    if (docsLuceneVersion != expectedLuceneVersion) {
+      throw new GradleException("Lucene version in docs [${docsLuceneVersion}] does not match version.properties [${expectedLuceneVersion}]")
+    }
+  }
+}
+
+check.dependsOn integTest, verifyDocsLuceneVersion

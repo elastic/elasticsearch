@@ -271,7 +271,7 @@ public class HttpInputTests extends ESTestCase {
     }
 
     public void testThatExpectedContentTypeOverridesReturnedContentType() throws Exception {
-        HttpRequestTemplate template = HttpRequestTemplate.builder("localhost", 9200).fromUrl("http:://127.0.0.1:12345").build();
+        HttpRequestTemplate template = HttpRequestTemplate.builder("http:://127.0.0.1:12345").build();
         HttpInput httpInput = new HttpInput(template, HttpContentType.TEXT, null);
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, logger, httpClient, templateEngine);
 

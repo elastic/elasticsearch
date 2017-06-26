@@ -122,7 +122,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
 
         BytesArray bytesArray = new BytesArray(new byte[1]);
-        ByteBufferReference networkBuffer = ByteBufferReference.heapBuffer(bytesArray);
+        NetworkBytesReference networkBuffer = NetworkBytesReference.wrap(bytesArray);
         channel.getWriteContext().queueWriteOperations(new WriteOperation(channel, networkBuffer, mock(ActionListener.class)));
 
         when(rawChannel.write(ByteBuffer.wrap(bytesArray.array()))).thenReturn(1);
@@ -138,7 +138,7 @@ public class SocketEventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_READ | SelectionKey.OP_WRITE, selectionKey.interestOps());
 
         BytesArray bytesArray = new BytesArray(new byte[1]);
-        ByteBufferReference networkBuffer = ByteBufferReference.heapBuffer(bytesArray, 1, 0);
+        NetworkBytesReference networkBuffer = NetworkBytesReference.wrap(bytesArray, 1, 0);
         channel.getWriteContext().queueWriteOperations(new WriteOperation(channel, networkBuffer, mock(ActionListener.class)));
 
         when(rawChannel.write(ByteBuffer.wrap(bytesArray.array()))).thenReturn(0);

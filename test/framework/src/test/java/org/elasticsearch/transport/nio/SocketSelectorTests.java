@@ -54,7 +54,7 @@ public class SocketSelectorTests extends ESTestCase {
     private WriteContext writeContext;
     private HashSet<SelectionKey> keySet = new HashSet<>();
     private ActionListener<NioChannel> listener;
-    private ByteBufferReference bufferReference = ByteBufferReference.heapBuffer(new BytesArray(new byte[1]));
+    private NetworkBytesReference bufferReference = NetworkBytesReference.wrap(new BytesArray(new byte[1]));
 
     @Before
     @SuppressWarnings("unchecked")
@@ -323,7 +323,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         socketSelector.doSelect(0);
 
-        ByteBufferReference networkBuffer = ByteBufferReference.heapBuffer(new BytesArray(new byte[1]));
+        NetworkBytesReference networkBuffer = NetworkBytesReference.wrap(new BytesArray(new byte[1]));
         socketSelector.queueWrite(new WriteOperation(mock(NioSocketChannel.class), networkBuffer, listener));
         socketSelector.registerSocketChannel(unRegisteredChannel);
 

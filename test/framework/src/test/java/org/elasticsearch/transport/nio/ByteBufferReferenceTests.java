@@ -26,12 +26,12 @@ import java.nio.ByteBuffer;
 
 public class ByteBufferReferenceTests extends ESTestCase {
 
-    private ByteBufferReference buffer;
+    private NetworkBytesReference buffer;
 
     public void testBasicGetByte() {
         byte[] bytes = new byte[10];
         initializeBytes(bytes);
-        buffer = ByteBufferReference.heapBuffer(new BytesArray(bytes));
+        buffer = NetworkBytesReference.wrap(new BytesArray(bytes));
 
         assertEquals(10, buffer.length());
         for (int i = 0 ; i < bytes.length; ++i) {
@@ -42,7 +42,7 @@ public class ByteBufferReferenceTests extends ESTestCase {
     public void testBasicGetByteWithOffset() {
         byte[] bytes = new byte[10];
         initializeBytes(bytes);
-        buffer = ByteBufferReference.heapBuffer(new BytesArray(bytes, 2, 8));
+        buffer = NetworkBytesReference.wrap(new BytesArray(bytes, 2, 8));
 
         assertEquals(8, buffer.length());
         for (int i = 2 ; i < bytes.length; ++i) {
@@ -53,7 +53,7 @@ public class ByteBufferReferenceTests extends ESTestCase {
     public void testBasicGetByteWithOffsetAndLimit() {
         byte[] bytes = new byte[10];
         initializeBytes(bytes);
-        buffer = ByteBufferReference.heapBuffer(new BytesArray(bytes, 2, 6));
+        buffer = NetworkBytesReference.wrap(new BytesArray(bytes, 2, 6));
 
         assertEquals(6, buffer.length());
         for (int i = 2 ; i < bytes.length - 2; ++i) {
@@ -64,7 +64,7 @@ public class ByteBufferReferenceTests extends ESTestCase {
     public void testGetWriteBufferRespectsWriteIndex() {
         byte[] bytes = new byte[10];
 
-        buffer = ByteBufferReference.heapBuffer(new BytesArray(bytes, 2, 8));
+        buffer = NetworkBytesReference.wrap(new BytesArray(bytes, 2, 8));
 
         ByteBuffer writeByteBuffer = buffer.getWriteByteBuffer();
 
@@ -81,7 +81,7 @@ public class ByteBufferReferenceTests extends ESTestCase {
     public void testGetReadBufferRespectsReadIndex() {
         byte[] bytes = new byte[10];
 
-        buffer = ByteBufferReference.heapBuffer(new BytesArray(bytes, 3, 6), 6, 0);
+        buffer = NetworkBytesReference.wrap(new BytesArray(bytes, 3, 6), 6, 0);
 
         ByteBuffer readByteBuffer = buffer.getReadByteBuffer();
 
@@ -98,7 +98,7 @@ public class ByteBufferReferenceTests extends ESTestCase {
     public void testWriteAndReadRemaining() {
         byte[] bytes = new byte[10];
 
-        buffer = ByteBufferReference.heapBuffer(new BytesArray(bytes, 2, 8));
+        buffer = NetworkBytesReference.wrap(new BytesArray(bytes, 2, 8));
 
         assertEquals(0, buffer.getReadRemaining());
         assertEquals(8, buffer.getWriteRemaining());
@@ -114,9 +114,9 @@ public class ByteBufferReferenceTests extends ESTestCase {
         byte[] bytes = new byte[20];
         initializeBytes(bytes);
 
-        buffer = ByteBufferReference.heapBuffer(new BytesArray(bytes, 2, 18));
+        buffer = NetworkBytesReference.wrap(new BytesArray(bytes, 2, 18));
 
-        ByteBufferReference slice = buffer.slice(4, 14);
+        NetworkBytesReference slice = buffer.slice(4, 14);
 
         assertEquals(14, slice.length());
         assertEquals(0, slice.getReadIndex());
@@ -131,12 +131,12 @@ public class ByteBufferReferenceTests extends ESTestCase {
         byte[] bytes = new byte[20];
         initializeBytes(bytes);
 
-        buffer = ByteBufferReference.heapBuffer(new BytesArray(bytes, 2, 18));
+        buffer = NetworkBytesReference.wrap(new BytesArray(bytes, 2, 18));
 
         buffer.incrementWrite(9);
         buffer.incrementRead(5);
 
-        ByteBufferReference slice = buffer.slice(6, 12);
+        NetworkBytesReference slice = buffer.slice(6, 12);
 
         assertEquals(12, slice.length());
         assertEquals(0, slice.getReadIndex());

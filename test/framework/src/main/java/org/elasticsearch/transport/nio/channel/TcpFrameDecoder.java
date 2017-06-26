@@ -25,7 +25,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.transport.TcpHeader;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.nio.NetworkBytesReference;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
@@ -37,7 +36,7 @@ public class TcpFrameDecoder {
 
     private int expectedMessageLength = -1;
 
-    public NetworkBytesReference decode(NetworkBytesReference bytesReference, int currentBufferSize) throws IOException {
+    public BytesReference decode(BytesReference bytesReference, int currentBufferSize) throws IOException {
         if (currentBufferSize >= 6) {
             int messageLength = readHeaderBuffer(bytesReference);
             int totalLength = messageLength + HEADER_SIZE;

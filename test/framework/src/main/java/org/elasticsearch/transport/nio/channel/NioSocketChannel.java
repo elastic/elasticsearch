@@ -19,8 +19,8 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.transport.nio.ESSelector;
 import org.elasticsearch.transport.nio.NetworkBytesReference;
+import org.elasticsearch.transport.nio.ESSelector;
 import org.elasticsearch.transport.nio.SocketSelector;
 
 import java.io.IOException;
@@ -28,6 +28,7 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.SocketChannel;
+import java.util.Arrays;
 
 public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
@@ -73,32 +74,28 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         return super.markRegistered(selector);
     }
 
-    public int write(NetworkBytesReference reference) throws IOException {
-        int totalWritten = 0;
-        while (reference.hasReadRemaining()) {
-            int written;
-            if (!reference.hasMultipleBuffers()) {
-                written = socketChannel.write(reference.getReadByteBuffer());
-            } else {
-                written = (int) socketChannel.write(reference.getReadByteBuffers());
+    public int write(NetworkBytesReference[] references) throws IOException {
+        int written;
+        if (references.length == 1) {
+            written = socketChannel.write(references[0].getReadByteBuffer());
+        } else {
+            ByteBuffer[] buffers = new ByteBuffer[references.length];
+            for (int i = 0; i < references.length; ++i) {
+                buffers[i] = references[i].getReadByteBuffer();
             }
-            if (written <= 0) {
-                break;
-            }
-            totalWritten += written;
-            reference.incrementRead(written);
+            written = (int) socketChannel.write(buffers);
         }
-        return totalWritten;
+        if (written <= 0) {
+            return written;
+        }
+
+        NetworkBytesReference.vectorizedIncrementReadIndexes(Arrays.asList(references), written);
+
+        return written;
     }
 
     public int read(NetworkBytesReference reference) throws IOException {
-        int bytesRead;
-        if (!reference.hasMultipleBuffers()) {
-            bytesRead = socketChannel.read(reference.getWriteByteBuffer());
-        } else {
-            // The buffers are bounded by Integer.MAX_VALUE
-            bytesRead = (int) socketChannel.read(reference.getWriteByteBuffers());
-        }
+        int bytesRead = socketChannel.read(reference.getWriteByteBuffer());
 
         if (bytesRead == -1) {
             return bytesRead;

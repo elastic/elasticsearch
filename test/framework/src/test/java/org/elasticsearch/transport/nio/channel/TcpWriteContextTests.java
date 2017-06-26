@@ -21,9 +21,7 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.ByteBufferReference;
 import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.WriteOperation;
 import org.junit.Before;
@@ -83,7 +81,7 @@ public class TcpWriteContextTests extends ESTestCase {
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
-        assertEquals(ByteBuffer.wrap(bytes), writeOp.getNetworkBuffer().getReadByteBuffers()[0]);
+        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteReferences()[0].getReadByteBuffer());
     }
 
     public void testSendMessageFromSameThreadIsQueuedInChannel() throws Exception {
@@ -100,14 +98,13 @@ public class TcpWriteContextTests extends ESTestCase {
 
         assertSame(listener, writeOp.getListener());
         assertSame(channel, writeOp.getChannel());
-        assertEquals(ByteBuffer.wrap(bytes), writeOp.getNetworkBuffer().getReadByteBuffers()[0]);
+        assertEquals(ByteBuffer.wrap(bytes), writeOp.getByteReferences()[0].getReadByteBuffer());
     }
 
     public void testWriteIsQueuedInChannel() throws Exception {
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        ByteBufferReference networkBuffer = ByteBufferReference.heapBuffer(new BytesArray(generateBytes(10)));
-        writeContext.queueWriteOperations(new WriteOperation(channel, networkBuffer, listener));
+        writeContext.queueWriteOperations(new WriteOperation(channel, new BytesArray(generateBytes(10)), listener));
 
         assertTrue(writeContext.hasQueuedWriteOps());
     }
@@ -115,8 +112,7 @@ public class TcpWriteContextTests extends ESTestCase {
     public void testWriteOpsCanBeCleared() throws Exception {
         assertFalse(writeContext.hasQueuedWriteOps());
 
-        ByteBufferReference networkBuffer = ByteBufferReference.heapBuffer(new BytesArray(generateBytes(10)));
-        writeContext.queueWriteOperations(new WriteOperation(channel,  networkBuffer, listener));
+        writeContext.queueWriteOperations(new WriteOperation(channel,  new BytesArray(generateBytes(10)), listener));
 
         assertTrue(writeContext.hasQueuedWriteOps());
 

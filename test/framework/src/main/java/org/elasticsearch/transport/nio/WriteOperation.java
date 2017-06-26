@@ -19,26 +19,31 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
 public class WriteOperation {
 
     private final NioSocketChannel channel;
     private final ActionListener<NioChannel> listener;
-    private final NetworkBytesReference networkBuffer;
+    private final NetworkBytesReference[] references;
 
-    public WriteOperation(NioSocketChannel channel, NetworkBytesReference networkBuffer, ActionListener<NioChannel> listener) {
+    public WriteOperation(NioSocketChannel channel, BytesReference bytesReference, ActionListener<NioChannel> listener) {
         this.channel = channel;
         this.listener = listener;
-        this.networkBuffer = networkBuffer;
+        this.references = toArray(bytesReference);
     }
 
-    public NetworkBytesReference getNetworkBuffer() {
-        return networkBuffer;
+    public NetworkBytesReference[] getByteReferences() {
+        return references;
     }
 
     public ActionListener<NioChannel> getListener() {
@@ -50,10 +55,27 @@ public class WriteOperation {
     }
 
     public boolean isFullyFlushed() {
-        return networkBuffer.hasReadRemaining() == false;
+        return references[references.length - 1].hasReadRemaining() == false;
     }
 
     public int flush() throws IOException {
-        return channel.write(networkBuffer);
+        return channel.write(references);
+    }
+
+    private static NetworkBytesReference[] toArray(BytesReference reference) {
+        BytesRefIterator byteRefIterator = reference.iterator();
+        BytesRef r;
+        try {
+            // Most network messages are composed of three buffers
+            ArrayList<NetworkBytesReference> references = new ArrayList<>(3);
+            while ((r = byteRefIterator.next()) != null) {
+                references.add(NetworkBytesReference.wrap(new BytesArray(r), r.length, 0));
+            }
+            return references.toArray(new NetworkBytesReference[references.size()]);
+
+        } catch (IOException e) {
+            // this is really an error since we don't do IO in our bytesreferences
+            throw new AssertionError("won't happen", e);
+        }
     }
 }

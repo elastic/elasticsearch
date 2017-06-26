@@ -28,6 +28,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,13 +47,12 @@ public class WriteOperationTests extends ESTestCase {
     }
 
     public void testFlush() throws IOException {
-        NetworkBytesReference reference =  ByteBufferReference.heapBuffer(new BytesArray(new byte[10]), 10, 0);
-        WriteOperation writeOp = new WriteOperation(channel, reference, listener);
+        WriteOperation writeOp = new WriteOperation(channel, new BytesArray(new byte[10]), listener);
 
 
-        when(channel.write(reference)).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference ref = (NetworkBytesReference) invocationOnMock.getArguments()[0];
-            ref.incrementRead(10);
+        when(channel.write(any())).thenAnswer(invocationOnMock -> {
+            NetworkBytesReference[] refs = (NetworkBytesReference[]) invocationOnMock.getArguments()[0];
+            refs[0].incrementRead(10);
             return 10;
         });
 
@@ -62,19 +62,17 @@ public class WriteOperationTests extends ESTestCase {
     }
 
     public void testPartialFlush() throws IOException {
-        NetworkBytesReference reference = ByteBufferReference.heapBuffer(new BytesArray(new byte[10]), 10, 0);
-        WriteOperation writeOp = new WriteOperation(channel, reference, listener);
+        WriteOperation writeOp = new WriteOperation(channel, new BytesArray(new byte[10]), listener);
 
-        when(channel.write(reference)).thenAnswer(invocationOnMock -> {
-            NetworkBytesReference ref = (NetworkBytesReference) invocationOnMock.getArguments()[0];
-            ref.incrementRead(5);
+        when(channel.write(any())).thenAnswer(invocationOnMock -> {
+            NetworkBytesReference[] refs = (NetworkBytesReference[]) invocationOnMock.getArguments()[0];
+            refs[0].incrementRead(5);
             return 5;
         });
 
         writeOp.flush();
 
-        verify(channel).write(reference);
-
         assertFalse(writeOp.isFullyFlushed());
+        assertEquals(5, writeOp.getByteReferences()[0].getReadRemaining());
     }
 }

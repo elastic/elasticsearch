@@ -20,19 +20,69 @@
 package org.elasticsearch.transport.nio;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
+import java.util.Iterator;
 
-public abstract class NetworkBytesReference extends BytesReference {
+public class NetworkBytesReference extends BytesReference {
 
-    int length;
-    int writeIndex;
-    int readIndex;
+    private final BytesArray bytesArray;
+    private final ByteBuffer writeBuffer;
+    private final ByteBuffer readBuffer;
+
+    private int writeIndex;
+    private int readIndex;
+
+    public NetworkBytesReference(BytesArray bytesArray, int writeIndex, int readIndex) {
+        this.bytesArray = bytesArray;
+        this.writeIndex = writeIndex;
+        this.readIndex = readIndex;
+        this.writeBuffer = ByteBuffer.wrap(bytesArray.array());
+        this.readBuffer = ByteBuffer.wrap(bytesArray.array());
+    }
+
+    public static NetworkBytesReference wrap(BytesArray bytesArray) {
+        return wrap(bytesArray, 0, 0);
+    }
+
+    public static NetworkBytesReference wrap(BytesArray bytesArray, int writeIndex, int readIndex) {
+        if (readIndex > writeIndex) {
+            throw new IndexOutOfBoundsException("Read index [" + readIndex + "] was greater than write index [" + writeIndex + "]");
+        }
+        return new NetworkBytesReference(bytesArray, writeIndex, readIndex);
+    }
+
+    @Override
+    public byte get(int index) {
+        return bytesArray.get(index);
+    }
+
+    @Override
+    public int length() {
+        return bytesArray.length();
+    }
+
+    @Override
+    public NetworkBytesReference slice(int from, int length) {
+        BytesArray newBytesArray = (BytesArray) bytesArray.slice(from, length);
+
+        int newReadIndex = Math.min(Math.max(readIndex - from, 0), length);
+        int newWriteIndex = Math.min(Math.max(writeIndex - from, 0), length);
+
+        return wrap(newBytesArray, newWriteIndex, newReadIndex);
+    }
+
+    @Override
+    public BytesRef toBytesRef() {
+        return bytesArray.toBytesRef();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return bytesArray.ramBytesUsed();
+    }
 
     public int getWriteIndex() {
         return writeIndex;
@@ -40,16 +90,16 @@ public abstract class NetworkBytesReference extends BytesReference {
 
     public void incrementWrite(int delta) {
         int newWriteIndex = writeIndex + delta;
-        if (newWriteIndex > length) {
+        if (newWriteIndex > bytesArray.length()) {
             throw new IndexOutOfBoundsException("New write index [" + newWriteIndex + "] would be greater than length" +
-                " [" + length + "]");
+                " [" + bytesArray.length() + "]");
         }
 
         writeIndex = newWriteIndex;
     }
 
     public int getWriteRemaining() {
-        return length - writeIndex;
+        return bytesArray.length() - writeIndex;
     }
 
     public boolean hasWriteRemaining() {
@@ -77,41 +127,25 @@ public abstract class NetworkBytesReference extends BytesReference {
         return getReadRemaining() > 0;
     }
 
-    public void resetIndices() {
-        readIndex = 0;
-        writeIndex = 0;
+    public ByteBuffer getWriteByteBuffer() {
+        writeBuffer.position(bytesArray.offset() + writeIndex);
+        writeBuffer.limit(bytesArray.offset() + bytesArray.length());
+        return writeBuffer;
     }
 
-    public abstract NetworkBytesReference slice(int from, int length);
+    public ByteBuffer getReadByteBuffer() {
+        readBuffer.position(bytesArray.offset() + readIndex);
+        readBuffer.limit(bytesArray.offset() + writeIndex);
+        return readBuffer;
+    }
 
-    public abstract boolean hasMultipleBuffers();
-
-    public abstract ByteBuffer getWriteByteBuffer();
-
-    public abstract ByteBuffer getReadByteBuffer();
-
-    public abstract ByteBuffer[] getWriteByteBuffers();
-
-    public abstract ByteBuffer[] getReadByteBuffers();
-
-    public static NetworkBytesReference fromBytesReference(BytesReference reference) {
-        BytesRefIterator byteRefIterator = reference.iterator();
-        BytesRef r;
-        try {
-            // Most network messages are composed of three buffers
-            ArrayList<ByteBufferReference> references = new ArrayList<>(3);
-            while ((r = byteRefIterator.next()) != null) {
-                references.add(ByteBufferReference.heapBuffer(new BytesArray(r), r.length, 0));
-            }
-            if (references.size() == 1) {
-                return references.get(0);
-            } else {
-                ByteBufferReference[] newReferences = references.toArray(new ByteBufferReference[references.size()]);
-                return new CompositeByteBufferReference(newReferences);
-            }
-        } catch (IOException e) {
-            // this is really an error since we don't do IO in our bytesreferences
-            throw new AssertionError("won't happen", e);
+    public static void vectorizedIncrementReadIndexes(Iterable<NetworkBytesReference> references, int delta) {
+        Iterator<NetworkBytesReference> refs = references.iterator();
+        while (delta != 0) {
+            NetworkBytesReference ref = refs.next();
+            int amountToInc = Math.min(ref.getReadRemaining(), delta);
+            ref.incrementRead(amountToInc);
+            delta -= amountToInc;
         }
     }
 }

@@ -23,7 +23,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TcpTransport;
-import org.elasticsearch.transport.nio.NetworkBytesReference;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
@@ -47,7 +46,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write(0);
         streamOutput.write(0);
 
-        assertNull(frameDecoder.decode(NetworkBytesReference.fromBytesReference(streamOutput.bytes()), 4));
+        assertNull(frameDecoder.decode(streamOutput.bytes(), 4));
         assertEquals(-1, frameDecoder.expectedMessageLength());
     }
 
@@ -57,10 +56,10 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('S');
         streamOutput.writeInt(-1);
 
-        BytesReference message = frameDecoder.decode(NetworkBytesReference.fromBytesReference(streamOutput.bytes()), 6);
+        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 6);
 
         assertEquals(-1, frameDecoder.expectedMessageLength());
-        assertEquals(NetworkBytesReference.fromBytesReference(streamOutput.bytes()), message);
+        assertEquals(streamOutput.bytes(), message);
     }
 
     public void testDecodePingWithStartOfSecondMessage() throws IOException {
@@ -71,10 +70,10 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('E');
         streamOutput.write('S');
 
-        BytesReference message = frameDecoder.decode(NetworkBytesReference.fromBytesReference(streamOutput.bytes()), 8);
+        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 8);
 
         assertEquals(6, message.length());
-        assertEquals(NetworkBytesReference.fromBytesReference(streamOutput.bytes()).slice(0, 6), message);
+        assertEquals(streamOutput.bytes().slice(0, 6), message);
     }
 
     public void testDecodeMessage() throws IOException {
@@ -85,10 +84,10 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('M');
         streamOutput.write('A');
 
-        BytesReference message = frameDecoder.decode(NetworkBytesReference.fromBytesReference(streamOutput.bytes()), 8);
+        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 8);
 
         assertEquals(-1, frameDecoder.expectedMessageLength());
-        assertEquals(NetworkBytesReference.fromBytesReference(streamOutput.bytes()), message);
+        assertEquals(streamOutput.bytes(), message);
     }
 
     public void testDecodeIncompleteMessage() throws IOException {
@@ -99,7 +98,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('M');
         streamOutput.write('A');
 
-        BytesReference message = frameDecoder.decode(NetworkBytesReference.fromBytesReference(streamOutput.bytes()), 8);
+        BytesReference message = frameDecoder.decode(streamOutput.bytes(), 8);
 
         assertEquals(9, frameDecoder.expectedMessageLength());
         assertNull(message);
@@ -114,7 +113,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write('A');
 
         try {
-            frameDecoder.decode(NetworkBytesReference.fromBytesReference(streamOutput.bytes()), 8);
+            frameDecoder.decode(streamOutput.bytes(), 8);
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -135,7 +134,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
         streamOutput.write(randomByte());
 
         try {
-            frameDecoder.decode(NetworkBytesReference.fromBytesReference(streamOutput.bytes()), 7);
+            frameDecoder.decode(streamOutput.bytes(), 7);
             fail("Expected exception");
         } catch (Exception ex) {
             assertThat(ex, instanceOf(StreamCorruptedException.class));
@@ -158,7 +157,7 @@ public class TcpFrameDecoderTests extends ESTestCase {
             streamOutput.write(new byte[6]);
 
             try {
-                NetworkBytesReference bytes = NetworkBytesReference.fromBytesReference(streamOutput.bytes());
+                BytesReference bytes = streamOutput.bytes();
                 frameDecoder.decode(bytes, bytes.length());
                 fail("Expected exception");
             } catch (Exception ex) {

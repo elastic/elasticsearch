@@ -142,8 +142,10 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
 
                 // no local shards, empty out watcher and not waste resources!
                 if (localShards.isEmpty()) {
-                    executor.execute(() -> watcherService.pauseExecution("no local watcher shards"));
-                    previousAllocationIds.set(Collections.emptyList());
+                    if (previousAllocationIds.get().isEmpty() == false) {
+                        executor.execute(() -> watcherService.pauseExecution("no local watcher shards"));
+                        previousAllocationIds.set(Collections.emptyList());
+                    }
                     return;
                 }
 

@@ -184,9 +184,6 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
     public void testNoLocalShards() throws Exception {
         Index watchIndex = new Index(Watch.INDEX, "foo");
         ShardId shardId = new ShardId(watchIndex, 0);
-        IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(watchIndex)
-                .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, randomFrom(STARTED, RELOCATING)))
-                .build();
         DiscoveryNodes nodes = new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1")
                 .add(newNode("node_1")).add(newNode("node_2"))
                 .build();
@@ -197,17 +194,38 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                         .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 ).build();
 
-        ClusterState clusterState = ClusterState.builder(new ClusterName("my-cluster"))
+        IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(watchIndex)
+                .addShard(TestShardRouting.newShardRouting(shardId, "node_1", true, randomFrom(STARTED, RELOCATING)))
+                .build();
+        ClusterState clusterStateWithLocalShards = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes)
                 .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
                 .metaData(MetaData.builder().put(indexMetaData, false))
+                .build();
 
+        // shard moved over to node 2
+        IndexRoutingTable watchRoutingTableNode2 = IndexRoutingTable.builder(watchIndex)
+                .addShard(TestShardRouting.newShardRouting(shardId, "node_2", true, randomFrom(STARTED, RELOCATING)))
+                .build();
+        ClusterState clusterStateWithoutLocalShards = ClusterState.builder(new ClusterName("my-cluster"))
+                .nodes(nodes)
+                .routingTable(RoutingTable.builder().add(watchRoutingTableNode2).build())
+                .metaData(MetaData.builder().put(indexMetaData, false))
                 .build();
 
         when(watcherService.state()).thenReturn(WatcherState.STARTED);
 
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
-        verify(watcherService).pauseExecution(eq("no local watcher shards"));
+        // set current allocation ids
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithLocalShards, clusterStateWithoutLocalShards));
+        verify(watcherService, times(0)).pauseExecution(eq("no local watcher shards"));
+
+        // no more local hards, lets pause execution
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutLocalShards, clusterStateWithLocalShards));
+        verify(watcherService, times(1)).pauseExecution(eq("no local watcher shards"));
+
+        // no further invocations should happen if the cluster state does not change in regard to local shards
+        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterStateWithoutLocalShards, clusterStateWithoutLocalShards));
+        verify(watcherService, times(1)).pauseExecution(eq("no local watcher shards"));
     }
 
     public void testReplicaWasAddedOrRemoved() throws Exception {

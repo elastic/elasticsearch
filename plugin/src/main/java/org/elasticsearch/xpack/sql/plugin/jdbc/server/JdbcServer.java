@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin.jdbc.server;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map.Entry;
-import java.util.concurrent.TimeoutException;
-import java.util.regex.Pattern;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -32,30 +23,41 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableResponse;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.SqlExceptionType;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Request;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Response;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.SqlExceptionType;
 import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.type.DataType;
 
-import static java.util.stream.Collectors.toList;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map.Entry;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.sql.net.client.util.StringUtils.EMPTY;
 
 public class JdbcServer {
 
     private final PlanExecutor executor;
-    private final InfoResponse infoResponse;
+    private final Supplier<InfoResponse> infoResponse;
 
-    public JdbcServer(PlanExecutor executor, String clusterName, String nodeName, Version version, Build build) {
+    public JdbcServer(PlanExecutor executor, String clusterName, Supplier<String> nodeName, Version version, Build build) {
         this.executor = executor;
-        this.infoResponse = new InfoResponse(nodeName, clusterName, version.major, version.minor, version.toString(), build.shortHash(), build.date());
+        // Delay building the response until runtime because the node name is not available at startup
+        this.infoResponse = () -> new InfoResponse(nodeName.get(), clusterName, version.major, version.minor, version.toString(),
+                build.shortHash(), build.date());
     }
     
     public void handle(Request req, ActionListener<Response> listener) {
@@ -78,7 +80,7 @@ public class JdbcServer {
     }
 
     public InfoResponse info(InfoRequest req) {
-        return infoResponse;
+        return infoResponse.get();
     }
     
     public MetaTableResponse metaTable(MetaTableRequest req) {

@@ -23,25 +23,21 @@ import org.elasticsearch.xpack.sql.plugin.cli.server.CliServer;
 import static org.elasticsearch.xpack.sql.util.ActionUtils.chain;
 
 public class TransportCliAction extends HandledTransportAction<CliRequest, CliResponse> {
-
-    private final PlanExecutor planExecutor;
-    private final ClusterService clusterService;
     private final CliServer cliServer;
 
     @Inject
-    public TransportCliAction(Settings settings, String actionName, ThreadPool threadPool,
+    public TransportCliAction(Settings settings, ThreadPool threadPool,
             TransportService transportService, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
             ClusterService clusterService,
             PlanExecutor planExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, CliRequest::new);
+        super(settings, CliAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, CliRequest::new);
 
-        this.clusterService = clusterService;
-
-        this.planExecutor = planExecutor;
         // lazy init of the resolver
+        // NOCOMMIT indexNameExpressionResolver should be available some other way
         ((EsCatalog) planExecutor.catalog()).setIndexNameExpressionResolver(indexNameExpressionResolver);
-        this.cliServer = new CliServer(planExecutor, clusterService.getClusterName().value(), clusterService.localNode().getName(), Version.CURRENT, Build.CURRENT);
+        this.cliServer = new CliServer(planExecutor, clusterService.getClusterName().value(), () -> clusterService.localNode().getName(),
+                Version.CURRENT, Build.CURRENT);
     }
 
     @Override

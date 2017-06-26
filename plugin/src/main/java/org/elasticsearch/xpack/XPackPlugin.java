@@ -46,7 +46,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -97,21 +96,17 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityFeatureSet;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
 
-import javax.security.auth.DestroyFailedException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
-import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
-import java.security.UnrecoverableKeyException;
-import java.security.cert.CertificateException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -125,6 +120,8 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+
+import javax.security.auth.DestroyFailedException;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin {
 
@@ -198,6 +195,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected Graph graph;
     protected MachineLearning machineLearning;
     protected Logstash logstash;
+    protected SqlPlugin sql;
 
     public XPackPlugin(Settings settings) throws IOException, DestroyFailedException, OperatorCreationException, GeneralSecurityException {
         this.settings = settings;
@@ -213,6 +211,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.graph = new Graph(settings);
         this.machineLearning = new MachineLearning(settings, env, licenseState);
         this.logstash = new Logstash(settings);
+        this.sql = new SqlPlugin();
         // Check if the node is a transport client.
         if (transportClientMode == false) {
             this.extensionsService = new XPackExtensionsService(settings, resolveXPackExtensionsFile(env), getExtensions());
@@ -292,6 +291,9 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.addAll(machineLearning.createComponents(internalClient, clusterService, threadPool, xContentRegistry));
 
         components.addAll(logstash.createComponents(internalClient, clusterService));
+
+        components.addAll(
+                sql.createComponents(internalClient, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry));
 
         // just create the reloader as it will pull all of the loaded ssl configurations and start watching them
         new SSLConfigurationReloader(settings, env, sslService, resourceWatcherService);
@@ -416,6 +418,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         actions.addAll(watcher.getActions());
         actions.addAll(graph.getActions());
         actions.addAll(machineLearning.getActions());
+        actions.addAll(sql.getActions());
         return actions;
     }
 
@@ -448,6 +451,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         handlers.addAll(graph.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         handlers.addAll(machineLearning.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
+                indexNameExpressionResolver, nodesInCluster));
+        handlers.addAll(sql.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         return handlers;
     }

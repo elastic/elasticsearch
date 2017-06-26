@@ -27,7 +27,8 @@ class SqlProtoHandler extends ProtoHandler<Response> {
     
     SqlProtoHandler(Client client) {
         super(client, ProtoUtils::readHeader, JdbcServerProtoUtils::write);
-        this.server = new JdbcServer(TestUtils.planExecutor(client), clusterName, info.getNode().getName(), info.getVersion() , info.getBuild());
+        this.server = new JdbcServer(TestUtils.planExecutor(client), clusterName, () -> info.getNode().getName(), info.getVersion(),
+                info.getBuild());
     }
 
     @Override

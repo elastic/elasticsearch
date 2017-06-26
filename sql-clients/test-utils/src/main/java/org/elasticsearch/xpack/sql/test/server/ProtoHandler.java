@@ -5,9 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.test.server;
 
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.IOException;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -18,8 +17,9 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 
-import com.sun.net.httpserver.HttpExchange;
-import com.sun.net.httpserver.HttpHandler;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.IOException;
 
 public abstract class ProtoHandler<R> implements HttpHandler, AutoCloseable {
 

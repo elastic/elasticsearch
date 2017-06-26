@@ -10,13 +10,14 @@ import java.util.Objects;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class SqlRequest extends ActionRequest {
+public class SqlRequest extends ActionRequest implements CompositeIndicesRequest {
 
     // initialized on the first request
     private String query;

@@ -5,13 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.function.Predicate;
-
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -64,6 +57,16 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
+import org.elasticsearch.xpack.sql.plugin.cli.action.CliAction;
+import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcAction;
+import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
@@ -382,7 +385,10 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals("indices:data/read/mpercolate") ||
                 action.equals("indices:data/read/msearch/template") ||
                 action.equals("indices:data/read/search/template") ||
-                action.equals("indices:data/write/reindex");
+                action.equals("indices:data/write/reindex") ||
+                action.equals(SqlAction.NAME) ||   // NOCOMMIT verify that SQL requests are properly composite
+                action.equals(JdbcAction.NAME) ||
+                action.equals(CliAction.NAME);
     }
 
     private static boolean isTranslatedToBulkAction(String action) {

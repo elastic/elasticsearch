@@ -9,11 +9,12 @@ import java.util.Objects;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Request;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class JdbcRequest extends ActionRequest {
+public class JdbcRequest extends ActionRequest implements CompositeIndicesRequest {
 
     private Request request;
 

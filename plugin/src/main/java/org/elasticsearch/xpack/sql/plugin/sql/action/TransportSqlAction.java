@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 
+import java.util.function.Supplier;
+
 import static org.elasticsearch.xpack.sql.util.ActionUtils.chain;
 
 public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlResponse> {
@@ -35,22 +37,22 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
             .setExpireAfterWrite(TimeValue.timeValueMinutes(10))
             .build();
     
-    private final String ephemeralId;
+    private final Supplier<String> ephemeralId;
     private final PlanExecutor planExecutor;
 
     @Inject
-    public TransportSqlAction(Settings settings, String actionName, ThreadPool threadPool,
+    public TransportSqlAction(Settings settings, ThreadPool threadPool,
             TransportService transportService, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
             ClusterService clusterService,
             PlanExecutor planExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, SqlRequest::new);
+        super(settings, SqlAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SqlRequest::new);
 
         this.planExecutor = planExecutor;
         // lazy init of the resolver
         ((EsCatalog) planExecutor.catalog()).setIndexNameExpressionResolver(indexNameExpressionResolver);
 
-        ephemeralId = transportService.getLocalNode().getEphemeralId();
+        ephemeralId = () -> transportService.getLocalNode().getEphemeralId();
     }
 
     @Override
@@ -64,7 +66,8 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
                     listener.onFailure(new SqlIllegalArgumentException("No query is given and request not part of a session"));
                     return;
                 }
-                
+
+                // NOCOMMIT move session information somewhere - like into scroll or something. We should be able to reuse something. 
                 // generate the plan and once its done, generate the session id, store it and send back the response
                 planExecutor.sql(query, chain(listener, c -> {
                             String id = generateId();
@@ -89,6 +92,6 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
     }
 
     private String generateId() {
-        return ephemeralId + "-" + UUIDs.base64UUID();
+        return ephemeralId.get() + "-" + UUIDs.base64UUID();
     }
 }

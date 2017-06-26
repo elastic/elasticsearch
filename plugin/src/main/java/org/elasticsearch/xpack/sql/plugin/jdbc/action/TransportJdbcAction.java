@@ -23,25 +23,21 @@ import org.elasticsearch.xpack.sql.plugin.jdbc.server.JdbcServer;
 import static org.elasticsearch.xpack.sql.util.ActionUtils.chain;
 
 public class TransportJdbcAction extends HandledTransportAction<JdbcRequest, JdbcResponse> {
-
-    private final PlanExecutor planExecutor;
-    private final ClusterService clusterService;
     private final JdbcServer jdbcServer;
 
     @Inject
-    public TransportJdbcAction(Settings settings, String actionName, ThreadPool threadPool,
+    public TransportJdbcAction(Settings settings, ThreadPool threadPool,
             TransportService transportService, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver,
             ClusterService clusterService,
             PlanExecutor planExecutor) {
-        super(settings, actionName, threadPool, transportService, actionFilters, indexNameExpressionResolver, JdbcRequest::new);
+        super(settings, JdbcAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, JdbcRequest::new);
 
-        this.clusterService = clusterService;
-
-        this.planExecutor = planExecutor;
         // lazy init of the resolver
         ((EsCatalog) planExecutor.catalog()).setIndexNameExpressionResolver(indexNameExpressionResolver);
-        this.jdbcServer = new JdbcServer(planExecutor, clusterService.getClusterName().value(), clusterService.localNode().getName(), Version.CURRENT, Build.CURRENT);
+        // NOCOMMIT indexNameExpressionResolver should be available some other way
+        this.jdbcServer = new JdbcServer(planExecutor, clusterService.getClusterName().value(), () -> clusterService.localNode().getName(),
+                Version.CURRENT, Build.CURRENT);
     }
 
     @Override

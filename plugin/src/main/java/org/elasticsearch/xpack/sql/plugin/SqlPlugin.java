@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -18,7 +13,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -40,7 +34,11 @@ import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.rest.RestSqlAction;
 
-import static java.util.Collections.emptyList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.function.Supplier;
+
 import static java.util.Collections.singleton;
 
 public class SqlPlugin extends Plugin implements ActionPlugin {
@@ -50,12 +48,6 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
         return singleton(new PlanExecutor(client, () -> clusterService.state()));
-    }
-
-    // TODO: hook defaults for things like number of groups or size of inner hits in here
-    @Override
-    public List<Setting<?>> getSettings() {
-        return emptyList();
     }
 
     @Override

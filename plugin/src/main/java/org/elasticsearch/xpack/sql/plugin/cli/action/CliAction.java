@@ -11,7 +11,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 public class CliAction extends Action<CliRequest, CliResponse, CliRequestBuilder> {
 
     public static final CliAction INSTANCE = new CliAction();
-    public static final String NAME = "indices:data/read/sql/jdbc";
+    public static final String NAME = "indices:data/read/sql/cli";
 
     private CliAction() {
         super(NAME);

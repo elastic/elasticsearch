@@ -5,6 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Predicate;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -22,7 +29,6 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -44,6 +50,7 @@ import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
+import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver.ResolvedIndices;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
@@ -57,13 +64,6 @@ import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
@@ -250,24 +250,37 @@ public class AuthorizationService extends AbstractComponent {
             }
         }
 
-        if (permission.indices().check(action) == false) {
+        final boolean allowsRemoteIndices = request instanceof IndicesRequest
+                && IndicesAndAliasesResolver.allowsRemoteIndices((IndicesRequest) request);
+
+        // If this request does not allow remote indices
+        // then the user must have permission to perform this action on at least 1 local index
+        if (allowsRemoteIndices == false && permission.indices().check(action) == false) {
             throw denial(authentication, action, request);
         }
 
-        MetaData metaData = clusterService.state().metaData();
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getUser(), permission, action, metaData);
-        Set<String> indexNames = resolveIndexNames(authentication, action, request, metaData, authorizedIndices);
-        assert !indexNames.isEmpty() : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+        final MetaData metaData = clusterService.state().metaData();
+        final AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getUser(), permission, action, metaData);
+        final ResolvedIndices resolvedIndices = resolveIndexNames(authentication, action, request, metaData, authorizedIndices);
+        assert !resolvedIndices.isEmpty()
+                : "every indices request needs to have its indices set thus the resolved indices must not be empty";
+
+        // If this request does reference any remote indices
+        // then the user must have permission to perform this action on at least 1 local index
+        if (resolvedIndices.getRemote().isEmpty() && permission.indices().check(action) == false) {
+            throw denial(authentication, action, request);
+        }
 
         //all wildcard expressions have been resolved and only the security plugin could have set '-*' here.
         //'-*' matches no indices so we allow the request to go through, which will yield an empty response
-        if (indexNames.size() == 1 && indexNames.contains(IndicesAndAliasesResolver.NO_INDEX_PLACEHOLDER)) {
+        if (resolvedIndices.isNoIndicesPlaceholder()) {
             setIndicesAccessControl(IndicesAccessControl.ALLOW_NO_INDICES);
             grant(authentication, action, request);
             return;
         }
 
-        IndicesAccessControl indicesAccessControl = permission.authorize(action, indexNames, metaData, fieldPermissionsCache);
+        final Set<String> localIndices = new HashSet<>(resolvedIndices.getLocal());
+        IndicesAccessControl indicesAccessControl = permission.authorize(action, localIndices, metaData, fieldPermissionsCache);
         if (!indicesAccessControl.isGranted()) {
             throw denial(authentication, action, request);
         } else if (indicesAccessControl.getIndexPermissions(SecurityLifecycleService.SECURITY_INDEX_NAME) != null
@@ -289,7 +302,7 @@ public class AuthorizationService extends AbstractComponent {
             assert request instanceof CreateIndexRequest;
             Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
             if (!aliases.isEmpty()) {
-                Set<String> aliasesAndIndices = Sets.newHashSet(indexNames);
+                Set<String> aliasesAndIndices = Sets.newHashSet(localIndices);
                 for (Alias alias : aliases) {
                     aliasesAndIndices.add(alias.name());
                 }
@@ -305,8 +318,8 @@ public class AuthorizationService extends AbstractComponent {
         grant(authentication, action, originalRequest);
     }
 
-    private Set<String> resolveIndexNames(Authentication authentication, String action, TransportRequest request, MetaData metaData,
-                                          AuthorizedIndices authorizedIndices) {
+    private ResolvedIndices resolveIndexNames(Authentication authentication, String action, TransportRequest request, MetaData metaData,
+                                              AuthorizedIndices authorizedIndices) {
         try {
             return indicesAndAliasesResolver.resolve(request, metaData, authorizedIndices);
         } catch (Exception e) {

@@ -5,6 +5,14 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -20,6 +28,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -74,6 +84,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -113,14 +124,6 @@ import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
@@ -154,13 +157,16 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void setup() {
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS); 
+        final Settings settings = Settings.builder()
+                .put("search.remote.other_cluster.seeds", "localhost:9999")
+                .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         auditTrail = mock(AuditTrailService.class);
-        threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext = new ThreadContext(settings);
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
         doAnswer((i) -> {
             ActionListener<Role> callback =
                     (ActionListener<Role>) i.getArguments()[2];
@@ -182,8 +188,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
             return Void.TYPE;
         }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
-        authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
-                auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(Settings.EMPTY));
+        authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
+                auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings));
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -243,6 +249,65 @@ public class AuthorizationServiceTests extends ESTestCase {
                 () -> authorize(createAuthentication(user), "indices:a", request),
                 "indices:a", "test user");
         verify(auditTrail).accessDenied(user, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testUserWithNoRolesCanPerformRemoteSearch() {
+        SearchRequest request = new SearchRequest();
+        request.indices("other_cluster:index1", "*_cluster:index2", "other_cluster:other_*");
+        User user = new User("test user");
+        mockEmptyMetaData();
+        authorize(createAuthentication(user), SearchAction.NAME, request);
+        verify(auditTrail).accessGranted(user, SearchAction.NAME, request);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    /**
+     * This test mimics {@link #testUserWithNoRolesCanPerformRemoteSearch()} except that
+     * while the referenced index _looks_ like a remote index, the remote cluster name has not
+     * been defined, so it is actually a local index and access should be denied
+     */
+    public void testUserWithNoRolesCannotPerformLocalSearch() {
+        SearchRequest request = new SearchRequest();
+        request.indices("no_such_cluster:index");
+        User user = new User("test user");
+        mockEmptyMetaData();
+        assertThrowsAuthorizationException(
+                () -> authorize(createAuthentication(user), SearchAction.NAME, request),
+                SearchAction.NAME, "test user");
+        verify(auditTrail).accessDenied(user, SearchAction.NAME, request);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    /**
+     * This test mimics {@link #testUserWithNoRolesCannotPerformLocalSearch()} but includes
+     * both local and remote indices, including wildcards
+     */
+    public void testUserWithNoRolesCanPerformMultiClusterSearch() {
+        SearchRequest request = new SearchRequest();
+        request.indices("local_index", "wildcard_*", "other_cluster:remote_index", "*:foo?");
+        User user = new User("test user");
+        mockEmptyMetaData();
+        assertThrowsAuthorizationException(
+                () -> authorize(createAuthentication(user), SearchAction.NAME, request),
+                SearchAction.NAME, "test user");
+        verify(auditTrail).accessDenied(user, SearchAction.NAME, request);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    /**
+     * Verifies that the behaviour tested in {@link #testUserWithNoRolesCanPerformRemoteSearch}
+     * does not work for requests that are not remote-index-capable.
+     */
+    public void testRemoteIndicesOnlyWorkWithApplicableRequestTypes() {
+        DeleteIndexRequest request = new DeleteIndexRequest();
+        request.indices("other_cluster:index1", "other_cluster:index2");
+        User user = new User("test user");
+        mockEmptyMetaData();
+        assertThrowsAuthorizationException(
+                () -> authorize(createAuthentication(user), DeleteIndexAction.NAME, request),
+                DeleteIndexAction.NAME, "test user");
+        verify(auditTrail).accessDenied(user, DeleteIndexAction.NAME, request);
         verifyNoMoreInteractions(auditTrail);
     }
 

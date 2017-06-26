@@ -113,6 +113,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
                 Settings.builder().put(TestPlugin.UPDATE_TEMPLATE_DUMMY_SETTING.getKey(), updateCount.incrementAndGet())
             ).get());
             List<IndexTemplateMetaData> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
+            assertThat(templates, hasSize(3));
             boolean addedFound = false;
             boolean changedFound = false;
             boolean dummyFound = false;
@@ -140,7 +141,6 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             assertTrue(addedFound);
             assertTrue(changedFound);
             assertTrue(dummyFound);
-            assertThat(templates.size(), equalTo(3));
         });
 
         // Wipe out all templates
@@ -161,6 +161,7 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
             ).get());
 
             List<IndexTemplateMetaData> templates = client().admin().indices().prepareGetTemplates("test_*").get().getIndexTemplates();
+            assertThat(templates, hasSize(2));
             boolean addedFound = false;
             boolean changedFound = false;
             for (int i = 0; i < 2; i++) {
@@ -183,7 +184,6 @@ public class TemplateUpgradeServiceIT extends ESIntegTestCase {
 
             assertTrue(addedFound);
             assertTrue(changedFound);
-            assertThat(templates, hasSize(2));
         });
     }
 

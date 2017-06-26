@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
 
 public class IndicesAndAliasesResolver {
 
@@ -213,7 +214,8 @@ public class IndicesAndAliasesResolver {
     }
 
     public static boolean allowsRemoteIndices(IndicesRequest request) {
-        return request instanceof SearchRequest || request instanceof FieldCapabilitiesRequest;
+        return request instanceof SearchRequest || request instanceof FieldCapabilitiesRequest
+                || request instanceof GraphExploreRequest;
     }
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, MetaData metaData) {

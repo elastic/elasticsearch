@@ -11,12 +11,6 @@
 # Elasticsearch configuration directory
 #CONF_DIR=${path.conf}
 
-# Elasticsearch data directory
-#DATA_DIR=/var/lib/elasticsearch
-
-# Elasticsearch logs directory
-#LOG_DIR=/var/log/elasticsearch
-
 # Elasticsearch PID directory
 #PID_DIR=/var/run/elasticsearch
 

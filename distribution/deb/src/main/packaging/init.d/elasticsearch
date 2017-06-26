@@ -44,12 +44,6 @@ MAX_OPEN_FILES=65536
 # Maximum amount of locked memory
 #MAX_LOCKED_MEMORY=
 
-# Elasticsearch log directory
-LOG_DIR=/var/log/$NAME
-
-# Elasticsearch data directory
-DATA_DIR=/var/lib/$NAME
-
 # Elasticsearch configuration directory
 CONF_DIR=/etc/$NAME
 
@@ -81,7 +75,7 @@ fi
 # Define other required variables
 PID_FILE="$PID_DIR/$NAME.pid"
 DAEMON=$ES_HOME/bin/elasticsearch
-DAEMON_OPTS="-d -p $PID_FILE -Edefault.path.logs=$LOG_DIR -Edefault.path.data=$DATA_DIR --path.conf $CONF_DIR"
+DAEMON_OPTS="-d -p $PID_FILE --path.conf $CONF_DIR"
 
 export ES_JAVA_OPTS
 export JAVA_HOME

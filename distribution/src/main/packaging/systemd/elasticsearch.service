@@ -22,8 +22,6 @@ ExecStartPre=/usr/share/elasticsearch/bin/elasticsearch-systemd-pre-exec
 ExecStart=/usr/share/elasticsearch/bin/elasticsearch \
                                                 -p ${PID_DIR}/elasticsearch.pid \
                                                 --quiet \
-                                                -Edefault.path.logs=${LOG_DIR} \
-                                                -Edefault.path.data=${DATA_DIR} \
                                                 --path.conf ${CONF_DIR}
 
 # StandardOutput is configured to redirect to journalctl since

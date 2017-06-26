@@ -79,7 +79,7 @@ task verifyDocsLuceneVersion {
       expectedLuceneVersion = expectedLuceneVersion.toUpperCase(Locale.ROOT)
     }
     if (docsLuceneVersion != expectedLuceneVersion) {
-      throw new GradleException("Lucene version in docs [${expectedLuceneVersion}] does not match version.properties [${VersionProperties.lucene}]")
+      throw new GradleException("Lucene version in docs [${docsLuceneVersion}] does not match version.properties [${expectedLuceneVersion}]")
     }
   }
 }

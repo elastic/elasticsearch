@@ -1757,11 +1757,11 @@ caching see <<modules-scripting-using-caching, Script Caching>>.
 | `lang`                 | no        | "painless" | The scripting language
 | `file`                 | no        | -          | The script file to refer to
 | `id`                   | no        | -          | The stored script id to refer to
-| `inline`               | no        | -          | An inline script to be executed
+| `source`               | no        | -          | An inline script to be executed
 | `params`               | no        | -          | Script Parameters
 |======
 
-One of `file`, `id`, `inline` options must be provided in order to properly reference a script to execute.
+One of `file`, `id`, or `source` options must be provided in order to properly reference a script to execute.
 
 You can access the current ingest document from within the script context by using the `ctx` variable.
 

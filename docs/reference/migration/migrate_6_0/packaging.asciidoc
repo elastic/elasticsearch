@@ -9,3 +9,13 @@ possible, the DEB and RPM packages now exclusively use the user and group
 `elasticsearch`. If a custom user or group is needed then a provisioning system
 should use the tarball distribution instead of the provided RPM and DEB
 packages.
+
+==== `path.conf` is no longer a configurable setting
+
+Previous versions of Elasticsearch enabled setting `path.conf` as a
+setting. This was rather convoluted as it meant that you could start
+Elasticsearch with a config file that specified via `path.conf` that
+Elasticsearch should use another config file. Instead, `path.conf` is now a
+command-line flag. To start Elasticsearch with a custom config file, use `-c
+/path/to/config` or `--path.conf /path/to/config`. Here, `/path/to/config` is
+the *directory* containing the config file.

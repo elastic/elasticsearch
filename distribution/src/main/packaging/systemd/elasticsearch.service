@@ -24,7 +24,7 @@ ExecStart=/usr/share/elasticsearch/bin/elasticsearch \
                                                 --quiet \
                                                 -Edefault.path.logs=${LOG_DIR} \
                                                 -Edefault.path.data=${DATA_DIR} \
-                                                -Edefault.path.conf=${CONF_DIR}
+                                                --path.conf ${CONF_DIR}
 
 # StandardOutput is configured to redirect to journalctl since
 # some error messages may be logged in standard output before

@@ -85,7 +85,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .build();
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        PluginsService pluginsService = new PluginsService(settings, null, null, getPlugins());
+        PluginsService pluginsService = new PluginsService(settings, null, null, null, getPlugins());
         SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.addAll(indicesModule.getNamedWriteables());

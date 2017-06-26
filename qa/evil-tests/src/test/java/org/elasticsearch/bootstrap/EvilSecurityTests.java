@@ -80,7 +80,6 @@ public class EvilSecurityTests extends ESTestCase {
 
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.resolve("home").toString());
-        settingsBuilder.put(Environment.PATH_CONF_SETTING.getKey(), esHome.resolve("conf").toString());
         settingsBuilder.putArray(Environment.PATH_DATA_SETTING.getKey(), esHome.resolve("data1").toString(),
                 esHome.resolve("data2").toString());
         settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
@@ -94,7 +93,7 @@ public class EvilSecurityTests extends ESTestCase {
         Environment environment;
         try {
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
-            environment = new Environment(settings);
+            environment = new Environment(settings, esHome.resolve("conf"));
             permissions = Security.createPermissions(environment);
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);

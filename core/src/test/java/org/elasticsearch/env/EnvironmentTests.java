@@ -144,29 +144,21 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.logsFile(), equalTo(pathHome.resolve("logs")));
     }
 
-    public void testDefaultPathConf() {
-        final Path defaultPathConf = createTempDir().toAbsolutePath();
-        final Settings settings = Settings.builder()
-                .put("path.home", createTempDir().toAbsolutePath())
-                .put("default.path.conf", defaultPathConf)
-                .build();
-        final Environment environment = new Environment(settings);
-        assertThat(environment.configFile(), equalTo(defaultPathConf));
+    public void testDefaultConfigPath() {
+        final Path path = createTempDir().toAbsolutePath();
+        final Settings settings = Settings.builder().put("path.home", path).build();
+        final Environment environment = new Environment(settings, null);
+        assertThat(environment.configFile(), equalTo(path.resolve("config")));
     }
 
-    public void testPathConfOverrideDefaultPathConf() {
-        final Path pathConf = createTempDir().toAbsolutePath();
-        final Path defaultPathConf = createTempDir().toAbsolutePath();
-        final Settings settings = Settings.builder()
-                .put("path.home", createTempDir().toAbsolutePath())
-                .put("path.conf", pathConf)
-                .put("default.path.conf", defaultPathConf)
-                .build();
-        final Environment environment = new Environment(settings);
-        assertThat(environment.configFile(), equalTo(pathConf));
+    public void testConfigPath() {
+        final Path configPath = createTempDir().toAbsolutePath();
+        final Settings settings = Settings.builder().put("path.home", createTempDir().toAbsolutePath()).build();
+        final Environment environment = new Environment(settings, configPath);
+        assertThat(environment.configFile(), equalTo(configPath));
     }
 
-    public void testPathConfWhenNotSet() {
+    public void testConfigPathWhenNotSet() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
         final Environment environment = new Environment(settings);

@@ -89,13 +89,15 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
                 createHistogramBucket(1000L, 3, Arrays.asList(
                         createMax("time", 1000), createSingleValue("my_value", 1.0))),
-                createHistogramBucket(2000L, 5, Arrays.asList(
-                        createMax("time", 2000), createSingleValue("my_value", 2.0)))
+                createHistogramBucket(2000L, 3, Arrays.asList(
+                        createMax("time", 2000), createSingleValue("my_value", Double.NEGATIVE_INFINITY))),
+                createHistogramBucket(3000L, 5, Arrays.asList(
+                        createMax("time", 3000), createSingleValue("my_value", 3.0)))
         );
 
         String json = aggToString("time", Sets.newHashSet("my_value"), histogramBuckets);
 
-        assertThat(json, equalTo("{\"time\":1000,\"my_value\":1.0,\"doc_count\":3} {\"time\":2000,\"my_value\":2.0,\"doc_count\":5}"));
+        assertThat(json, equalTo("{\"time\":1000,\"my_value\":1.0,\"doc_count\":3} {\"time\":3000,\"my_value\":3.0,\"doc_count\":5}"));
     }
 
     public void testProcessGivenTermsPerHistogram() throws IOException {
@@ -154,7 +156,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         a1NumericAggs.put("my_value", 111.0);
         a1NumericAggs.put("my_value2", 112.0);
         Map<String, Double> b1NumericAggs = new LinkedHashMap<>();
-        b1NumericAggs.put("my_value", 121.0);
+        b1NumericAggs.put("my_value", Double.POSITIVE_INFINITY);
         b1NumericAggs.put("my_value2", 122.0);
         Map<String, Double> c1NumericAggs = new LinkedHashMap<>();
         c1NumericAggs.put("my_value", 131.0);
@@ -188,7 +190,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         String json = aggToString("time", Sets.newHashSet("my_field", "my_value", "my_value2"), false, histogramBuckets);
 
         assertThat(json, equalTo("{\"time\":1000,\"my_field\":\"a\",\"my_value\":111.0,\"my_value2\":112.0} " +
-                "{\"time\":1000,\"my_field\":\"b\",\"my_value\":121.0,\"my_value2\":122.0} " +
+                "{\"time\":1000,\"my_field\":\"b\",\"my_value2\":122.0} " +
                 "{\"time\":1000,\"my_field\":\"c\",\"my_value\":131.0,\"my_value2\":132.0} " +
                 "{\"time\":2000,\"my_field\":\"a\",\"my_value\":211.0,\"my_value2\":212.0} " +
                 "{\"time\":2000,\"my_field\":\"b\",\"my_value\":221.0,\"my_value2\":222.0} " +
@@ -279,7 +281,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 createHistogramBucket(2000L, 7, Arrays.asList(
                         createMax("time", 2000), createPercentiles("my_field", 2.0))),
                 createHistogramBucket(3000L, 10, Arrays.asList(
-                        createMax("time", 3000), createPercentiles("my_field", 3.0))),
+                        createMax("time", 3000), createPercentiles("my_field", Double.NEGATIVE_INFINITY))),
                 createHistogramBucket(4000L, 14, Arrays.asList(
                         createMax("time", 4000), createPercentiles("my_field", 4.0)))
         );
@@ -288,7 +290,6 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
         assertThat(json, equalTo("{\"time\":1000,\"my_field\":1.0,\"doc_count\":4} " +
                 "{\"time\":2000,\"my_field\":2.0,\"doc_count\":7} " +
-                "{\"time\":3000,\"my_field\":3.0,\"doc_count\":10} " +
                 "{\"time\":4000,\"my_field\":4.0,\"doc_count\":14}"));
     }
 

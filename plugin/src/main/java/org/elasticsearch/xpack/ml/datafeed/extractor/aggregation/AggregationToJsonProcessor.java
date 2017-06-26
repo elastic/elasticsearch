@@ -94,6 +94,12 @@ class AggregationToJsonProcessor implements Releasable {
     }
 
     private void processNestedAggs(long docCount, List<Aggregation> aggs) throws IOException {
+        if (aggs.isEmpty()) {
+            // This means we reached a bucket aggregation without sub-aggs. Thus, we can flush the path written so far.
+            writeJsonObject(docCount);
+            return;
+        }
+
         boolean processedBucketAgg = false;
         List<String> addedLeafKeys = new ArrayList<>();
         for (Aggregation agg : aggs) {
@@ -111,17 +117,17 @@ class AggregationToJsonProcessor implements Releasable {
                     if (processedBucketAgg) {
                         throw new IllegalArgumentException("Mixing bucket and leaf aggregations at the same level is not supported");
                     }
-                    addedLeafKeys.add(processLeaf(agg));
+                    String addedKey = processLeaf(agg);
+                    if (addedKey != null) {
+                        addedLeafKeys.add(addedKey);
+                    }
                 }
             }
         }
+
         if (addedLeafKeys.isEmpty() == false) {
             writeJsonObject(docCount);
             addedLeafKeys.forEach(k -> keyValuePairs.remove(k));
-        }
-
-        if (processedBucketAgg == false && addedLeafKeys.isEmpty()) {
-            writeJsonObject(docCount);
         }
     }
 
@@ -133,27 +139,41 @@ class AggregationToJsonProcessor implements Releasable {
         }
     }
 
+    /**
+     * Adds a leaf key-value. It returns the name of the key added or {@code null} when nothing was added.
+     * Non-finite metric values are not added.
+     */
+    @Nullable
     private String processLeaf(Aggregation agg) throws IOException {
         if (agg instanceof NumericMetricsAggregation.SingleValue) {
-            processSingleValue((NumericMetricsAggregation.SingleValue) agg);
+            return processSingleValue((NumericMetricsAggregation.SingleValue) agg);
         } else if (agg instanceof Percentiles) {
-            processPercentiles((Percentiles) agg);
+            return processPercentiles((Percentiles) agg);
         } else {
             throw new IllegalArgumentException("Unsupported aggregation type [" + agg.getName() + "]");
         }
-        return agg.getName();
     }
 
-    private void processSingleValue(NumericMetricsAggregation.SingleValue singleValue) throws IOException {
-        keyValuePairs.put(singleValue.getName(), singleValue.value());
+    private String processSingleValue(NumericMetricsAggregation.SingleValue singleValue) throws IOException {
+        return addMetricIfFinite(singleValue.getName(), singleValue.value());
     }
 
-    private void processPercentiles(Percentiles percentiles) throws IOException {
+    @Nullable
+    private String addMetricIfFinite(String key, double value) {
+        if (Double.isFinite(value)) {
+            keyValuePairs.put(key, value);
+            return key;
+        }
+        return null;
+    }
+
+    private String processPercentiles(Percentiles percentiles) throws IOException {
         Iterator<Percentile> percentileIterator = percentiles.iterator();
-        keyValuePairs.put(percentiles.getName(), percentileIterator.next().getValue());
+        String addedKey = addMetricIfFinite(percentiles.getName(), percentileIterator.next().getValue());
         if (percentileIterator.hasNext()) {
             throw new IllegalArgumentException("Multi-percentile aggregation [" + percentiles.getName() + "] is not supported");
         }
+        return addedKey;
     }
 
     private void writeJsonObject(long docCount) throws IOException {

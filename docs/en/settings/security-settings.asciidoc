@@ -2,11 +2,11 @@
 == Security Settings
 
 You configure `xpack.security` settings  to 
-<<anonymous-access-settings, enable anonymous access>>
+<<anonymous-access-settings enable anonymous access>>
 and perform message authentication,
 <<field-document-security-settings, set up document and field 
 level security>>, <<realm-settings, configure realms>>, 
-and  {ref}/security-settings.html#ssl-tls-settings[encrypt communications with SSL].
+and  <<ssl-tls-settings, encrypt communications with SSL>>.
 
 [float]
 [[general-security-settings]]
@@ -20,14 +20,15 @@ Configure in both `elasticsearch.yml` and `kibana.yml`.
 === Default Password Security Settings
 `xpack.security.authc.accept_default_password`::
 In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
-For more information, see <<disabling-default-password, Disable Default Password Functionality>>.
+For more information, see {xpack-ref}/setting-up-authentication.html#disabling-default-password[
+Disable Default Password Functionality].
 
 [float]
 [[anonymous-access-settings]]
 === Anonymous Access Settings
 You can configure the following anonymous access settings in 
-`elasticsearch.yml`.  For more information, see <<anonymous-access, 
-Enabling Anonymous Access>>.
+`elasticsearch.yml`.  For more information, see {xpack-ref}/anonymous-access.html[
+Enabling Anonymous Access].
 
 `xpack.security.authc.anonymous.username`::
 The username (principal) of the anonymous user. Defaults to `_es_anonymous_user`. 
@@ -49,8 +50,8 @@ access. Defaults to `true`.
 
 You can set the following document and field level security
 settings in `elasticsearch.yml`. For more information, see 
-<<field-and-document-access-control, Setting Up Document and Field
-Level Security>>.
+{xpack-ref}/field-and-document-access-control.html[Setting Up Document and Field
+Level Security].
 
 `xpack.security.dls_fls.enabled`::
 Set to `false` to prevent document and field level security 
@@ -103,7 +104,7 @@ xpack.security.authc.realms:
 ----------------------------------------
 
 The valid settings vary depending on the realm type. For more 
-information, see <<setting-up-authentication, Setting Up Authentication>>.
+information, see {xpack-ref}/setting-up-authentication.html[Setting Up Authentication].
 
 [float]
 ==== Settings Valid for All Realms
@@ -134,8 +135,8 @@ Defaults to 100,000.
 
 `cache.hash_algo`::   
 (Expert Setting) The hashing algorithm that is used for the in-memory cached 
-user credentials. See the <<cache-hash-algo,Cache hash algorithms>> table f
-or all possible values. Defaults to `ssha256`.
+user credentials. See the {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for
+all possible values. Defaults to `ssha256`.
 
 [[ref-ldap-settings]]
 [float]
@@ -145,7 +146,7 @@ An LDAP URL in the format `ldap[s]://<server>:<port>`. Required.
 
 `load_balance.type`::                     
 The behavior to use when there are multiple LDAP URLs defined. For supported 
-values see <<ldap-load-balancing, LDAP load balancing and failover types>>.
+values see {xpack-ref}/ldap-realm.html#ldap-load-balancing[LDAP load balancing and failover types].
 Defaults to `failover`.
 
 `load_balance.cache_ttl`::                
@@ -167,7 +168,7 @@ The DN template that replaces the user name with the string `{0}`.
 This element is multivalued; you can specify multiple user contexts. 
 Required to operate in user template mode. Not valid
 if `user_search.base_dn` is specified. For more information on
-the different modes, see <<ldap-realm, ldap realms>>. 
+the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms]. 
 
 `user_group_attribute`::                      
 Specifies the attribute to examine on the user for group membership. 
@@ -178,7 +179,7 @@ The default is `memberOf`. This setting will be ignored if any
 Specifies a container DN to search for users. Required 
 to operated in user search mode. Not valid if 
 `user_dn_templates is specified. For more information on
-the different modes, see <<ldap-realm, ldap realms>>.
+the different modes, see {xpack-ref}/ldap-realm.html[LDAP realms].
 
 `user_search.scope`::                         
 The scope of the user search. Valid values are `sub_tree`, `one_level` or 
@@ -244,8 +245,8 @@ LDAP groups that are not referenced in a role-mapping _file_ are used as role
 names and assigned to the user. Defaults to `false`.
 
 `files.role_mapping`::               
-The <<security-files-location,location>> for the <<ldap-role-mapping, 
-YAML role mapping configuration file>>. Defaults to  
+The {xpack-ref}/security-files.html[location] for the {xpack-ref}/mapping-roles.html#mapping-roles[ 
+YAML role mapping configuration file]. Defaults to  
 `CONFIG_DIR/x-pack/role_mapping.yml`.
 
 `follow_referrals`::                       
@@ -328,7 +329,7 @@ Defaults to `100000`.
 
 `cache.hash_algo`::                          
 (Expert Setting) Specifies the hashing algorithm that is used for the 
-in-memory cached user credentials (see <<cache-hash-algo,Cache hash algorithms>> 
+in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] 
 table for all possible values). Defaults to `ssha256`.
 
 [[ref-ad-settings]]
@@ -340,7 +341,7 @@ A URL in the format `ldap[s]://<server>:<port>`. Defaults to `ldap://<domain_nam
 
 `load_balance.type`::         
 The behavior to use when there are multiple LDAP URLs defined. For supported 
-values see <<ad-load-balancing, LDAP load balancing and failover types>>.
+values see {xpack-ref}/active-directory-realm.html#ad-load-balancing[load balancing and failover types].
 Defaults to  `failover`.
 
 `load_balance.cache_ttl`::     
@@ -359,8 +360,8 @@ LDAP groups that are not referenced in a role-mapping _file_ are used as role
 names and assigned to the user. Defaults to `false`.
 
 `files.role_mapping`::         
-The <<security-files-location,location>> for the <<ldap-role-mapping, YAML
-role mapping configuration file>>. Defaults to  `CONFIG_DIR/x-pack/role_mapping.yml`. 
+The {xpack-ref}/security-files.html[location] for the YAML
+role mapping configuration file. Defaults to  `CONFIG_DIR/x-pack/role_mapping.yml`. 
 
 `user_search.base_dn`::        
 The context to search for a user. Defaults to the root 
@@ -480,8 +481,7 @@ Defaults to `100000`.
 
 `cache.hash_algo`::           
 (Expert Setting) Specifies the hashing algorithm that will be used for 
-the in-memory cached user credentials (see <<cache-hash-algo,Cache hash 
-algorithms>> table for all possible values). Defaults to `ssha256`.
+the in-memory cached user credentials (see {xpack-ref}/controlling-user-cache.html#controlling-user-cache[Cache hash algorithms] table for all possible values). Defaults to `ssha256`.
 
 [[ref-pki-settings]]
 [float]
@@ -508,8 +508,8 @@ The password for the truststore. Must be provided if `truststore.path` is set.
 Algorithm for the trustsore. Defaults to `SunX509`.
 
 `files.role_mapping`::     
-Specifies the <<security-files-location,location>> for the 
-<<pki-role-mapping, YAML role  mapping configuration file>>.
+Specifies the {xpack-ref}/security-files.html[location] of the 
+{xpack-ref}/mapping-roles.html[YAML role  mapping configuration file].
 Defaults to `CONFIG_DIR/x-pack/role_mapping.yml`.
 
 [float]
@@ -517,7 +517,7 @@ Defaults to `CONFIG_DIR/x-pack/role_mapping.yml`.
 === Default TLS/SSL Settings
 You can configure the following TLS/SSL settings in 
 `elasticsearch.yml`. For more information, see
-<<ssl-tls, Encrypting Communications>>. These settings will be used
+{xpack-ref}/encrypting-communications.html[Encrypting Communications]. These settings will be used
 for all of {xpack} unless they have been overridden by more specific
 settings such as those for HTTP or Transport.
 
@@ -630,7 +630,7 @@ setting, this would be `transport.profiles.$PROFILE.xpack.security.ssl.enabled`.
 [float]
 [[ip-filtering-settings]]
 === IP Filtering Settings
-You can configure the following settings for <<ip-filtering, IP filtering>>.
+You can configure the following settings for {xpack-ref}/ip-filtering.html[IP filtering].
 
 `xpack.security.transport.filter.allow`::
 List of IP addresses to allow.

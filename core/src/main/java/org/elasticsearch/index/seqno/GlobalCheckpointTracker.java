@@ -214,9 +214,6 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @param globalCheckpoint the global checkpoint
      */
     synchronized void updateGlobalCheckpointOnReplica(final long globalCheckpoint) {
-        if (sealed) {
-            throw new IllegalStateException("global checkpoint tracker is sealed");
-        }
         /*
          * The global checkpoint here is a local knowledge which is updated under the mandate of the primary. It can happen that the primary
          * information is lagging compared to a replica (e.g., if a replica is promoted to primary but has stale info relative to other

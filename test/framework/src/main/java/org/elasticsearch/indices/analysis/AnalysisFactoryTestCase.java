@@ -36,13 +36,11 @@ import org.elasticsearch.index.analysis.CzechStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.DecimalDigitFilterFactory;
 import org.elasticsearch.index.analysis.DelimitedPayloadTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
-import org.elasticsearch.index.analysis.ElisionTokenFilterFactory;
 import org.elasticsearch.index.analysis.GermanNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.HunspellTokenFilterFactory;
 import org.elasticsearch.index.analysis.IndicNormalizationFilterFactory;
-import org.elasticsearch.index.analysis.KStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.KeepTypesFilterFactory;
 import org.elasticsearch.index.analysis.KeepWordFilterFactory;
 import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
@@ -60,7 +58,6 @@ import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
-import org.elasticsearch.index.analysis.ReverseTokenFilterFactory;
 import org.elasticsearch.index.analysis.ScandinavianFoldingFilterFactory;
 import org.elasticsearch.index.analysis.ScandinavianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.SerbianNormalizationFilterFactory;
@@ -68,17 +65,12 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.SoraniNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenFilterFactory;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
-import org.elasticsearch.index.analysis.StemmerOverrideTokenFilterFactory;
-import org.elasticsearch.index.analysis.StemmerTokenFilterFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.index.analysis.ThaiTokenizerFactory;
-import org.elasticsearch.index.analysis.TruncateTokenFilterFactory;
 import org.elasticsearch.index.analysis.UAX29URLEmailTokenizerFactory;
 import org.elasticsearch.index.analysis.WhitespaceTokenizerFactory;
-import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilterFactory;
-import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 
@@ -147,7 +139,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("arabicstem",                ArabicStemTokenFilterFactory.class)
         .put("asciifolding",              MovedToAnalysisCommon.class)
         .put("brazilianstem",             BrazilianStemTokenFilterFactory.class)
-        .put("bulgarianstem",             StemmerTokenFilterFactory.class)
+        .put("bulgarianstem",             MovedToAnalysisCommon.class)
         .put("cjkbigram",                 CJKBigramFilterFactory.class)
         .put("cjkwidth",                  CJKWidthFilterFactory.class)
         .put("classic",                   ClassicFilterFactory.class)
@@ -156,50 +148,50 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("czechstem",                 CzechStemTokenFilterFactory.class)
         .put("decimaldigit",              DecimalDigitFilterFactory.class)
         .put("delimitedpayload",          DelimitedPayloadTokenFilterFactory.class)
-        .put("dictionarycompoundword",    DictionaryCompoundWordTokenFilterFactory.class)
+        .put("dictionarycompoundword",    MovedToAnalysisCommon.class)
         .put("edgengram",                 MovedToAnalysisCommon.class)
-        .put("elision",                   ElisionTokenFilterFactory.class)
-        .put("englishminimalstem",        StemmerTokenFilterFactory.class)
-        .put("englishpossessive",         StemmerTokenFilterFactory.class)
-        .put("finnishlightstem",          StemmerTokenFilterFactory.class)
-        .put("frenchlightstem",           StemmerTokenFilterFactory.class)
-        .put("frenchminimalstem",         StemmerTokenFilterFactory.class)
-        .put("galicianminimalstem",       StemmerTokenFilterFactory.class)
-        .put("galicianstem",              StemmerTokenFilterFactory.class)
+        .put("elision",                   MovedToAnalysisCommon.class)
+        .put("englishminimalstem",        MovedToAnalysisCommon.class)
+        .put("englishpossessive",         MovedToAnalysisCommon.class)
+        .put("finnishlightstem",          MovedToAnalysisCommon.class)
+        .put("frenchlightstem",           MovedToAnalysisCommon.class)
+        .put("frenchminimalstem",         MovedToAnalysisCommon.class)
+        .put("galicianminimalstem",       MovedToAnalysisCommon.class)
+        .put("galicianstem",              MovedToAnalysisCommon.class)
         .put("germanstem",                GermanStemTokenFilterFactory.class)
-        .put("germanlightstem",           StemmerTokenFilterFactory.class)
-        .put("germanminimalstem",         StemmerTokenFilterFactory.class)
+        .put("germanlightstem",           MovedToAnalysisCommon.class)
+        .put("germanminimalstem",         MovedToAnalysisCommon.class)
         .put("germannormalization",       GermanNormalizationFilterFactory.class)
         .put("greeklowercase",            MovedToAnalysisCommon.class)
-        .put("greekstem",                 StemmerTokenFilterFactory.class)
+        .put("greekstem",                 MovedToAnalysisCommon.class)
         .put("hindinormalization",        HindiNormalizationFilterFactory.class)
-        .put("hindistem",                 StemmerTokenFilterFactory.class)
-        .put("hungarianlightstem",        StemmerTokenFilterFactory.class)
+        .put("hindistem",                 MovedToAnalysisCommon.class)
+        .put("hungarianlightstem",        MovedToAnalysisCommon.class)
         .put("hunspellstem",              HunspellTokenFilterFactory.class)
-        .put("hyphenationcompoundword",   HyphenationCompoundWordTokenFilterFactory.class)
+        .put("hyphenationcompoundword",   MovedToAnalysisCommon.class)
         .put("indicnormalization",        IndicNormalizationFilterFactory.class)
         .put("irishlowercase",            MovedToAnalysisCommon.class)
-        .put("indonesianstem",            StemmerTokenFilterFactory.class)
-        .put("italianlightstem",          StemmerTokenFilterFactory.class)
+        .put("indonesianstem",            MovedToAnalysisCommon.class)
+        .put("italianlightstem",          MovedToAnalysisCommon.class)
         .put("keepword",                  KeepWordFilterFactory.class)
         .put("keywordmarker",             MovedToAnalysisCommon.class)
-        .put("kstem",                     KStemTokenFilterFactory.class)
-        .put("latvianstem",               StemmerTokenFilterFactory.class)
+        .put("kstem",                     MovedToAnalysisCommon.class)
+        .put("latvianstem",               MovedToAnalysisCommon.class)
         .put("length",                    MovedToAnalysisCommon.class)
         .put("limittokencount",           LimitTokenCountFilterFactory.class)
         .put("lowercase",                 MovedToAnalysisCommon.class)
         .put("ngram",                     MovedToAnalysisCommon.class)
-        .put("norwegianlightstem",        StemmerTokenFilterFactory.class)
-        .put("norwegianminimalstem",      StemmerTokenFilterFactory.class)
+        .put("norwegianlightstem",        MovedToAnalysisCommon.class)
+        .put("norwegianminimalstem",      MovedToAnalysisCommon.class)
         .put("patterncapturegroup",       PatternCaptureGroupTokenFilterFactory.class)
         .put("patternreplace",            PatternReplaceTokenFilterFactory.class)
         .put("persiannormalization",      PersianNormalizationFilterFactory.class)
         .put("porterstem",                MovedToAnalysisCommon.class)
-        .put("portuguesestem",            StemmerTokenFilterFactory.class)
-        .put("portugueselightstem",       StemmerTokenFilterFactory.class)
-        .put("portugueseminimalstem",     StemmerTokenFilterFactory.class)
-        .put("reversestring",             ReverseTokenFilterFactory.class)
-        .put("russianlightstem",          StemmerTokenFilterFactory.class)
+        .put("portuguesestem",            MovedToAnalysisCommon.class)
+        .put("portugueselightstem",       MovedToAnalysisCommon.class)
+        .put("portugueseminimalstem",     MovedToAnalysisCommon.class)
+        .put("reversestring",             MovedToAnalysisCommon.class)
+        .put("russianlightstem",          MovedToAnalysisCommon.class)
         .put("scandinavianfolding",       ScandinavianFoldingFilterFactory.class)
         .put("scandinaviannormalization", ScandinavianNormalizationFilterFactory.class)
         .put("serbiannormalization",      SerbianNormalizationFilterFactory.class)
@@ -207,16 +199,16 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("minhash",                   MinHashTokenFilterFactory.class)
         .put("snowballporter",            MovedToAnalysisCommon.class)
         .put("soraninormalization",       SoraniNormalizationFilterFactory.class)
-        .put("soranistem",                StemmerTokenFilterFactory.class)
-        .put("spanishlightstem",          StemmerTokenFilterFactory.class)
+        .put("soranistem",                MovedToAnalysisCommon.class)
+        .put("spanishlightstem",          MovedToAnalysisCommon.class)
         .put("standard",                  StandardTokenFilterFactory.class)
-        .put("stemmeroverride",           StemmerOverrideTokenFilterFactory.class)
+        .put("stemmeroverride",           MovedToAnalysisCommon.class)
         .put("stop",                      StopTokenFilterFactory.class)
-        .put("swedishlightstem",          StemmerTokenFilterFactory.class)
+        .put("swedishlightstem",          MovedToAnalysisCommon.class)
         .put("synonym",                   SynonymTokenFilterFactory.class)
         .put("synonymgraph",              SynonymGraphTokenFilterFactory.class)
         .put("trim",                      MovedToAnalysisCommon.class)
-        .put("truncate",                  TruncateTokenFilterFactory.class)
+        .put("truncate",                  MovedToAnalysisCommon.class)
         .put("turkishlowercase",          MovedToAnalysisCommon.class)
         .put("type",                      KeepTypesFilterFactory.class)
         .put("uppercase",                 MovedToAnalysisCommon.class)

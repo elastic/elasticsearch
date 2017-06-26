@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.bucket.adjacency.InternalAdjacencyMatrixTests;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilterTests;
 import org.elasticsearch.search.aggregations.bucket.filters.InternalFiltersTests;
@@ -82,9 +83,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 
 /**
  * This class tests that aggregations parsing works properly. It checks that we can parse
@@ -175,11 +178,43 @@ public class AggregationsTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
+        parseAndAssert(false);
+    }
+
+    public void testFromXContentWithRandomFields() throws IOException {
+        parseAndAssert(true);
+    }
+
+    private void parseAndAssert(boolean addRandomFields) throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         Aggregations aggregations = createTestInstance();
         BytesReference originalBytes = toShuffledXContent(aggregations, xContentType, params, randomBoolean());
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+        BytesReference mutated;
+        if (addRandomFields) {
+            /*
+             * - don't insert into the root object because it should only contain the named aggregations to test
+             *
+             * - don't insert into the "meta" object, because we pass on everything we find there
+             *
+             * - we don't want to directly insert anything random into "buckets"  objects, they are used with
+             * "keyed" aggregations and contain named bucket objects. Any new named object on this level should
+             * also be a bucket and be parsed as such.
+             *
+             * - we cannot insert randomly into VALUE or VALUES objects e.g. in Percentiles, the keys need to be numeric there
+             *
+             * - we cannot insert into ExtendedMatrixStats "covariance" or "correlation" fields, their syntax is strict
+             */
+            Predicate<String> excludes = path -> (path.isEmpty() || path.endsWith("aggregations")
+                    || path.endsWith(Aggregation.CommonFields.META.getPreferredName())
+                    || path.endsWith(Aggregation.CommonFields.BUCKETS.getPreferredName())
+                    || path.endsWith(CommonFields.VALUES.getPreferredName()) || path.endsWith("covariance") || path.endsWith("correlation")
+                    || path.contains(CommonFields.VALUE.getPreferredName()));
+            mutated = insertRandomFields(xContentType, originalBytes, excludes, random());
+        } else {
+            mutated = originalBytes;
+        }
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals(Aggregations.AGGREGATIONS_FIELD, parser.currentName());

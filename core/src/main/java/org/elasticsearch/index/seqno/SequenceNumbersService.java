@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.seqno;
 
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Set;
-import java.util.function.Consumer;
 
 /**
  * Encapsulates the local and global checkpoints into a single service for use as a shard component.
@@ -202,8 +200,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      *
      * @return the primary context
      */
-    public Releasable primaryContext(final Consumer<PrimaryContext> consumer) {
-        return globalCheckpointTracker.primaryContext(consumer);
+    public PrimaryContext primaryContext() {
+        return globalCheckpointTracker.primaryContext();
+    }
+
+    /**
+     * Releases a previously acquired primary context.
+     */
+    public void releasePrimaryContext() {
+        globalCheckpointTracker.releasePrimaryContext();
     }
 
 }

@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.LongTuple;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.PrimaryContext;
@@ -36,7 +35,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -286,24 +284,22 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      *
      * @return the primary context
      */
-    synchronized Releasable primaryContext(final Consumer<PrimaryContext> consumer) {
+    synchronized PrimaryContext primaryContext() {
         if (sealed) {
             throw new IllegalStateException("global checkpoint tracker is sealed");
         }
         sealed = true;
         final ObjectLongMap<String> inSyncLocalCheckpoints = new ObjectLongHashMap<>(this.inSyncLocalCheckpoints);
         final ObjectLongMap<String> trackingLocalCheckpoints = new ObjectLongHashMap<>(this.trackingLocalCheckpoints);
-        try {
-            consumer.accept(new PrimaryContext(appliedClusterStateVersion, inSyncLocalCheckpoints, trackingLocalCheckpoints));
-        } catch (final Exception e) {
-            sealed = false;
-            throw e;
-        }
-        return () -> {
-            synchronized (this) {
-                sealed = false;
-            }
-        };
+        return new PrimaryContext(appliedClusterStateVersion, inSyncLocalCheckpoints, trackingLocalCheckpoints);
+    }
+
+    /**
+     * Releases a previously acquired primary context.
+     */
+    synchronized void releasePrimaryContext() {
+        assert sealed;
+        sealed = false;
     }
 
     /**

@@ -537,11 +537,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
                  */
                 verifyRelocatingState();
-                try (Releasable ignored = primaryContext(consumer)) {
+                final PrimaryContext primaryContext = getEngine().seqNoService().primaryContext();
+                try {
+                    consumer.accept(primaryContext);
                     synchronized (mutex) {
                         verifyRelocatingState();
                         changeState(IndexShardState.RELOCATED, reason);
                     }
+                } catch (final Exception e) {
+                    getEngine().seqNoService().releasePrimaryContext();
                 }
             });
         } catch (TimeoutException e) {
@@ -572,17 +576,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED,
                 ": primary relocation is forbidden while primary-replica resync is in progress " + shardRouting);
         }
-    }
-
-    /**
-     * Obtain the primary context for the shard. The shard must be serving as the relocation source for a primary shard.
-     *
-     * @return the primary for the shard
-     */
-    public Releasable primaryContext(final Consumer<PrimaryContext> consumer) {
-        verifyPrimary();
-        assert shardRouting.relocating() : "primary context can only be obtained from a relocating primary: " + shardRouting;
-        return getEngine().seqNoService().primaryContext(consumer);
     }
 
     public IndexShardState state() {

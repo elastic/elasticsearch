@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis.compound;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter;
@@ -27,6 +27,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.xml.sax.InputSource;
 
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -39,7 +40,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
 
     private final HyphenationTree hyphenationTree;
 
-    public HyphenationCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    HyphenationCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
 
         String hyphenationPatternsPath = settings.get("hyphenation_patterns_path", null);
@@ -50,7 +51,8 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
         Path hyphenationPatternsFile = env.configFile().resolve(hyphenationPatternsPath);
 
         try {
-            hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(Files.newInputStream(hyphenationPatternsFile)));
+            InputStream in = Files.newInputStream(hyphenationPatternsFile);
+            hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(in));
         } catch (Exception e) {
             throw new IllegalArgumentException("Exception while reading hyphenation_patterns_path.", e);
         }

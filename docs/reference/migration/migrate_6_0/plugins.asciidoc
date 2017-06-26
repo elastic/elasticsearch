@@ -88,5 +88,5 @@ discover the path to plugin-specific config files. This will no longer work in
 all situations as the `Settings` object does not carry the necessary information
 for the config path to be set correctly. Instead, plugins that need to know the
 config path should have a single constructor that accepts a pair of `Settings`
-and `Path` instances, and construct an environment using the corresponding
+and `Path` instances, and construct an `Environment` using the corresponding
 constructor on `Environment`.

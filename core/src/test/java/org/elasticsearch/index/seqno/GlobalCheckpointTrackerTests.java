@@ -693,11 +693,11 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         tracker.primaryContext();
         assertTrue(tracker.sealed());
 
-        // invoking any method that mutates the state of the tracker should fail
+        /*
+         * Invoking methods that mutates the state of the tracker should fail (with the exception of updating allocation IDs and updating
+         * global checkpoint on replica which can happen on the relocation source).
+         */
         assertIllegalStateExceptionWhenSealed(() -> tracker.updateLocalCheckpoint(randomAlphaOfLength(16), randomNonNegativeLong()));
-        assertIllegalStateExceptionWhenSealed(() -> tracker.updateGlobalCheckpointOnReplica(randomNonNegativeLong()));
-        assertIllegalStateExceptionWhenSealed(
-                () -> tracker.updateAllocationIdsFromMaster(randomNonNegativeLong(), Collections.emptySet(), Collections.emptySet()));
         assertIllegalStateExceptionWhenSealed(() -> tracker.updateAllocationIdsFromPrimaryContext(mock(PrimaryContext.class)));
         assertIllegalStateExceptionWhenSealed(() -> tracker.primaryContext());
         assertIllegalStateExceptionWhenSealed(() -> tracker.markAllocationIdAsInSync(randomAlphaOfLength(16), randomNonNegativeLong()));

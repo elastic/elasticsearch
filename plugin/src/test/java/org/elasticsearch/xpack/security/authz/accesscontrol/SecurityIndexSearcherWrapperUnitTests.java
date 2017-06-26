@@ -37,7 +37,6 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -68,13 +67,11 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.template.CompiledTemplate;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.security.authz.accesscontrol.DocumentSubsetReader.DocumentSubsetDirectoryReader;
@@ -458,8 +455,15 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
                     }
                 };
 
-        CompiledTemplate compiledScript = mock(CompiledTemplate.class);
-        when(scriptService.compileTemplate(any(Script.class), eq(ExecutableScript.CONTEXT))).thenReturn(compiledScript);
+        TemplateScript.Factory compiledTemplate = templateParams ->
+                new TemplateScript(templateParams) {
+                    @Override
+                    public String execute() {
+                        return "rendered_text";
+                    }
+                };
+        
+        when(scriptService.compile(any(Script.class), eq(TemplateScript.CONTEXT))).thenReturn(compiledTemplate);
 
         XContentBuilder builder = jsonBuilder();
         String query = new TermQueryBuilder("field", "{{_user.username}}").toXContent(builder, ToXContent.EMPTY_PARAMS).string();
@@ -470,7 +474,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
 
         securityIndexSearcherWrapper.evaluateTemplate(querySource);
         ArgumentCaptor<Script> argument = ArgumentCaptor.forClass(Script.class);
-        verify(scriptService).compileTemplate(argument.capture(), eq(ExecutableScript.CONTEXT));
+        verify(scriptService).compile(argument.capture(), eq(TemplateScript.CONTEXT));
         Script usedScript = argument.getValue();
         assertThat(usedScript.getIdOrCode(), equalTo(script.getIdOrCode()));
         assertThat(usedScript.getType(), equalTo(script.getType()));

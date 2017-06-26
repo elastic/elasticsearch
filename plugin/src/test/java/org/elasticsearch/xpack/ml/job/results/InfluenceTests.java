@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +30,7 @@ public class InfluenceTests extends AbstractSerializingTestCase<Influence> {
     }
 
     @Override
-    protected Influence parseInstance(XContentParser parser) {
+    protected Influence doParseInstance(XContentParser parser) {
         return Influence.PARSER.apply(parser, null);
     }
 

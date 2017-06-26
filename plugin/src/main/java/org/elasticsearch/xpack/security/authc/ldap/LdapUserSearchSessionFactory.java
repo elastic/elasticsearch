@@ -72,8 +72,10 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     private static final Setting<Optional<String>> HEALTH_CHECK_DN = new Setting<>("user_search.pool.health_check.dn", (String) null,
             Optional::ofNullable, Setting.Property.NodeScope);
 
-    private static final Setting<String> BIND_DN = Setting.simpleString("bind_dn", Setting.Property.NodeScope);
-    private static final Setting<String> BIND_PASSWORD = Setting.simpleString("bind_password", Setting.Property.NodeScope);
+    private static final Setting<String> BIND_DN = Setting.simpleString("bind_dn",
+            Setting.Property.NodeScope, Setting.Property.Filtered);
+    private static final Setting<String> BIND_PASSWORD = Setting.simpleString("bind_password",
+            Setting.Property.NodeScope, Setting.Property.Filtered);
 
     private final String userSearchBaseDn;
     private final LdapSearchScope scope;
@@ -146,11 +148,11 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     }
 
     static SimpleBindRequest bindRequest(Settings settings) {
-        SimpleBindRequest request = null;
         if (BIND_DN.exists(settings)) {
-            request = new SimpleBindRequest(BIND_DN.get(settings), BIND_PASSWORD.get(settings));
+            return new SimpleBindRequest(BIND_DN.get(settings), BIND_PASSWORD.get(settings));
+        } else {
+            return new SimpleBindRequest();
         }
-        return request;
     }
 
     public static boolean hasUserSearchSettings(RealmConfig config) {
@@ -206,7 +208,8 @@ class LdapUserSearchSessionFactory extends SessionFactory {
         LDAPConnection connection = null;
         try {
             connection = LdapUtils.privilegedConnect(serverSet::getConnection);
-            connection.bind(bindRequest(config.settings()));
+            final SimpleBindRequest bind = bindRequest(config.settings());
+            connection.bind(bind);
             final LDAPConnection finalConnection = connection;
             findUser(user, connection, ActionListener.wrap((entry) -> {
                         // close the existing connection since we are executing in this handler of the previous request and cannot bind here

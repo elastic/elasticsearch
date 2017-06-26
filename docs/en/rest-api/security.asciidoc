@@ -5,6 +5,7 @@
 * <<security-api-clear-cache>>
 * <<security-api-users>>
 * <<security-api-roles>>
+* <<security-api-role-mapping>>
 * <<security-api-privileges>>
 * <<security-api-tokens>>
 
@@ -13,5 +14,6 @@ include::security/change-password.asciidoc[]
 include::security/clear-cache.asciidoc[]
 include::security/users.asciidoc[]
 include::security/roles.asciidoc[]
+include::security/role-mapping.asciidoc[]
 include::security/privileges.asciidoc[]
 include::security/tokens.asciidoc[]

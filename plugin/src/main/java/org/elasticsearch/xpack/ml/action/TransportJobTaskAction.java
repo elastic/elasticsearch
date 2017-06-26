@@ -100,11 +100,6 @@ public abstract class TransportJobTaskAction<Request extends TransportJobTaskAct
         }
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
-
     public static class JobTaskRequest<R extends JobTaskRequest<R>> extends BaseTasksRequest<R> {
 
         String jobId;

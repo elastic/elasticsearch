@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -16,7 +14,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequestBuilder;
 import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -76,7 +73,6 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.security.support.Exceptions;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -88,6 +84,7 @@ import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 public class JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
@@ -112,23 +109,103 @@ public class JobProvider {
     }
 
     /**
+     * Check that a previously deleted job with the same Id has not left any result
+     * or categorizer state documents due to a failed delete. Any left over results would
+     * appear to be part of the new job.
+     *
+     * We can't check for model state as the Id is based on the snapshot Id which is
+     * a timestamp and so unpredictable however, it is unlikely a new job would have
+     * the same snapshot Id as an old one.
+     *
+     * @param job  Job configuration
+     * @param listener The ActionListener
+     */
+    public void checkForLeftOverDocuments(Job job, ActionListener<Boolean> listener) {
+
+        SearchRequestBuilder stateDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+                .setQuery(QueryBuilders.idsQuery().addIds(CategorizerState.documentId(job.getId(), 1),
+                        CategorizerState.v54DocumentId(job.getId(), 1)))
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+
+        SearchRequestBuilder quantilesDocSearch = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexName())
+                .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()), Quantiles.v54DocumentId(job.getId())))
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen());
+
+        String resultsIndexName = job.getResultsIndexName();
+        SearchRequestBuilder resultDocSearch = client.prepareSearch(resultsIndexName)
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setQuery(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+                .setSize(1);
+
+
+        ActionListener<MultiSearchResponse> searchResponseActionListener = new ActionListener<MultiSearchResponse>() {
+            @Override
+            public void onResponse(MultiSearchResponse searchResponse) {
+                List<SearchHit> searchHits = Arrays.stream(searchResponse.getResponses())
+                        .flatMap(item -> Arrays.stream(item.getResponse().getHits().getHits()))
+                        .collect(Collectors.toList());
+
+                if (searchHits.isEmpty() == false) {
+                    int quantileDocCount = 0;
+                    int categorizerStateDocCount = 0;
+                    int resultDocCount = 0;
+                    for (SearchHit hit : searchHits) {
+                        if (hit.getId().equals(Quantiles.documentId(job.getId())) ||
+                                hit.getId().equals(Quantiles.v54DocumentId(job.getId()))) {
+                            quantileDocCount++;
+                        } else if (hit.getId().startsWith(CategorizerState.documentPrefix(job.getId())) ||
+                                hit.getId().startsWith(CategorizerState.v54DocumentPrefix(job.getId()))) {
+                            categorizerStateDocCount++;
+                        } else {
+                            resultDocCount++;
+                        }
+                    }
+
+                    LOGGER.warn("{} result, {} quantile state and {} categorizer state documents exist for a prior job with Id [{}]",
+                            resultDocCount, quantileDocCount, categorizerStateDocCount, job.getId());
+
+                    listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                    "[" + resultDocCount + "] result and [" + (quantileDocCount + categorizerStateDocCount) +
+                            "] state documents exist for a prior job with Id [" + job.getId() + "]. " +
+                                            "Please create the job with a different Id"));
+                    return;
+                } else {
+                    listener.onResponse(true);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        };
+
+        client.prepareMultiSearch()
+                .add(stateDocSearch)
+                .add(resultDocSearch)
+                .add(quantilesDocSearch)
+                .execute(searchResponseActionListener);
+    }
+
+
+    /**
      * Create the Elasticsearch index and the mappings
      */
     public void createJobResultIndex(Job job, ClusterState state, final ActionListener<Boolean> finalListener) {
         Collection<String> termFields = (job.getAnalysisConfig() != null) ? job.getAnalysisConfig().termFields() : Collections.emptyList();
 
-        String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
+        String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(job.getId());
+        String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(job.getId());
         String indexName = job.getResultsIndexName();
 
-        final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
+        final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success ->
                     client.admin().indices().prepareAliases()
-                            .addAlias(indexName, aliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+                            .addAlias(indexName, readAliasName, QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
+                            .addAlias(indexName, writeAliasName)
                             // we could return 'success && r.isAcknowledged()' instead of 'true', but that makes
                             // testing not possible as we can't create IndicesAliasesResponse instance or
                             // mock IndicesAliasesResponse#isAcknowledged()
-                            .execute(ActionListener.wrap(r -> finalListener.onResponse(true),
-                                    finalListener::onFailure));
-                },
+                            .execute(ActionListener.wrap(r -> finalListener.onResponse(true), finalListener::onFailure)),
                 finalListener::onFailure);
 
         // Indices can be shared, so only create if it doesn't exist already. Saves us a roundtrip if
@@ -235,6 +312,7 @@ public class JobProvider {
     private SearchRequestBuilder createLatestDataCountsSearch(String indexName, String jobId) {
         return client.prepareSearch(indexName)
                 .setSize(1)
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 // look for both old and new formats
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId)))
                 .addSort(SortBuilders.fieldSort(DataCounts.LATEST_RECORD_TIME.getPreferredName()).order(SortOrder.DESC));
@@ -345,8 +423,7 @@ public class JobProvider {
      * Uses the internal client, so runs as the _xpack user
      */
     public void bucketsViaInternalClient(String jobId, BucketsQuery query, Consumer<QueryPage<Bucket>> handler,
-                                         Consumer<Exception> errorHandler)
-            throws ResourceNotFoundException {
+                                         Consumer<Exception> errorHandler) {
         buckets(jobId, query, handler, errorHandler, client);
     }
 
@@ -422,15 +499,13 @@ public class JobProvider {
             } else {
                 handler.accept(buckets);
             }
-        }, e -> { errorHandler.accept(mapAuthFailure(e, jobId, GetBucketsAction.NAME)); }));
+        }, e -> errorHandler.accept(mapAuthFailure(e, jobId, GetBucketsAction.NAME))));
     }
 
     private void expandBuckets(String jobId, BucketsQuery query, QueryPage<Bucket> buckets, Iterator<Bucket> bucketsToExpand,
                                Consumer<QueryPage<Bucket>> handler, Consumer<Exception> errorHandler, Client client) {
         if (bucketsToExpand.hasNext()) {
-            Consumer<Integer> c = i -> {
-                expandBuckets(jobId, query, buckets, bucketsToExpand, handler, errorHandler, client);
-            };
+            Consumer<Integer> c = i -> expandBuckets(jobId, query, buckets, bucketsToExpand, handler, errorHandler, client);
             expandBucket(jobId, query.isIncludeInterim(), bucketsToExpand.next(), query.getPartitionValue(), c, errorHandler, client);
         } else {
             handler.accept(buckets);
@@ -690,7 +765,7 @@ public class JobProvider {
         String resultsIndex = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         SearchRequestBuilder search = createDocIdSearch(resultsIndex, ModelSnapshot.documentId(jobId, modelSnapshotId));
         searchSingleResult(jobId, ModelSnapshot.TYPE.getPreferredName(), search, ModelSnapshot.PARSER,
-                result -> handler.accept(result.result == null ? null : new Result(result.index, result.result.build())),
+                result -> handler.accept(result.result == null ? null : new Result<ModelSnapshot>(result.index, result.result.build())),
                 errorHandler, () -> null);
     }
 
@@ -780,72 +855,6 @@ public class JobProvider {
         }, errorHandler));
     }
 
-    /**
-     * Given a model snapshot, get the corresponding state and write it to the supplied
-     * stream.  If there are multiple state documents they are separated using <code>'\0'</code>
-     * when written to the stream.
-     *
-     * Because we have a rule that we will not open a legacy job in the current product version
-     * we don't have to worry about legacy document IDs here.
-     *
-     * @param jobId         the job id
-     * @param modelSnapshot the model snapshot to be restored
-     * @param restoreStream the stream to write the state to
-     */
-    public void restoreStateToStream(String jobId, ModelSnapshot modelSnapshot, OutputStream restoreStream) throws IOException {
-        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
-
-        // First try to restore model state.
-        for (String stateDocId : modelSnapshot.stateDocumentIds()) {
-            LOGGER.trace("ES API CALL: get ID {} from index {}", stateDocId, indexName);
-
-            GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, stateDocId).get();
-            if (!stateResponse.isExists()) {
-                LOGGER.error("Expected {} documents for model state for {} snapshot {} but failed to find {}",
-                        modelSnapshot.getSnapshotDocCount(), jobId, modelSnapshot.getSnapshotId(), stateDocId);
-                break;
-            }
-            writeStateToStream(stateResponse.getSourceAsBytesRef(), restoreStream);
-        }
-
-        // Secondly try to restore categorizer state. This must come after model state because that's
-        // the order the C++ process expects.  There are no snapshots for this, so the IDs simply
-        // count up until a document is not found.  It's NOT an error to have no categorizer state.
-        int docNum = 0;
-        while (true) {
-            String docId = CategorizerState.documentId(jobId, ++docNum);
-
-            LOGGER.trace("ES API CALL: get ID {} from index {}", docId, indexName);
-
-            GetResponse stateResponse = client.prepareGet(indexName, ElasticsearchMappings.DOC_TYPE, docId).get();
-            if (!stateResponse.isExists()) {
-                break;
-            }
-            writeStateToStream(stateResponse.getSourceAsBytesRef(), restoreStream);
-        }
-
-    }
-
-    private void writeStateToStream(BytesReference source, OutputStream stream) throws IOException {
-        // The source bytes are already UTF-8.  The C++ process wants UTF-8, so we
-        // can avoid converting to a Java String only to convert back again.
-        BytesRefIterator iterator = source.iterator();
-        for (BytesRef ref = iterator.next(); ref != null; ref = iterator.next()) {
-            // There's a complication that the source can already have trailing 0 bytes
-            int length = ref.bytes.length;
-            while (length > 0 && ref.bytes[length - 1] == 0) {
-                --length;
-            }
-            if (length > 0) {
-                stream.write(ref.bytes, 0, length);
-            }
-        }
-        // This is dictated by RapidJSON on the C++ side; it treats a '\0' as end-of-file
-        // even when it's not really end-of-file, and this is what we need because we're
-        // sending multiple JSON documents via the same named pipe.
-        stream.write(0);
-    }
-
     public QueryPage<ModelPlot> modelPlot(String jobId, int from, int size) {
         SearchResponse searchResponse;
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
@@ -893,9 +902,9 @@ public class JobProvider {
                     SearchHit[] hits = response.getHits().getHits();
                     if (hits.length == 0) {
                         LOGGER.trace("No {} for job with id {}", resultDescription, jobId);
-                        handler.accept(new Result(null, notFoundSupplier.get()));
+                        handler.accept(new Result<>(null, notFoundSupplier.get()));
                     } else if (hits.length == 1) {
-                        handler.accept(new Result(hits[0].getIndex(), parseSearchHit(hits[0], objectParser, errorHandler)));
+                        handler.accept(new Result<>(hits[0].getIndex(), parseSearchHit(hits[0], objectParser, errorHandler)));
                     } else {
                         errorHandler.accept(new IllegalStateException("Search for unique [" + resultDescription + "] returned ["
                                 + hits.length + "] hits even though size was 1"));
@@ -907,6 +916,7 @@ public class JobProvider {
     private SearchRequestBuilder createLatestModelSizeStatsSearch(String indexName) {
         return client.prepareSearch(indexName)
                 .setSize(1)
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_VALUE))
                 .addSort(SortBuilders.fieldSort(ModelSizeStats.LOG_TIME_FIELD.getPreferredName()).order(SortOrder.DESC));
     }

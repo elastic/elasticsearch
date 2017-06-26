@@ -6,8 +6,11 @@
 package org.elasticsearch.xpack.watcher.transport.actions.get;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,7 +19,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.Watch;
@@ -31,12 +34,12 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
 
     private final Watch.Parser parser;
     private final Clock clock;
-    private final WatcherClientProxy client;
+    private final Client client;
 
     @Inject
     public TransportGetWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, XPackLicenseState licenseState,
-                                   Watch.Parser parser, Clock clock, WatcherClientProxy client) {
+                                   Watch.Parser parser, Clock clock, InternalClient client) {
         super(settings, GetWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, GetWatchRequest::new);
         this.parser = parser;
@@ -46,7 +49,10 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
 
     @Override
     protected void doExecute(GetWatchRequest request, ActionListener<GetWatchResponse> listener) {
-        client.getWatch(request.getId(), ActionListener.wrap(getResponse -> {
+        GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getId())
+                .preference(Preference.LOCAL.type()).realtime(true);
+
+        client.get(getRequest, ActionListener.wrap(getResponse -> {
             if (getResponse.isExists()) {
                 try (XContentBuilder builder = jsonBuilder()) {
                     // When we return the watch via the Get Watch REST API, we want to return the watch as was specified in the put api,

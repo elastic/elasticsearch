@@ -65,20 +65,17 @@ public class IndexStatsTests extends MonitoringIntegTestCase {
         awaitMonitoringDocsCountOnPrimary(greaterThan(0L), IndexStatsResolver.TYPE);
 
         logger.debug("--> wait for index stats collector to collect stat for each index");
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                flush(indices);
-                refresh();
-                for (int i = 0; i < nbIndices; i++) {
-                    SearchResponse count = client().prepareSearch()
-                            .setSize(0)
-                            .setTypes(IndexStatsResolver.TYPE)
-                            .setPreference("_primary")
-                            .setQuery(QueryBuilders.termQuery("index_stats.index", indices[i]))
-                            .get();
-                    assertThat(count.getHits().getTotalHits(), greaterThan(0L));
-                }
+        assertBusy(() -> {
+            flush(indices);
+            refresh();
+            for (int i = 0; i < nbIndices; i++) {
+                SearchResponse count = client().prepareSearch()
+                        .setSize(0)
+                        .setTypes(IndexStatsResolver.TYPE)
+                        .setPreference("_primary")
+                        .setQuery(QueryBuilders.termQuery("index_stats.index", indices[i]))
+                        .get();
+                assertThat(count.getHits().getTotalHits(), greaterThan(0L));
             }
         });
 

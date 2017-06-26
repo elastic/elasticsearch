@@ -1,0 +1,152 @@
+import java.util.regex.Matcher
+import org.elasticsearch.gradle.LoggedExec
+
+/**
+ * Subdirectories of this project are dummy projects which does a local
+ * checkout of the appropriate version's branch, and builds a snapshot. This
+ * allows backcompat tests to test against the next unreleased versions
+ * without relying on snapshots.
+ */
+
+subprojects {
+  String bwcVersion
+  boolean enabled = true
+  if (project.name == 'stable-snapshot') {
+    /* bwc-stable is only used if the last version is on a stable branch instead
+     * of a release branch */
+    enabled = indexCompatVersions[-1].bugfix == 0
+    bwcVersion = indexCompatVersions[-1]
+  } else if (project.name == 'release-snapshot') {
+    if (indexCompatVersions[-1].bugfix == 0) {
+      /* The last version is on a stable branch so it is handled by the bwc-stable
+       * project. This project will instead handle the version before that which
+       * *should* be on a release branch. */
+      bwcVersion = indexCompatVersions[-2]
+    } else {
+      // The last version is on a release branch so it is handled by this project
+      bwcVersion = indexCompatVersions[-1]
+    }
+  } else {
+    throw new InvalidUserDataException("Unsupport project name ${project.name}")
+  }
+  if (enabled) {
+    apply plugin: 'distribution'
+    // Not published so no need to assemble
+    tasks.remove(assemble)
+    build.dependsOn.remove('assemble')
+
+    def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
+    def (String currentMajor, String currentMinor, String currentBugfix) = version.split('\\.')
+    String bwcBranch
+    if (project.name == 'stable-snapshot') {
+      bwcBranch = "${major}.x"
+    } else {
+      bwcBranch = "${major}.${minor}"
+    }
+
+    File esCheckoutDir = file("${buildDir}/bwc/checkout-es-${bwcBranch}")
+    File xpackCheckoutDir = file("${esCheckoutDir}-extra/x-pack-elasticsearch")
+
+    task createElasticsearchClone(type: LoggedExec) {
+      onlyIf { esCheckoutDir.exists() == false }
+      commandLine = ['git', 'clone', rootDir, esCheckoutDir]
+    }
+
+    task createXPackClone(type: LoggedExec) {
+      onlyIf { xpackCheckoutDir.exists() == false }
+      commandLine = ['git', 'clone', project(':x-pack-elasticsearch').projectDir, xpackCheckoutDir]
+    }
+
+    // we use regular Exec here to ensure we always get output, regardless of logging level
+    task findElasticsearchUpstream(type: Exec) {
+      dependsOn createElasticsearchClone
+      workingDir = esCheckoutDir
+      commandLine = ['git', 'remote', '-v']
+      ignoreExitValue = true
+      ByteArrayOutputStream output = new ByteArrayOutputStream()
+      standardOutput = output
+      doLast {
+        if (execResult.exitValue != 0) {
+          output.toString('UTF-8').eachLine { line -> logger.error(line) }
+          execResult.assertNormalExitValue()
+        }
+        project.ext.esUpstreamExists = false
+        output.toString('UTF-8').eachLine {
+          if (it.contains("upstream")) {
+            project.ext.esUpstreamExists = true
+          }
+        }
+      }
+    }
+
+    task findXPackUpstream(type: Exec) {
+      dependsOn createXPackClone
+      workingDir = xpackCheckoutDir
+      commandLine = ['git', 'remote', '-v']
+      ignoreExitValue = true
+      ByteArrayOutputStream output = new ByteArrayOutputStream()
+      standardOutput = output
+      doLast {
+        if (execResult.exitValue != 0) {
+          output.toString('UTF-8').eachLine { line -> logger.error(line) }
+          execResult.assertNormalExitValue()
+        }
+        project.ext.xpackUpstreamExists = false
+        output.toString('UTF-8').eachLine {
+          if (it.contains("upstream")) {
+            project.ext.xpackUpstreamExists = true
+          }
+        }
+      }
+    }
+
+    task addElasticsearchUpstream(type: LoggedExec) {
+      dependsOn findElasticsearchUpstream
+      onlyIf { project.ext.esUpstreamExists == false }
+      workingDir = esCheckoutDir
+      commandLine = ['git', 'remote', 'add', 'upstream', 'git@github.com:elastic/elasticsearch.git']
+    }
+
+    task addXPackUpstream(type: LoggedExec) {
+      dependsOn findXPackUpstream
+      onlyIf { project.ext.xpackUpstreamExists == false }
+      workingDir = xpackCheckoutDir
+      commandLine = ['git', 'remote', 'add', 'upstream', 'git@github.com:elastic/x-pack-elasticsearch.git']
+    }
+
+    task fetchElasticsearchLatest(type: LoggedExec) {
+      dependsOn addElasticsearchUpstream
+      workingDir = esCheckoutDir
+      commandLine = ['git', 'fetch', 'upstream']
+    }
+
+    task fetchXPackLatest(type: LoggedExec) {
+      dependsOn addXPackUpstream
+      workingDir = xpackCheckoutDir
+      commandLine = ['git', 'fetch', 'upstream']
+    }
+
+    task checkoutElasticsearchBwcBranch(type: LoggedExec) {
+      dependsOn fetchElasticsearchLatest
+      workingDir = esCheckoutDir
+      commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
+    }
+
+    task checkoutXPackBwcBranch(type: LoggedExec) {
+      dependsOn fetchXPackLatest
+      workingDir = xpackCheckoutDir
+      commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
+    }
+
+    File bwcZip = file("${xpackCheckoutDir}/plugin/build/distributions/x-pack-${bwcVersion}.zip")
+    task buildBwcVersion(type: GradleBuild) {
+      dependsOn checkoutXPackBwcBranch, checkoutElasticsearchBwcBranch
+      dir = xpackCheckoutDir
+      tasks = [':x-pack-elasticsearch:plugin:assemble']
+    }
+
+    artifacts {
+      'default' file: bwcZip, name: 'x-pack', type: 'zip', builtBy: buildBwcVersion
+    }
+  }
+}

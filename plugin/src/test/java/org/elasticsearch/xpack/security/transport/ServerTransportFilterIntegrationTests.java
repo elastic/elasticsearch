@@ -18,6 +18,7 @@ import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.ssl.SSLClientAuth;
@@ -54,24 +55,25 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
 
         Path store;
         try {
-            store = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+            store = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks");
             assertThat(Files.exists(store), is(true));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
-        settingsBuilder.put("transport.profiles.client.xpack.security.truststore.path", store) // settings for client truststore
-                       .put("transport.profiles.client.xpack.security.truststore.password", "testnode")
+        settingsBuilder.put("transport.profiles.client.xpack.security.ssl.truststore.path", store) // settings for client truststore
+                       .put("transport.profiles.client.xpack.security.ssl.truststore.password", "testclient")
                        .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED);
 
         return settingsBuilder
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("transport.profiles.default.xpack.security.type", "node")
+                .put("transport.profiles.default.type", "node")
                 .put("transport.profiles.client.xpack.security.type", "client")
                 .put("transport.profiles.client.port", randomClientPortRange)
                 // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
                 .put("transport.profiles.client.bind_host", "localhost")
                 .put("xpack.security.audit.enabled", false)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false)
                 .build();
     }
@@ -80,7 +82,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         Path home = createTempDir();
         Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
         Files.createDirectories(xpackConf);
-        writeFile(xpackConf, "system_key", systemKey());
 
         Transport transport = internalCluster().getDataNodeInstance(Transport.class);
         TransportAddress transportAddress = transport.boundAddress().publishAddress();
@@ -96,6 +97,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("discovery.zen.minimum_master_nodes",
                         internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
                 .put("xpack.security.audit.enabled", false)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put("path.home", home)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(Node.NODE_MASTER_SETTING.getKey(), false)
@@ -112,7 +114,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         Path home = createTempDir();
         Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
         Files.createDirectories(xpackConf);
-        writeFile(xpackConf, "system_key", systemKey());
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
         writeFile(xpackConf, "roles.yml", configRoles());
@@ -125,7 +126,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         Settings nodeSettings = Settings.builder()
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
                 .put("xpack.security.authc.realms.file.order", 0)
-                .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode"))
+                .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
                 .put("node.name", "my-test-node")
                 .put(Security.USER_SETTING.getKey(), "test_user:changeme")
                 .put("cluster.name", internalCluster().getClusterName())
@@ -133,6 +134,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("discovery.zen.minimum_master_nodes",
                         internalCluster().getInstance(Settings.class).get("discovery.zen.minimum_master_nodes"))
                 .put("xpack.security.audit.enabled", false)
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put("discovery.initial_state_timeout", "0s")
                 .put("path.home", home)

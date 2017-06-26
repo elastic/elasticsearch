@@ -26,6 +26,11 @@ public class RestPostJobUpdateAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_post_job_update_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();

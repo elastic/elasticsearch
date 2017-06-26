@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -39,7 +40,7 @@ public class JobRenormalizedResultsPersister extends AbstractComponent {
     /**
      * Execute bulk requests when they reach this size
      */
-    private static final int BULK_LIMIT = 10000;
+    static final int BULK_LIMIT = 10000;
 
     private final String jobId;
     private final Client client;
@@ -75,7 +76,7 @@ public class JobRenormalizedResultsPersister extends AbstractComponent {
         try (XContentBuilder content = toXContentBuilder(resultDoc)) {
             bulkRequest.add(new IndexRequest(index, DOC_TYPE, id).source(content));
         } catch (IOException e) {
-            logger.error("Error serialising result", e);
+            logger.error(new ParameterizedMessage("[{}] Error serialising result", jobId), e);
         }
         if (bulkRequest.numberOfActions() >= BULK_LIMIT) {
             executeRequest();

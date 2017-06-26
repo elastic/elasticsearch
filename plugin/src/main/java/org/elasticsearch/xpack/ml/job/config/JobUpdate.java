@@ -14,14 +14,16 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class JobUpdate implements Writeable, ToXContent {
+public class JobUpdate implements Writeable, ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
 
     public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
@@ -39,7 +41,7 @@ public class JobUpdate implements Writeable, ToXContent {
         PARSER.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
         PARSER.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
-        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS,  ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareString(Builder::setModelSnapshotId, Job.MODEL_SNAPSHOT_ID);
     }
 
@@ -228,18 +230,19 @@ public class JobUpdate implements Writeable, ToXContent {
             AnalysisConfig ac = source.getAnalysisConfig();
             int numDetectors = ac.getDetectors().size();
             for (DetectorUpdate dd : detectorUpdates) {
-                if (dd.getIndex() >= numDetectors) {
-                    throw new IllegalArgumentException("Detector index is >= the number of detectors");
+                if (dd.getDetectorIndex() >= numDetectors) {
+                    throw ExceptionsHelper.badRequestException("Supplied detector_index [{}] is >= the number of detectors [{}]",
+                            dd.getDetectorIndex(), numDetectors);
                 }
 
-                Detector.Builder detectorbuilder = new Detector.Builder(ac.getDetectors().get(dd.getIndex()));
+                Detector.Builder detectorbuilder = new Detector.Builder(ac.getDetectors().get(dd.getDetectorIndex()));
                 if (dd.getDescription() != null) {
                     detectorbuilder.setDetectorDescription(dd.getDescription());
                 }
                 if (dd.getRules() != null) {
                     detectorbuilder.setDetectorRules(dd.getRules());
                 }
-                ac.getDetectors().set(dd.getIndex(), detectorbuilder.build());
+                ac.getDetectors().set(dd.getDetectorIndex(), detectorbuilder.build());
             }
 
             AnalysisConfig.Builder acBuilder = new AnalysisConfig.Builder(ac);
@@ -317,28 +320,27 @@ public class JobUpdate implements Writeable, ToXContent {
                 new ConstructingObjectParser<>("detector_update", a -> new DetectorUpdate((int) a[0], (String) a[1],
                         (List<DetectionRule>) a[2]));
 
-        public static final ParseField INDEX = new ParseField("index");
         public static final ParseField RULES = new ParseField("rules");
 
         static {
-            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), INDEX);
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Detector.DETECTOR_INDEX);
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), Job.DESCRIPTION);
             PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
                     (parser, parseFieldMatcher) -> DetectionRule.PARSER.apply(parser, parseFieldMatcher).build(), RULES);
         }
 
-        private int index;
+        private int detectorIndex;
         private String description;
         private List<DetectionRule> rules;
 
-        public DetectorUpdate(int index, String description, List<DetectionRule> rules) {
-            this.index = index;
+        public DetectorUpdate(int detectorIndex, String description, List<DetectionRule> rules) {
+            this.detectorIndex = detectorIndex;
             this.description = description;
             this.rules = rules;
         }
 
         public DetectorUpdate(StreamInput in) throws IOException {
-            index = in.readInt();
+            detectorIndex = in.readInt();
             description = in.readOptionalString();
             if (in.readBoolean()) {
                 rules = in.readList(DetectionRule::new);
@@ -347,8 +349,8 @@ public class JobUpdate implements Writeable, ToXContent {
             }
         }
 
-        public int getIndex() {
-            return index;
+        public int getDetectorIndex() {
+            return detectorIndex;
         }
 
         public String getDescription() {
@@ -361,7 +363,7 @@ public class JobUpdate implements Writeable, ToXContent {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeInt(index);
+            out.writeInt(detectorIndex);
             out.writeOptionalString(description);
             out.writeBoolean(rules != null);
             if (rules != null) {
@@ -373,7 +375,7 @@ public class JobUpdate implements Writeable, ToXContent {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
 
-            builder.field(INDEX.getPreferredName(), index);
+            builder.field(Detector.DETECTOR_INDEX.getPreferredName(), detectorIndex);
             if (description != null) {
                 builder.field(Job.DESCRIPTION.getPreferredName(), description);
             }
@@ -387,7 +389,7 @@ public class JobUpdate implements Writeable, ToXContent {
 
         @Override
         public int hashCode() {
-            return Objects.hash(index, description, rules);
+            return Objects.hash(detectorIndex, description, rules);
         }
 
         @Override
@@ -400,7 +402,7 @@ public class JobUpdate implements Writeable, ToXContent {
             }
 
             DetectorUpdate that = (DetectorUpdate) other;
-            return this.index == that.index && Objects.equals(this.description, that.description)
+            return this.detectorIndex == that.detectorIndex && Objects.equals(this.description, that.description)
                     && Objects.equals(this.rules, that.rules);
         }
     }

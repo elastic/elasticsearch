@@ -230,7 +230,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             end = in.readOptionalString();
             anomalyScore = in.readOptionalDouble();
             pageParams = in.readOptionalWriteable(PageParams::new);
-            if (in.getVersion().after(Version.V_5_4_0)) {
+            if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
                 sort = in.readString();
                 descending = in.readBoolean();
             }
@@ -247,7 +247,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             out.writeOptionalString(end);
             out.writeOptionalDouble(anomalyScore);
             out.writeOptionalWriteable(pageParams);
-            if (out.getVersion().after(Version.V_5_4_0)) {
+            if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
                 out.writeString(sort);
                 out.writeBoolean(descending);
             }

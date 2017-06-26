@@ -1,15 +1,15 @@
-//lcawley Verified example output 2017-04
+[role="xpack"]
 [[ml-start-datafeed]]
-==== Start {dfeeds-cap}
+=== Start {dfeeds-cap}
 
 A {dfeed} must be started in order to retrieve data from {es}.
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
-===== Request
+==== Request
 
 `POST _xpack/ml/datafeeds/<feed_id>/_start`
 
-===== Description
+==== Description
 
 NOTE: Before you can start a {dfeed}, the job must be open. Otherwise, an error
 occurs.
@@ -50,12 +50,12 @@ processed record, the {dfeed} continues from 1 millisecond after the timestamp
 of the latest processed record.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `feed_id` (required)::
 (string) Identifier for the {dfeed}
 
-===== Request Body
+==== Request Body
 
 `end`::
   (string) The time that the {dfeed} should end. This value is exclusive.
@@ -70,13 +70,15 @@ of the latest processed record.
   The default value is 20 seconds.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example starts the `datafeed-it-ops-kpi` {dfeed}:
 

@@ -46,6 +46,11 @@ public class RestActivateWatchAction extends WatcherRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_watcher_activate_watch_action";
+    }
+
+    @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
         String watchId = request.param("id");
         return channel ->
@@ -63,6 +68,11 @@ public class RestActivateWatchAction extends WatcherRestHandler {
 
         DeactivateRestHandler(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public String getName() {
+            return "xpack_watcher_deactivate_watch_action";
         }
 
         @Override

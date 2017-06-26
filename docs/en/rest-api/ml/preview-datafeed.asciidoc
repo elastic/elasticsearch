@@ -1,35 +1,37 @@
-//lcawley: Verified example output 2017-04-11
+[role="xpack"]
 [[ml-preview-datafeed]]
-==== Preview {dfeeds-cap}
+=== Preview {dfeeds-cap}
 
 The preview {dfeed} API enables you to preview a {dfeed}.
 
 
-===== Request
+==== Request
 
 `GET _xpack/ml/datafeeds/<datafeed_id>/_preview`
 
 
-===== Description
+==== Description
 
 The API returns the first "page" of results from the `search` that is created
 by using the current {dfeed} settings. This preview shows the structure of
 the data that will be passed to the anomaly detection engine.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `datafeed_id` (required)::
   (string) Identifier for the {dfeed}
 
 
-===== Authorization
+==== Authorization
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see <<privileges-list-cluster>>.
+privileges to use this API. For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example obtains a preview of the `datafeed-farequote` {dfeed}:
 

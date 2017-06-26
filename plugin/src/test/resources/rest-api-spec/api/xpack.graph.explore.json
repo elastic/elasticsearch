@@ -1,10 +1,10 @@
 {
   "xpack.graph.explore": {
-    "documentation": "https://www.elastic.co/guide/en/graph/current/explore.html",
+    "documentation": "https://www.elastic.co/guide/en/x-pack/current/graph-api-explore.html",
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/{index}/_xpack/_graph/_explore",
-      "paths": ["/{index}/_xpack/_graph/_explore", "/{index}/{type}/_xpack/_graph/_explore"],
+      "path": "/{index}/_xpack/graph/_explore",
+      "paths": ["/{index}/_xpack/graph/_explore", "/{index}/{type}/_xpack/graph/_explore"],
       "parts" : {
         "index": {
          "type" : "list",

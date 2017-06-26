@@ -13,6 +13,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -47,20 +49,23 @@ public class TemplateHttpResource extends PublishableHttpResource {
      */
     public TemplateHttpResource(final String resourceOwnerName, @Nullable final TimeValue masterTimeout,
                                 final String templateName, final Supplier<String> template) {
-        super(resourceOwnerName, masterTimeout, PublishableHttpResource.NO_BODY_PARAMETERS);
+        super(resourceOwnerName, masterTimeout, PublishableHttpResource.RESOURCE_VERSION_PARAMETERS);
 
         this.templateName = Objects.requireNonNull(templateName);
         this.template = Objects.requireNonNull(template);
     }
 
     /**
-     * Determine if the current {@linkplain #templateName template} exists.
+     * Determine if the current {@linkplain #templateName template} exists with a relevant version (&gt;= to expected).
+     *
+     * @see MonitoringTemplateUtils#LAST_UPDATED_VERSION
      */
     @Override
     protected CheckResponse doCheck(final RestClient client) {
-        return simpleCheckForResource(client, logger,
-                                      "/_template", templateName, "monitoring template",
-                                      resourceOwnerName, "monitoring cluster");
+        return versionCheckForResource(client, logger,
+                                       "/_template", templateName, "monitoring template",
+                                       resourceOwnerName, "monitoring cluster",
+                                       XContentType.JSON.xContent(), MonitoringTemplateUtils.LAST_UPDATED_VERSION);
     }
 
     /**

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -21,6 +23,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,10 +32,12 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.MlMetadata;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
+import org.elasticsearch.xpack.persistent.PersistentTasksService;
+import org.elasticsearch.xpack.security.InternalClient;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -59,7 +64,10 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
 
+        public static final ParseField FORCE = new ParseField("force");
+
         private String datafeedId;
+        private boolean force;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
@@ -72,6 +80,14 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
             return datafeedId;
         }
 
+        public boolean isForce() {
+            return force;
+        }
+
+         public void setForce(boolean force) {
+            this.force = force;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             return null;
@@ -81,12 +97,18 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             datafeedId = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
+                force = in.readBoolean();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(datafeedId);
+            if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
+                out.writeBoolean(force);
+            }
         }
 
         @Override
@@ -99,13 +121,13 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Request request = (Request) o;
-            return Objects.equals(datafeedId, request.datafeedId);
+            Request other = (Request) o;
+            return Objects.equals(datafeedId, other.datafeedId) && Objects.equals(force, other.force);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId);
+            return Objects.hash(datafeedId, force);
         }
     }
 
@@ -140,11 +162,17 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
+        private InternalClient client;
+        private PersistentTasksService persistentTasksService;
+
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                               ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               InternalClient internalClient, PersistentTasksService persistentTasksService) {
             super(settings, DeleteDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
+            this.client = internalClient;
+            this.persistentTasksService = persistentTasksService;
         }
 
         @Override
@@ -159,6 +187,55 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
 
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            if (request.isForce()) {
+                forceDeleteDatafeed(request, state, listener);
+            } else {
+                deleteDatafeedFromMetadata(request, listener);
+            }
+        }
+
+        private void forceDeleteDatafeed(Request request, ClusterState state, ActionListener<Response> listener) {
+            ActionListener<Boolean> finalListener = ActionListener.wrap(
+                    response -> deleteDatafeedFromMetadata(request, listener),
+                    listener::onFailure
+            );
+
+            ActionListener<IsolateDatafeedAction.Response> isolateDatafeedHandler = ActionListener.wrap(
+                    response -> removeDatafeedTask(request, state, finalListener),
+                    listener::onFailure
+            );
+
+            IsolateDatafeedAction.Request isolateDatafeedRequest = new IsolateDatafeedAction.Request(request.getDatafeedId());
+            client.execute(IsolateDatafeedAction.INSTANCE, isolateDatafeedRequest, isolateDatafeedHandler);
+        }
+
+        private void removeDatafeedTask(Request request, ClusterState state, ActionListener<Boolean> listener) {
+            PersistentTasksCustomMetaData tasks = state.getMetaData().custom(PersistentTasksCustomMetaData.TYPE);
+            PersistentTasksCustomMetaData.PersistentTask<?> datafeedTask = MlMetadata.getDatafeedTask(request.getDatafeedId(), tasks);
+            if (datafeedTask == null) {
+                listener.onResponse(true);
+            } else {
+                persistentTasksService.cancelPersistentTask(datafeedTask.getId(),
+                        new ActionListener<PersistentTasksCustomMetaData.PersistentTask<?>>() {
+                            @Override
+                            public void onResponse(PersistentTasksCustomMetaData.PersistentTask<?> persistentTask) {
+                                listener.onResponse(Boolean.TRUE);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                if (e instanceof ResourceNotFoundException) {
+                                    // the task has been removed in between
+                                    listener.onResponse(true);
+                                } else {
+                                    listener.onFailure(e);
+                                }
+                            }
+                        });
+            }
+        }
+
+        private void deleteDatafeedFromMetadata(Request request, ActionListener<Response> listener) {
             clusterService.submitStateUpdateTask("delete-datafeed-" + request.getDatafeedId(),
                     new AckedClusterStateUpdateTask<Response>(request, listener) {
 
@@ -179,7 +256,6 @@ public class DeleteDatafeedAction extends Action<DeleteDatafeedAction.Request, D
                                     .build();
                         }
                     });
-
         }
 
         @Override

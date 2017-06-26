@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.rest.action.rolemapping;
 
-import java.io.IOException;
-
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -22,6 +20,8 @@ import org.elasticsearch.xpack.security.action.rolemapping.PutRoleMappingRespons
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
@@ -36,6 +36,11 @@ public class RestPutRoleMappingAction extends SecurityBaseRestHandler {
         super(settings, licenseState);
         controller.registerHandler(POST, "/_xpack/security/role_mapping/{name}", this);
         controller.registerHandler(PUT, "/_xpack/security/role_mapping/{name}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "xpack_security_put_role_mappings_action";
     }
 
     @Override

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.Result;
 
 import java.util.Objects;

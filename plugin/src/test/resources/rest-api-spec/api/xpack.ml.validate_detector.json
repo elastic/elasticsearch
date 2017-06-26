@@ -1,5 +1,6 @@
 {
   "xpack.ml.validate_detector": {
+    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-valid-detector.html",
     "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/ml/anomaly_detectors/_validate/detector",

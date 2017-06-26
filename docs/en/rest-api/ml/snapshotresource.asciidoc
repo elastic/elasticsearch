@@ -1,6 +1,6 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-snapshot-resource]]
-==== Model Snapshot Resources
+=== Model Snapshot Resources
 
 Model snapshots are saved to disk periodically.
 By default, this is occurs approximately every 3 hours to 4 hours and is
@@ -51,7 +51,7 @@ A model snapshot resource has the following properties:
 
 [float]
 [[ml-snapshot-stats]]
-===== Model Size Statistics
+==== Model Size Statistics
 
 The `model_size_stats` object has the following properties:
 

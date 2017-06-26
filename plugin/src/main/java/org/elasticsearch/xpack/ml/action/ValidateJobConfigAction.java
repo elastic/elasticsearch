@@ -19,15 +19,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.messages.Messages;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 
 public class ValidateJobConfigAction
@@ -58,7 +58,7 @@ extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response
 
     }
 
-    public static class Request extends ActionRequest implements ToXContent {
+    public static class Request extends ActionRequest {
 
         private Job job;
 
@@ -68,7 +68,14 @@ extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response
             // be valid unless an invalid job ID is specified in the JSON to be validated
             job.setId(job.getId() != null ? job.getId() : "ok");
 
-            return new Request(job.getCreateTime() == null ? job.build(new Date()) : job.build());
+            // Some fields cannot be set at create time
+            List<String> invalidJobCreationSettings = job.invalidCreateTimeSettings();
+            if (invalidJobCreationSettings.isEmpty() == false) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS,
+                        String.join(",", invalidJobCreationSettings)));
+            }
+
+            return new Request(job.build(new Date()));
         }
 
         Request() {
@@ -98,12 +105,6 @@ extends Action<ValidateJobConfigAction.Request, ValidateJobConfigAction.Response
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             job = new Job(in);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            job.toXContent(builder, params);
-            return builder;
         }
 
         @Override

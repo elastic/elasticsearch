@@ -123,12 +123,9 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
 
     private void assertThatScrollIdsDoNotExist(List<String> scrollIds) {
         for (String scrollId : scrollIds) {
-            try {
-                client().prepareSearchScroll(scrollId).get();
-                fail("Expected SearchPhaseExecutionException but did not happen");
-            } catch (SearchPhaseExecutionException expectedException) {
-                assertThat(expectedException.toString(), containsString("SearchContextMissingException"));
-            }
+            SearchPhaseExecutionException expectedException =
+                    expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearchScroll(scrollId).get());
+            assertThat(expectedException.toString(), containsString("SearchContextMissingException"));
         }
     }
 

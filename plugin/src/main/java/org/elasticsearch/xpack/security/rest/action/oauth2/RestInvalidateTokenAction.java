@@ -44,6 +44,11 @@ public final class RestInvalidateTokenAction extends SecurityBaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_security_invalidate_token_action";
+    }
+
+    @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final String token = PARSER.parse(parser, null);

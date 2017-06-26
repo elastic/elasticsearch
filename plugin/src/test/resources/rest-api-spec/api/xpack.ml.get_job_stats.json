@@ -1,5 +1,6 @@
 {
   "xpack.ml.get_job_stats": {
+    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-get-job-stats.html",
     "methods": [ "GET"],
     "url": {
       "path": "/_xpack/ml/anomaly_detectors/{job_id}/_stats",

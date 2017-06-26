@@ -12,10 +12,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.process.normalizer.BucketNormalizable;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
+import org.elasticsearch.xpack.ml.job.results.ModelPlot;
 
 import java.util.Date;
 
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class JobRenormalizedResultsPersisterTests extends ESTestCase {
@@ -35,6 +40,20 @@ public class JobRenormalizedResultsPersisterTests extends ESTestCase {
         persister.updateBucket(bn);
         persister.executeRequest();
         assertEquals(0, persister.getBulkRequest().numberOfActions());
+    }
+
+    public void testBulkRequestExecutesWhenReachMaxDocs() {
+        BulkResponse bulkResponse = mock(BulkResponse.class);
+        Client client = new MockClientBuilder("cluster").bulk(bulkResponse).build();
+        JobRenormalizedResultsPersister persister = new JobRenormalizedResultsPersister("foo", Settings.EMPTY, client);
+
+        ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456);
+        for (int i=0; i<=JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
+            persister.updateResult("bar", "index-foo", modelPlot);
+        }
+
+        verify(client, times(1)).bulk(any());
+        verifyNoMoreInteractions(client);
     }
 
     private JobRenormalizedResultsPersister createJobRenormalizedResultsPersister() {

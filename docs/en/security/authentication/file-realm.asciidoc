@@ -112,10 +112,10 @@ NOTE: To ensure that Elasticsearch can read the user and role information at
 bin/x-pack/users useradd <username>
 ----------------------------------------
 
-A username must be at least 1 character and no longer than 30 characters. The
-first character must be a letter (`a-z` or `A-Z`) or an underscore (`_`).
-Subsequent characters can be letters, underscores (`_`), digits (`0-9`), or any
-of the following symbols `@`, `-`, `.` or `$`.
+Usernames must be at least 1 and no more than 1024 characters. They can 
+contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces, punctuation, and 
+printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block]. 
+Leading or trailing whitespace is not allowed.
 
 You can specify the user's password at the command-line with the `-p` option.
 When this option is absent, the command prompts you for the password. Omit the

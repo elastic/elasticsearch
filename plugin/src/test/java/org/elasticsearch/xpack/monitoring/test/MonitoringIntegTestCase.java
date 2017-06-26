@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.monitoring.test;
 
 import io.netty.util.internal.SystemPropertyUtil;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -22,8 +23,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
@@ -45,7 +48,6 @@ import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -53,7 +55,6 @@ import org.junit.Before;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -81,12 +82,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     public static final String MONITORING_INDICES_PREFIX = MonitoringIndexNameResolver.PREFIX + MonitoringIndexNameResolver.DELIMITER;
 
     /**
-     * Enables individual tests to control the behavior.
-     * <p>
-     * Control this by overriding {@link #enableSecurity()}, which defaults to enabling it randomly.
+     * Per test run this is enabled or disabled.
      */
-    // TODO: what is going on here?
-    // SCARY: This needs to be static or lots of tests randomly fail, but it's not used statically!
     protected static Boolean securityEnabled;
     /**
      * Enables individual tests to control the behavior.
@@ -104,7 +101,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         if (securityEnabled == null) {
-            securityEnabled = enableSecurity();
+            securityEnabled = randomBoolean();
         }
 
         return super.buildTestCluster(scope, seed);
@@ -149,6 +146,11 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     }
 
     @Override
+    protected boolean addMockTransportService() {
+        return securityEnabled == false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> getMockPlugins() {
         Set<Class<? extends Plugin>> plugins = new HashSet<>(super.getMockPlugins());
         plugins.remove(MockTransportService.TestPlugin.class); // security has its own transport service
@@ -158,7 +160,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, MockPainlessScriptEngine.TestPlugin.class);
+        return Arrays.asList(XPackPlugin.class, MockPainlessScriptEngine.TestPlugin.class, MockIngestPlugin.class,
+                CommonAnalysisPlugin.class);
     }
 
     @Override
@@ -183,7 +186,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Set<String> excludeTemplates() {
-        return monitoringTemplateNames();
+        return new HashSet<>(monitoringTemplateNames());
     }
 
     @Before
@@ -195,17 +198,11 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     @After
     public void tearDown() throws Exception {
         if (watcherEnabled != null && watcherEnabled) {
-            internalCluster().getInstance(WatcherLifeCycleService.class, internalCluster().getMasterName()).stop();
+            internalCluster().getInstances(WatcherLifeCycleService.class)
+                    .forEach(w -> w.stop("tearing down watcher as part of monitoring test case"));
         }
         stopMonitoringService();
         super.tearDown();
-    }
-
-    /**
-     * Override and return {@code false} to force running without Security.
-     */
-    protected boolean enableSecurity() {
-        return randomBoolean();
     }
 
     /**
@@ -257,7 +254,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
 
     protected void assertMonitoringDocsCountOnPrimary(Matcher<Long> matcher, String... types) {
         flushAndRefresh(MONITORING_INDICES_PREFIX + "*");
-        long count = client().prepareSearch(MONITORING_INDICES_PREFIX + "*").setSize(0).setTypes(types)
+        long count = client().prepareSearch(MONITORING_INDICES_PREFIX + "*").setSize(0)
+                .setQuery(QueryBuilders.termsQuery("type", types))
                 .setPreference("_primary").get().getHits().getTotalHits();
         logger.trace("--> searched for [{}] documents on primary, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
         assertThat(count, matcher);
@@ -277,17 +275,47 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         return templates;
     }
 
-    protected Set<String> monitoringTemplateNames() {
-        final Set<String> templates = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
+    protected List<String> monitoringTemplateNames() {
+        final List<String> templateNames = Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
                 .map(MonitoringTemplateUtils::templateName)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toList());
 
         // TODO: remove this when we remove resolvers
-        templates.addAll(StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
-                .map(MonitoringIndexNameResolver::templateName)
-                .collect(Collectors.toSet()));
+        final ResolversRegistry registry = new ResolversRegistry(Settings.EMPTY);
 
-        return templates;
+        for (final MonitoringIndexNameResolver resolver : registry) {
+            final String templateName = resolver.templateName();
+
+            if (templateNames.contains(templateName) == false) {
+                templateNames.add(templateName);
+            }
+        }
+
+        return templateNames;
+    }
+
+    private Tuple<String, String> monitoringPipeline(final String pipelineId) {
+        try {
+            final XContentType json = XContentType.JSON;
+
+            return new Tuple<>(MonitoringTemplateUtils.pipelineName(pipelineId),
+                               MonitoringTemplateUtils.loadPipeline(pipelineId, json).string());
+        } catch (final IOException e) {
+            // destroy whatever test is running
+            throw new AssertionError("Unable to use pipeline as JSON string [" + pipelineId + "]", e);
+        }
+    }
+
+    protected List<Tuple<String, String>> monitoringPipelines() {
+        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
+                .map(this::monitoringPipeline)
+                .collect(Collectors.toList());
+    }
+
+    protected List<String> monitoringPipelineNames() {
+        return Arrays.stream(MonitoringTemplateUtils.PIPELINE_IDS)
+                .map(MonitoringTemplateUtils::pipelineName)
+                .collect(Collectors.toList());
     }
 
     protected List<Tuple<String, String>> monitoringWatches() {
@@ -313,19 +341,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
             }
         }
         assertTrue("failed to find a template matching [" + name + "]", found);
-    }
-
-    protected void waitForMonitoringTemplate(String name) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertTemplateInstalled(name);
-            }
-        }, 30, TimeUnit.SECONDS);
-    }
-
-    protected void waitForMonitoringTemplates() throws Exception {
-        assertBusy(() -> monitoringTemplateNames().forEach(this::assertTemplateInstalled), 30, TimeUnit.SECONDS);
     }
 
     protected void waitForMonitoringIndices() throws Exception {
@@ -411,18 +426,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), value, timeUnit)));
     }
 
-    public class MockDataIndexNameResolver extends MonitoringIndexNameResolver.Data<MonitoringDoc> {
-
-        public MockDataIndexNameResolver(String version) {
-            super(version);
-        }
-
-        @Override
-        protected void buildXContent(MonitoringDoc document, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            throw new UnsupportedOperationException("MockDataIndexNameResolver does not support resolving building XContent");
-        }
-    }
-
     protected class MockTimestampedIndexNameResolver extends MonitoringIndexNameResolver.Timestamped<MonitoringDoc> {
 
         public MockTimestampedIndexNameResolver(MonitoredSystem system, Settings settings, String version) {
@@ -444,9 +447,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecureString(TEST_PASSWORD.toCharArray())));
 
         static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
-        static byte[] systemKey = generateKey(); // must be the same for all nodes
-
-        public static final String IP_FILTER = "allow: all\n";
 
         public static final String USERS =
                 "transport_client:" + TEST_PASSWORD_HASHED + "\n" +
@@ -466,8 +466,8 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
                 " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
                 " 'cluster:admin/ingest/pipeline/get', 'cluster:admin/ingest/pipeline/put', 'cluster:admin/ingest/pipeline/delete'," +
-                " 'cluster:monitor/xpack/watcher/watch/get', 'cluster:monitor/xpack/watcher/watch/put', " +
-                " 'cluster:monitor/xpack/watcher/watch/delete'," +
+                " 'cluster:monitor/xpack/watcher/watch/get', 'cluster:admin/xpack/watcher/watch/put', " +
+                " 'cluster:admin/xpack/watcher/watch/delete'," +
                 " 'cluster:monitor/task', 'cluster:admin/xpack/monitoring/bulk' ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
@@ -492,7 +492,6 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 writeFile(xpackConf, "users", USERS);
                 writeFile(xpackConf, "users_roles", USER_ROLES);
                 writeFile(xpackConf, "roles.yml", ROLES);
-                writeFile(xpackConf, "system_key", systemKey);
 
                 builder.put("xpack.security.enabled", true)
                         .put("xpack.ml.autodetect_process", false)
@@ -507,27 +506,9 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
             }
         }
 
-        static byte[] generateKey() {
-            try {
-                return CryptoService.generateKey();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-        }
-
-        public static String writeFile(Path folder, String name, String content) throws IOException {
+        static String writeFile(Path folder, String name, String content) throws IOException {
             Path file = folder.resolve(name);
             try (BufferedWriter stream = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
-                Streams.copy(content, stream);
-            } catch (IOException e) {
-                throw new ElasticsearchException("error writing file in test", e);
-            }
-            return file.toAbsolutePath().toString();
-        }
-
-        public static String writeFile(Path folder, String name, byte[] content) throws IOException {
-            Path file = folder.resolve(name);
-            try (OutputStream stream = Files.newOutputStream(file)) {
                 Streams.copy(content, stream);
             } catch (IOException e) {
                 throw new ElasticsearchException("error writing file in test", e);

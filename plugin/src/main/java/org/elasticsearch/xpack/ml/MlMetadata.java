@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.PersistentTask;
 
@@ -139,8 +140,10 @@ public class MlMetadata implements MetaData.Custom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        mapValuesToXContent(JOBS_FIELD, jobs, builder, params);
-        mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, params);
+        DelegatingMapParams extendedParams =
+                new DelegatingMapParams(Collections.singletonMap(ToXContentParams.FOR_CLUSTER_STATE, "true"), params);
+        mapValuesToXContent(JOBS_FIELD, jobs, builder, extendedParams);
+        mapValuesToXContent(DATAFEEDS_FIELD, datafeeds, builder, extendedParams);
         return builder;
     }
 
@@ -164,9 +167,9 @@ public class MlMetadata implements MetaData.Custom {
         }
 
         public MlMetadataDiff(StreamInput in) throws IOException {
-            this.jobs =  DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new,
+            this.jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job::new,
                     MlMetadataDiff::readJobDiffFrom);
-            this.datafeeds =  DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
+            this.datafeeds = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), DatafeedConfig::new,
                     MlMetadataDiff::readSchedulerDiffFrom);
         }
 
@@ -224,13 +227,18 @@ public class MlMetadata implements MetaData.Custom {
         private TreeMap<String, DatafeedConfig> datafeeds;
 
         public Builder() {
-            this.jobs = new TreeMap<>();
-            this.datafeeds = new TreeMap<>();
+            jobs = new TreeMap<>();
+            datafeeds = new TreeMap<>();
         }
 
-        public Builder(MlMetadata previous) {
-            jobs = new TreeMap<>(previous.jobs);
-            datafeeds = new TreeMap<>(previous.datafeeds);
+        public Builder(@Nullable MlMetadata previous) {
+            if (previous == null) {
+                jobs = new TreeMap<>();
+                datafeeds = new TreeMap<>();
+            } else {
+                jobs = new TreeMap<>(previous.jobs);
+                datafeeds = new TreeMap<>(previous.datafeeds);
+            }
         }
 
         public Builder putJob(Job job, boolean overwrite) {
@@ -242,11 +250,8 @@ public class MlMetadata implements MetaData.Custom {
         }
 
         public Builder deleteJob(String jobId, PersistentTasksCustomMetaData tasks) {
-            Optional<DatafeedConfig> datafeed = getDatafeedByJobId(jobId);
-            if (datafeed.isPresent()) {
-                throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] while datafeed ["
-                        + datafeed.get().getId() + "] refers to it");
-            }
+            checkJobHasNoDatafeed(jobId);
+
             JobState jobState = MlMetadata.getJobState(jobId, tasks);
             if (jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) {
                 throw ExceptionsHelper.conflictStatusException("Unexpected job state [" + jobState + "], expected [" +
@@ -345,28 +350,37 @@ public class MlMetadata implements MetaData.Custom {
             return new MlMetadata(jobs, datafeeds);
         }
 
-        public void markJobAsDeleted(String jobId, PersistentTasksCustomMetaData tasks) {
+        public void markJobAsDeleted(String jobId, PersistentTasksCustomMetaData tasks, boolean allowDeleteOpenJob) {
             Job job = jobs.get(jobId);
             if (job == null) {
                 throw ExceptionsHelper.missingJobException(jobId);
             }
             if (job.isDeleted()) {
-                // Job still exists
-                return;
+                // Job still exists but is already being deleted
+                throw new JobAlreadyMarkedAsDeletedException();
             }
+
+            checkJobHasNoDatafeed(jobId);
+
+            if (allowDeleteOpenJob == false) {
+                PersistentTask<?> jobTask = getJobTask(jobId, tasks);
+                if (jobTask != null) {
+                    JobTaskStatus jobTaskStatus = (JobTaskStatus) jobTask.getStatus();
+                    throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "
+                            + ((jobTaskStatus == null) ? JobState.OPENING : jobTaskStatus.getState()));
+                }
+            }
+            Job.Builder jobBuilder = new Job.Builder(job);
+            jobBuilder.setDeleted(true);
+            putJob(jobBuilder.build(), true);
+        }
+
+        public void checkJobHasNoDatafeed(String jobId) {
             Optional<DatafeedConfig> datafeed = getDatafeedByJobId(jobId);
             if (datafeed.isPresent()) {
                 throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because datafeed ["
                         + datafeed.get().getId() + "] refers to it");
             }
-            PersistentTask<?> jobTask = getJobTask(jobId, tasks);
-            if (jobTask != null) {
-                throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because the job is "
-                        + ((JobTaskStatus) jobTask.getStatus()).getState());
-            }
-            Job.Builder jobBuilder = new Job.Builder(job);
-            jobBuilder.setDeleted(true);
-            putJob(jobBuilder.build(), true);
         }
 
     }
@@ -427,4 +441,6 @@ public class MlMetadata implements MetaData.Custom {
         }
     }
 
+    public static class JobAlreadyMarkedAsDeletedException extends RuntimeException {
+    }
 }

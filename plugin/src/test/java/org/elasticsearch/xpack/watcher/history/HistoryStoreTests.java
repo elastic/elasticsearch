@@ -6,10 +6,13 @@
 package org.elasticsearch.xpack.watcher.history;
 
 import org.apache.http.HttpStatus;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequest;
@@ -24,7 +27,6 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionResult;
 import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
@@ -33,11 +35,10 @@ import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 import org.joda.time.DateTime;
 import org.junit.Before;
-import org.mockito.Matchers;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.watcher.test.WatcherMatchers.indexRequest;
+import static org.elasticsearch.xpack.watcher.history.HistoryStore.getHistoryIndexNameForTime;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -45,6 +46,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.argThat;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -52,26 +54,38 @@ import static org.mockito.Mockito.when;
 public class HistoryStoreTests extends ESTestCase {
 
     private HistoryStore historyStore;
-    private WatcherClientProxy clientProxy;
+    private Client client;
 
     @Before
     public void init() {
-        clientProxy = mock(WatcherClientProxy.class);
-        historyStore = new HistoryStore(Settings.EMPTY, clientProxy);
+        client = mock(Client.class);
+        historyStore = new HistoryStore(Settings.EMPTY, client);
         historyStore.start();
     }
 
     public void testPut() throws Exception {
-        Wid wid = new Wid("_name", new DateTime(0, UTC));
-        ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), new DateTime(0, UTC), new DateTime(0, UTC));
+        DateTime now = new DateTime(0, UTC);
+        Wid wid = new Wid("_name", now);
+        String index = getHistoryIndexNameForTime(now);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), now, now);
         WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, null, randomAlphaOfLength(10));
 
         IndexResponse indexResponse = mock(IndexResponse.class);
-        IndexRequest indexRequest = indexRequest(".watcher-history-1970.01.01", HistoryStore.DOC_TYPE, wid.value()
-                , IndexRequest.OpType.CREATE);
-        when(clientProxy.index(indexRequest, Matchers.<TimeValue>any())).thenReturn(indexResponse);
+
+        doAnswer(invocation -> {
+            IndexRequest request = (IndexRequest) invocation.getArguments()[0];
+            PlainActionFuture<IndexResponse> indexFuture = PlainActionFuture.newFuture();
+            if (request.id().equals(wid.value()) && request.type().equals(HistoryStore.DOC_TYPE) && request.opType() == OpType.CREATE
+                    && request.index().equals(index)) {
+                indexFuture.onResponse(indexResponse);
+            } else {
+                indexFuture.onFailure(new ElasticsearchException("test issue"));
+            }
+            return indexFuture;
+        }).when(client).index(any());
+
         historyStore.put(watchRecord);
-        verify(clientProxy).index(Matchers.<IndexRequest>any(), Matchers.<TimeValue>any());
+        verify(client).index(any());
     }
 
     public void testPutStopped() throws Exception {
@@ -92,13 +106,13 @@ public class HistoryStoreTests extends ESTestCase {
 
     public void testIndexNameGeneration() {
         String indexTemplateVersion = WatcherIndexTemplateRegistry.INDEX_TEMPLATE_VERSION;
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(0, UTC)),
+        assertThat(getHistoryIndexNameForTime(new DateTime(0, UTC)),
                 equalTo(".watcher-history-"+ indexTemplateVersion +"-1970.01.01"));
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(100000000000L, UTC)),
+        assertThat(getHistoryIndexNameForTime(new DateTime(100000000000L, UTC)),
                 equalTo(".watcher-history-" + indexTemplateVersion + "-1973.03.03"));
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(1416582852000L, UTC)),
+        assertThat(getHistoryIndexNameForTime(new DateTime(1416582852000L, UTC)),
                 equalTo(".watcher-history-" + indexTemplateVersion + "-2014.11.21"));
-        assertThat(HistoryStore.getHistoryIndexNameForTime(new DateTime(2833165811000L, UTC)),
+        assertThat(getHistoryIndexNameForTime(new DateTime(2833165811000L, UTC)),
                 equalTo(".watcher-history-" + indexTemplateVersion + "-2059.10.12"));
     }
 
@@ -139,13 +153,15 @@ public class HistoryStoreTests extends ESTestCase {
         }
         watchRecord.result().actionsResults().put(JiraAction.TYPE, result);
 
-        when(clientProxy.index(Matchers.any(), Matchers.<TimeValue>any())).thenReturn(mock(IndexResponse.class));
+        PlainActionFuture<IndexResponse> indexResponseFuture = PlainActionFuture.newFuture();
+        indexResponseFuture.onResponse(mock(IndexResponse.class));
+        when(client.index(any())).thenReturn(indexResponseFuture);
         if (randomBoolean()) {
             historyStore.put(watchRecord);
         } else {
             historyStore.forcePut(watchRecord);
         }
-        verify(clientProxy).index(argThat(indexRequestDoesNotContainPassword(username, password)), Matchers.<TimeValue>any());
+        verify(client).index(argThat(indexRequestDoesNotContainPassword(username, password)));
     }
 
     private static Matcher<IndexRequest> indexRequestDoesNotContainPassword(String username, String password) {

@@ -10,6 +10,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -184,7 +185,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         String datafeedIndex = jobId + "-data";
-        createIndex(datafeedIndex);
+        prepareCreate(datafeedIndex).addMapping("type", "{\"type\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}", XContentType.JSON)
+                .get();
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
             // put job
@@ -284,7 +286,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         String datafeedIndex = jobId + "-data";
-        createIndex(datafeedIndex);
+        prepareCreate(datafeedIndex).addMapping("type", "{\"type\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}", XContentType.JSON)
+                .get();
         // test that license restricted apis do now work
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
@@ -356,7 +359,8 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
         String datafeedId = jobId + "-datafeed";
         assertMLAllowed(true);
         String datafeedIndex = jobId + "-data";
-        createIndex(datafeedIndex);
+        prepareCreate(datafeedIndex).addMapping("type", "{\"type\":{\"properties\":{\"time\":{\"type\":\"date\"}}}}", XContentType.JSON)
+                .get();
         // test that license restricted apis do now work
         try (TransportClient client = new TestXPackTransportClient(internalCluster().transportClient().settings())) {
             client.addTransportAddress(internalCluster().getDataNodeInstance(Transport.class).boundAddress().publishAddress());
@@ -401,6 +405,15 @@ public class MachineLearningLicensingTests extends BaseMlIntegTestCase {
                 });
             } else {
                 listener.actionGet();
+            }
+
+            if (invalidLicense) {
+                // the close due to invalid license happens async, so check if the job turns into closed state:
+                assertBusy(() -> {
+                    GetJobsStatsAction.Response response =
+                            new MachineLearningClient(client).getJobsStats(new GetJobsStatsAction.Request(jobId)).actionGet();
+                    assertEquals(JobState.CLOSED, response.getResponse().results().get(0).getState());
+                });
             }
         }
     }

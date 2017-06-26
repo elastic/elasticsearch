@@ -1,16 +1,16 @@
-//lcawley: Verified example output 2017-04-11
+[role="xpack"]
 [[ml-flush-job]]
-==== Flush Jobs
+=== Flush Jobs
 
 The flush job API forces any buffered data to be processed by the job.
 
 
-===== Request
+==== Request
 
 `POST _xpack/ml/anomaly_detectors/<job_id>/_flush`
 
 
-===== Description
+==== Description
 
 The flush job API is only applicable when sending data for analysis using the
 <<ml-post-data,post data API>>. Depending on the content of the buffer, then it
@@ -23,13 +23,13 @@ additionally prunes and persists the model state to disk and the job must be
 opened again before analyzing further data.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
 (string) Identifier for the job
 
 
-===== Query Parameters
+==== Query Parameters
 
 `advance_time`::
   (string) Specifies that no data prior to the date `advance_time` is expected.
@@ -47,13 +47,14 @@ opened again before analyzing further data.
   buckets on which to calculate interim results.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example flushes the `farequote` job:
 

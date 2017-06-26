@@ -186,7 +186,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         //index1 is not authorized and referred to through wildcard, test111 and test112 are excluded
         createIndicesWithRandomAliases("test1", "test10", "test111", "test112", "test2", "index1");
 
-        SearchResponse searchResponse = client().prepareSearch("+test2", "+test11*", "index*", "-test2*").get();
+        SearchResponse searchResponse = client().prepareSearch("test2", "test11*", "index*", "-test2*").get();
         assertReturnedIndices(searchResponse, "test111", "test112");
     }
 
@@ -194,7 +194,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         //index1 is not authorized and referred to through wildcard, test111 and test112 are excluded
         createIndicesWithRandomAliases("test1", "test10", "test111", "test112", "test2", "index1");
 
-        SearchResponse searchResponse = client().prepareSearch("+test10", "+test11*", "index*", "-test111", "-test112").get();
+        SearchResponse searchResponse = client().prepareSearch("test10", "test11*", "index*", "-test111", "-test112").get();
         assertReturnedIndices(searchResponse, "test10");
     }
 

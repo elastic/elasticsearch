@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -62,7 +61,8 @@ public class IndexActionTests extends ESIntegTestCase {
         boolean customTimestampField = timestampField != null;
 
         IndexAction action = new IndexAction("test-index", "test-type", docIdAsParam ? docId : null, timestampField, null, null);
-        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, WatcherClientProxy.of(client()), null);
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client(), TimeValue.timeValueSeconds(30),
+                TimeValue.timeValueSeconds(30));
         DateTime executionTime = DateTime.now(UTC);
         Payload payload;
 
@@ -143,7 +143,8 @@ public class IndexActionTests extends ESIntegTestCase {
         boolean customId = list == idList;
 
         IndexAction action = new IndexAction("test-index", "test-type", null, timestampField, null, null);
-        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, WatcherClientProxy.of(client()), null);
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client(), TimeValue.timeValueSeconds(30),
+                TimeValue.timeValueSeconds(30));
         DateTime executionTime = DateTime.now(UTC);
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("watch_id", executionTime, new Payload.Simple("_doc", list));
 
@@ -256,7 +257,8 @@ public class IndexActionTests extends ESIntegTestCase {
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
 
         IndexAction action = new IndexAction("test-index", "test-type", null, "@timestamp", null, null);
-        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, WatcherClientProxy.of(client()), null);
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client(), TimeValue.timeValueSeconds(30),
+                TimeValue.timeValueSeconds(30));
 
         List<Map<String, Object>> docs = new ArrayList<>();
         boolean addSuccessfulIndexedDoc = randomBoolean();
@@ -278,7 +280,8 @@ public class IndexActionTests extends ESIntegTestCase {
 
     public void testUsingParameterIdWithBulkOrIdFieldThrowsIllegalState() {
         final IndexAction action = new IndexAction("test-index", "test-type", "123", null, null, null);
-        final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, WatcherClientProxy.of(client()), null);
+        final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client(), TimeValue.timeValueSeconds(30),
+                TimeValue.timeValueSeconds(30));
         final Map<String, Object> docWithId = MapBuilder.<String, Object>newMapBuilder().put("foo", "bar").put("_id", "0").immutableMap();
         final DateTime executionTime = DateTime.now(UTC);
 

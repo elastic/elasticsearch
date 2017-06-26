@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
@@ -17,7 +20,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -30,14 +32,15 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyObject;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Matchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 
@@ -48,11 +51,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
     @Before
     public void createRegistryAndClient() {
-        Set<Setting<?>> registeredSettings = new HashSet<>();
-        registeredSettings.add(WatcherIndexTemplateRegistry.HISTORY_TEMPLATE_SETTING);
-        registeredSettings.add(WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_SETTING);
-        registeredSettings.add(WatcherIndexTemplateRegistry.WATCHES_TEMPLATE_SETTING);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, registeredSettings);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Collections.emptySet());
 
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -64,9 +63,15 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         when(client.admin()).thenReturn(adminClient);
+        doAnswer(invocationOnMock -> {
+            ActionListener<PutIndexTemplateResponse> listener =
+                    (ActionListener<PutIndexTemplateResponse>) invocationOnMock.getArguments()[2];
+            listener.onResponse(new TestPutIndexTemplateResponse(true));
+            return null;
+        }).when(client).execute(same(PutIndexTemplateAction.INSTANCE), any(), any());
 
         ClusterService clusterService = mock(ClusterService.class);
-        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterSettings, clusterService, threadPool, internalClient);
+        registry = new WatcherIndexTemplateRegistry(Settings.EMPTY, clusterService, threadPool, internalClient);
     }
 
     private ClusterChangedEvent createClusterChangedEvent(List<String> existingTemplateNames) {
@@ -101,5 +106,15 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
                 WatcherIndexTemplateRegistry.TRIGGERED_TEMPLATE_NAME));
         registry.clusterChanged(newEvent);
         verify(client, times(4)).execute(anyObject(), argumentCaptor.capture(), anyObject());
+    }
+
+    private static class TestPutIndexTemplateResponse extends PutIndexTemplateResponse {
+        TestPutIndexTemplateResponse(boolean acknowledged) {
+            super(acknowledged);
+        }
+
+        TestPutIndexTemplateResponse() {
+            super();
+        }
     }
 }

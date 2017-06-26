@@ -35,6 +35,11 @@ public class RestGetWatchAction extends WatcherRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_watcher_get_watch_action";
+    }
+
+    @Override
     protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) throws IOException {
         final GetWatchRequest getWatchRequest = new GetWatchRequest(request.param("id"));
         return channel -> client.getWatch(getWatchRequest, new RestBuilderListener<GetWatchResponse>(channel) {

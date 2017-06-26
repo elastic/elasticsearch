@@ -73,7 +73,7 @@ setup:
         job_id: job-stats-test
   - match: { jobs.0.job_id : job-stats-test }
   - match: { jobs.0.data_counts.processed_record_count: 2 }
-  - match: { jobs.0.data_counts.processed_field_count: 4}
+  - match: { jobs.0.data_counts.processed_field_count: 4 }
   - match: { jobs.0.data_counts.input_field_count: 4 }
   - match: { jobs.0.model_size_stats.model_bytes: 0 }
   - match: { jobs.0.state: opened }
@@ -224,3 +224,47 @@ setup:
   - match: { jobs.0.job_id : job-stats-v54-bwc-test }
   - match: { jobs.0.data_counts.processed_record_count: 10 }
   - match: { jobs.0.model_size_stats.total_by_field_count: 101 }
+
+---
+"Test no exception on get job stats with missing index":
+
+  - do:
+      xpack.ml.post_data:
+        job_id: job-stats-test
+        body: >
+          {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
+          {"airline":"JZA","responsetime":"990.4628","time":"1403481600"}
+
+  - do:
+      xpack.ml.close_job:
+        job_id: jobs-get-stats-datafeed-job
+  - match: { closed: true }
+
+  - do:
+      xpack.ml.close_job:
+        job_id: job-stats-test
+  - match: { closed: true }
+
+  - do:
+      indices.delete:
+        index: .ml-anomalies-shared
+
+  - do:
+      xpack.ml.get_job_stats: {}
+  - match: { count: 2 }
+  - match: { jobs.0.data_counts.processed_record_count: 0 }
+  - match: { jobs.0.data_counts.processed_field_count: 0 }
+  - match: { jobs.0.data_counts.input_field_count: 0 }
+  - match: { jobs.0.model_size_stats.model_bytes: 0 }
+  - match: { jobs.0.state: closed }
+  - is_false: jobs.0.node
+  - is_false: jobs.0.open_time
+  - match: { jobs.1.data_counts.processed_record_count: 0 }
+  - match: { jobs.1.data_counts.processed_field_count: 0 }
+  - match: { jobs.1.data_counts.input_field_count: 0 }
+  - match: { jobs.1.model_size_stats.model_bytes: 0 }
+  - match: { jobs.1.state: closed }
+  - is_false: jobs.1.node
+  - is_false: jobs.1.open_time
+
+

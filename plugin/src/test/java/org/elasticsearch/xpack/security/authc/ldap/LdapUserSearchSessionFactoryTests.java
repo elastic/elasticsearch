@@ -13,6 +13,7 @@ import com.unboundid.ldap.sdk.LDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.SingleServerSet;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -39,6 +40,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isEmptyString;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
@@ -303,6 +306,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     }
 
     @Network
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1823")
     public void testUserSearchWithActiveDirectory() throws Exception {
         String groupSearchBase = "DC=ad,DC=test,DC=elasticsearch,DC=com";
         String userSearchBase = "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
@@ -356,6 +360,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
     }
 
     @Network
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1823")
     public void testUserSearchwithBindUserOpenLDAP() throws Exception {
         String groupSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         String userSearchBase = "ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
@@ -468,9 +473,33 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         }
     }
 
-    public void testEmptyBindDNReturnsNullBindRequest() {
-        BindRequest request = LdapUserSearchSessionFactory.bindRequest(Settings.builder().put("bind_password", "password").build());
-        assertThat(request, is(nullValue()));
+    public void testThatEmptyBindDNAndDisabledPoolingDoesNotThrow() throws Exception {
+        String groupSearchBase = "o=sevenSeas";
+        String userSearchBase = "o=sevenSeas";
+        RealmConfig config = new RealmConfig("ldap_realm", Settings.builder()
+                        .put(buildLdapSettings(ldapUrls(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
+                        .put("user_search.base_dn", userSearchBase)
+                        .put("user_search.pool.enabled", false)
+                        .put("bind_password", "pass")
+                        .build(), globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
+
+        LdapUserSearchSessionFactory searchSessionFactory = null;
+        try {
+            searchSessionFactory = new LdapUserSearchSessionFactory(config, sslService);
+            final PlainActionFuture<LdapSession> future = new PlainActionFuture<>();
+            searchSessionFactory.session("cn=ironman", new SecureString("password".toCharArray()), future);
+            future.get();
+        } finally {
+            if (searchSessionFactory != null) {
+                searchSessionFactory.shutdown();
+            }
+        }
+    }
+
+    public void testEmptyBindDNReturnsAnonymousBindRequest() {
+        SimpleBindRequest request = LdapUserSearchSessionFactory.bindRequest(Settings.builder().put("bind_password", "password").build());
+        assertThat(request, is(notNullValue()));
+        assertThat(request.getBindDN(), isEmptyString());
     }
 
     public void testThatBindRequestReturnsSimpleBindRequest() {

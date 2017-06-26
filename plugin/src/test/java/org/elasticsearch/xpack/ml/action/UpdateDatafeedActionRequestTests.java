@@ -5,12 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.UpdateDatafeedAction.Request;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedUpdateTests;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 import org.junit.Before;
+
+import java.util.Collections;
 
 public class UpdateDatafeedActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
@@ -32,8 +38,19 @@ public class UpdateDatafeedActionRequestTests extends AbstractStreamableXContent
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(datafeedId, parser);
     }
 
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
 }

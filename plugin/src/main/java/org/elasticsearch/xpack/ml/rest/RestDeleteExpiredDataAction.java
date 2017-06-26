@@ -24,6 +24,11 @@ public class RestDeleteExpiredDataAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_delete_expired_data_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeleteExpiredDataAction.Request request = new DeleteExpiredDataAction.Request();
         return channel -> client.execute(DeleteExpiredDataAction.INSTANCE, request, new RestToXContentListener<>(channel));

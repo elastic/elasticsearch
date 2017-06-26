@@ -7,10 +7,13 @@ package org.elasticsearch.xpack.watcher.transport.actions.activate;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -18,7 +21,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
@@ -38,13 +41,13 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
 
     private final Clock clock;
     private final Watch.Parser parser;
-    private final WatcherClientProxy client;
+    private final Client client;
 
     @Inject
     public TransportActivateWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Clock clock,
                                         XPackLicenseState licenseState, Watch.Parser parser,
-                                        WatcherClientProxy client) {
+                                        InternalClient client) {
         super(settings, ActivateWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, ActivateWatchRequest::new);
         this.clock = clock;
@@ -66,7 +69,9 @@ public class TransportActivateWatchAction extends WatcherTransportAction<Activat
             updateRequest.retryOnConflict(2);
 
             client.update(updateRequest, ActionListener.wrap(updateResponse -> {
-                client.getWatch(request.getWatchId(), ActionListener.wrap(getResponse -> {
+                GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId())
+                        .preference(Preference.LOCAL.type()).realtime(true);
+                client.get(getRequest, ActionListener.wrap(getResponse -> {
                     if (getResponse.isExists()) {
                         Watch watch = parser.parseWithSecrets(request.getWatchId(), true, getResponse.getSourceAsBytesRef(), now,
                                 XContentType.JSON);

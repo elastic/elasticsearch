@@ -146,7 +146,7 @@ class AggregationDataExtractor implements DataExtractor {
 
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         try (AggregationToJsonProcessor processor = new AggregationToJsonProcessor(
-                context.timeField, context.includeDocCount, outputStream)) {
+                context.timeField, context.fields, context.includeDocCount, outputStream)) {
             while (histogramBuckets.isEmpty() == false && processor.getKeyValueCount() < BATCH_KEY_VALUE_PAIRS) {
                 processor.process(histogramBuckets.removeFirst());
             }

@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlMetaIndex;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.job.config.JobTaskStatus;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
@@ -349,7 +350,11 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         @Override
         protected void onCancelled() {
             String reason = getReasonCancelled();
-            closeJob(reason);
+            killJob(reason);
+        }
+
+        void killJob(String reason) {
+            autodetectProcessManager.killProcess(this, false, reason);
         }
 
         void closeJob(String reason) {
@@ -517,22 +522,25 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
             @Override
             public boolean test(PersistentTask<?> persistentTask) {
-                if (persistentTask == null) {
-                    return false;
+                JobState jobState = JobState.CLOSED;
+                if (persistentTask != null) {
+                    JobTaskStatus jobStateStatus = (JobTaskStatus) persistentTask.getStatus();
+                    jobState = jobStateStatus == null ? JobState.OPENING : jobStateStatus.getState();
                 }
-                JobTaskStatus jobState = (JobTaskStatus) persistentTask.getStatus();
-                if (jobState == null) {
-                    return false;
-                }
-                switch (jobState.getState()) {
+                switch (jobState) {
+                    case OPENING:
+                    case CLOSED:
+                        return false;
                     case OPENED:
                         opened = true;
                         return true;
+                    case CLOSING:
+                        throw ExceptionsHelper.conflictStatusException("The job has been " + JobState.CLOSED + " while waiting to be "
+                                + JobState.OPENED);
                     case FAILED:
-                        return true;
                     default:
-                        throw new IllegalStateException("Unexpected job state [" + jobState.getState() + "]");
-
+                        throw new IllegalStateException("Unexpected job state [" + jobState
+                                + "] while waiting for job to be " + JobState.OPENED);
                 }
             }
         }
@@ -611,7 +619,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
      * </ul>
      */
     static void validate(String jobId, MlMetadata mlMetadata) {
-        Job job = mlMetadata.getJobs().get(jobId);
+        Job job = (mlMetadata == null) ? null : mlMetadata.getJobs().get(jobId);
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
         }

@@ -22,8 +22,6 @@ import org.joda.time.DateTimeZone;
 import java.util.Locale;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.elasticsearch.xpack.monitoring.action.MonitoringBulkDocTests.newRandomSourceNode;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTestCase {
@@ -78,13 +76,12 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
 
         // Won't be deleted
         createIndex(MonitoringSettings.LEGACY_DATA_INDEX_NAME, now().minusYears(1));
-        createDataIndex(now().minusDays(10), "0");
-        createDataIndex(now().minusDays(10), "1");
-        assertIndicesCount(4);
+        createDataIndex(now().minusDays(10));
+        assertIndicesCount(3);
 
         CleanerService.Listener listener = getListener();
         listener.onCleanUpIndices(days(0));
-        assertIndicesCount(3);
+        assertIndicesCount(2);
     }
 
     public void testIgnoreCurrentTimestampedIndex() throws Exception {
@@ -185,31 +182,11 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         throw new IllegalStateException("unable to find listener");
     }
 
-    private MonitoringDoc randomMonitoringDoc() {
-        String monitoringId = randomFrom(MonitoredSystem.values()).getSystem();
-        String monitoringVersion = randomVersion(random()).toString();
-        String type = randomFrom("type1", "type2", "type3");
-        String id = randomBoolean() ? randomAlphaOfLength(3) : null;
-        String clusterUUID = randomBoolean() ? randomAlphaOfLength(5) : null;
-        long timestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
-        MonitoringDoc.Node sourceNode = randomBoolean() ? newRandomSourceNode() : null;
-
-        return new MonitoringDoc(monitoringId, monitoringVersion, type, id, clusterUUID,
-                timestamp, sourceNode);
-    }
-
     /**
-     * Creates a monitoring data index in a given version.
+     * Creates a monitoring data index from an earlier version (from when we used to have them).
      */
     protected void createDataIndex(DateTime creationDate) {
-        createDataIndex(creationDate, MonitoringTemplateUtils.TEMPLATE_VERSION);
-    }
-
-    /**
-     * Creates a monitoring data index in a given version.
-     */
-    protected void createDataIndex(DateTime creationDate, String version) {
-        createIndex(new MockDataIndexNameResolver(version).index(randomMonitoringDoc()), creationDate);
+        createIndex(".monitoring-data-2", creationDate);
     }
 
     /**

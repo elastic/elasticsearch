@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.Transport.Connection;
@@ -40,6 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -95,7 +97,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendAsync() throws Exception {
-        final User user = new User("test");
+        final User authUser = randomBoolean() ? new User("authenticator") : null;
+        final User user = new User("test", randomRoles(), authUser);
         final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
         authentication.writeToContext(threadContext);
         SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
@@ -127,7 +130,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendAsyncSwitchToSystem() throws Exception {
-        final User user = new User("test");
+        final User authUser = randomBoolean() ? new User("authenticator") : null;
+        final User user = new User("test", randomRoles(), authUser);
         final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
         authentication.writeToContext(threadContext);
         threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
@@ -248,7 +252,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendToNewerVersionSetsCorrectVersion() throws Exception {
-        final User user = new User("joe", "role");
+        final User authUser = randomBoolean() ? new User("authenticator") : null;
+        final User user = new User("joe", randomRoles(), authUser);
         final Authentication authentication = new Authentication(user, new RealmRef("file", "file", "node1"), null);
         authentication.writeToContext(threadContext);
         threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
@@ -287,7 +292,8 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
     }
 
     public void testSendToOlderVersionSetsCorrectVersion() throws Exception {
-        final User user = new User("joe", "role");
+        final User authUser = randomBoolean() ? new User("authenticator") : null;
+        final User user = new User("joe", randomRoles(), authUser);
         final Authentication authentication = new Authentication(user, new RealmRef("file", "file", "node1"), null);
         authentication.writeToContext(threadContext);
         threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
@@ -411,4 +417,10 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
             assertEquals("value", threadContext.getHeader("key"));
         }
     }
+
+    private String[] randomRoles() {
+        return generateRandomStringArray(3, 10, false, true);
+    }
+
+
 }

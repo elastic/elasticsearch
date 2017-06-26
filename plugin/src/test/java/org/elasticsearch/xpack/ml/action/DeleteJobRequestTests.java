@@ -5,14 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction.Request;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class DeleteJobRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLengthBetween(1, 20));
+        Request request = new Request(randomAlphaOfLengthBetween(1, 20));
+        request.setForce(randomBoolean());
+        return request;
     }
 
     @Override

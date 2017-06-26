@@ -53,6 +53,11 @@ public class RestExecuteWatchAction extends WatcherRestHandler implements RestRe
     }
 
     @Override
+    public String getName() {
+        return "xpack_watcher_execute_watch_action";
+    }
+
+    @Override
     protected RestChannelConsumer doPrepareRequest(final RestRequest request, WatcherClient client) throws IOException {
         ExecuteWatchRequest executeWatchRequest = parseRequest(request, client);
 

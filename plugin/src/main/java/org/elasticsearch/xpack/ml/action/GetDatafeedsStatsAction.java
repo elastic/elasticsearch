@@ -305,6 +305,9 @@ public class GetDatafeedsStatsAction extends Action<GetDatafeedsStatsAction.Requ
             logger.debug("Get stats for datafeed '{}'", request.getDatafeedId());
 
             MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
+            if (mlMetadata == null) {
+                mlMetadata = MlMetadata.EMPTY_METADATA;
+            }
 
             if (request.getDatafeedId().equals(ALL) == false
                     && mlMetadata.getDatafeed(request.getDatafeedId()) == null) {

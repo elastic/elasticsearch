@@ -90,6 +90,40 @@ dependencies {
 --------------------------------------------------------------
 --
 
+If you are using a repository manager such as https://www.sonatype.com/nexus-repository-oss[Nexus OSS] within your
+company, you need to add the repository as per the following screenshot:
+
+
+image::images/nexus.png["Adding the Elastic repo in Nexus",link="images/nexus.png"]
+
+
+Then in your project's `pom.xml` if using maven, add the following repositories and dependencies definitions:
+
+[source,xml]
+--------------------------------------------------------------
+<dependencies>
+    <dependency>
+        <groupId>org.elasticsearch.client</groupId>
+        <artifactId>x-pack-transport</artifactId>
+        <version>{version}</version>
+    </dependency>
+</dependencies>
+
+<repositories>
+    <repository>
+        <id>local-nexus</id>
+        <name>Elastic Local Nexus</name>
+        <url>http://0.0.0.0:8081/repository/elasticsearch/</url>
+        <releases>
+            <enabled>true</enabled>
+        </releases>
+        <snapshots>
+            <enabled>false</enabled>
+        </snapshots>
+    </repository>
+</repositories>
+--------------------------------------------------------------
+
 . Set up the transport client. At a minimum, you must configure `xpack.security.user` to
 include the name and password of your transport client user in your requests. The
 following snippet configures the user credentials globally--every request

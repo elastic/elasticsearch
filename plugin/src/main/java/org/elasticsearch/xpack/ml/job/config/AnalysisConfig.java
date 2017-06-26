@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -14,17 +12,20 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -46,14 +47,14 @@ import java.util.stream.Collectors;
  * Object wrappers are used around integral types &amp; booleans so they can take
  * <code>null</code> values.
  */
-public class AnalysisConfig extends ToXContentToBytes implements Writeable {
+public class AnalysisConfig implements ToXContentObject, Writeable {
     /**
      * Serialisation names
      */
     private static final ParseField ANALYSIS_CONFIG = new ParseField("analysis_config");
     private static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     private static final ParseField CATEGORIZATION_FIELD_NAME = new ParseField("categorization_field_name");
-    public static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
+    static final ParseField CATEGORIZATION_FILTERS = new ParseField("categorization_filters");
     private static final ParseField LATENCY = new ParseField("latency");
     private static final ParseField SUMMARY_COUNT_FIELD_NAME = new ParseField("summary_count_field_name");
     private static final ParseField DETECTORS = new ParseField("detectors");
@@ -64,8 +65,8 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     private static final ParseField MULTIPLE_BUCKET_SPANS = new ParseField("multiple_bucket_spans");
     private static final ParseField USER_PER_PARTITION_NORMALIZATION = new ParseField("use_per_partition_normalization");
 
-    private static final String ML_CATEGORY_FIELD = "mlcategory";
-    public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Arrays.asList(ML_CATEGORY_FIELD));
+    public static final String ML_CATEGORY_FIELD = "mlcategory";
+    public static final Set<String> AUTO_CREATED_FIELDS = new HashSet<>(Collections.singletonList(ML_CATEGORY_FIELD));
 
     public static final long DEFAULT_RESULT_FINALIZATION_WINDOW = 2L;
 
@@ -229,11 +230,15 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
      * @return Set of term fields - never <code>null</code>
      */
     public Set<String> termFields() {
-        Set<String> termFields = new TreeSet<>();
+        return termFields(getDetectors(), getInfluencers());
+    }
 
-        getDetectors().stream().forEach(d -> termFields.addAll(d.getByOverPartitionTerms()));
+    static SortedSet<String> termFields(List<Detector> detectors, List<String> influencers) {
+        SortedSet<String> termFields = new TreeSet<>();
 
-        for (String i : getInfluencers()) {
+        detectors.forEach(d -> termFields.addAll(d.getByOverPartitionTerms()));
+
+        for (String i : influencers) {
             addIfNotNull(termFields, i);
         }
 
@@ -269,16 +274,16 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     }
 
     /**
-     * Return the list of fields required by the analysis.
+     * Return the set of fields required by the analysis.
      * These are the influencer fields, metric field, partition field,
      * by field and over field of each detector, plus the summary count
      * field and the categorization field name of the job.
      * <code>null</code> and empty strings are filtered from the
      * config.
      *
-     * @return List of required analysis fields - never <code>null</code>
+     * @return Set of required analysis fields - never <code>null</code>
      */
-    public List<String> analysisFields() {
+    public Set<String> analysisFields() {
         Set<String> analysisFields = termFields();
 
         addIfNotNull(analysisFields, categorizationFieldName);
@@ -291,7 +296,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         // remove empty strings
         analysisFields.remove("");
 
-        return new ArrayList<>(analysisFields);
+        return analysisFields;
     }
 
     private static void addIfNotNull(Set<String> fields, String field) {
@@ -301,7 +306,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     }
 
     public List<String> fields() {
-        return collectNonNullAndNonEmptyDetectorFields(d -> d.getFieldName());
+        return collectNonNullAndNonEmptyDetectorFields(Detector::getFieldName);
     }
 
     private List<String> collectNonNullAndNonEmptyDetectorFields(
@@ -319,16 +324,16 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     }
 
     public List<String> byFields() {
-        return collectNonNullAndNonEmptyDetectorFields(d -> d.getByFieldName());
+        return collectNonNullAndNonEmptyDetectorFields(Detector::getByFieldName);
     }
 
     public List<String> overFields() {
-        return collectNonNullAndNonEmptyDetectorFields(d -> d.getOverFieldName());
+        return collectNonNullAndNonEmptyDetectorFields(Detector::getOverFieldName);
     }
 
 
     public List<String> partitionFields() {
-        return collectNonNullAndNonEmptyDetectorFields(d -> d.getPartitionFieldName());
+        return collectNonNullAndNonEmptyDetectorFields(Detector::getPartitionFieldName);
     }
 
     @Override
@@ -347,7 +352,11 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         if (summaryCountFieldName != null) {
             builder.field(SUMMARY_COUNT_FIELD_NAME.getPreferredName(), summaryCountFieldName);
         }
-        builder.field(DETECTORS.getPreferredName(), detectors);
+        builder.startArray(DETECTORS.getPreferredName());
+        for (Detector detector: detectors) {
+            detector.toXContent(builder, params);
+        }
+        builder.endArray();
         builder.field(INFLUENCERS.getPreferredName(), influencers);
         if (overlappingBuckets != null) {
             builder.field(OVERLAPPING_BUCKETS.getPreferredName(), overlappingBuckets);
@@ -360,7 +369,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         }
         if (multipleBucketSpans != null) {
             builder.field(MULTIPLE_BUCKET_SPANS.getPreferredName(),
-                    multipleBucketSpans.stream().map(s -> s.getStringRep()).collect(Collectors.toList()));
+                    multipleBucketSpans.stream().map(TimeValue::getStringRep).collect(Collectors.toList()));
         }
         if (usePerPartitionNormalization) {
             builder.field(USER_PER_PARTITION_NORMALIZATION.getPreferredName(), usePerPartitionNormalization);
@@ -399,7 +408,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
 
     public static class Builder {
 
-        public static final TimeValue DEFAULT_BUCKET_SPAN = TimeValue.timeValueMinutes(5);
+        static final TimeValue DEFAULT_BUCKET_SPAN = TimeValue.timeValueMinutes(5);
 
         private List<Detector> detectors;
         private TimeValue bucketSpan = DEFAULT_BUCKET_SPAN;
@@ -415,7 +424,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         private boolean usePerPartitionNormalization = false;
 
         public Builder(List<Detector> detectors) {
-            this.detectors = detectors;
+            setDetectors(detectors);
         }
 
         public Builder(AnalysisConfig analysisConfig) {
@@ -434,7 +443,19 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
         }
 
         public void setDetectors(List<Detector> detectors) {
-            this.detectors = detectors;
+            if (detectors == null) {
+                this.detectors = null;
+                return;
+            }
+            // We always assign sequential IDs to the detectors that are correct for this analysis config
+            int detectorIndex = 0;
+            List<Detector> sequentialIndexDetectors = new ArrayList<>(detectors.size());
+            for (Detector origDetector : detectors) {
+                Detector.Builder builder = new Detector.Builder(origDetector);
+                builder.setDetectorIndex(detectorIndex++);
+                sequentialIndexDetectors.add(builder.build());
+            }
+            this.detectors = sequentialIndexDetectors;
         }
 
         public void setBucketSpan(TimeValue bucketSpan) {
@@ -501,13 +522,15 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
             }
 
             verifyDetectorAreDefined();
-            verifyFieldName(summaryCountFieldName);
-            verifyFieldName(categorizationFieldName);
+            Detector.Builder.verifyFieldName(summaryCountFieldName);
+            Detector.Builder.verifyFieldName(categorizationFieldName);
 
             verifyMlCategoryIsUsedWhenCategorizationFieldNameIsSet();
             verifyCategorizationFilters();
             checkFieldIsNotNegativeIfSpecified(RESULT_FINALIZATION_WINDOW.getPreferredName(), resultFinalizationWindow);
             verifyMultipleBucketSpans();
+
+            verifyNoMetricFunctionsWhenSummaryCountFieldNameIsSet();
 
             overlappingBuckets = verifyOverlappingBucketsConfig(overlappingBuckets, detectors);
 
@@ -516,34 +539,67 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
                 checkNoInfluencersAreSet(influencers);
             }
 
+            verifyNoInconsistentNestedFieldNames();
+
             return new AnalysisConfig(bucketSpan, categorizationFieldName, categorizationFilters,
                     latency, summaryCountFieldName, detectors, influencers, overlappingBuckets,
                     resultFinalizationWindow, multivariateByFields, multipleBucketSpans, usePerPartitionNormalization);
         }
 
+        private void verifyNoMetricFunctionsWhenSummaryCountFieldNameIsSet() {
+            if (Strings.isNullOrEmpty(summaryCountFieldName) == false &&
+                    detectors.stream().anyMatch(d -> Detector.METRIC.equals(d.getFunction()))) {
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, Detector.METRIC));
+            }
+        }
+
         private static void checkFieldIsNotNegativeIfSpecified(String fieldName, Long value) {
             if (value != null && value < 0) {
                 String msg = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, fieldName, 0, value);
-                throw new IllegalArgumentException(msg);
+                throw ExceptionsHelper.badRequestException(msg);
             }
         }
 
         private void verifyDetectorAreDefined() {
             if (detectors == null || detectors.isEmpty()) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_NO_DETECTORS));
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_NO_DETECTORS));
+            }
+        }
+
+        private void verifyNoInconsistentNestedFieldNames() {
+            SortedSet<String> termFields = termFields(detectors, influencers);
+            // We want to outlaw nested fields where a less nested field clashes with one of the nested levels.
+            // For example, this is not allowed:
+            // - a
+            // - a.b
+            // Nor is this:
+            // - a.b
+            // - a.b.c
+            // But this is OK:
+            // - a.b
+            // - a.c
+            // The sorted set makes it relatively easy to detect the situations we want to avoid.
+            String prevTermField = null;
+            for (String termField : termFields) {
+                if (prevTermField != null && termField.startsWith(prevTermField + ".")) {
+                    throw ExceptionsHelper.badRequestException("Fields " + prevTermField + " and " + termField +
+                            " cannot both be used in the same analysis_config");
+                }
+                prevTermField = termField;
             }
         }
 
         private void verifyMlCategoryIsUsedWhenCategorizationFieldNameIsSet() {
             Set<String> byOverPartitionFields = new TreeSet<>();
-            detectors.stream().forEach(d -> byOverPartitionFields.addAll(d.getByOverPartitionTerms()));
+            detectors.forEach(d -> byOverPartitionFields.addAll(d.getByOverPartitionTerms()));
             boolean isMlCategoryUsed = byOverPartitionFields.contains(ML_CATEGORY_FIELD);
             if (isMlCategoryUsed && categorizationFieldName == null) {
-                throw new IllegalArgumentException(CATEGORIZATION_FIELD_NAME.getPreferredName()
+                throw ExceptionsHelper.badRequestException(CATEGORIZATION_FIELD_NAME.getPreferredName()
                         + " must be set for " + ML_CATEGORY_FIELD + " to be available");
             }
             if (categorizationFieldName != null && isMlCategoryUsed == false) {
-                throw new IllegalArgumentException(CATEGORIZATION_FIELD_NAME.getPreferredName()
+                throw ExceptionsHelper.badRequestException(CATEGORIZATION_FIELD_NAME.getPreferredName()
                         + " is set but " + ML_CATEGORY_FIELD + " is not used in any detector by/over/partition field");
             }
         }
@@ -561,27 +617,28 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
 
         private void verifyCategorizationFieldNameSetIfFiltersAreSet() {
             if (categorizationFieldName == null) {
-                throw new IllegalArgumentException(Messages.getMessage(
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(
                         Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_REQUIRE_CATEGORIZATION_FIELD_NAME));
             }
         }
 
         private void verifyCategorizationFiltersAreDistinct() {
             if (categorizationFilters.stream().distinct().count() != categorizationFilters.size()) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES));
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES));
             }
         }
 
         private void verifyCategorizationFiltersContainNoneEmpty() {
             if (categorizationFilters.stream().anyMatch(String::isEmpty)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY));
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY));
             }
         }
 
         private void verifyCategorizationFiltersAreValidRegex() {
             for (String filter : categorizationFilters) {
                 if (!isValidRegex(filter)) {
-                    throw new IllegalArgumentException(
+                    throw ExceptionsHelper.badRequestException(
                             Messages.getMessage(Messages.JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_INVALID_REGEX, filter));
                 }
             }
@@ -594,52 +651,27 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
 
             for (TimeValue span : multipleBucketSpans) {
                 if ((span.getSeconds() % bucketSpan.getSeconds() != 0L) || (span.compareTo(bucketSpan) <= 0)) {
-                    throw new IllegalArgumentException(
+                    throw ExceptionsHelper.badRequestException(
                             Messages.getMessage(Messages.JOB_CONFIG_MULTIPLE_BUCKETSPANS_MUST_BE_MULTIPLE, span, bucketSpan));
                 }
             }
         }
 
-        private static boolean checkDetectorsHavePartitionFields(List<Detector> detectors) {
+        private static void checkDetectorsHavePartitionFields(List<Detector> detectors) {
             for (Detector detector : detectors) {
                 if (!Strings.isNullOrEmpty(detector.getPartitionFieldName())) {
-                    return true;
+                    return;
                 }
             }
-            throw new IllegalArgumentException(Messages.getMessage(
+            throw ExceptionsHelper.badRequestException(Messages.getMessage(
                     Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_REQUIRES_PARTITION_FIELD));
         }
 
-        private static boolean checkNoInfluencersAreSet(List<String> influencers) {
+        private static void checkNoInfluencersAreSet(List<String> influencers) {
             if (!influencers.isEmpty()) {
-                throw new IllegalArgumentException(Messages.getMessage(
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(
                         Messages.JOB_CONFIG_PER_PARTITION_NORMALIZATION_CANNOT_USE_INFLUENCERS));
             }
-
-            return true;
-        }
-
-        /**
-         * Check that the characters used in a field name will not cause problems.
-         *
-         * @param field The field name to be validated
-         * @return true
-         */
-        public static boolean verifyFieldName(String field) throws ElasticsearchParseException {
-            if (field != null && containsInvalidChar(field)) {
-                throw new IllegalArgumentException(
-                        Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME_CHARS, field, Detector.PROHIBITED));
-            }
-            return true;
-        }
-
-        private static boolean containsInvalidChar(String field) {
-            for (Character ch : Detector.PROHIBITED_FIELDNAME_CHARACTERS) {
-                if (field.indexOf(ch) >= 0) {
-                    return true;
-                }
-            }
-            return field.chars().anyMatch(Character::isISOControl);
         }
 
         private static boolean isValidRegex(String exp) {
@@ -664,7 +696,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
             }
 
             if (Boolean.TRUE.equals(overlappingBuckets) && mustNotUse) {
-                throw new IllegalArgumentException(
+                throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.JOB_CONFIG_OVERLAPPING_BUCKETS_INCOMPATIBLE_FUNCTION, illegalFunctions.toString()));
             }
 

@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
+import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.persistence.ElasticsearchMappings;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -54,7 +55,6 @@ public final class ReservedFieldNames {
             AnomalyCause.INFLUENCERS.getPreferredName(),
             AnomalyCause.FIELD_NAME.getPreferredName(),
 
-            AnomalyRecord.DETECTOR_INDEX.getPreferredName(),
             AnomalyRecord.PROBABILITY.getPreferredName(),
             AnomalyRecord.BY_FIELD_NAME.getPreferredName(),
             AnomalyRecord.BY_FIELD_VALUE.getPreferredName(),
@@ -108,6 +108,8 @@ public final class ReservedFieldNames {
             DataCounts.LAST_DATA_TIME.getPreferredName(),
             DataCounts.LATEST_EMPTY_BUCKET_TIME.getPreferredName(),
             DataCounts.LATEST_SPARSE_BUCKET_TIME.getPreferredName(),
+
+            Detector.DETECTOR_INDEX.getPreferredName(),
 
             Influence.INFLUENCER_FIELD_NAME.getPreferredName(),
             Influence.INFLUENCER_FIELD_VALUES.getPreferredName(),

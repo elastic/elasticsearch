@@ -41,6 +41,16 @@
   - match: { jobs.0.job_id: "job-crud-test-apis" }
 
   - do:
+      indices.get_alias:
+        name: ".ml-anomalies-job-crud-test-apis"
+  - match: { \.ml-anomalies-shared.aliases.\.ml-anomalies-job-crud-test-apis.filter.term.job_id.value: job-crud-test-apis }
+
+  - do:
+      indices.get_alias:
+        name: ".ml-anomalies-.write-job-crud-test-apis"
+  - match: { \.ml-anomalies-shared.aliases.\.ml-anomalies-\.write-job-crud-test-apis: {} }
+
+  - do:
       xpack.ml.delete_job:
         job_id: "job-crud-test-apis"
   - match: { acknowledged: true }
@@ -48,6 +58,16 @@
   - do:
       indices.exists:
         index: ".ml-anomalies-job-crud-test-apis"
+  - is_false: ''
+
+  - do:
+      indices.exists_alias:
+        name: ".ml-anomalies-job-crud-test-apis"
+  - is_false: ''
+
+  - do:
+      indices.exists_alias:
+        name: ".ml-anomalies-.write-job-crud-test-apis"
   - is_false: ''
 
 ---
@@ -218,10 +238,10 @@
         body:  >
           {
             "description":"Post update description",
-            "detectors": [{"index": 0, "rules": {"target_field_name": "airline",
+            "detectors": [{"detector_index": 0, "rules": {"target_field_name": "airline",
                                       "rule_conditions": [ { "condition_type": "numerical_actual",
                                                              "condition": {"operator": "gt", "value": "10" } } ] } },
-                          {"index": 1, "description": "updated description"}],
+                          {"detector_index": 1, "description": "updated description"}],
             "model_plot_config": {
               "enabled": false,
               "terms": "foobar"
@@ -245,7 +265,9 @@
   - match: { analysis_limits.model_memory_limit: 20 }
   - match: { analysis_config.categorization_filters: ["cat3.*"] }
   - match: { analysis_config.detectors.0.detector_rules.0.target_field_name: "airline" }
+  - match: { analysis_config.detectors.0.detector_index: 0 }
   - match: { analysis_config.detectors.1.detector_description: "updated description" }
+  - match: { analysis_config.detectors.1.detector_index: 1 }
   - match: { renormalization_window_days: 10 }
   - match: { background_persist_interval: "3h" }
   - match: { model_snapshot_retention_days: 30 }
@@ -549,3 +571,156 @@
         job_id: jobs-crud-close-a-closed-job
         force: true
   - match: { closed: true }
+
+---
+"Test open and close an unknown job is resource not found":
+  - do:
+      catch: missing
+      xpack.ml.open_job:
+        job_id: jobs-crud-some-missing-job-i-made-up
+
+  - do:
+      catch: missing
+      xpack.ml.close_job:
+        job_id: jobs-crud-some-missing-job-i-made-up
+
+---
+"Test cannot create job with existing categorizer state document":
+
+  - do:
+      index:
+        index: .ml-state
+        type: doc
+        id: jobs-crud-existing-docs_categorizer_state#1
+        body:
+          key: value
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /status_exception/
+      xpack.ml.put_job:
+        job_id: jobs-crud-existing-docs
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+---
+"Test cannot create job with existing quantiles document":
+
+  - do:
+      index:
+        index: .ml-state
+        type: doc
+        id: jobs-crud-existing-docs_quantiles
+        body:
+          key: value
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /status_exception/
+      xpack.ml.put_job:
+        job_id: jobs-crud-existing-docs
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+
+---
+"Test cannot create job with existing result document":
+
+  - do:
+      index:
+        index:  .ml-anomalies-shared
+        type:   doc
+        id:     "jobs-crud-existing-result-docs_1464739200000_1"
+        body:
+          {
+            "job_id": "jobs-crud-existing-result-docs",
+            "result_type": "bucket",
+            "timestamp": "2016-06-01T00:00:00Z",
+            "anomaly_score": 90.0,
+            "bucket_span":1
+          }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: /status_exception/
+      xpack.ml.put_job:
+        job_id: jobs-crud-existing-result-docs
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+---
+"Test cannot create job with model snapshot id set":
+
+  - do:
+      catch: /illegal_argument_exception/
+      xpack.ml.put_job:
+        job_id: has-model-snapshot-id
+        body:  >
+          {
+            "model_snapshot_id": "wont-create-with-this-setting",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+            }
+          }
+
+---
+"Test put job with time field in analysis_config":
+
+  - do:
+      catch: /illegal_argument_exception/
+      xpack.ml.put_job:
+        job_id: jobs-crud-time-field-in-analysis_config
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"rare","by_field_name":"@timestamp"}]
+            },
+            "data_description" : {
+                "time_field":"@timestamp"
+            }
+          }
+
+  - do:
+      catch: /data_description.time_field may not be used in the analysis_config/
+      xpack.ml.put_job:
+        job_id: jobs-crud-time-field-in-analysis_config
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"mean","field_name":"time"}]
+            },
+            "data_description" : {}
+          }
+

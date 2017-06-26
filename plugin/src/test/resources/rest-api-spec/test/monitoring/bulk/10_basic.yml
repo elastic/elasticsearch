@@ -4,7 +4,7 @@
   - do:
       xpack.monitoring.bulk:
         system_id:          "kibana"
-        system_api_version: "2"
+        system_api_version: "6"
         interval:           "10s"
         body:
           - index:
@@ -32,16 +32,16 @@
   - do:
       search:
         index: .monitoring-kibana-*
-        type:  test_type
+        body: { "query": { "term" : { "type": "test_type" } } }
 
   - match: { hits.total: 2 }
 
   - do:
       xpack.monitoring.bulk:
         system_id:          "kibana"
-        system_api_version: "2"
+        system_api_version: "6"
         interval:           "10000ms"
-        type: "default_type"
+        type:               "default_type"
         body:
           - '{"index": {}}'
           - '{"field_1": "value_1"}'
@@ -60,18 +60,62 @@
   - do:
       search:
         index: .monitoring-kibana-*
-        type:  default_type
+        body: { "query": { "term" : { "type": "default_type" } } }
 
   - match: { hits.total: 2 }
 
   - do:
       search:
         index: .monitoring-kibana-*
-        type:  custom_type
+        body: { "query": { "term" : { "type": "custom_type" } } }
 
   - match: { hits.total: 1 }
 
-  # We actively ignore indexing requests made to .monitoring-data-N starting with 5.5
+  # We actively ignore indexing requests made to the _data index starting with 5.5
+  - do:
+      search:
+        index: .monitoring-data-*
+        type:  kibana
+
+  - match: { hits.total: 0 }
+
+  # Old system_api_version should still be accepted
+  - do:
+      xpack.monitoring.bulk:
+        system_id:          "kibana"
+        system_api_version: "2"
+        interval:           "10000ms"
+        type:               "default_type"
+        body:
+          - '{"index": {}}'
+          - '{"field_1": "value_1"}'
+          - '{"index": {"_type": "custom_type"}}'
+          - '{"field_1": "value_2"}'
+          - '{"index": {}}'
+          - '{"field_1": "value_3"}'
+          - '{"index": {"_index": "_data", "_type": "kibana"}}'
+          - '{"field_1": "value_4"}'
+
+  - is_false: errors
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: .monitoring-kibana-*
+        body: { "query": { "term" : { "type": "default_type" } } }
+
+  - match: { hits.total: 4 }
+
+  - do:
+      search:
+        index: .monitoring-kibana-*
+        body: { "query": { "term" : { "type": "custom_type" } } }
+
+  - match: { hits.total: 2 }
+
+  # We actively ignore indexing requests made to the _data index starting with 5.5, even for the old versions
   - do:
       search:
         index: .monitoring-data-*
@@ -83,9 +127,9 @@
   - do:
       catch: request
       xpack.monitoring.bulk:
-        system_api_version: "2"
+        system_api_version: "6"
         interval:           "10s"
-        type: "default_type"
+        type:               "default_type"
         body:
           - '{"index": {}}'
           - '{"field_1": "value_1"}'
@@ -96,7 +140,7 @@
       xpack.monitoring.bulk:
         system_id:          "kibana"
         interval:           "10s"
-        type: "default_type"
+        type:               "default_type"
         body:
           - '{"index": {}}'
           - '{"field_1": "value_1"}'
@@ -106,8 +150,8 @@
       catch: request
       xpack.monitoring.bulk:
         system_id:          "kibana"
-        system_api_version: "2"
-        type: "default_type"
+        system_api_version: "6"
+        type:               "default_type"
         body:
           - '{"index": {}}'
           - '{"field_1": "value_1"}'
@@ -118,7 +162,7 @@
   - do:
       xpack.monitoring.bulk:
         system_id:          "beats"
-        system_api_version: "2"
+        system_api_version: "6"
         interval:           "5s"
         body:
           - index:
@@ -150,7 +194,7 @@
       catch: /export_exception/
       xpack.monitoring.bulk:
         system_id:          "beats"
-        system_api_version: "2"
+        system_api_version: "6"
         interval:           "5s"
         body:
           - index:

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.state;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -15,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,7 +32,7 @@ import java.util.Objects;
 /**
  * ModelSnapshot Result POJO
  */
-public class ModelSnapshot extends ToXContentToBytes implements Writeable {
+public class ModelSnapshot implements ToXContentObject, Writeable {
     /**
      * Field Names
      */

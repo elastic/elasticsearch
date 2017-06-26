@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.Arrays;
 
@@ -34,7 +34,7 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
     }
 
     @Override
-    protected CategoryDefinition parseInstance(XContentParser parser) {
+    protected CategoryDefinition doParseInstance(XContentParser parser) {
         return CategoryDefinition.PARSER.apply(parser, null);
     }
 

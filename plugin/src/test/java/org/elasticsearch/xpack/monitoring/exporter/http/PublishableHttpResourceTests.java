@@ -7,12 +7,16 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import java.util.Map;
 import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse;
 
@@ -63,6 +67,66 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         sometimesAssertSimpleCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, CheckResponse.ERROR, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
+        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
+        verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), any(ResponseException.class));
+
+        verifyNoMoreInteractions(client, logger);
+    }
+
+    public void testVersionCheckForResourceExists() throws IOException {
+        assertVersionCheckForResource(successfulCheckStatus(), CheckResponse.EXISTS, randomInt(), "{} [{}] found on the [{}] {}");
+    }
+
+    public void testVersionCheckForResourceDoesNotExist() throws IOException {
+        if (randomBoolean()) {
+            // it literally does not exist
+            assertVersionCheckForResource(notFoundCheckStatus(), CheckResponse.DOES_NOT_EXIST,
+                                          randomInt(), "{} [{}] does not exist on the [{}] {}");
+        } else {
+            // it DOES exist, but the version needs to be replaced
+            assertVersionCheckForResource(successfulCheckStatus(), CheckResponse.DOES_NOT_EXIST,
+                                          randomInt(), "{} [{}] found on the [{}] {}");
+        }
+    }
+
+    public void testVersionCheckForResourceUnexpectedResponse() throws IOException {
+        final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
+        final RestStatus failedStatus = failedCheckStatus();
+        final Response response = response("GET", endpoint, failedStatus);
+        final XContent xContent = mock(XContent.class);
+        final int minimumVersion = randomInt();
+
+        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenReturn(response);
+
+        assertThat(resource.versionCheckForResource(client, logger,
+                                                    resourceBasePath, resourceName, resourceType, owner, ownerType,
+                                                    xContent, minimumVersion),
+                   is(CheckResponse.ERROR));
+
+        verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
+        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
+        verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), any(ResponseException.class));
+
+        verifyNoMoreInteractions(client, logger);
+    }
+
+    public void testVersionCheckForResourceMalformedResponse() throws IOException {
+        final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
+        final RestStatus okStatus = successfulCheckStatus();
+        final int minimumVersion = randomInt();
+        final HttpEntity entity = entityForResource(CheckResponse.ERROR, resourceName, minimumVersion);
+        final Response response = response("GET", endpoint, okStatus, entity);
+        final XContent xContent = mock(XContent.class);
+
+        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenReturn(response);
+
+        assertThat(resource.versionCheckForResource(client, logger,
+                                                    resourceBasePath, resourceName, resourceType, owner, ownerType,
+                                                    xContent, minimumVersion),
+                   is(CheckResponse.ERROR));
+
+        verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
+        verify(logger).debug("{} [{}] found on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
         verify(logger).error(any(org.apache.logging.log4j.util.Supplier.class), any(ResponseException.class));
 
@@ -160,7 +224,55 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         assertThat(resource.doCheckAndPublish(client), is(exists == CheckResponse.EXISTS || publish));
     }
 
-    @SuppressLoggerChecks(reason = "mock usage")
+    public void testShouldReplaceResourceRethrowsIOException() throws IOException {
+        final Response response = mock(Response.class);
+        final HttpEntity entity = mock(HttpEntity.class);
+        final XContent xContent = mock(XContent.class);
+
+        when(response.getEntity()).thenReturn(entity);
+        when(entity.getContent()).thenThrow(new IOException("TEST - expected"));
+
+        expectThrows(IOException.class, () -> resource.shouldReplaceResource(response, xContent, resourceName, randomInt()));
+    }
+
+    public void testShouldReplaceResourceThrowsExceptionForMalformedResponse() throws IOException {
+        final Response response = mock(Response.class);
+        final HttpEntity entity = entityForResource(CheckResponse.ERROR, resourceName, randomInt());
+        final XContent xContent = XContentType.JSON.xContent();
+
+        when(response.getEntity()).thenReturn(entity);
+
+        expectThrows(RuntimeException.class, () -> resource.shouldReplaceResource(response, xContent, resourceName, randomInt()));
+    }
+
+    public void testShouldReplaceResourceReturnsTrueVersionIsNotExpected() throws IOException {
+        final int minimumVersion = randomInt();
+        final Response response = mock(Response.class);
+        final HttpEntity entity = entityForResource(CheckResponse.DOES_NOT_EXIST, resourceName, minimumVersion);
+        final XContent xContent = XContentType.JSON.xContent();
+
+        when(response.getEntity()).thenReturn(entity);
+
+        assertThat(resource.shouldReplaceResource(response, xContent, resourceName, minimumVersion), is(true));
+    }
+
+    public void testShouldReplaceResourceChecksVersion() throws IOException {
+        final int minimumVersion = randomInt();
+        final int version = randomInt();
+        final boolean shouldReplace = version < minimumVersion;
+
+        final Response response = mock(Response.class);
+        // { "resourceName": { "version": randomLong } }
+        final HttpEntity entity =
+                new StringEntity("{\"" + resourceName + "\":{\"version\":" + version + "}}", ContentType.APPLICATION_JSON);
+        final XContent xContent = XContentType.JSON.xContent();
+
+        when(response.getEntity()).thenReturn(entity);
+
+        assertThat(resource.shouldReplaceResource(response, xContent, resourceName, minimumVersion), is(shouldReplace));
+    }
+
+    @SuppressLoggerChecks(reason = "mock logger used")
     private void assertCheckForResource(final RestStatus status, final CheckResponse expected, final String debugLogMessage)
             throws IOException {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
@@ -174,6 +286,45 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
 
         if (expected == CheckResponse.EXISTS || expected == CheckResponse.DOES_NOT_EXIST) {
+            verify(response).getStatusLine();
+        } else {
+            verify(response).getStatusLine();
+            verify(response).getRequestLine();
+            verify(response).getHost();
+            verify(response).getEntity();
+        }
+
+        verify(logger).debug(debugLogMessage, resourceType, resourceName, owner, ownerType);
+
+        verifyNoMoreInteractions(client, response, logger);
+    }
+
+    @SuppressLoggerChecks(reason = "mock logger used")
+    private void assertVersionCheckForResource(final RestStatus status, final CheckResponse expected,
+                                               final int minimumVersion,
+                                               final String debugLogMessage)
+            throws IOException {
+
+        final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
+        final boolean shouldReplace = status == RestStatus.OK && expected == CheckResponse.DOES_NOT_EXIST;
+        final HttpEntity entity = status == RestStatus.OK ? entityForResource(expected, resourceName, minimumVersion) : null;
+        final Response response = response("GET", endpoint, status, entity);
+        final XContent xContent = XContentType.JSON.xContent();
+
+        when(client.performRequest("GET", endpoint, getParameters(resource.getParameters()))).thenReturn(response);
+
+        assertThat(resource.versionCheckForResource(client, logger,
+                                                    resourceBasePath, resourceName, resourceType, owner, ownerType,
+                                                    xContent, minimumVersion),
+                   is(expected));
+
+        verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
+        verify(client).performRequest("GET", endpoint, getParameters(resource.getParameters()));
+
+        if (shouldReplace || expected == CheckResponse.EXISTS) {
+            verify(response).getStatusLine();
+            verify(response).getEntity();
+        } else if (expected == CheckResponse.DOES_NOT_EXIST) {
             verify(response).getStatusLine();
         } else {
             verify(response).getStatusLine();

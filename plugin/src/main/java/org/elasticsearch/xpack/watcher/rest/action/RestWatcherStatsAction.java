@@ -13,7 +13,6 @@ import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsRequest;
-import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 
 import java.io.IOException;
 import java.util.Set;
@@ -29,6 +28,11 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
                                                  GET, "/_watcher/stats", deprecationLogger);
         controller.registerWithDeprecatedHandler(GET, URI_BASE + "/stats/{metric}", this,
                                                  GET, "/_watcher/stats/{metric}", deprecationLogger);
+    }
+
+    @Override
+    public String getName() {
+        return "xpack_watcher_stats_action";
     }
 
     @Override

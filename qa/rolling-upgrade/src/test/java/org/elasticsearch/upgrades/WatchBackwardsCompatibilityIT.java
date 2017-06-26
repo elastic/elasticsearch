@@ -27,6 +27,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,6 +47,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
+
+    private Nodes nodes;
 
     @Before
     public void waitForSecuritySetup() throws Exception {
@@ -97,15 +100,8 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
                 throw new AssertionError("failed to get cluster state", e);
             }
         });
-    }
 
-    private Nodes nodes;
-
-    @Before
-    public void ensureNewNodesAreInCluster() throws IOException {
         nodes = buildNodeAndVersions();
-        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
-
     }
 
     @Override
@@ -135,7 +131,12 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
         });
     }
 
+    // we have to have finish the upgrade API first to make this test work, so we can call it instead of
+    // https://github.com/elastic/x-pack-elasticsearch/issues/1303
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/1603")
     public void testWatchCrudApis() throws IOException {
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
+
         BytesReference bytesReference = watchBuilder()
                 .trigger(schedule(interval("5m")))
                 .input(simpleInput())
@@ -158,16 +159,22 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
 
     public void executeAgainstAllNodes(CheckedConsumer<RestClient, IOException> consumer)
             throws IOException {
-        try (RestClient newClient = buildClient(restClientSettings(),
-                nodes.getNewNodes().stream().map(Node::getPublishAddress)
-                        .toArray(HttpHost[]::new))) {
-            consumer.accept(newClient);
+        HttpHost[] newHosts = nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
+        HttpHost[] bwcHosts = nodes.getBWCNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new);
+
+        logger.info("# of bwc nodes [{}], number of new nodes [{}]", Arrays.asList(bwcHosts), Arrays.asList(newHosts));
+        assertTrue("No nodes in cluster, cannot run any tests", newHosts.length > 0 || bwcHosts.length > 0);
+
+        if (newHosts.length > 0) {
+            try (RestClient newClient = buildClient(restClientSettings(), newHosts)) {
+                consumer.accept(newClient);
+            }
         }
 
-        try (RestClient bwcClient = buildClient(restClientSettings(),
-                nodes.getBWCNodes().stream().map(Node::getPublishAddress)
-                        .toArray(HttpHost[]::new))) {
-            consumer.accept(bwcClient);
+        if (bwcHosts.length > 0) {
+            try (RestClient bwcClient = buildClient(restClientSettings(), bwcHosts)) {
+                consumer.accept(bwcClient);
+            }
         }
     }
 
@@ -244,8 +251,7 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
             if (isEmpty()) {
                 throw new IllegalStateException("no nodes available");
             }
-            return Version.fromId(values().stream().map(node -> node.getVersion().id)
-                    .min(Integer::compareTo).get());
+            return Version.fromId(values().stream().map(node -> node.getVersion().id).min(Integer::compareTo).get());
         }
 
         public Node getSafe(String id) {

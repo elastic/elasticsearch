@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.monitoring.resolver.indices;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -54,16 +55,13 @@ public class IndicesStatsTests extends MonitoringIntegTestCase {
         }
 
         logger.debug("--> wait for indices stats collector to collect stats for all primaries shards");
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                flush();
-                refresh();
+        assertBusy(() -> {
+            flush();
+            refresh();
 
-                for (int i = 0; i < nbIndices; i++) {
-                    IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();
-                    assertThat(indicesStats.getPrimaries().getDocs().getCount(), greaterThan(0L));
-                }
+            for (int i = 0; i < nbIndices; i++) {
+                IndicesStatsResponse indicesStats = client().admin().indices().prepareStats().get();
+                assertThat(indicesStats.getPrimaries().getDocs().getCount(), greaterThan(0L));
             }
         });
 
@@ -74,7 +72,11 @@ public class IndicesStatsTests extends MonitoringIntegTestCase {
         awaitMonitoringDocsCountOnPrimary(greaterThan(0L), IndicesStatsResolver.TYPE);
 
         logger.debug("--> searching for monitoring documents of type [{}]", IndicesStatsResolver.TYPE);
-        SearchResponse response = client().prepareSearch().setTypes(IndicesStatsResolver.TYPE).setPreference("_primary").get();
+        SearchResponse response =
+                client().prepareSearch()
+                        .setQuery(QueryBuilders.termQuery("type", IndicesStatsResolver.TYPE))
+                        .setPreference("_primary")
+                        .get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");

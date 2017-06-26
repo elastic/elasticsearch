@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
@@ -58,7 +59,6 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
 import java.util.concurrent.BlockingQueue;
@@ -128,9 +128,21 @@ public class AutodetectProcessManager extends AbstractComponent {
         if (numJobs != 0) {
             logger.info("Closing [{}] jobs, because [{}]", numJobs, reason);
 
-            for (Map.Entry<Long, AutodetectCommunicator> entry : autoDetectCommunicatorByJob.entrySet()) {
-                closeJob(entry.getValue().getJobTask(), false, reason);
+            for (AutodetectCommunicator communicator : autoDetectCommunicatorByJob.values()) {
+                closeJob(communicator.getJobTask(), false, reason);
             }
+        }
+    }
+
+    public void killProcess(JobTask jobTask, boolean awaitCompletion, String reason) {
+        AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobTask.getAllocationId());
+        if (communicator != null) {
+            if (reason == null) {
+                logger.info("Killing job [{}]", jobTask.getJobId());
+            } else {
+                logger.info("Killing job [{}], because [{}]", jobTask.getJobId(), reason);
+            }
+            killProcess(communicator, jobTask.getJobId(), awaitCompletion, true);
         }
     }
 
@@ -138,14 +150,19 @@ public class AutodetectProcessManager extends AbstractComponent {
         Iterator<AutodetectCommunicator> iter = autoDetectCommunicatorByJob.values().iterator();
         while (iter.hasNext()) {
             AutodetectCommunicator communicator = iter.next();
-            try {
-                communicator.killProcess();
-                iter.remove();
-            } catch (IOException e) {
-                logger.error("[{}] Failed to kill autodetect process for job", communicator.getJobTask().getJobId());
-            }
+            iter.remove();
+            killProcess(communicator, communicator.getJobTask().getJobId(), false, false);
         }
     }
+
+    private void killProcess(AutodetectCommunicator communicator, String jobId, boolean awaitCompletion, boolean finish) {
+        try {
+            communicator.killProcess(awaitCompletion, finish);
+        } catch (IOException e) {
+            logger.error("[{}] Failed to kill autodetect process for job", jobId);
+        }
+    }
+
 
     /**
      * Passes data to the native process.
@@ -247,16 +264,19 @@ public class AutodetectProcessManager extends AbstractComponent {
                     try {
                         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobTask.getAllocationId(),
                                 id -> create(jobTask, params, ignoreDowntime, handler));
-                        communicator.writeJobInputHeader();
+                        communicator.init(params.modelSnapshot());
                         setJobState(jobTask, JobState.OPENED);
                     } catch (Exception e1) {
-                        if (e1 instanceof ElasticsearchStatusException) {
-                            logger.info(e1.getMessage());
-                        } else {
-                            String msg = String.format(Locale.ROOT, "[%s] exception while opening job", jobId);
-                            logger.error(msg, e1);
+                        // No need to log here as the persistent task framework will log it
+                        try {
+                            // Don't leave a partially initialised process hanging around
+                            AutodetectCommunicator communicator = autoDetectCommunicatorByJob.remove(jobTask.getAllocationId());
+                            if (communicator != null) {
+                                communicator.killProcess(false, false);
+                            }
+                        } finally {
+                            setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
                         }
-                        setJobState(jobTask, JobState.FAILED, e2 -> handler.accept(e1));
                     }
                 }
             });
@@ -319,8 +339,8 @@ public class AutodetectProcessManager extends AbstractComponent {
             }
             throw e;
         }
-        return new AutodetectCommunicator(job, jobTask, process, dataCountsReporter, processor, handler, xContentRegistry,
-                autodetectWorkerExecutor);
+        return new AutodetectCommunicator(job, jobTask, process, new StateStreamer(client), dataCountsReporter, processor, handler,
+                xContentRegistry, autodetectWorkerExecutor);
 
     }
 

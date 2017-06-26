@@ -1,3 +1,4 @@
+[role="xpack"]
 [[xpack-api]]
 = {xpack} APIs
 
@@ -6,12 +7,14 @@
 {xpack} exposes a wide range of REST APIs to manage and monitor its features.
 
 * <<info-api, Info API>>
-* <<security-api, Security APIs>>
-* <<watcher-api, Watcher APIs>>
+//* <<security-api, Security APIs>>
+//* <<watcher-api, Watcher APIs>>
 * <<graph-api, Graph APIs>>
 * <<ml-apis, Machine Learning APIs>>
+* <<ml-api-definitions, Definitions>>
 --
 
+[role="xpack"]
 [[info-api]]
 == Info API
 
@@ -49,6 +52,11 @@ Example response:
    "features" : {
       "graph" : {
          "description" : "Graph Data Exploration for the Elastic Stack",
+         "available" : true,
+         "enabled" : true
+      },
+      "logstash" : {
+         "description" : "Logstash management component for X-Pack",
          "available" : true,
          "enabled" : true
       },
@@ -107,9 +115,10 @@ GET /_xpack?human=false
 ------------------------------------------------------------
 // CONSOLE
 
-include::security.asciidoc[]
+//include::security.asciidoc[]
 
-include::watcher.asciidoc[]
+//include::watcher.asciidoc[]
 
 include::graph.asciidoc[]
 include::ml-api.asciidoc[]
+include::defs.asciidoc[]

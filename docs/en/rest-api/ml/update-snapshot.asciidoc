@@ -1,22 +1,22 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-update-snapshot]]
-==== Update Model Snapshots
+=== Update Model Snapshots
 
 The update model snapshot API enables you to update certain properties of a snapshot.
 
-===== Request
+==== Request
 
 `POST _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_update`
 
 
-===== Description
+==== Description
 
 //TBD. Is the following still true? - not sure but close/open would be the method
 Updates to the configuration are only applied after the job has been closed
 and re-opened.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
   (string) Identifier for the job
@@ -24,7 +24,7 @@ and re-opened.
 `snapshot_id` (required)::
   (string) Identifier for the model snapshot
 
-===== Request Body
+==== Request Body
 
 The following properties can be updated after the model snapshot is created:
 
@@ -39,13 +39,15 @@ The following properties can be updated after the model snapshot is created:
   The default value is false.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example updates the snapshot identified as `1491852978`:
 

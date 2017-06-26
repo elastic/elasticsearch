@@ -240,7 +240,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         when(result.getModelPlot()).thenReturn(modelPlot);
         processorUnderTest.processResult(context, result);
 
-        verify(persister, times(1)).persistModelPlot(modelPlot);
+        verify(bulkBuilder, times(1)).persistModelPlot(modelPlot);
         verifyNoMoreInteractions(persister);
     }
 
@@ -314,8 +314,8 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
 
     public void testPersisterThrowingDoesntBlockProcessing() {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
-        ModelSizeStats modelSizeStats = mock(ModelSizeStats.class);
-        when(autodetectResult.getModelSizeStats()).thenReturn(modelSizeStats);
+        ModelSnapshot modelSnapshot = mock(ModelSnapshot.class);
+        when(autodetectResult.getModelSnapshot()).thenReturn(modelSnapshot);
 
         @SuppressWarnings("unchecked")
         Iterator<AutodetectResult> iterator = mock(Iterator.class);
@@ -324,10 +324,10 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         AutodetectProcess process = mock(AutodetectProcess.class);
         when(process.readAutodetectResults()).thenReturn(iterator);
 
-        doThrow(new ElasticsearchException("this test throws")).when(persister).persistModelSizeStats(any());
+        doThrow(new ElasticsearchException("this test throws")).when(persister).persistModelSnapshot(any());
 
         processorUnderTest.process(process);
-        verify(persister, times(2)).persistModelSizeStats(any());
+        verify(persister, times(2)).persistModelSnapshot(any());
     }
 
     public void testParsingErrorSetsFailed() {
@@ -363,6 +363,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verify(persister, never()).commitResultWrites(JOB_ID);
         verify(persister, never()).commitStateWrites(JOB_ID);
         verify(renormalizer, never()).renormalize(any());
+        verify(renormalizer).shutdown();
         verify(renormalizer, never()).waitUntilIdle();
         verify(flushListener, times(1)).clear();
     }

@@ -12,10 +12,13 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -60,11 +63,20 @@ public abstract class PublishableHttpResource extends HttpResource {
      * A value that will never match anything in the JSON response body, thus limiting it to "{}".
      */
     public static final String FILTER_PATH_NONE = "$NONE";
+    /**
+     * A value that will match any top-level key and an inner "version" field, like '{"any-key":{"version":123}}'.
+     */
+    public static final String FILTER_PATH_RESOURCE_VERSION = "*.version";
 
     /**
      * Use this to avoid getting any JSON response from a request.
      */
     public static final Map<String, String> NO_BODY_PARAMETERS = Collections.singletonMap("filter_path", FILTER_PATH_NONE);
+    /**
+     * Use this to retrieve the version of template and pipeline resources in their JSON response from a request.
+     */
+    public static final Map<String, String> RESOURCE_VERSION_PARAMETERS =
+            Collections.singletonMap("filter_path", FILTER_PATH_RESOURCE_VERSION);
 
     /**
      * The default set of acceptable exists response codes for GET requests.
@@ -178,6 +190,100 @@ public abstract class PublishableHttpResource extends HttpResource {
         return checkForResource(client, logger, resourceBasePath, resourceName, resourceType, resourceOwnerName, resourceOwnerType,
                                 GET_EXISTS, GET_DOES_NOT_EXIST)
                     .v1();
+    }
+
+    /**
+     * Determine if the current {@code resourceName} exists at the {@code resourceBasePath} endpoint with a version greater than or equal
+     * to the expected version.
+     * <p>
+     * This provides the base-level check for any resource that does not need to care about its response beyond existence (and likely does
+     * not need to inspect its contents).
+     * <p>
+     * This expects responses in the form of:
+     * <pre><code>
+     * {
+     *   "resourceName": {
+     *     "version": 6000002
+     *   }
+     * }
+     * </code></pre>
+     *
+     * @param client The REST client to make the request(s).
+     * @param logger The logger to use for status messages.
+     * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
+     * @param resourceName The name of the resource (e.g., "template123").
+     * @param resourceType The type of resource (e.g., "monitoring template").
+     * @param resourceOwnerName The user-recognizeable resource owner.
+     * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
+     * @param xContent The XContent used to parse the response.
+     * @param minimumVersion The minimum version allowed without being replaced (expected to be the last updated version).
+     * @return Never {@code null}.
+     */
+    protected CheckResponse versionCheckForResource(final RestClient client, final Logger logger,
+                                                    final String resourceBasePath,
+                                                    final String resourceName, final String resourceType,
+                                                    final String resourceOwnerName, final String resourceOwnerType,
+                                                    final XContent xContent, final int minimumVersion) {
+        final CheckedFunction<Response, Boolean, IOException> responseChecker =
+                (response) -> shouldReplaceResource(response, xContent, resourceName, minimumVersion);
+
+        return versionCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, resourceOwnerName, resourceOwnerType,
+                                       responseChecker);
+    }
+
+    /**
+     * Determine if the current {@code resourceName} exists at the {@code resourceBasePath} endpoint with a version greater than or equal
+     * to the expected version.
+     * <p>
+     * This provides the base-level check for any resource that does not need to care about its response beyond existence (and likely does
+     * not need to inspect its contents).
+     * <p>
+     * This expects responses in the form of:
+     * <pre><code>
+     * {
+     *   "resourceName": {
+     *     "version": 6000002
+     *   }
+     * }
+     * </code></pre>
+     *
+     * @param client The REST client to make the request(s).
+     * @param logger The logger to use for status messages.
+     * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
+     * @param resourceName The name of the resource (e.g., "template123").
+     * @param resourceType The type of resource (e.g., "monitoring template").
+     * @param resourceOwnerName The user-recognizeable resource owner.
+     * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
+     * @param responseChecker Determine if the resource should be replaced given the response.
+     * @return Never {@code null}.
+     */
+    protected CheckResponse versionCheckForResource(final RestClient client, final Logger logger,
+                                                    final String resourceBasePath,
+                                                    final String resourceName, final String resourceType,
+                                                    final String resourceOwnerName, final String resourceOwnerType,
+                                                    final CheckedFunction<Response, Boolean, IOException> responseChecker) {
+        final Tuple<CheckResponse, Response> response =
+                checkForResource(client, logger, resourceBasePath, resourceName, resourceType, resourceOwnerName, resourceOwnerType,
+                                 GET_EXISTS, GET_DOES_NOT_EXIST);
+
+        final CheckResponse checkResponse = response.v1();
+
+        // if the template exists, then we also need to check its version
+        if (checkResponse == CheckResponse.EXISTS) {
+            try {
+                // replace the resource because the version is below what was required
+                if (responseChecker.apply(response.v2())) {
+                    return CheckResponse.DOES_NOT_EXIST;
+                }
+            } catch (IOException | RuntimeException e) {
+                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to parse [{}/{}] on the [{}]",
+                                                                          resourceBasePath, resourceName, resourceOwnerName), e);
+
+                return CheckResponse.ERROR;
+            }
+        }
+
+        return checkResponse;
     }
 
     /**
@@ -348,6 +454,48 @@ public abstract class PublishableHttpResource extends HttpResource {
         }
 
         return success;
+    }
+
+    /**
+     * Determine if the current resource should replaced the checked one based on its version (or lack thereof).
+     * <p>
+     * This expects a response like (where {@code resourceName} is replaced with its value):
+     * <pre><code>
+     * {
+     *   "resourceName": {
+     *     "version": 6000002
+     *   }
+     * }
+     * </code></pre>
+     *
+     * @param response The filtered response from the _template/{name} or _ingest/pipeline/{name} resource APIs
+     * @param xContent The XContent parser to use
+     * @param resourceName The name of the looked up resource, which is expected to be the top-level key
+     * @param minimumVersion The minimum version allowed without being replaced (expected to be the last updated version).
+     * @return {@code true} represents that it should be replaced. {@code false} that it should be left alone.
+     * @throws IOException if any issue occurs while parsing the {@code xContent} {@code response}.
+     * @throws RuntimeException if the response format is changed.
+     */
+    protected boolean shouldReplaceResource(final Response response, final XContent xContent,
+                                            final String resourceName, final int minimumVersion)
+            throws IOException {
+        // no named content used; so EMPTY is fine
+        final Map<String, Object> resources = XContentHelper.convertToMap(xContent, response.getEntity().getContent(), false);
+
+        // if it's empty, then there's no version in the response thanks to filter_path
+        if (resources.isEmpty() == false) {
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> resource = (Map<String, Object>) resources.get(resourceName);
+            final Object version = resource != null ? resource.get("version") : null;
+
+            // if we don't have it (perhaps more fields were returned), then we need to replace it
+            if (version instanceof Number) {
+                // the version in the template is expected to include the alpha/beta/rc codes as well
+                return ((Number)version).intValue() < minimumVersion;
+            }
+        }
+
+        return true;
     }
 
 }

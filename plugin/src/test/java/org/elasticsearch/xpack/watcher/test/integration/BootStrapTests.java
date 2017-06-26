@@ -183,6 +183,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/1544")
     public void testMixedTriggeredWatchLoading() throws Exception {
         createIndex("output");
         client().prepareIndex("my-index", "foo", "bar")
@@ -230,7 +231,6 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertSingleExecutionAndCompleteWatchHistory(numWatches, numRecords);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1309")
     public void testTriggeredWatchLoading() throws Exception {
         createIndex("output");
         client().prepareIndex("my-index", "foo", "bar")
@@ -254,8 +254,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         stopWatcher();
 
         DateTime now = DateTime.now(UTC);
-//        final int numRecords = scaledRandomIntBetween(2, 12);
-        final int numRecords = 10;
+        final int numRecords = scaledRandomIntBetween(2, 12);
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         for (int i = 0; i < numRecords; i++) {
             now = now.plusMinutes(1);
@@ -290,8 +289,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             long successfulWatchExecutions = searchResponse.getHits().getTotalHits();
 
             // the watch history should contain entries for each triggered watch, which a few have been marked as not executed
-            SearchResponse historySearchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
-                    .setSize(10000).get();
+            SearchResponse historySearchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*").setSize(10000).get();
             assertHitCount(historySearchResponse, expectedWatchHistoryCount);
             long notExecutedCount = Arrays.stream(historySearchResponse.getHits().getHits())
                     .filter(hit -> hit.getSourceAsMap().get("state").equals(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED.id()))

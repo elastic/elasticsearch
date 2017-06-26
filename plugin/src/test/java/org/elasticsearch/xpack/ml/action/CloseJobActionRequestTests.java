@@ -19,6 +19,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.ml.action.CloseJobAction.Request;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.notifications.Auditor;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData;
 import org.elasticsearch.xpack.persistent.PersistentTasksCustomMetaData.Assignment;
@@ -64,7 +64,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(null, parser);
     }
 
@@ -100,10 +100,7 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         PersistentTasksCustomMetaData.Builder tasksBuilder = PersistentTasksCustomMetaData.builder();
         addJobTask("opening-job", null, null, tasksBuilder);
 
-        ElasticsearchStatusException conflictException =
-                expectThrows(ElasticsearchStatusException.class, () ->
-                        CloseJobAction.validateJobAndTaskState("opening-job", mlBuilder.build(), tasksBuilder.build()));
-        assertEquals(RestStatus.CONFLICT, conflictException.status());
+        CloseJobAction.validateJobAndTaskState("opening-job", mlBuilder.build(), tasksBuilder.build());
     }
 
     public void testValidate_jobIsMissing() {
@@ -175,6 +172,21 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         CloseJobAction.resolveAndValidateJobId("job_id_1", cs1, openJobs, closingJobs, false);
         assertEquals(Collections.emptyList(), openJobs);
         assertEquals(Collections.emptyList(), closingJobs);
+    }
+
+    public void testResolve_throwsWithUnknownJobId() {
+        MlMetadata.Builder mlBuilder = new MlMetadata.Builder();
+        mlBuilder.putJob(BaseMlIntegTestCase.createFareQuoteJob("job_id_1").build(new Date()), false);
+
+        ClusterState cs1 = ClusterState.builder(new ClusterName("_name"))
+                .metaData(new MetaData.Builder().putCustom(MlMetadata.TYPE, mlBuilder.build()))
+                .build();
+
+        List<String> openJobs = new ArrayList<>();
+        List<String> closingJobs = new ArrayList<>();
+
+        expectThrows(ResourceNotFoundException.class,
+                () -> CloseJobAction.resolveAndValidateJobId("missing-job", cs1, openJobs, closingJobs, false));
     }
 
     public void testResolve_givenJobIdFailed() {
@@ -280,9 +292,8 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
     }
 
     public void testBuildWaitForCloseRequest() {
-        CloseJobAction.Request request = new Request();
-        request.setOpenJobIds(new String[] {"openjob1", "openjob2"});
-        request.setClosingJobIds(new String[] {"closingjob1"});
+        List<String> openJobIds = Arrays.asList(new String[] {"openjob1", "openjob2"});
+        List<String> closingJobIds = Arrays.asList(new String[] {"closingjob1"});
 
         PersistentTasksCustomMetaData.Builder tasksBuilder =  PersistentTasksCustomMetaData.builder();
         addJobTask("openjob1", null, JobState.OPENED, tasksBuilder);
@@ -290,14 +301,14 @@ public class CloseJobActionRequestTests extends AbstractStreamableXContentTestCa
         addJobTask("closingjob1", null, JobState.CLOSING, tasksBuilder);
 
         CloseJobAction.TransportAction.WaitForCloseRequest waitForCloseRequest =
-                CloseJobAction.buildWaitForCloseRequest(request, tasksBuilder.build(), mock(Auditor.class));
+                CloseJobAction.buildWaitForCloseRequest(openJobIds, closingJobIds, tasksBuilder.build(), mock(Auditor.class));
         assertEquals(waitForCloseRequest.jobsToFinalize, Arrays.asList("openjob1", "openjob2"));
         assertEquals(waitForCloseRequest.persistentTaskIds,
                 Arrays.asList("job-openjob1", "job-openjob2", "job-closingjob1"));
         assertTrue(waitForCloseRequest.hasJobsToWaitFor());
 
-        request = new Request();
-        waitForCloseRequest = CloseJobAction.buildWaitForCloseRequest(request, tasksBuilder.build(), mock(Auditor.class));
+        waitForCloseRequest = CloseJobAction.buildWaitForCloseRequest(Collections.emptyList(), Collections.emptyList(),
+                tasksBuilder.build(), mock(Auditor.class));
         assertFalse(waitForCloseRequest.hasJobsToWaitFor());
     }
 

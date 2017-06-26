@@ -27,6 +27,11 @@ public class RestPutFilterAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_put_filter_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String filterId = restRequest.param(MlFilter.ID.getPreferredName());
         XContentParser parser = restRequest.contentOrSourceParamParser();

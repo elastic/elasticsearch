@@ -31,6 +31,11 @@ public class RestDeleteLicenseAction extends XPackRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_delete_license_action";
+    }
+
+    @Override
     public RestChannelConsumer doPrepareRequest(final RestRequest request, final XPackClient client) throws IOException {
         return channel -> client.es().admin().cluster().execute(DeleteLicenseAction.INSTANCE,
                                               new DeleteLicenseRequest(),

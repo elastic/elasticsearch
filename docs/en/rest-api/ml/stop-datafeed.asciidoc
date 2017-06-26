@@ -1,22 +1,22 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-stop-datafeed]]
-==== Stop {dfeeds-cap}
+=== Stop {dfeeds-cap}
 
 A {dfeed} that is stopped ceases to retrieve data from {es}.
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
-===== Request
+==== Request
 
 `POST _xpack/ml/datafeeds/<feed_id>/_stop`
 
 //===== Description
 
-===== Path Parameters
+==== Path Parameters
 
 `feed_id` (required)::
   (string) Identifier for the {dfeed}
 
-===== Request Body
+==== Request Body
 
 `force`::
   (boolean) If true, the {dfeed} is stopped forcefully.
@@ -26,12 +26,14 @@ A {dfeed} can be started and stopped multiple times throughout its lifecycle.
   The default value is 20 seconds.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
-===== Examples
+==== Examples
 
 The following example stops the `datafeed-it-ops-kpi` {dfeed}:
 

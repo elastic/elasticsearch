@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class ModelPlotConfig extends ToXContentToBytes implements Writeable {
+public class ModelPlotConfig implements ToXContentObject, Writeable {
 
     private static final ParseField TYPE_FIELD = new ParseField("model_plot_config");
     private static final ParseField ENABLED_FIELD = new ParseField("enabled");

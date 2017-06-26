@@ -5,17 +5,16 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Locale;
-import java.util.Map;
 import java.util.regex.Pattern;
 
 /**
@@ -45,6 +44,12 @@ public class ClusterAlertsUtil {
      */
     private static final Pattern UNIQUE_WATCH_ID_PROPERTY =
             Pattern.compile(Pattern.quote("${monitoring.watch.unique_id}"));
+
+    /**
+     * The last time that all watches were updated. For now, all watches have been updated in the same version and should all be replaced
+     * together.
+     */
+    public static final int LAST_UPDATED_VERSION = Version.V_6_0_0_alpha2.id;
 
     /**
      * An unsorted list of Watch IDs representing resource files for Monitoring Cluster Alerts.

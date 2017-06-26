@@ -1,21 +1,21 @@
-//lcawley Verified example output 2017-04
+[role="xpack"]
 [[ml-update-datafeed]]
-==== Update {dfeeds-cap}
+=== Update {dfeeds-cap}
 
 The update {dfeed} API enables you to update certain properties of a {dfeed}.
 
-===== Request
+==== Request
 
 `POST _xpack/ml/datafeeds/<feed_id>/_update`
 
 //===== Description
 
-===== Path Parameters
+==== Path Parameters
 
 `feed_id` (required)::
   (string) Identifier for the {dfeed}
 
-===== Request Body
+==== Request Body
 
 The following properties can be updated after the {dfeed} is created:
 
@@ -72,12 +72,14 @@ For more information about these properties,
 see <<ml-datafeed-resource>>.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
-===== Examples
+==== Examples
 
 The following example updates the query for the `datafeed-it-ops-kpi` {dfeed}
 so that only log entries of error level are analyzed:

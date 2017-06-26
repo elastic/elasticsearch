@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
@@ -28,7 +28,7 @@ public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingCon
     }
 
     @Override
-    protected ChunkingConfig parseInstance(XContentParser parser) {
+    protected ChunkingConfig doParseInstance(XContentParser parser) {
         return ChunkingConfig.PARSER.apply(parser, null);
     }
 

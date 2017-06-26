@@ -1,5 +1,6 @@
 {
   "xpack.ml.delete_datafeed": {
+    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-delete-datafeed.html",
     "methods": [ "DELETE" ],
     "url": {
       "path": "/_xpack/ml/datafeeds/{datafeed_id}",
@@ -9,6 +10,13 @@
           "type": "string",
           "required": true,
           "description": "The ID of the datafeed to delete"
+        }
+      },
+      "params": {
+        "force": {
+          "type": "boolean",
+          "required": false,
+          "description": "True if the datafeed should be forcefully deleted"
         }
       }
     },

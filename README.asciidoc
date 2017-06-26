@@ -94,3 +94,40 @@ gradle clean assemble
 -----
 gradle clean install
 -----
+
+= Building documentation
+
+The source files in this repository can be included in either the X-Pack Reference or the Elasticsearch Reference. 
+
+NOTE: In 5.5 and later, the Elasticsearch Reference includes X-Pack-specific content when it is built from this repo.
+
+To build the Elasticsearch Reference on your local machine:
+
+* Use the `index.asciidoc` file in the docs/en directory.
+* Specify the location of the `elasticsearch/docs` directory with the `--resource` option when you run `build_docs.pl`.
+
+For example:
+
+[source, txt]
+-----
+./docs/build_docs.pl --doc elasticsearch-extra/x-pack-elasticsearch/docs/en/index.asciidoc 
+--resource=elasticsearch/docs --chunk 1
+-----
+
+For information about building the X-Pack Reference, see the README in the x-pack repo.
+
+== Adding Images
+
+When you include an image in the documentation, specify the path relative to the location of the asciidoc file. By convention, we put images in an `images` subdirectory.
+
+For example to insert `watcher-ui-edit-watch.png` in `watcher/limitations.asciidoc`:
+
+. Add an `images` subdirectory to the watcher directory if it doesn't already exist. 
+. In `limitations.asciidoc` specify:
++
+[source, txt]
+-----
+ image::images/watcher-ui-edit-watch.png["Editing a watch"]
+-----
+ 
+Please note that image names and anchor IDs must be unique within the book, so do not use generic identifiers.

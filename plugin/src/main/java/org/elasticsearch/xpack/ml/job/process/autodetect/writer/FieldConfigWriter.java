@@ -5,7 +5,17 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.EQUALS;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.ml.job.config.DefaultDetectorDescription;
+import org.elasticsearch.xpack.ml.job.config.DetectionRule;
+import org.elasticsearch.xpack.ml.job.config.Detector;
+import org.elasticsearch.xpack.ml.job.config.MlFilter;
+import org.elasticsearch.xpack.ml.utils.MlStrings;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -13,18 +23,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import org.apache.logging.log4j.Logger;
-
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.xpack.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.ml.job.config.Detector;
-import org.elasticsearch.xpack.ml.job.config.DefaultDetectorDescription;
-import org.elasticsearch.xpack.ml.job.config.DetectionRule;
-import org.elasticsearch.xpack.ml.job.config.MlFilter;
-import org.elasticsearch.xpack.ml.utils.MlStrings;
+import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.EQUALS;
 
 public class FieldConfigWriter {
     private static final String DETECTOR_PREFIX = "detector.";

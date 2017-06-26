@@ -1,11 +1,11 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-get-job-stats]]
-==== Get Job Statistics
+=== Get Job Statistics
 
 The get jobs API enables you to retrieve usage information for jobs.
 
 
-===== Request
+==== Request
 
 `GET _xpack/ml/anomaly_detectors/_stats` +
 
@@ -13,7 +13,7 @@ The get jobs API enables you to retrieve usage information for jobs.
 
 //===== Description
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id`::
   (string) A required identifier for the job.
@@ -21,7 +21,7 @@ The get jobs API enables you to retrieve usage information for jobs.
   the `job_id` to get information about all jobs.
 
 
-===== Results
+==== Results
 
 The API returns the following information:
 
@@ -30,13 +30,15 @@ The API returns the following information:
   For more information, see <<ml-jobstats,Job Statistics>>.
 
 
-===== Authorization
+==== Authorization
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see <<privileges-list-cluster>>.
+privileges to use this API. For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example gets usage information for the `farequote` job:
 

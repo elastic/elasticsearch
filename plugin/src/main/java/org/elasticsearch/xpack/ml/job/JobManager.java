@@ -11,9 +11,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -90,7 +88,7 @@ public class JobManager extends AbstractComponent {
             return getJobs(clusterState);
         }
         MlMetadata mlMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
-        Job job = mlMetadata.getJobs().get(jobId);
+        Job job = (mlMetadata == null) ? null : mlMetadata.getJobs().get(jobId);
         if (job == null) {
             logger.debug(String.format(Locale.ROOT, "Cannot find job '%s'", jobId));
             throw ExceptionsHelper.missingJobException(jobId);
@@ -109,6 +107,9 @@ public class JobManager extends AbstractComponent {
      */
     public QueryPage<Job> getJobs(ClusterState clusterState) {
         MlMetadata mlMetadata = clusterState.getMetaData().custom(MlMetadata.TYPE);
+        if (mlMetadata == null) {
+            mlMetadata = MlMetadata.EMPTY_METADATA;
+        }
         List<Job> jobs = mlMetadata.getJobs().entrySet().stream()
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
@@ -150,7 +151,7 @@ public class JobManager extends AbstractComponent {
      */
     public static Job getJobOrThrowIfUnknown(ClusterState clusterState, String jobId) {
         MlMetadata mlMetadata = clusterState.metaData().custom(MlMetadata.TYPE);
-        Job job = mlMetadata.getJobs().get(jobId);
+        Job job = (mlMetadata == null) ? null : mlMetadata.getJobs().get(jobId);
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
@@ -163,7 +164,13 @@ public class JobManager extends AbstractComponent {
     public void putJob(PutJobAction.Request request, ClusterState state, ActionListener<PutJobAction.Response> actionListener) {
         Job job = request.getJobBuilder().build(new Date());
 
-        jobProvider.createJobResultIndex(job, state, new ActionListener<Boolean>() {
+        MlMetadata currentMlMetadata = state.metaData().custom(MlMetadata.TYPE);
+        if (currentMlMetadata != null && currentMlMetadata.getJobs().containsKey(job.getId())) {
+            actionListener.onFailure(ExceptionsHelper.jobAlreadyExists(job.getId()));
+            return;
+        }
+
+        ActionListener<Boolean> putJobListener = new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean indicesCreated) {
 
@@ -186,13 +193,22 @@ public class JobManager extends AbstractComponent {
             public void onFailure(Exception e) {
                 if (e instanceof IllegalArgumentException
                         && e.getMessage().matches("mapper \\[.*\\] of different type, current_type \\[.*\\], merged_type \\[.*\\]")) {
-                    actionListener.onFailure(new IllegalArgumentException(Messages.JOB_CONFIG_MAPPING_TYPE_CLASH, e));
+                    actionListener.onFailure(ExceptionsHelper.badRequestException(Messages.JOB_CONFIG_MAPPING_TYPE_CLASH, e));
                 } else {
                     actionListener.onFailure(e);
                 }
 
             }
-        });
+        };
+
+        ActionListener<Boolean> checkForLeftOverDocs = ActionListener.wrap(
+                response -> {
+                    jobProvider.createJobResultIndex(job, state, putJobListener);
+                },
+                actionListener::onFailure
+        );
+
+        jobProvider.checkForLeftOverDocuments(job, checkForLeftOverDocs);
     }
 
     public void updateJob(String jobId, JobUpdate jobUpdate, AckedRequest request, ActionListener<PutJobAction.Response> actionListener) {
@@ -292,55 +308,27 @@ public class JobManager extends AbstractComponent {
                         return acknowledged && response;
                     }
 
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    MlMetadata.Builder builder = createMlMetadataBuilder(currentState);
-                    builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
-                    return buildNewClusterState(currentState, builder);
-                }
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        MlMetadata currentMlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
+                        if (currentMlMetadata.getJobs().containsKey(jobId) == false) {
+                            // We wouldn't have got here if the job never existed so
+                            // the Job must have been deleted by another action.
+                            // Don't error in this case
+                            return currentState;
+                        }
+
+                        MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
+                        builder.deleteJob(jobId, currentState.getMetaData().custom(PersistentTasksCustomMetaData.TYPE));
+                        return buildNewClusterState(currentState, builder);
+                    }
             });
 
-        // Step 1. When the job has been marked as deleted then begin deleting the physical storage
-        // -------
-        CheckedConsumer<Boolean, Exception> updateHandler = response -> {
-            // Successfully updated the status to DELETING, begin actually deleting
-            if (response) {
-                logger.info("Job [" + jobId + "] is successfully marked as deleted");
-            } else {
-                logger.warn("Job [" + jobId + "] marked as deleted wan't acknowledged");
-            }
+        // Step 1. Delete the physical storage
 
-            // This task manages the physical deletion of the job (removing the results, then the index)
-            task.delete(jobId, client, clusterService.state(),
-                    deleteJobStateHandler::accept, actionListener::onFailure);
-        };
+        // This task manages the physical deletion of the job state and results
+        task.delete(jobId, client, clusterService.state(), deleteJobStateHandler::accept, actionListener::onFailure);
 
-        // Step 0. Kick off the chain of callbacks with the initial UpdateStatus call
-        // -------
-        clusterService.submitStateUpdateTask("mark-job-as-deleted", new ClusterStateUpdateTask() {
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                MlMetadata currentMlMetadata = currentState.metaData().custom(MlMetadata.TYPE);
-                PersistentTasksCustomMetaData tasks = currentState.metaData().custom(PersistentTasksCustomMetaData.TYPE);
-                MlMetadata.Builder builder = new MlMetadata.Builder(currentMlMetadata);
-                builder.markJobAsDeleted(jobId, tasks);
-                return buildNewClusterState(currentState, builder);
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                actionListener.onFailure(e);
-            }
-
-            @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-                try {
-                    updateHandler.accept(true);
-                } catch (Exception e) {
-                    actionListener.onFailure(e);
-                }
-            }
-        });
     }
 
     public void revertSnapshot(RevertModelSnapshotAction.Request request, ActionListener<RevertModelSnapshotAction.Response> actionListener,

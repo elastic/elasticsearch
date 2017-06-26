@@ -39,6 +39,11 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_monitoring_bulk_action";
+    }
+
+    @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, XPackClient client) throws IOException {
         String defaultType = request.param("type");
 

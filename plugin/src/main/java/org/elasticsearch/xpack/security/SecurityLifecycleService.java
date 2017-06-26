@@ -62,15 +62,14 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
     }
 
     // package private for testing
-    SecurityLifecycleService(Settings settings, ClusterService clusterService,
-                             ThreadPool threadPool, InternalClient client,
-                             NativeRealmMigrator migrator,
-                             @Nullable IndexAuditTrail indexAuditTrail) {
+    SecurityLifecycleService(Settings settings, ClusterService clusterService, ThreadPool threadPool, InternalClient client,
+                             NativeRealmMigrator migrator, @Nullable IndexAuditTrail indexAuditTrail) {
         super(settings);
         this.settings = settings;
         this.threadPool = threadPool;
         this.indexAuditTrail = indexAuditTrail;
-        this.securityIndex = new IndexLifecycleManager(settings, client, SECURITY_INDEX_NAME, SECURITY_TEMPLATE_NAME, migrator);
+        this.securityIndex = new IndexLifecycleManager(settings, client, clusterService, threadPool, SECURITY_INDEX_NAME,
+                SECURITY_TEMPLATE_NAME, migrator);
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override

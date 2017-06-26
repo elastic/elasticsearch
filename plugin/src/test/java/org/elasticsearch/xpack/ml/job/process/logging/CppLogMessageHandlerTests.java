@@ -179,6 +179,17 @@ public class CppLogMessageHandlerTests extends ESTestCase {
         executeLoggingTest(is, mockAppender, Level.DEBUG);
     }
 
+    public void testWaitForLogStreamClose() throws IOException {
+        InputStream is = new ByteArrayInputStream(String.join("", TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE,
+                TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE, TEST_MESSAGE_NOISE_DIFFERENT_MESSAGE).getBytes(StandardCharsets.UTF_8));
+
+        try (CppLogMessageHandler handler = new CppLogMessageHandler("test_throttling", is)) {
+            handler.tailStream();
+            assertTrue(handler.waitForLogStreamClose(Duration.ofMillis(100)));
+            assertTrue(handler.hasLogStreamEnded());
+        }
+    }
+
     private static void executeLoggingTest(InputStream is, MockLogAppender mockAppender, Level level) throws IOException {
         Logger cppMessageLogger = Loggers.getLogger(CppLogMessageHandler.class);
         Loggers.addAppender(cppMessageLogger, mockAppender);

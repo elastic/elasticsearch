@@ -199,6 +199,8 @@ public class HipChatServiceTests extends AbstractWatcherIntegrationTestCase {
     private void assertSentMessagesAreValid(int expectedMessageSize, SentMessages messages) {
         assertThat(messages.count(), is(expectedMessageSize));
         for (SentMessages.SentMessage message : messages) {
+            logger.info("Request: [{}]", message.getRequest());
+            logger.info("Response: [{}]", message.getResponse());
             assertThat("Expected no failures, but got [" + message.getFailureReason() + "]", message.successful(), is(true));
             assertThat(message.getRequest(), notNullValue());
             assertThat(message.getResponse(), notNullValue());

@@ -44,6 +44,11 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
     }
 
     @Override
+    public String getName() {
+        return "xpack_security_change_password_action";
+    }
+
+    @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final User user = securityContext.getUser();
         final String username;

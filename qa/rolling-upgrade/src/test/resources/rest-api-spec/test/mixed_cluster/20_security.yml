@@ -6,7 +6,6 @@
       cluster.health:
         wait_for_status: yellow
         wait_for_nodes: 2
-        timeout: 25s
   - match: { timed_out: false }
 
   - do:
@@ -33,8 +32,8 @@
 ---
 "verify users for default password migration in mixed cluster":
   - skip:
-      version: "5.0.0 - "
-      reason: https://github.com/elastic/x-pack-elasticsearch/issues/1516
+      version: " - 5.1.1"
+      reason: "the rest enabled action used by the old cluster test trips an assertion. see https://github.com/elastic/x-pack/pull/4443"
   - do:
       xpack.security.get_user:
         username: "kibana,logstash_system"

@@ -204,7 +204,7 @@ PUT _xpack/watcher/watch/rss_watch
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/"id" : "threshold_hits"/"inline": "return ctx.payload.hits.total > params.threshold"/]
+// TEST[s/"id" : "threshold_hits"/"source": "return ctx.payload.hits.total > params.threshold"/]
 <1> Replace `<username>@<domainname>` with your email address to receive
     notifications.
 

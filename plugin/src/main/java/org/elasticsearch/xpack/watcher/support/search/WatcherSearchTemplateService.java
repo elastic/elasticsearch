@@ -15,8 +15,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.template.CompiledTemplate;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.Variables;
@@ -39,9 +39,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         this.xContentRegistry = xContentRegistry;
     }
 
-    public String renderTemplate(Script source,
-                                         WatchExecutionContext ctx,
-                                         Payload payload) throws IOException {
+    public String renderTemplate(Script source, WatchExecutionContext ctx, Payload payload) throws IOException {
         // Due the inconsistency with templates in ES 1.x, we maintain our own template format.
         // This template format we use now, will become the template structure in ES 2.0
         Map<String, Object> watcherContextParams = Variables.createCtxModel(ctx, payload);
@@ -52,8 +50,8 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         }
         // Templates are always of lang mustache:
         Script template = new Script(source.getType(), "mustache", source.getIdOrCode(), source.getOptions(), watcherContextParams);
-        CompiledTemplate compiledTemplate = scriptService.compileTemplate(template, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
-        return compiledTemplate.run(template.getParams());
+        TemplateScript.Factory compiledTemplate = scriptService.compile(template, Watcher.SCRIPT_TEMPLATE_CONTEXT);
+        return compiledTemplate.newInstance(template.getParams()).execute();
     }
 
     public SearchRequest toSearchRequest(WatcherSearchTemplateRequest request) throws IOException {

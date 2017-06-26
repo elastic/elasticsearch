@@ -61,8 +61,8 @@ monitoring_user:
 
 To configure the monitoring agent to communicate with a secured monitoring cluster:
 
-. Configure a user on the monitoring cluster who has the `remote_monitoring_agent` 
-role, which is <<[[built-in-roles-remote-monitoring-agent]], built-in to {xpack}>>.
+. Configure a user on the monitoring cluster who has the `remote_monitoring_agent`
+role, which is <<built-in-roles-remote-monitoring-agent, built-in to {xpack}>>.
 For example:
 +
 [source,js]

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -54,6 +53,8 @@ import org.elasticsearch.xpack.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.ml.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.ml.action.GetRecordsAction;
+import org.elasticsearch.xpack.ml.action.IsolateDatafeedAction;
+import org.elasticsearch.xpack.ml.action.KillProcessAction;
 import org.elasticsearch.xpack.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
 import org.elasticsearch.xpack.ml.action.PreviewDatafeedAction;
@@ -69,6 +70,7 @@ import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.UpdateProcessAction;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.ValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -249,15 +251,8 @@ public class MachineLearning implements ActionPlugin {
 
     public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, ThreadPool threadPool,
                                                NamedXContentRegistry xContentRegistry) {
-        if (transportClientMode || tribeNodeClient) {
+        if (enabled == false || transportClientMode || tribeNode || tribeNodeClient) {
             return emptyList();
-        }
-
-        // Even when ML is disabled the native controller will be running if it's installed, and it
-        // prevents graceful shutdown on Windows unless we tell it to stop.  Hence when disabled we
-        // still return a lifecycle service that will tell the native controller to stop.
-        if (enabled == false || tribeNode) {
-            return Collections.singletonList(new MlLifeCycleService(settings, clusterService));
         }
 
         Auditor auditor = new Auditor(internalClient, clusterService);
@@ -285,9 +280,9 @@ public class MachineLearning implements ActionPlugin {
                 throw new ElasticsearchException("Failed to create native process factories for Machine Learning", e);
             }
         } else {
-            autodetectProcessFactory = (jobDetails, modelSnapshot, quantiles, filters,
+            autodetectProcessFactory = (job, modelSnapshot, quantiles, filters,
                                         ignoreDowntime, executorService, onProcessCrash) ->
-                    new BlackHoleAutodetectProcess();
+                    new BlackHoleAutodetectProcess(job.getId());
             // factor of 1.0 makes renormalization a no-op
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, perPartitionNormalization,
                                         executorService) -> new MultiplyingNormalizerProcess(settings, 1.0);
@@ -298,7 +293,8 @@ public class MachineLearning implements ActionPlugin {
                 jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, autodetectProcessFactory,
                 normalizerFactory, xContentRegistry, auditor);
         PersistentTasksService persistentTasksService = new PersistentTasksService(settings, clusterService, threadPool, internalClient);
-        DatafeedManager datafeedManager = new DatafeedManager(threadPool, internalClient, clusterService, jobProvider,
+        DatafeedJobBuilder datafeedJobBuilder = new DatafeedJobBuilder(internalClient, jobProvider, auditor, System::currentTimeMillis);
+        DatafeedManager datafeedManager = new DatafeedManager(threadPool, internalClient, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, auditor, persistentTasksService);
         MlLifeCycleService mlLifeCycleService = new MlLifeCycleService(settings, clusterService, datafeedManager, autodetectProcessManager);
         InvalidLicenseEnforcer invalidLicenseEnforcer =
@@ -398,6 +394,7 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(GetFiltersAction.INSTANCE, GetFiltersAction.TransportAction.class),
                 new ActionHandler<>(PutFilterAction.INSTANCE, PutFilterAction.TransportAction.class),
                 new ActionHandler<>(DeleteFilterAction.INSTANCE, DeleteFilterAction.TransportAction.class),
+                new ActionHandler<>(KillProcessAction.INSTANCE, KillProcessAction.TransportAction.class),
                 new ActionHandler<>(GetBucketsAction.INSTANCE, GetBucketsAction.TransportAction.class),
                 new ActionHandler<>(GetInfluencersAction.INSTANCE, GetInfluencersAction.TransportAction.class),
                 new ActionHandler<>(GetRecordsAction.INSTANCE, GetRecordsAction.TransportAction.class),
@@ -419,6 +416,7 @@ public class MachineLearning implements ActionPlugin {
                 new ActionHandler<>(PreviewDatafeedAction.INSTANCE, PreviewDatafeedAction.TransportAction.class),
                 new ActionHandler<>(StartDatafeedAction.INSTANCE, StartDatafeedAction.TransportAction.class),
                 new ActionHandler<>(StopDatafeedAction.INSTANCE, StopDatafeedAction.TransportAction.class),
+                new ActionHandler<>(IsolateDatafeedAction.INSTANCE, IsolateDatafeedAction.TransportAction.class),
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class),
                 new ActionHandler<>(StartPersistentTaskAction.INSTANCE, StartPersistentTaskAction.TransportAction.class),
                 new ActionHandler<>(UpdatePersistentTaskStatusAction.INSTANCE, UpdatePersistentTaskStatusAction.TransportAction.class),

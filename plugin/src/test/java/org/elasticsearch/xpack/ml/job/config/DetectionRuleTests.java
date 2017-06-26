@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -118,7 +118,7 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
     }
 
     @Override
-    protected DetectionRule parseInstance(XContentParser parser) {
+    protected DetectionRule doParseInstance(XContentParser parser) {
         return DetectionRule.PARSER.apply(parser, null).build();
     }
 }

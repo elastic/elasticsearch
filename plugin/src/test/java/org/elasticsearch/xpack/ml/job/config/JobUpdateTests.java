@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.config;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,9 +28,8 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setDescription(randomAlphaOfLength(20));
         }
         if (randomBoolean()) {
-            List<JobUpdate.DetectorUpdate> detectorUpdates = null;
             int size = randomInt(10);
-            detectorUpdates = new ArrayList<>(size);
+            List<JobUpdate.DetectorUpdate> detectorUpdates = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 String detectorDescription = null;
                 if (randomBoolean()) {
@@ -85,7 +84,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
     }
 
     @Override
-    protected JobUpdate parseInstance(XContentParser parser) {
+    protected JobUpdate doParseInstance(XContentParser parser) {
         return JobUpdate.PARSER.apply(parser, null).build();
     }
 
@@ -144,12 +143,12 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertEquals(update.getCustomSettings(), updatedJob.getCustomSettings());
         assertEquals(update.getModelSnapshotId(), updatedJob.getModelSnapshotId());
         for (JobUpdate.DetectorUpdate detectorUpdate : update.getDetectorUpdates()) {
-            assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getIndex()).getDetectorDescription());
+            assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
             assertEquals(detectorUpdate.getDescription(),
-                    updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getIndex()).getDetectorDescription());
-            assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getIndex()).getDetectorDescription());
+                    updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
+            assertNotNull(updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorDescription());
             assertEquals(detectorUpdate.getRules(),
-                    updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getIndex()).getDetectorRules());
+                    updatedJob.getAnalysisConfig().getDetectors().get(detectorUpdate.getDetectorIndex()).getDetectorRules());
         }
     }
 
@@ -158,7 +157,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
         assertFalse(update.isAutodetectProcessUpdate());
         update = new JobUpdate.Builder("foo").setModelPlotConfig(new ModelPlotConfig(true, "ff")).build();
         assertTrue(update.isAutodetectProcessUpdate());
-        update = new JobUpdate.Builder("foo").setDetectorUpdates(Arrays.asList(mock(JobUpdate.DetectorUpdate.class))).build();
+        update = new JobUpdate.Builder("foo").setDetectorUpdates(Collections.singletonList(mock(JobUpdate.DetectorUpdate.class))).build();
         assertTrue(update.isAutodetectProcessUpdate());
     }
 }

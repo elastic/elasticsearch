@@ -10,12 +10,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.Strings.isNullOrEmpty;
 import static org.elasticsearch.xpack.security.Security.setting;
@@ -51,6 +53,14 @@ public class RealmSettings {
      */
     public static void addSettings(List<Setting<?>> settingsList, List<XPackExtension> extensions) {
         settingsList.add(getGroupSetting(extensions));
+    }
+
+    public static Collection<String> getSettingsFilter(List<XPackExtension> extensions) {
+        return getSettingsByRealm(extensions).values().stream()
+                .flatMap(Collection::stream)
+                .filter(Setting::isFiltered)
+                .map(setting -> PREFIX + "*." + setting.getKey())
+                .collect(Collectors.toSet());
     }
 
     /**
@@ -89,18 +99,27 @@ public class RealmSettings {
     }
 
     private static Consumer<Settings> getSettingsValidator(List<XPackExtension> extensions) {
-        final Map<String, Set<Setting<?>>> childSettings = new HashMap<>(InternalRealms.getSettings());
+        final Map<String, Set<Setting<?>>> childSettings = getSettingsByRealm(extensions);
+        childSettings.forEach(RealmSettings::verify);
+        return validator(childSettings);
+    }
+
+    /**
+     * @return A map from <em>realm-type</em> to a collection of <code>Setting</code> objects.
+     * @see InternalRealms#getSettings()
+     */
+    private static Map<String, Set<Setting<?>>> getSettingsByRealm(List<XPackExtension> extensions) {
+        final Map<String, Set<Setting<?>>> settingsByRealm = new HashMap<>(InternalRealms.getSettings());
         if (extensions != null) {
             extensions.forEach(ext -> {
                 final Map<String, Set<Setting<?>>> extSettings = ext.getRealmSettings();
-                extSettings.keySet().stream().filter(childSettings::containsKey).forEach(type -> {
+                extSettings.keySet().stream().filter(settingsByRealm::containsKey).forEach(type -> {
                     throw new IllegalArgumentException("duplicate realm type " + type);
                 });
-                childSettings.putAll(extSettings);
+                settingsByRealm.putAll(extSettings);
             });
         }
-        childSettings.forEach(RealmSettings::verify);
-        return validator(childSettings);
+        return settingsByRealm;
     }
 
     private static void verify(String type, Set<Setting<?>> settings) {

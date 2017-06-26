@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Date;
@@ -49,7 +49,7 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
     }
 
     @Override
-    protected BucketInfluencer parseInstance(XContentParser parser) {
+    protected BucketInfluencer doParseInstance(XContentParser parser) {
         return BucketInfluencer.PARSER.apply(parser, null);
     }
 

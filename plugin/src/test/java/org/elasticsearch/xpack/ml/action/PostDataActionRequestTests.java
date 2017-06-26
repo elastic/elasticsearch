@@ -7,9 +7,9 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 public class PostDataActionRequestTests extends AbstractStreamableTestCase<PostDataAction.Request> {
     @Override

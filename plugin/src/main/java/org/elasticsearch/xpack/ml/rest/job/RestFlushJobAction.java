@@ -32,6 +32,11 @@ public class RestFlushJobAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_flush_job_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         final FlushJobAction.Request request;

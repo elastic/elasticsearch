@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.util.Objects;
  *
  * {"probability":0.01,"normalized_score":2.2}
  */
-public class NormalizerResult extends ToXContentToBytes implements Writeable {
+public class NormalizerResult implements ToXContentObject, Writeable {
     static final ParseField LEVEL_FIELD = new ParseField("level");
     static final ParseField PARTITION_FIELD_NAME_FIELD = new ParseField("partition_field_name");
     static final ParseField PARTITION_FIELD_VALUE_FIELD = new ParseField("partition_field_value");

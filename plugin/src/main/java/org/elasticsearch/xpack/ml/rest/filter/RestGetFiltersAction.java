@@ -29,6 +29,11 @@ public class RestGetFiltersAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_get_filters_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetFiltersAction.Request getListRequest = new GetFiltersAction.Request();
         String filterId = restRequest.param(MlFilter.ID.getPreferredName());

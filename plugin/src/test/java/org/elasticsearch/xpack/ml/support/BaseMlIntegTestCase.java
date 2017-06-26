@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -327,4 +328,16 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    protected String awaitJobOpenedAndAssigned(String jobId, String queryNode) throws Exception {
+        AtomicReference<String> jobNode = new AtomicReference<>();
+        assertBusy(() -> {
+            GetJobsStatsAction.Response statsResponse =
+                    client(queryNode).execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(jobId)).actionGet();
+            GetJobsStatsAction.Response.JobStats jobStats = statsResponse.getResponse().results().get(0);
+            assertEquals(JobState.OPENED, jobStats.getState());
+            assertNotNull(jobStats.getNode());
+            jobNode.set(jobStats.getNode().getName());
+        });
+        return jobNode.get();
+    }
 }

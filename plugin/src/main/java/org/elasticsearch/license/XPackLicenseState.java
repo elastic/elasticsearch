@@ -48,6 +48,9 @@ public class XPackLicenseState {
         messages.put(XPackPlugin.MACHINE_LEARNING, new String[] {
             "Machine learning APIs are disabled"
         });
+        messages.put(XPackPlugin.LOGSTASH, new String[] {
+            "Logstash specific APIs are disabled. You can continue to manage and poll stored configurations"
+        });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -62,6 +65,7 @@ public class XPackLicenseState {
         messages.put(XPackPlugin.WATCHER, XPackLicenseState::watcherAcknowledgementMessages);
         messages.put(XPackPlugin.MONITORING, XPackLicenseState::monitoringAcknowledgementMessages);
         messages.put(XPackPlugin.GRAPH, XPackLicenseState::graphAcknowledgementMessages);
+        messages.put(XPackPlugin.LOGSTASH, XPackLicenseState::logstashAcknowledgementMessages);
         ACKNOWLEDGMENT_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -161,6 +165,22 @@ public class XPackLicenseState {
                     case TRIAL:
                     case PLATINUM:
                         return new String[] { "Graph will be disabled" };
+                }
+                break;
+        }
+        return Strings.EMPTY_ARRAY;
+    }
+
+    private static String[] logstashAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
+        switch (newMode) {
+            case TRIAL:
+                switch (currentMode) {
+                    case BASIC:
+                    case STANDARD:
+                    case GOLD:
+                    case PLATINUM:
+                        return new String[] { "Logstash specific APIs will be disabled, but you can continue to manage " +
+                            "and poll stored configurations" };
                 }
                 break;
         }
@@ -403,5 +423,13 @@ public class XPackLicenseState {
         boolean licensed = operationMode == OperationMode.TRIAL || operationMode == OperationMode.PLATINUM;
 
         return licensed && localStatus.active;
+    }
+
+    /**
+     * Logstash is always allowed as long as there is an active license
+     * @return {@code true} as long as there is a valid license
+     */
+    public boolean isLogstashAllowed() {
+        return status.active;
     }
 }

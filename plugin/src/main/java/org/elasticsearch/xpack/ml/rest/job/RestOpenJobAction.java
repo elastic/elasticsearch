@@ -31,6 +31,11 @@ public class RestOpenJobAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_open_job_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         OpenJobAction.Request request;
         if (restRequest.hasContentOrSourceParam()) {

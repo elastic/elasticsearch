@@ -1,6 +1,6 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-close-job]]
-==== Close Jobs
+=== Close Jobs
 
 The close job API enables you to close a job.
 A job can be opened and closed multiple times throughout its lifecycle.
@@ -9,12 +9,12 @@ A closed job cannot receive data or perform analysis
 operations, but you can still explore and navigate results.
 
 
-===== Request
+==== Request
 
 `POST _xpack/ml/anomaly_detectors/<job_id>/_close`
 
 
-===== Description
+==== Description
 
 //A job can be closed once all data has been analyzed.
 
@@ -30,19 +30,21 @@ are no longer required to process data.
 When a {dfeed} that has a specified end date stops, it automatically closes
 the job.
 
-NOTE: If you use the `force` query parameter, the request returns before the
-associated actions such as flushing buffers and persisting the model snapshots
-complete. Therefore, do not use that parameter in a script that expects the job
-to be in a consistent state after the close job API returns.
+NOTE: If you use the `force` query parameter, the request returns without performing
+the associated actions such as flushing buffers and persisting the model snapshots.
+Therefore, do not use this parameter if you want the job to be in a consistent state
+after the close job API returns.  The `force` query parameter should only be used in
+situations where the job has already failed, or where you are not interested in
+results the job might have recently produced or might produce in the future.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
   (string) Identifier for the job
 
 
-===== Query Parameters
+==== Query Parameters
 
 `force`::
   (boolean) Use to close a failed job, or to forcefully close a job which has not
@@ -53,13 +55,14 @@ to be in a consistent state after the close job API returns.
   The default value is 30 minutes.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example closes the `event_rate` job:
 

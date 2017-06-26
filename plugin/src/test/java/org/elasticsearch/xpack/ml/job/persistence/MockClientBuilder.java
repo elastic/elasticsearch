@@ -49,7 +49,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.ml.action.DeleteJobAction;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -70,21 +69,20 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class MockClientBuilder {
-    @Mock
     private Client client;
 
-    @Mock
     private AdminClient adminClient;
-    @Mock
     private ClusterAdminClient clusterAdminClient;
-    @Mock
     private IndicesAdminClient indicesAdminClient;
+
+    private IndicesAliasesRequestBuilder aliasesRequestBuilder;
 
     public MockClientBuilder(String clusterName) {
         client = mock(Client.class);
         adminClient = mock(AdminClient.class);
         clusterAdminClient = mock(ClusterAdminClient.class);
         indicesAdminClient = mock(IndicesAdminClient.class);
+        aliasesRequestBuilder = mock(IndicesAliasesRequestBuilder.class);
 
         when(client.admin()).thenReturn(adminClient);
         when(adminClient.cluster()).thenReturn(clusterAdminClient);
@@ -175,10 +173,10 @@ public class MockClientBuilder {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public MockClientBuilder createIndexRequest(ArgumentCaptor<CreateIndexRequest> requestCapture) {
+    public MockClientBuilder createIndexRequest(ArgumentCaptor<CreateIndexRequest> requestCapture, final String index) {
 
         doAnswer(invocation -> {
-            CreateIndexResponse response = new CreateIndexResponse(true, true) {};
+            CreateIndexResponse response = new CreateIndexResponse(true, true, index) {};
             ((ActionListener) invocation.getArguments()[1]).onResponse(response);
             return null;
         }).when(indicesAdminClient).create(requestCapture.capture(), any(ActionListener.class));
@@ -282,8 +280,23 @@ public class MockClientBuilder {
 
     @SuppressWarnings("unchecked")
     public MockClientBuilder prepareAlias(String indexName, String alias, QueryBuilder filter) {
-        IndicesAliasesRequestBuilder aliasesRequestBuilder = mock(IndicesAliasesRequestBuilder.class);
         when(aliasesRequestBuilder.addAlias(eq(indexName), eq(alias), eq(filter))).thenReturn(aliasesRequestBuilder);
+        when(indicesAdminClient.prepareAliases()).thenReturn(aliasesRequestBuilder);
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                ActionListener<IndicesAliasesResponse> listener =
+                        (ActionListener<IndicesAliasesResponse>) invocationOnMock.getArguments()[0];
+                listener.onResponse(mock(IndicesAliasesResponse.class));
+                return null;
+            }
+        }).when(aliasesRequestBuilder).execute(any());
+        return this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public MockClientBuilder prepareAlias(String indexName, String alias) {
+        when(aliasesRequestBuilder.addAlias(eq(indexName), eq(alias))).thenReturn(aliasesRequestBuilder);
         when(indicesAdminClient.prepareAliases()).thenReturn(aliasesRequestBuilder);
         doAnswer(new Answer<Void>() {
             @Override

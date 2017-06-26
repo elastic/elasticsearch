@@ -1,64 +1,35 @@
+[role="xpack"]
 [[ml-apis]]
 == Machine Learning APIs
 
-Use machine learning to detect anomalies in time series data.
+You can use APIs to perform the following {ml} activities:
 
-* <<ml-api-datafeed-endpoint,{dfeeds-cap}>>
-* <<ml-api-job-endpoint,Jobs>>
-* <<ml-api-snapshot-endpoint, Model Snapshots>>
-* <<ml-api-result-endpoint,Results>>
-* <<ml-api-definitions, Definitions>>
-
+[float]
 [[ml-api-datafeed-endpoint]]
 === {dfeeds-cap}
 
-* <<ml-put-datafeed,Create {dfeed}>>
-* <<ml-delete-datafeed,Delete {dfeed}>>
-* <<ml-get-datafeed,Get {dfeed} info>>
-* <<ml-get-datafeed-stats,Get {dfeed} statistics>>
+* <<ml-put-datafeed,Create {dfeed}>>, <<ml-delete-datafeed,Delete {dfeed}>>
+* <<ml-start-datafeed,Start {dfeed}>>, <<ml-stop-datafeed,Stop {dfeed}>>
+* <<ml-get-datafeed,Get {dfeed} info>>, <<ml-get-datafeed-stats,Get {dfeed} statistics>>
 * <<ml-preview-datafeed,Preview {dfeed}>>
-* <<ml-start-datafeed,Start {dfeed}>>
-* <<ml-stop-datafeed,Stop {dfeed}>>
 * <<ml-update-datafeed,Update {dfeed}>>
 
-include::ml/put-datafeed.asciidoc[]
-include::ml/delete-datafeed.asciidoc[]
-include::ml/get-datafeed.asciidoc[]
-include::ml/get-datafeed-stats.asciidoc[]
-include::ml/preview-datafeed.asciidoc[]
-include::ml/start-datafeed.asciidoc[]
-include::ml/stop-datafeed.asciidoc[]
-include::ml/update-datafeed.asciidoc[]
 
+
+[float]
 [[ml-api-job-endpoint]]
 === Jobs
 
-You can use APIs to perform the following activities:
-
-* <<ml-close-job,Close job>>
-* <<ml-put-job,Create job>>
-* <<ml-delete-job,Delete job>>
-* <<ml-get-job,Get job info>>
-* <<ml-get-job-stats,Get job statistics>>
+//* <<ml-valid-detector,Validate detectors>>, <<ml-valid-job,Validate job>>
+* <<ml-put-job,Create job>>, <<ml-delete-job,Delete job>>
+* <<ml-open-job,Open job>>, <<ml-close-job,Close job>>
+* <<ml-get-job,Get job info>>, <<ml-get-job-stats,Get job statistics>>
 * <<ml-flush-job,Flush job>>
-* <<ml-open-job,Open job>>
 * <<ml-post-data,Post data to job>>
 * <<ml-update-job,Update job>>
-* <<ml-valid-detector,Validate detectors>>
-* <<ml-valid-job,Validate job>>
 
-include::ml/close-job.asciidoc[]
-include::ml/put-job.asciidoc[]
-include::ml/delete-job.asciidoc[]
-include::ml/get-job.asciidoc[]
-include::ml/get-job-stats.asciidoc[]
-include::ml/flush-job.asciidoc[]
-include::ml/open-job.asciidoc[]
-include::ml/post-data.asciidoc[]
-include::ml/update-job.asciidoc[]
-include::ml/validate-detector.asciidoc[]
-include::ml/validate-job.asciidoc[]
 
+[float]
 [[ml-api-snapshot-endpoint]]
 === Model Snapshots
 
@@ -67,11 +38,8 @@ include::ml/validate-job.asciidoc[]
 * <<ml-revert-snapshot,Revert model snapshot>>
 * <<ml-update-snapshot,Update model snapshot>>
 
-include::ml/delete-snapshot.asciidoc[]
-include::ml/get-snapshot.asciidoc[]
-include::ml/revert-snapshot.asciidoc[]
-include::ml/update-snapshot.asciidoc[]
 
+[float]
 [[ml-api-result-endpoint]]
 === Results
 
@@ -80,31 +48,43 @@ include::ml/update-snapshot.asciidoc[]
 * <<ml-get-influencer,Get influencers>>
 * <<ml-get-record,Get records>>
 
+
+//CLOSE
+include::ml/close-job.asciidoc[]
+//CREATE
+include::ml/put-datafeed.asciidoc[]
+include::ml/put-job.asciidoc[]
+//DELETE
+include::ml/delete-datafeed.asciidoc[]
+include::ml/delete-job.asciidoc[]
+include::ml/delete-snapshot.asciidoc[]
+//FLUSH
+include::ml/flush-job.asciidoc[]
+//GET
 include::ml/get-bucket.asciidoc[]
 include::ml/get-category.asciidoc[]
+include::ml/get-datafeed.asciidoc[]
+include::ml/get-datafeed-stats.asciidoc[]
 include::ml/get-influencer.asciidoc[]
+include::ml/get-job.asciidoc[]
+include::ml/get-job-stats.asciidoc[]
+include::ml/get-snapshot.asciidoc[]
 include::ml/get-record.asciidoc[]
-
-[[ml-api-definitions]]
-=== Definitions
-
-* <<ml-datafeed-resource,{dfeeds-cap}>>
-* <<ml-datafeed-counts,{dfeed-cap} counts>>
-* <<ml-job-resource,Jobs>>
-* <<ml-jobstats,Job statistics>>
-* <<ml-snapshot-resource,Model snapshots>>
-* <<ml-results-resource,Results>>
-
-include::ml/datafeedresource.asciidoc[]
-include::ml/jobresource.asciidoc[]
-include::ml/jobcounts.asciidoc[]
-include::ml/snapshotresource.asciidoc[]
-include::ml/resultsresource.asciidoc[]
-
-
-//* <<ml-put-job>>
-//* <<ml-delete-job>>
-//* <<ml-get-job>>
-//* <<ml-open-close-job>>
-//* <<ml-flush-job>>
-//* <<ml-post-data>>
+//OPEN
+include::ml/open-job.asciidoc[]
+//POST
+include::ml/post-data.asciidoc[]
+//PREVIEW
+include::ml/preview-datafeed.asciidoc[]
+//REVERT
+include::ml/revert-snapshot.asciidoc[]
+//START/STOP
+include::ml/start-datafeed.asciidoc[]
+include::ml/stop-datafeed.asciidoc[]
+//UPDATE
+include::ml/update-datafeed.asciidoc[]
+include::ml/update-job.asciidoc[]
+include::ml/update-snapshot.asciidoc[]
+//VALIDATE
+//include::ml/validate-detector.asciidoc[]
+//include::ml/validate-job.asciidoc[]

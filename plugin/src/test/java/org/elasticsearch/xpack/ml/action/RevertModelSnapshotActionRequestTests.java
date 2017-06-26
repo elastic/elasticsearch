@@ -6,10 +6,10 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.RevertModelSnapshotAction.Request;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
-public class RevertModelSnapshotActionRequestTests extends AbstractStreamableXContentTestCase<RevertModelSnapshotAction.Request> {
+public class RevertModelSnapshotActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -27,7 +27,7 @@ public class RevertModelSnapshotActionRequestTests extends AbstractStreamableXCo
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return RevertModelSnapshotAction.Request.parseRequest(null, null, parser);
     }
 }

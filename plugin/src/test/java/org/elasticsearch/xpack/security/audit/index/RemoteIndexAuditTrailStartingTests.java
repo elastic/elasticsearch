@@ -90,7 +90,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
         // Setup a second test cluster with a single node, security enabled, and SSL
         final int numNodes = 1;
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(numNodes, useGeneratedSSL, systemKey(), createTempDir(), Scope.TEST) {
+                new SecuritySettingsSource(numNodes, useGeneratedSSL, createTempDir(), Scope.TEST) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()

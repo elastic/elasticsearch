@@ -9,7 +9,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -37,6 +36,11 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
         controller.registerHandler(PUT, "/_xpack/security/user/{username}/_enable", this);
         controller.registerHandler(POST, "/_xpack/security/user/{username}/_disable", this);
         controller.registerHandler(PUT, "/_xpack/security/user/{username}/_disable", this);
+    }
+
+    @Override
+    public String getName() {
+        return "xpack_security_set_enabled_action";
     }
 
     @Override

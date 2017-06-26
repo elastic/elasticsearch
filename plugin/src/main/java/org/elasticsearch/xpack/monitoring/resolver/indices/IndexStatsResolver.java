@@ -27,6 +27,7 @@ public class IndexStatsResolver extends MonitoringIndexNameResolver.Timestamped<
         Set<String> filters = Sets.newHashSet(
             "cluster_uuid",
             "timestamp",
+            "type",
             "source_node",
             "index_stats.index",
             "index_stats.primaries.docs.count",

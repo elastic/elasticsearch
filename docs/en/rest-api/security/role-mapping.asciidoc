@@ -1,0 +1,128 @@
+[[security-api-role-mapping]]
+=== Role Mapping APIs
+
+The Role Mapping API enables you to add, remove, and retrieve role-mappings.
+To use this API, you must have at least the `manage_security` cluster privilege.
+
+NOTE: The API requires that each role-mapping have a distinct name. The name is
+ used solely as an identifier to facilitate interaction via the API, and does
+ not affect the behaviour of the mapping in any way.
+
+[[security-api-put-role-mapping]]
+To add a role-mapping, submit a PUT or POST request to the `/_xpack/security/role_mapping/<name>`
+endpoint:
+
+[source,js]
+--------------------------------------------------
+POST /_xpack/security/role_mapping/administrators
+{
+  "roles": [ "user", "admin" ],
+  "enabled": true, <1>
+  "rules": {
+     "field" : { "username" : [ "esadmin01", "esadmin02" ] }
+  },
+  "metadata" : { <2>
+    "version" : 1
+  }
+}
+--------------------------------------------------
+// CONSOLE
+<1> Mappings that have `enabled` set to `false` will be ignored when role-mapping
+    is performed.
+<2> Metadata is optional
+
+The `roles`, `enabled`, and `rules` fields are required at the top-level.
+Within the `metadata` object, keys beginning with `_` are reserved for system
+usage.
+
+A successful call returns a JSON structure that shows whether the mapping has
+been created or updated.
+
+[source,js]
+--------------------------------------------------
+{
+  "role_mapping" : {
+    "created" : true <1>
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+<1> When an existing mapping is updated, `created` is set to false.
+
+[[security-api-get-role-mapping]]
+To retrieve a role-mapping, issue a GET request to the
+`/_xpack/security/role_mapping/<name>` endpoint:
+
+[source,js]
+--------------------------------------------------
+GET /_xpack/security/role_mapping/administrators
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+A successful call an object, where the keys are the
+names of the request mappings, and the values are
+the JSON representation of those mappings.
+If there is no mapping with the requested name, the
+response will have status code `404`.
+
+[source,js]
+--------------------------------------------------
+{
+  "administrators" : {
+    "enabled" : true,
+    "roles" : [
+      "user",
+      "admin"
+    ],
+    "rules" : {
+      "field" : {
+        "username" : [
+          "esadmin01",
+          "esadmin02"
+        ]
+      }
+    },
+    "metadata" : {
+      "version" : 1
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+You can specify multiple mapping names as a comma-separated list.
+To retrieve all mappings, omit the name entirely.
+
+[source,js]
+--------------------------------------------------
+# Retrieve mappings "m1", "m2", and "administrators"
+GET /_xpack/security/role_mapping/m1,m2,administrators
+
+# Retrieve all mappings
+GET /_xpack/security/role_mapping
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+[[security-api-delete-role-mapping]]
+To delete a role-mapping, submit a DELETE request to the
+`/_xpack/security/role_mapping/<name>` endpoint:
+
+[source,js]
+--------------------------------------------------
+DELETE /_xpack/security/role_mapping/administrators
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+If the mapping is successfully deleted, the request returns `{"found": true}`.
+Otherwise, `found` is set to false.
+
+[source,js]
+--------------------------------------------------
+{
+  "found" : true
+}
+--------------------------------------------------
+// TESTRESPONSE

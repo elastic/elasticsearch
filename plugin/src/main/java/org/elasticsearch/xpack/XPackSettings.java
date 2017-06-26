@@ -50,6 +50,9 @@ public class XPackSettings {
     /** Setting for enabling or disabling document/field level security. Defaults to true. */
     public static final Setting<Boolean> DLS_FLS_ENABLED = enabledSetting(XPackPlugin.SECURITY + ".dls_fls", true);
 
+    /** Setting for enabling or disabling Logstash extensions. Defaults to true. */
+    public static final Setting<Boolean> LOGSTASH_ENABLED = enabledSetting(XPackPlugin.LOGSTASH, true);
+
     /**
      * Legacy setting for enabling or disabling transport ssl. Defaults to true. This is just here to make upgrading easier since the
      * user needs to set this setting in 5.x to upgrade

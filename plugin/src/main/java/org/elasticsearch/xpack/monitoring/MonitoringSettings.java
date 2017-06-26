@@ -52,13 +52,13 @@ public class MonitoringSettings extends AbstractComponent {
             Property.Dynamic, Property.NodeScope);
 
     /**
-     * Timeout value when collecting index statistics (default to 10m)
+     * Timeout value when collecting index statistics (default to 10s)
      */
     public static final Setting<TimeValue> INDEX_STATS_TIMEOUT =
             timeSetting(collectionKey("index.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
-     * Timeout value when collecting total indices statistics (default to 10m)
+     * Timeout value when collecting total indices statistics (default to 10s)
      */
     public static final Setting<TimeValue> INDICES_STATS_TIMEOUT =
             timeSetting(collectionKey("indices.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
@@ -70,19 +70,25 @@ public class MonitoringSettings extends AbstractComponent {
             listSetting(collectionKey("indices"), Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
 
     /**
-     * Timeout value when collecting the cluster state (default to 10m)
+     * Timeout value when collecting the cluster state (default to 10s)
      */
     public static final Setting<TimeValue> CLUSTER_STATE_TIMEOUT =
             timeSetting(collectionKey("cluster.state.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
-     * Timeout value when collecting the recovery information (default to 10m)
+     * Timeout value when collecting the recovery information (default to 10s)
      */
     public static final Setting<TimeValue> CLUSTER_STATS_TIMEOUT =
             timeSetting(collectionKey("cluster.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
 
     /**
-     * Timeout value when collecting the recovery information (default to 10m)
+     * Timeout value when collecting ML job statistics (default to 10s)
+     */
+    public static final Setting<TimeValue> JOB_STATS_TIMEOUT =
+            timeSetting(collectionKey("ml.job.stats.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+
+    /**
+     * Timeout value when collecting the recovery information (default to 10s)
      */
     public static final Setting<TimeValue> INDEX_RECOVERY_TIMEOUT =
             timeSetting(collectionKey("index.recovery.timeout"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
@@ -125,6 +131,7 @@ public class MonitoringSettings extends AbstractComponent {
                 INDEX_RECOVERY_ACTIVE_ONLY,
                 CLUSTER_STATE_TIMEOUT,
                 CLUSTER_STATS_TIMEOUT,
+                JOB_STATS_TIMEOUT,
                 HISTORY_DURATION,
                 EXPORTERS_SETTINGS);
     }
@@ -139,6 +146,7 @@ public class MonitoringSettings extends AbstractComponent {
     private volatile TimeValue clusterStateTimeout;
     private volatile TimeValue clusterStatsTimeout;
     private volatile TimeValue recoveryTimeout;
+    private volatile TimeValue jobStatsTimeout;
     private volatile boolean recoveryActiveOnly;
     private volatile String[] indices;
 
@@ -155,6 +163,8 @@ public class MonitoringSettings extends AbstractComponent {
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_STATE_TIMEOUT, this::setClusterStateTimeout);
         setClusterStatsTimeout(CLUSTER_STATS_TIMEOUT.get(settings));
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_STATS_TIMEOUT, this::setClusterStatsTimeout);
+        setJobStatsTimeout(JOB_STATS_TIMEOUT.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(JOB_STATS_TIMEOUT, this::setJobStatsTimeout);
         setRecoveryTimeout(INDEX_RECOVERY_TIMEOUT.get(settings));
         clusterSettings.addSettingsUpdateConsumer(INDEX_RECOVERY_TIMEOUT, this::setRecoveryTimeout);
         setRecoveryActiveOnly(INDEX_RECOVERY_ACTIVE_ONLY.get(settings));
@@ -179,6 +189,10 @@ public class MonitoringSettings extends AbstractComponent {
         return clusterStatsTimeout;
     }
 
+    public TimeValue jobStatsTimeout() {
+        return jobStatsTimeout;
+    }
+
     public TimeValue recoveryTimeout() {
         return recoveryTimeout;
     }
@@ -201,6 +215,10 @@ public class MonitoringSettings extends AbstractComponent {
 
     private void setClusterStatsTimeout(TimeValue clusterStatsTimeout) {
         this.clusterStatsTimeout = clusterStatsTimeout;
+    }
+
+    private void setJobStatsTimeout(TimeValue jobStatsTimeout) {
+        this.jobStatsTimeout = jobStatsTimeout;
     }
 
     private void setRecoveryTimeout(TimeValue recoveryTimeout) {

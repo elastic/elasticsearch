@@ -1,6 +1,6 @@
 {
   "xpack.security.get_role_mapping": {
-    "documentation": "Retrieves a native role mapping (Documentation WIP)",
+    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-role-mapping.html#security-api-get-role-mapping",
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/security/role_mapping/{name}",

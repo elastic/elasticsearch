@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.state;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.config.Job;
 
@@ -22,7 +22,7 @@ import java.util.Objects;
 /**
  * Quantiles Result POJO
  */
-public class Quantiles extends ToXContentToBytes implements Writeable {
+public class Quantiles implements ToXContentObject, Writeable {
 
     /**
      * Field Names

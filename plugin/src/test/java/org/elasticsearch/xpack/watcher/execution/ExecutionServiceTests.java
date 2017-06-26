@@ -7,7 +7,10 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -16,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.support.clock.ClockMock;
@@ -32,10 +36,10 @@ import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
+import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
@@ -63,6 +67,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.joda.time.DateTime.now;
 import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
@@ -83,7 +88,7 @@ public class ExecutionServiceTests extends ESTestCase {
     private ExecutionService executionService;
     private Clock clock;
     private ThreadPool threadPool;
-    private WatcherClientProxy client;
+    private Client client;
     private Watch.Parser parser;
 
     @Before
@@ -104,7 +109,7 @@ public class ExecutionServiceTests extends ESTestCase {
         clock = ClockMock.frozen();
         threadPool = mock(ThreadPool.class);
 
-        client = mock(WatcherClientProxy.class);
+        client = mock(Client.class);
         parser = mock(Watch.Parser.class);
 
         DiscoveryNode discoveryNode = new DiscoveryNode("node_1", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
@@ -124,7 +129,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.id()).thenReturn("_id");
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
-        when(client.getWatch("_id")).thenReturn(getResponse);
+        mockGetWatchResponse(client, "_id", getResponse);
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -214,7 +219,7 @@ public class ExecutionServiceTests extends ESTestCase {
     public void testExecuteFailedInput() throws Exception {
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
-        when(client.getWatch("_id")).thenReturn(getResponse);
+        mockGetWatchResponse(client, "_id", getResponse);
 
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
@@ -285,7 +290,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.id()).thenReturn("_id");
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
-        when(client.getWatch("_id")).thenReturn(getResponse);
+        mockGetWatchResponse(client, "_id", getResponse);
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -349,7 +354,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.id()).thenReturn("_id");
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
-        when(client.getWatch("_id")).thenReturn(getResponse);
+        mockGetWatchResponse(client, "_id", getResponse);
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -412,7 +417,7 @@ public class ExecutionServiceTests extends ESTestCase {
         when(watch.id()).thenReturn("_id");
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
-        when(client.getWatch("_id")).thenReturn(getResponse);
+        mockGetWatchResponse(client, "_id", getResponse);
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -778,7 +783,7 @@ public class ExecutionServiceTests extends ESTestCase {
         GetResponse getResponse = mock(GetResponse.class);
         when(getResponse.isExists()).thenReturn(true);
         when(getResponse.getId()).thenReturn("foo");
-        when(client.getWatch(any())).thenReturn(getResponse);
+        mockGetWatchResponse(client, "foo", getResponse);
         when(parser.parseWithSecrets(eq("foo"), eq(true), any(), any(), any())).thenReturn(watch);
 
         // execute needs to fail as well as storing the history
@@ -795,6 +800,45 @@ public class ExecutionServiceTests extends ESTestCase {
 
         verify(triggeredWatchStore, times(1)).delete(wid);
         verify(historyStore, times(1)).forcePut(any(WatchRecord.class));
+    }
+
+    public void testThatTriggeredWatchDeletionHappensOnlyIfWatchExists() throws Exception {
+        Watch watch = mock(Watch.class);
+        when(watch.id()).thenReturn("_id");
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(true);
+        mockGetWatchResponse(client, "_id", getResponse);
+
+        DateTime now = new DateTime(clock.millis());
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
+        WatchExecutionContext context = ManualExecutionContext.builder(watch, false, new ManualTriggerEvent("foo", event),
+                timeValueSeconds(5)).build();
+
+        // action throttler, no throttling
+        Throttler.Result throttleResult = mock(Throttler.Result.class);
+        when(throttleResult.throttle()).thenReturn(false);
+        ActionThrottler throttler = mock(ActionThrottler.class);
+        when(throttler.throttle("_action", context)).thenReturn(throttleResult);
+
+        // the action
+        Action.Result actionResult = mock(Action.Result.class);
+        when(actionResult.type()).thenReturn("_action_type");
+        when(actionResult.status()).thenReturn(Action.Result.Status.SUCCESS);
+        ExecutableAction action = mock(ExecutableAction.class);
+        when(action.type()).thenReturn("MY_AWESOME_TYPE");
+        when(action.execute("_action", context, payload)).thenReturn(actionResult);
+
+        ActionWrapper actionWrapper = new ActionWrapper("_action", throttler, null, null, action);
+
+        WatchStatus watchStatus = new WatchStatus(now, singletonMap("_action", new ActionStatus(now)));
+
+        when(watch.input()).thenReturn(input);
+        when(watch.condition()).thenReturn(AlwaysCondition.INSTANCE);
+        when(watch.actions()).thenReturn(Arrays.asList(actionWrapper));
+        when(watch.status()).thenReturn(watchStatus);
+
+        executionService.execute(context);
+        verify(triggeredWatchStore, never()).delete(any());
     }
 
     public void testThatSingleWatchCannotBeExecutedConcurrently() throws Exception {
@@ -822,18 +866,18 @@ public class ExecutionServiceTests extends ESTestCase {
         when(getResponse.isExists()).thenReturn(false);
         boolean exceptionThrown = false;
         if (randomBoolean()) {
-            when(client.getWatch("_id")).thenReturn(getResponse);
+            mockGetWatchResponse(client, "_id", getResponse);
         } else {
             // this emulates any failure while getting the watch, while index not found is an accepted issue
             if (randomBoolean()) {
                 exceptionThrown = true;
                 ElasticsearchException e = new ElasticsearchException("something went wrong, i.e. index not found");
-                when(client.getWatch("_id")).thenThrow(e);
+                mockGetWatchException(client, "_id", e);
                 WatchExecutionResult result = new WatchExecutionResult(ctx, randomInt(10));
                 WatchRecord wr = new WatchRecord.ExceptionWatchRecord(ctx, result, e);
                 when(ctx.abortFailedExecution(eq(e))).thenReturn(wr);
             } else {
-                when(client.getWatch("_id")).thenThrow(new IndexNotFoundException(".watch"));
+                mockGetWatchException(client, "_id", new IndexNotFoundException(".watch"));
             }
         }
 
@@ -884,5 +928,33 @@ public class ExecutionServiceTests extends ESTestCase {
         when(transform.execute(context, payload)).thenReturn(transformResult);
 
         return new Tuple<>(transform, transformResult);
+    }
+
+    private void mockGetWatchResponse(Client client, String id, GetResponse response) {
+        doAnswer(invocation -> {
+            GetRequest request = (GetRequest) invocation.getArguments()[0];
+            ActionListener<GetResponse> listener = (ActionListener) invocation.getArguments()[1];
+            if (request.id().equals(id)) {
+                listener.onResponse(response);
+            } else {
+                GetResult notFoundResult = new GetResult(request.index(), request.type(), request.id(), -1, false, null, null);
+                listener.onResponse(new GetResponse(notFoundResult));
+            }
+            return null;
+        }).when(client).get(any(), any());
+    }
+
+    private void mockGetWatchException(Client client, String id, Exception e) {
+        doAnswer(invocation -> {
+            GetRequest request = (GetRequest) invocation.getArguments()[0];
+            ActionListener<GetResponse> listener = (ActionListener) invocation.getArguments()[1];
+            if (request.id().equals(id)) {
+                listener.onFailure(e);
+            } else {
+                GetResult notFoundResult = new GetResult(request.index(), request.type(), request.id(), -1, false, null, null);
+                listener.onResponse(new GetResponse(notFoundResult));
+            }
+            return null;
+        }).when(client).get(any(), any());
     }
 }

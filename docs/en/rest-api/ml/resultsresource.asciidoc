@@ -1,9 +1,9 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-results-resource]]
-==== Results Resources
+=== Results Resources
 
 Several different result types are created for each job. You can query anomaly
-results for _buckets_, _influencers_ and _records_ by using the results API.
+results for _buckets_, _influencers_, and _records_ by using the results API.
 
 Results are written for each `bucket_span`. The timestamp for the results is the
 start of the bucket time interval.
@@ -31,11 +31,12 @@ indicate that at 16:05 Bob sent 837262434 bytes, when the typical value was
 entity too, you can drill through to the record results in order to investigate
 the anomalous behavior.
 
-//TBD Add links to categorization
 Categorization results contain the definitions of _categories_ that have been
 identified. These are only applicable for jobs that are configured to analyze
 unstructured log data using categorization. These results do not contain a
-timestamp or any calculated scores.
+timestamp or any calculated scores. For more information, see
+{xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+//<<ml-configuring-categories>>.
 
 * <<ml-results-buckets,Buckets>>
 * <<ml-results-influencers,Influencers>>
@@ -44,7 +45,7 @@ timestamp or any calculated scores.
 
 [float]
 [[ml-results-buckets]]
-===== Buckets
+==== Buckets
 
 Bucket results provide the top level, overall view of the job and are best for
 alerting.
@@ -109,7 +110,7 @@ the results for the bucket.
 
 [float]
 [[ml-results-bucket-influencers]]
-===== Bucket Influencers
+==== Bucket Influencers
 
 Bucket influencer results are available as nested objects contained within
 bucket results. These results are an aggregation for each type of influencer.
@@ -171,7 +172,7 @@ An bucket influencer object has the following properties:
 
 [float]
 [[ml-results-influencers]]
-===== Influencers
+==== Influencers
 
 Influencers are the entities that have contributed to, or are to blame for,
 the anomalies. Influencer results are available only if an
@@ -249,7 +250,7 @@ filter the anomaly results more easily.
 
 [float]
 [[ml-results-records]]
-===== Records
+==== Records
 
 Records contain the detailed analytical results. They describe the anomalous
 activity that has been identified in the input data based on the detector
@@ -379,7 +380,7 @@ filter the anomaly results more easily.
 
 [float]
 [[ml-results-categories]]
-===== Categories
+==== Categories
 
 When `categorization_field_name` is specified in the job configuration, it is
 possible to view the definitions of the resulting categories. A category

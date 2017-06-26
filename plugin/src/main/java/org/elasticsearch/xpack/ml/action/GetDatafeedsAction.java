@@ -28,9 +28,9 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.util.QueryPage;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -199,6 +199,9 @@ public class GetDatafeedsAction extends Action<GetDatafeedsAction.Request, GetDa
 
             QueryPage<DatafeedConfig> response;
             MlMetadata mlMetadata = state.metaData().custom(MlMetadata.TYPE);
+            if (mlMetadata == null) {
+                mlMetadata = MlMetadata.EMPTY_METADATA;
+            }
             if (ALL.equals(request.getDatafeedId())) {
                 List<DatafeedConfig> datafeedConfigs = new ArrayList<>(mlMetadata.getDatafeeds().values());
                 response = new QueryPage<>(datafeedConfigs, datafeedConfigs.size(), DatafeedConfig.RESULTS_FIELD);

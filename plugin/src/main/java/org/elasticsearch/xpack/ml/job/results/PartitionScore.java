@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PartitionScore extends ToXContentToBytes implements Writeable {
+public class PartitionScore implements ToXContentObject, Writeable {
     public static final ParseField PARTITION_SCORE = new ParseField("partition_score");
 
     private final String partitionFieldValue;

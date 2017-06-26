@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.ByteArrayOutputStream;
@@ -18,6 +21,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.Term;
 import static org.elasticsearch.xpack.ml.datafeed.extractor.aggregation.AggregationTestUtils.createAggs;
@@ -41,7 +45,8 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 createHistogramBucket(2000L, 5)
         );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> aggToString("time", histogramBuckets));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> aggToString("time", Collections.emptySet(), histogramBuckets));
         assertThat(e.getMessage(), containsString("Missing max aggregation for time_field [time]"));
     }
 
@@ -51,7 +56,8 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 createHistogramBucket(2000L, 5, Collections.singletonList(createTerms("time")))
         );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> aggToString("time", histogramBuckets));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> aggToString("time", Collections.emptySet(), histogramBuckets));
         assertThat(e.getMessage(), containsString("Missing max aggregation for time_field [time]"));
     }
 
@@ -61,7 +67,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 createHistogramBucket(2000L, 5, Collections.singletonList(createMax("timestamp", 2800)))
         );
 
-        String json = aggToString("timestamp", histogramBuckets);
+        String json = aggToString("timestamp", Collections.emptySet(), histogramBuckets);
 
         assertThat(json, equalTo("{\"timestamp\":1200,\"doc_count\":3} {\"timestamp\":2800,\"doc_count\":5}"));
         assertThat(keyValuePairsWritten, equalTo(4L));
@@ -73,7 +79,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 createHistogramBucket(2000L, 5, Collections.singletonList(createMax("time", 2000)))
         );
 
-        String json = aggToString("time", false, histogramBuckets);
+        String json = aggToString("time", Collections.emptySet(), false, histogramBuckets);
 
         assertThat(json, equalTo("{\"time\":1000} {\"time\":2000}"));
         assertThat(keyValuePairsWritten, equalTo(2L));
@@ -83,13 +89,15 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         List<Histogram.Bucket> histogramBuckets = Arrays.asList(
                 createHistogramBucket(1000L, 3, Arrays.asList(
                         createMax("time", 1000), createSingleValue("my_value", 1.0))),
-                createHistogramBucket(2000L, 5, Arrays.asList(
-                        createMax("time", 2000), createSingleValue("my_value", 2.0)))
+                createHistogramBucket(2000L, 3, Arrays.asList(
+                        createMax("time", 2000), createSingleValue("my_value", Double.NEGATIVE_INFINITY))),
+                createHistogramBucket(3000L, 5, Arrays.asList(
+                        createMax("time", 3000), createSingleValue("my_value", 3.0)))
         );
 
-        String json = aggToString("time", histogramBuckets);
+        String json = aggToString("time", Sets.newHashSet("my_value"), histogramBuckets);
 
-        assertThat(json, equalTo("{\"time\":1000,\"my_value\":1.0,\"doc_count\":3} {\"time\":2000,\"my_value\":2.0,\"doc_count\":5}"));
+        assertThat(json, equalTo("{\"time\":1000,\"my_value\":1.0,\"doc_count\":3} {\"time\":3000,\"my_value\":3.0,\"doc_count\":5}"));
     }
 
     public void testProcessGivenTermsPerHistogram() throws IOException {
@@ -106,7 +114,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                         createTerms("my_field", new Term("c", 4), new Term("b", 3))))
         );
 
-        String json = aggToString("time", histogramBuckets);
+        String json = aggToString("time", Sets.newHashSet("time", "my_field"), histogramBuckets);
 
         assertThat(json, equalTo("{\"time\":1100,\"my_field\":\"a\",\"doc_count\":1} " +
                 "{\"time\":1100,\"my_field\":\"b\",\"doc_count\":2} " +
@@ -132,7 +140,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                         createTerms("my_field", new Term("c", 4, "my_value", 41.0), new Term("b", 3, "my_value", 42.0))))
         );
 
-        String json = aggToString("time", histogramBuckets);
+        String json = aggToString("time", Sets.newHashSet("my_field", "my_value"), histogramBuckets);
 
         assertThat(json, equalTo("{\"time\":1000,\"my_field\":\"a\",\"my_value\":11.0,\"doc_count\":1} " +
                 "{\"time\":1000,\"my_field\":\"b\",\"my_value\":12.0,\"doc_count\":2} " +
@@ -148,7 +156,7 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
         a1NumericAggs.put("my_value", 111.0);
         a1NumericAggs.put("my_value2", 112.0);
         Map<String, Double> b1NumericAggs = new LinkedHashMap<>();
-        b1NumericAggs.put("my_value", 121.0);
+        b1NumericAggs.put("my_value", Double.POSITIVE_INFINITY);
         b1NumericAggs.put("my_value2", 122.0);
         Map<String, Double> c1NumericAggs = new LinkedHashMap<>();
         c1NumericAggs.put("my_value", 131.0);
@@ -179,10 +187,10 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                         createTerms("my_field", new Term("c", 4, c4NumericAggs), new Term("b", 3, b4NumericAggs))))
         );
 
-        String json = aggToString("time", false, histogramBuckets);
+        String json = aggToString("time", Sets.newHashSet("my_field", "my_value", "my_value2"), false, histogramBuckets);
 
         assertThat(json, equalTo("{\"time\":1000,\"my_field\":\"a\",\"my_value\":111.0,\"my_value2\":112.0} " +
-                "{\"time\":1000,\"my_field\":\"b\",\"my_value\":121.0,\"my_value2\":122.0} " +
+                "{\"time\":1000,\"my_field\":\"b\",\"my_value2\":122.0} " +
                 "{\"time\":1000,\"my_field\":\"c\",\"my_value\":131.0,\"my_value2\":132.0} " +
                 "{\"time\":2000,\"my_field\":\"a\",\"my_value\":211.0,\"my_value2\":212.0} " +
                 "{\"time\":2000,\"my_field\":\"b\",\"my_value\":221.0,\"my_value2\":222.0} " +
@@ -192,24 +200,78 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
 
     public void testProcessGivenUnsupportedAggregationUnderHistogram() throws IOException {
         Histogram.Bucket histogramBucket = createHistogramBucket(1000L, 2);
-        Histogram anotherHistogram = mock(Histogram.class);
+        Aggregation anotherHistogram = mock(Aggregation.class);
         when(anotherHistogram.getName()).thenReturn("nested-agg");
         Aggregations subAggs = createAggs(Arrays.asList(createMax("time", 1000), anotherHistogram));
         when(histogramBucket.getAggregations()).thenReturn(subAggs);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> aggToString("time", histogramBucket));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> aggToString("time", Sets.newHashSet("nested-agg"), histogramBucket));
         assertThat(e.getMessage(), containsString("Unsupported aggregation type [nested-agg]"));
     }
 
-    public void testProcessGivenMultipleNestedAggregations() throws IOException {
+    public void testProcessGivenMultipleBucketAggregations() throws IOException {
         Histogram.Bucket histogramBucket = createHistogramBucket(1000L, 2);
         Terms terms1 = mock(Terms.class);
+        when(terms1.getName()).thenReturn("terms_1");
         Terms terms2 = mock(Terms.class);
+        when(terms2.getName()).thenReturn("terms_2");
         Aggregations subAggs = createAggs(Arrays.asList(createMax("time", 1000), terms1, terms2));
         when(histogramBucket.getAggregations()).thenReturn(subAggs);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> aggToString("time", histogramBucket));
-        assertThat(e.getMessage(), containsString("Multiple non-leaf nested aggregations are not supported"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> aggToString("time", Sets.newHashSet("terms_1", "terms_2"), histogramBucket));
+        assertThat(e.getMessage(), containsString("Multiple bucket aggregations at the same level are not supported"));
+    }
+
+    public void testProcessGivenMixedBucketAndLeafAggregationsAtSameLevel_BucketFirst() throws IOException {
+        Histogram.Bucket histogramBucket = createHistogramBucket(1000L, 2);
+        Terms terms = mock(Terms.class);
+        when(terms.getName()).thenReturn("terms");
+        Max maxAgg = createMax("max_value", 1200);
+        Aggregations subAggs = createAggs(Arrays.asList(createMax("time", 1000), terms, maxAgg));
+        when(histogramBucket.getAggregations()).thenReturn(subAggs);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> aggToString("time", Sets.newHashSet("terms", "max_value"), histogramBucket));
+        assertThat(e.getMessage(), containsString("Mixing bucket and leaf aggregations at the same level is not supported"));
+    }
+
+    public void testProcessGivenMixedBucketAndLeafAggregationsAtSameLevel_LeafFirst() throws IOException {
+        Histogram.Bucket histogramBucket = createHistogramBucket(1000L, 2);
+        Max maxAgg = createMax("max_value", 1200);
+        Terms terms = mock(Terms.class);
+        when(terms.getName()).thenReturn("terms");
+        Aggregations subAggs = createAggs(Arrays.asList(createMax("time", 1000), maxAgg, terms));
+        when(histogramBucket.getAggregations()).thenReturn(subAggs);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> aggToString("time", Sets.newHashSet("terms", "max_value"), histogramBucket));
+        assertThat(e.getMessage(), containsString("Mixing bucket and leaf aggregations at the same level is not supported"));
+    }
+
+    public void testProcessGivenBucketAndLeafAggregationsButBucketNotInFields() throws IOException {
+        List<Histogram.Bucket> histogramBuckets = Arrays.asList(
+                createHistogramBucket(1000L, 4, Arrays.asList(
+                        createMax("time", 1100),
+                        createMax("my_value", 1),
+                        createTerms("my_field", new Term("a", 1), new Term("b", 2), new Term("c", 1)))),
+                createHistogramBucket(2000L, 5, Arrays.asList(
+                        createMax("time", 2200),
+                        createMax("my_value", 2),
+                        createTerms("my_field", new Term("a", 5), new Term("b", 2)))),
+                createHistogramBucket(3000L, 0, Collections.singletonList(createMax("time", -1))),
+                createHistogramBucket(4000L, 7, Arrays.asList(
+                        createMax("time", 4400),
+                        createMax("my_value", 4),
+                        createTerms("my_field", new Term("c", 4), new Term("b", 3))))
+        );
+
+        String json = aggToString("time", Sets.newHashSet("time", "my_value"), histogramBuckets);
+
+        assertThat(json, equalTo("{\"time\":1100,\"my_value\":1.0,\"doc_count\":4} " +
+                "{\"time\":2200,\"my_value\":2.0,\"doc_count\":5} " +
+                "{\"time\":4400,\"my_value\":4.0,\"doc_count\":7}"));
     }
 
     public void testProcessGivenSinglePercentilesPerHistogram() throws IOException {
@@ -219,16 +281,15 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                 createHistogramBucket(2000L, 7, Arrays.asList(
                         createMax("time", 2000), createPercentiles("my_field", 2.0))),
                 createHistogramBucket(3000L, 10, Arrays.asList(
-                        createMax("time", 3000), createPercentiles("my_field", 3.0))),
+                        createMax("time", 3000), createPercentiles("my_field", Double.NEGATIVE_INFINITY))),
                 createHistogramBucket(4000L, 14, Arrays.asList(
                         createMax("time", 4000), createPercentiles("my_field", 4.0)))
         );
 
-        String json = aggToString("time", histogramBuckets);
+        String json = aggToString("time", Sets.newHashSet("my_field"), histogramBuckets);
 
         assertThat(json, equalTo("{\"time\":1000,\"my_field\":1.0,\"doc_count\":4} " +
                 "{\"time\":2000,\"my_field\":2.0,\"doc_count\":7} " +
-                "{\"time\":3000,\"my_field\":3.0,\"doc_count\":10} " +
                 "{\"time\":4000,\"my_field\":4.0,\"doc_count\":14}"));
     }
 
@@ -244,21 +305,23 @@ public class AggregationToJsonProcessorTests extends ESTestCase {
                         createMax("time", 4000), createPercentiles("my_field", 4.0)))
         );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> aggToString("time", histogramBuckets));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> aggToString("time", Sets.newHashSet("my_field"), histogramBuckets));
         assertThat(e.getMessage(), containsString("Multi-percentile aggregation [my_field] is not supported"));
     }
 
-    private String aggToString(String timeField, Histogram.Bucket bucket) throws IOException {
-        return aggToString(timeField, true, Collections.singletonList(bucket));
+    private String aggToString(String timeField, Set<String> fields, Histogram.Bucket bucket) throws IOException {
+        return aggToString(timeField, fields, true, Collections.singletonList(bucket));
     }
 
-    private String aggToString(String timeField, List<Histogram.Bucket> buckets) throws IOException {
-        return aggToString(timeField, true, buckets);
+    private String aggToString(String timeField, Set<String> fields, List<Histogram.Bucket> buckets) throws IOException {
+        return aggToString(timeField, fields, true, buckets);
     }
 
-    private String aggToString(String timeField, boolean includeDocCount, List<Histogram.Bucket> buckets) throws IOException {
+    private String aggToString(String timeField, Set<String> fields, boolean includeDocCount, List<Histogram.Bucket> buckets)
+            throws IOException {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        try (AggregationToJsonProcessor processor = new AggregationToJsonProcessor(timeField, includeDocCount, outputStream)) {
+        try (AggregationToJsonProcessor processor = new AggregationToJsonProcessor(timeField, fields, includeDocCount, outputStream)) {
             for (Histogram.Bucket bucket : buckets) {
                 processor.process(bucket);
             }

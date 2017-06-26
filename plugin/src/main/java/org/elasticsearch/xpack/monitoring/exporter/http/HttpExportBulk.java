@@ -13,6 +13,8 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -93,11 +95,28 @@ class HttpExportBulk extends ExportBulk {
         } else if (payload.length != 0) {
             final HttpEntity body = new ByteArrayEntity(payload, ContentType.APPLICATION_JSON);
 
-            client.performRequestAsync("POST", "/_bulk", params, body, HttpExportBulkResponseListener.INSTANCE);
+            client.performRequestAsync("POST", "/_bulk", params, body, new ResponseListener() {
+                @Override
+                public void onSuccess(Response response) {
+                    try {
+                        HttpExportBulkResponseListener.INSTANCE.onSuccess(response);
+                    } finally {
+                        listener.onResponse(null);
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception exception) {
+                    try {
+                        HttpExportBulkResponseListener.INSTANCE.onFailure(exception);
+                    } finally {
+                        listener.onFailure(exception);
+                    }
+                }
+            });
 
             // free the memory
             payload = null;
-            listener.onResponse(null);
         }
     }
 
@@ -117,7 +136,6 @@ class HttpExportBulk extends ExportBulk {
 
             if (resolver != null) {
                 String index = resolver.index(doc);
-                String type = doc.getType();
                 String id = doc.getId();
 
                 try (XContentBuilder builder = new XContentBuilder(xContent, out)) {
@@ -125,7 +143,7 @@ class HttpExportBulk extends ExportBulk {
                     builder.startObject();
                     builder.startObject("index");
                     builder.field("_index", index);
-                    builder.field("_type", type);
+                    builder.field("_type", "doc");
                     if (id != null) {
                         builder.field("_id", id);
                     }
@@ -143,10 +161,9 @@ class HttpExportBulk extends ExportBulk {
                 // Adds final bulk separator
                 out.write(xContent.streamSeparator());
 
-                logger.trace("added index request [index={}, type={}, id={}]", index, type, id);
+                logger.trace("added index request [index={}, type={}, id={}]", index, doc.getType(), id);
             } else {
-                logger.error("no resolver found for monitoring document [class={}]",
-                             doc.getClass().getName());
+                logger.error("no resolver found for monitoring document [class={}]", doc.getClass().getName());
             }
 
             return BytesReference.toBytes(out.bytes());

@@ -28,6 +28,11 @@ public class RestGetDatafeedsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_get_datafeeds_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
         if (datafeedId == null) {

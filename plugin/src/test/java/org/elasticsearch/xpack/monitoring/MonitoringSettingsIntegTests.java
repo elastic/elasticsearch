@@ -31,6 +31,7 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
     private final String[] indices = randomStringArray();
     private final TimeValue clusterStateTimeout = newRandomTimeValue();
     private final TimeValue clusterStatsTimeout = newRandomTimeValue();
+    private final TimeValue jobStatsTimeout = newRandomTimeValue();
     private final TimeValue recoveryTimeout = newRandomTimeValue();
     private final Boolean recoveryActiveOnly = randomBoolean();
 
@@ -58,19 +59,20 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
                 .putArray(MonitoringSettings.INDICES.getKey(), indices)
                 .put(MonitoringSettings.CLUSTER_STATE_TIMEOUT.getKey(), clusterStateTimeout)
                 .put(MonitoringSettings.CLUSTER_STATS_TIMEOUT.getKey(), clusterStatsTimeout)
+                .put(MonitoringSettings.JOB_STATS_TIMEOUT.getKey(), jobStatsTimeout)
                 .put(MonitoringSettings.INDEX_RECOVERY_TIMEOUT.getKey(), recoveryTimeout)
                 .put(MonitoringSettings.INDEX_RECOVERY_ACTIVE_ONLY.getKey(), recoveryActiveOnly)
                 .build();
     }
 
     public void testMonitoringSettings() throws Exception {
-        logger.info("--> testing monitoring settings service initialization");
         for (final MonitoringSettings monitoringSettings : internalCluster().getInstances(MonitoringSettings.class)) {
             assertThat(monitoringSettings.indexStatsTimeout().millis(), equalTo(indexStatsTimeout.millis()));
             assertThat(monitoringSettings.indicesStatsTimeout().millis(), equalTo(indicesStatsTimeout.millis()));
             assertArrayEquals(monitoringSettings.indices(), indices);
             assertThat(monitoringSettings.clusterStateTimeout().millis(), equalTo(clusterStateTimeout.millis()));
             assertThat(monitoringSettings.clusterStatsTimeout().millis(), equalTo(clusterStatsTimeout.millis()));
+            assertThat(monitoringSettings.jobStatsTimeout().millis(), equalTo(jobStatsTimeout.millis()));
             assertThat(monitoringSettings.recoveryTimeout().millis(), equalTo(recoveryTimeout.millis()));
             assertThat(monitoringSettings.recoveryActiveOnly(), equalTo(recoveryActiveOnly));
         }
@@ -90,7 +92,8 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
                 MonitoringSettings.INDICES_STATS_TIMEOUT,
                 MonitoringSettings.INDEX_RECOVERY_ACTIVE_ONLY,
                 MonitoringSettings.CLUSTER_STATE_TIMEOUT,
-                MonitoringSettings.CLUSTER_STATS_TIMEOUT};
+                MonitoringSettings.CLUSTER_STATS_TIMEOUT,
+                MonitoringSettings.JOB_STATS_TIMEOUT};
         for (Setting<?> setting : monitoringSettings) {
             if (setting.isDynamic()) {
                 Object updated = null;
@@ -130,6 +133,8 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
                         assertEquals(monitoringSettings1.indicesStatsTimeout(), setting.get(updatedSettings));
                     } else if (setting == MonitoringSettings.CLUSTER_STATS_TIMEOUT) {
                         assertEquals(monitoringSettings1.clusterStatsTimeout(), setting.get(updatedSettings));
+                    } else if (setting == MonitoringSettings.JOB_STATS_TIMEOUT) {
+                        assertEquals(monitoringSettings1.jobStatsTimeout(), setting.get(updatedSettings));
                     } else if (setting == MonitoringSettings.CLUSTER_STATE_TIMEOUT) {
                         assertEquals(monitoringSettings1.clusterStateTimeout(), setting.get(updatedSettings));
                     } else if (setting == MonitoringSettings.INDEX_RECOVERY_TIMEOUT) {

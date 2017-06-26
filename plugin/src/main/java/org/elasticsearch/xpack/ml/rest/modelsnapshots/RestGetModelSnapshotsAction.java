@@ -49,6 +49,11 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_get_model_snapshot_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         String snapshotId = restRequest.param(Request.SNAPSHOT_ID.getPreferredName());

@@ -447,4 +447,35 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(false));
         assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(false));
     }
+
+    public void testLogstashAdminRole() {
+        RoleDescriptor roleDescriptor = new ReservedRolesStore().roleDescriptor("logstash_admin");
+        assertNotNull(roleDescriptor);
+        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
+
+        Role logstashAdminRole = Role.builder(roleDescriptor, null).build();
+        assertThat(logstashAdminRole.cluster().check(ClusterHealthAction.NAME), is(false));
+        assertThat(logstashAdminRole.cluster().check(PutIndexTemplateAction.NAME), is(false));
+        assertThat(logstashAdminRole.cluster().check(ClusterRerouteAction.NAME), is(false));
+        assertThat(logstashAdminRole.cluster().check(ClusterUpdateSettingsAction.NAME), is(false));
+
+        assertThat(logstashAdminRole.runAs().check(randomAlphaOfLengthBetween(1, 30)), is(false));
+
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test("foo"), is(false));
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".reporting"), is(false));
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(".logstash"), is(true));
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher("indices:foo").test(randomAlphaOfLengthBetween(8, 24)),
+            is(false));
+
+        final String index = ".logstash-" + randomIntBetween(0, 5);
+
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(true));
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(true));
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(true));
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(true));
+        assertThat(logstashAdminRole.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(true));
+    }
 }

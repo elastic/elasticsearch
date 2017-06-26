@@ -1,13 +1,15 @@
 {
   "index_patterns": ".monitoring-beats-${monitoring.template.version}-*",
+  "version": 6000002,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
-    "index.codec": "best_compression",
-    "index.mapping.single_type": false
+    "index.format": 6,
+    "index.codec": "best_compression"
   },
   "mappings": {
-    "beats_stats": {
+    "doc": {
+      "dynamic": false,
       "properties": {
         "cluster_uuid": {
           "type": "keyword"
@@ -15,6 +17,9 @@
         "timestamp": {
           "type": "date",
           "format": "date_time"
+        },
+        "type": {
+          "type": "keyword"
         },
         "source_node": {
           "properties": {
@@ -32,20 +37,6 @@
             },
             "name": {
               "type": "keyword"
-            },
-            "attributes": {
-              "dynamic": true,
-              "properties": {
-                "data": {
-                  "type": "boolean"
-                },
-                "master": {
-                  "type": "boolean"
-                },
-                "client": {
-                  "type": "boolean"
-                }
-              }
             }
           }
         },
@@ -75,10 +66,6 @@
                 "name": {
                   "type": "keyword"
                 }
-              }
-            },
-            "metrics": {
-              "properties": {
               }
             }
           }

@@ -1,20 +1,20 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-update-job]]
-==== Update Jobs
+=== Update Jobs
 
 The update job API enables you to update certain properties of a job.
 
-===== Request
+==== Request
 
 `POST _xpack/ml/anomaly_detectors/<job_id>/_update`
 
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
   (string) Identifier for the job
 
-===== Request Body
+==== Request Body
 
 The following properties can be updated after the job is created:
 
@@ -55,7 +55,7 @@ if the job is open when you make the update, you must stop the data feed, close
 the job, then restart the data feed and open the job for the changes to take
 effect.
 
-//|`analysis_config`: `detectors`: `index` | A unique identifier of the
+//|`analysis_config`: `detectors`: `detector_index` | A unique identifier of the
 //detector. Matches the order of detectors returned by
 //<<ml-get-job,GET job>>, starting from 0. | No
 //|`analysis_config`: `detectors`: `detector_description` |A description of the
@@ -71,13 +71,15 @@ want to re-run this job with an increased `model_memory_limit`.
 --
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example updates the `it_ops_new_logs` job:
 
@@ -126,7 +128,8 @@ information, including the updated property values. For example:
         "detector_description": "Unusual message counts",
         "function": "count",
         "by_field_name": "mlcategory",
-        "detector_rules": []
+        "detector_rules": [],
+        "detector_index": 0
       }
     ],
     "influencers": []

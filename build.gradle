@@ -44,8 +44,18 @@ subprojects {
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
   ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack-elasticsearch:plugin']
+
   if (wireCompatVersions[-1].snapshot) {
-    ext.projectSubstitutions += [
-      "org.elasticsearch.plugin:x-pack:${wireCompatVersions[-1]}": ':x-pack-elasticsearch:plugin:bwc-zip']
+    /* The last and second to last versions can be snapshots. Rather than use
+     * snapshots built by CI we connect these versions to projects that build
+     * those versions from the HEAD of the appropriate branch. */
+    if (indexCompatVersions[-1].bugfix == 0) {
+      ext.projectSubstitutions += [
+        "org.elasticsearch.plugin:x-pack:${indexCompatVersions[-1]}": ':x-pack-elasticsearch:plugin:bwc:stable-snapshot',
+        "org.elasticsearch.plugin:x-pack:${indexCompatVersions[-2]}": ':x-pack-elasticsearch:plugin:bwc:release-snapshot']
+    } else {
+      ext.projectSubstitutions += [
+        "org.elasticsearch.plugin:x-pack:${indexCompatVersions[-1]}": ':x-pack-elasticsearch:plugin:bwc:release-snapshot']
+    }
   }
 }

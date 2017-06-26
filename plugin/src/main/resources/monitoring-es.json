@@ -1,22 +1,29 @@
 {
   "index_patterns": ".monitoring-es-${monitoring.template.version}-*",
+  "version": 6000002,
   "settings": {
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
-    "index.codec": "best_compression",
-    "index.mapper.dynamic": false,
-    "index.mapping.single_type": false
+    "index.format": 6,
+    "index.codec": "best_compression"
   },
   "mappings": {
-    "_default_": {
+    "doc": {
       "date_detection": false,
+      "dynamic": false,
       "properties": {
         "cluster_uuid": {
+          "type": "keyword"
+        },
+        "state_uuid": {
           "type": "keyword"
         },
         "timestamp": {
           "type": "date",
           "format": "date_time"
+        },
+        "type": {
+          "type": "keyword"
         },
         "source_node": {
           "properties": {
@@ -34,27 +41,9 @@
             },
             "name": {
               "type": "keyword"
-            },
-            "attributes": {
-              "dynamic": true,
-              "properties": {
-                "data": {
-                  "type": "boolean"
-                },
-                "master": {
-                  "type": "boolean"
-                },
-                "client": {
-                  "type": "boolean"
-                }
-              }
             }
           }
-        }
-      }
-    },
-    "indices_stats": {
-      "properties": {
+        },
         "indices_stats": {
           "properties": {
             "_all": {
@@ -64,6 +53,26 @@
                     "docs": {
                       "properties": {
                         "count": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "indexing": {
+                      "properties": {
+                        "index_total": {
+                          "type": "long"
+                        },
+                        "index_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "search": {
+                      "properties": {
+                        "query_total": {
+                          "type": "long"
+                        },
+                        "query_time_in_millis": {
                           "type": "long"
                         }
                       }
@@ -78,17 +87,33 @@
                           "type": "long"
                         }
                       }
+                    },
+                    "indexing": {
+                      "properties": {
+                        "index_total": {
+                          "type": "long"
+                        },
+                        "index_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "search": {
+                      "properties": {
+                        "query_total": {
+                          "type": "long"
+                        },
+                        "query_time_in_millis": {
+                          "type": "long"
+                        }
+                      }
                     }
                   }
                 }
               }
             }
           }
-        }
-      }
-    },
-    "index_stats": {
-      "properties": {
+        },
         "index_stats": {
           "properties": {
             "index": {
@@ -191,6 +216,9 @@
                       "type": "long"
                     },
                     "terms_memory_in_bytes": {
+                      "type": "long"
+                    },
+                    "points_memory_in_bytes": {
                       "type": "long"
                     },
                     "stored_fields_memory_in_bytes": {
@@ -324,6 +352,9 @@
                     "terms_memory_in_bytes": {
                       "type": "long"
                     },
+                    "points_memory_in_bytes": {
+                      "type": "long"
+                    },
                     "stored_fields_memory_in_bytes": {
                       "type": "long"
                     },
@@ -357,11 +388,7 @@
               }
             }
           }
-        }
-      }
-    },
-    "cluster_stats": {
-      "properties": {
+        },
         "cluster_stats": {
           "properties": {
             "nodes": {
@@ -371,11 +398,7 @@
               "type": "object"
             }
           }
-        }
-      }
-    },
-    "cluster_state": {
-      "properties": {
+        },
         "cluster_state": {
           "properties": {
             "version": {
@@ -391,31 +414,13 @@
               "type": "keyword"
             },
             "nodes": {
-              "enabled": false
+              "type": "object"
             },
             "shards": {
               "type": "object"
             }
           }
-        }
-      }
-    },
-    "node": {
-      "properties": {
-        "state_uuid": {
-          "type": "keyword"
         },
-        "node": {
-          "properties": {
-            "id": {
-              "type": "keyword"
-            }
-          }
-        }
-      }
-    },
-    "node_stats": {
-      "properties": {
         "node_stats": {
           "properties": {
             "node_id": {
@@ -512,6 +517,9 @@
                     "terms_memory_in_bytes": {
                       "type": "long"
                     },
+                    "points_memory_in_bytes": {
+                      "type": "long"
+                    },
                     "stored_fields_memory_in_bytes": {
                       "type": "long"
                     },
@@ -546,6 +554,19 @@
             },
             "fs": {
               "properties": {
+                "total": {
+                  "properties": {
+                    "total_in_bytes": {
+                      "type": "long"
+                    },
+                    "free_in_bytes": {
+                      "type": "long"
+                    },
+                    "available_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
                 "data": {
                   "properties": {
                     "spins": {
@@ -594,6 +615,9 @@
                     },
                     "cpu": {
                       "properties": {
+                        "cfs_quota_micros": {
+                          "type": "long"
+                        },
                         "control_group": {
                           "type": "keyword"
                         },
@@ -634,29 +658,166 @@
               }
             },
             "process": {
-              "type": "object"
+              "properties": {
+                "open_file_descriptors": {
+                  "type": "long"
+                },
+                "max_file_descriptors": {
+                  "type": "long"
+                },
+                "cpu": {
+                  "properties": {
+                    "percent": {
+                      "type": "half_float"
+                    }
+                  }
+                }
+              }
             },
             "jvm": {
-              "type": "object"
+              "properties": {
+                "mem": {
+                  "properties": {
+                    "heap_used_in_bytes": {
+                      "type": "long"
+                    },
+                    "heap_used_percent": {
+                      "type": "half_float"
+                    },
+                    "heap_max_in_bytes": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "gc": {
+                  "properties": {
+                    "collectors": {
+                      "properties": {
+                        "young": {
+                          "properties": {
+                            "collection_count": {
+                              "type": "long"
+                            },
+                            "collection_time_in_millis": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "old": {
+                          "properties": {
+                            "collection_count": {
+                              "type": "long"
+                            },
+                            "collection_time_in_millis": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             },
             "thread_pool": {
-              "type": "object"
+              "properties": {
+                "bulk": {
+                  "properties": {
+                    "threads": {
+                      "type": "integer"
+                    },
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "generic": {
+                  "properties": {
+                    "threads": {
+                      "type": "integer"
+                    },
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "get": {
+                  "properties": {
+                    "threads": {
+                      "type": "integer"
+                    },
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "index": {
+                  "properties": {
+                    "threads": {
+                      "type": "integer"
+                    },
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "maanagement": {
+                  "properties": {
+                    "threads": {
+                      "type": "integer"
+                    },
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "search": {
+                  "properties": {
+                    "threads": {
+                      "type": "integer"
+                    },
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "watcher": {
+                  "properties": {
+                    "threads": {
+                      "type": "integer"
+                    },
+                    "queue": {
+                      "type": "integer"
+                    },
+                    "rejected": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
             }
           }
-        }
-      }
-    },
-    "index_recovery": {
-      "properties": {
+        },
         "index_recovery": {
-          "enabled": false
-        }
-      }
-    },
-    "shards": {
-      "properties": {
-        "state_uuid": {
-          "type": "keyword"
+          "type": "object"
         },
         "shard": {
           "properties": {
@@ -677,6 +838,58 @@
             },
             "node": {
               "type": "keyword"
+            }
+          }
+        },
+        "job_stats": {
+          "properties": {
+            "job_id": {
+              "type": "keyword"
+            },
+            "state": {
+              "type": "keyword"
+            },
+            "data_counts": {
+              "properties": {
+                "input_bytes": {
+                  "type": "long"
+                },
+                "processed_record_count": {
+                  "type": "long"
+                },
+                "empty_bucket_count": {
+                  "type": "long"
+                },
+                "sparse_bucket_count": {
+                  "type": "long"
+                },
+                "bucket_count": {
+                  "type": "long"
+                },
+                "earliest_record_timestamp": {
+                  "type": "date"
+                },
+                "latest_record_timestamp": {
+                  "type": "date"
+                }
+              }
+            },
+            "model_size_stats": {
+              "properties": {
+                "model_bytes": {
+                  "type": "long"
+                },
+                "bucket_allocation_failures_count": {
+                  "type": "long"
+                }
+              }
+            },
+            "node": {
+              "properties": {
+                "id": {
+                  "type": "keyword"
+                }
+              }
             }
           }
         }

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.notifications;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;

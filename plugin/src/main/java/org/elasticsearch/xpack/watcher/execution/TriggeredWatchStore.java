@@ -14,8 +14,11 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.Preference;
@@ -28,7 +31,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
@@ -39,6 +41,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -54,7 +57,7 @@ public class TriggeredWatchStore extends AbstractComponent {
     public static final String DOC_TYPE = "doc";
 
     private final int scrollSize;
-    private final WatcherClientProxy client;
+    private final Client client;
     private final TimeValue scrollTimeout;
     private final TriggeredWatch.Parser triggeredWatchParser;
 
@@ -62,12 +65,16 @@ public class TriggeredWatchStore extends AbstractComponent {
     private final Lock accessLock = readWriteLock.readLock();
     private final Lock stopLock = readWriteLock.writeLock();
     private final AtomicBoolean started = new AtomicBoolean(false);
+    private final TimeValue defaultBulkTimeout;
+    private final TimeValue defaultSearchTimeout;
 
-    public TriggeredWatchStore(Settings settings, WatcherClientProxy client, TriggeredWatch.Parser triggeredWatchParser) {
+    public TriggeredWatchStore(Settings settings, Client client, TriggeredWatch.Parser triggeredWatchParser) {
         super(settings);
         this.scrollSize = settings.getAsInt("xpack.watcher.execution.scroll.size", 1000);
         this.client = client;
-        this.scrollTimeout = settings.getAsTime("xpack.watcher.execution.scroll.timeout", TimeValue.timeValueSeconds(30));
+        this.scrollTimeout = settings.getAsTime("xpack.watcher.execution.scroll.timeout", TimeValue.timeValueMinutes(5));
+        this.defaultBulkTimeout = settings.getAsTime("xpack.watcher.internal.ops.bulk.default_timeout", TimeValue.timeValueSeconds(120));
+        this.defaultSearchTimeout = settings.getAsTime("xpack.watcher.internal.ops.search.default_timeout", TimeValue.timeValueSeconds(30));
         this.triggeredWatchParser = triggeredWatchParser;
         this.started.set(true);
     }
@@ -156,7 +163,7 @@ public class TriggeredWatchStore extends AbstractComponent {
                 indexRequest.opType(IndexRequest.OpType.CREATE);
                 request.add(indexRequest);
             }
-            BulkResponse response = client.bulk(request, (TimeValue) null);
+            BulkResponse response = client.bulk(request).get(defaultBulkTimeout.millis(), TimeUnit.MILLISECONDS);
             BitSet successFullSlots = new BitSet(triggeredWatches.size());
             for (int i = 0; i < response.getItems().length; i++) {
                 BulkItemResponse itemResponse = response.getItems()[i];
@@ -196,18 +203,24 @@ public class TriggeredWatchStore extends AbstractComponent {
      *
      * Note: This is executing a blocking call over the network, thus a potential source of problems
      *
-     * @param watches The list of watches that will be loaded here
-     * @return A list of triggered watches that have been started to execute somewhere else but not finished
+     * @param watches       The list of watches that will be loaded here
+     * @param clusterState  The current cluster state
+     * @return              A list of triggered watches that have been started to execute somewhere else but not finished
      */
-    public Collection<TriggeredWatch> findTriggeredWatches(Collection<Watch> watches) {
+    public Collection<TriggeredWatch> findTriggeredWatches(Collection<Watch> watches, ClusterState clusterState) {
         if (watches.isEmpty()) {
             return Collections.emptyList();
         }
 
+        // non existing index, return immediately
+        IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStore.INDEX_NAME, clusterState.metaData());
+        if (indexMetaData == null) {
+            return Collections.emptyList();
+        }
+
         try {
-            client.refresh(new RefreshRequest(TriggeredWatchStore.INDEX_NAME));
+            client.admin().indices().refresh(new RefreshRequest(TriggeredWatchStore.INDEX_NAME)).actionGet(TimeValue.timeValueSeconds(5));
         } catch (IndexNotFoundException e) {
-            // no index, no problems, we dont need to search further
             return Collections.emptyList();
         }
 
@@ -222,7 +235,7 @@ public class TriggeredWatchStore extends AbstractComponent {
                         .sort(SortBuilders.fieldSort("_doc"))
                         .version(true));
 
-        SearchResponse response = client.search(searchRequest);
+        SearchResponse response = client.search(searchRequest).actionGet(defaultSearchTimeout);
         logger.debug("trying to find triggered watches for ids {}: found [{}] docs", ids, response.getHits().getTotalHits());
         try {
             while (response.getHits().getHits().length != 0) {
@@ -233,10 +246,14 @@ public class TriggeredWatchStore extends AbstractComponent {
                         triggeredWatches.add(triggeredWatch);
                     }
                 }
-                response = client.searchScroll(response.getScrollId(), scrollTimeout);
+                SearchScrollRequest request = new SearchScrollRequest(response.getScrollId());
+                request.scroll(scrollTimeout);
+                response = client.searchScroll(request).actionGet(defaultSearchTimeout);
             }
         } finally {
-            client.clearScroll(response.getScrollId());
+            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+            clearScrollRequest.addScrollId(response.getScrollId());
+            client.clearScroll(clearScrollRequest).actionGet(scrollTimeout);
         }
 
         return triggeredWatches;

@@ -1,5 +1,6 @@
 {
   "xpack.ml.get_categories": {
+    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-get-category.html",
     "methods": [ "GET", "POST" ],
     "url": {
       "path": "/_xpack/ml/anomaly_detectors/{job_id}/results/categories/{category_id}",

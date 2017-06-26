@@ -171,7 +171,7 @@ VIX quote loaded by the `http` input is either greater than 5% or lower than -5%
 --------------------------------------------------
 "condition" : {
   "script" : {
-    "inline" : "Math.abs(ctx.payload.hits.hits[0]._source.ChangePercent) > 5",
+    "source" : "Math.abs(ctx.payload.hits.hits[0]._source.ChangePercent) > 5",
     "lang" : "painless"
   }
 }

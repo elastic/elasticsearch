@@ -1,20 +1,22 @@
+[role="xpack"]
 [[ml-settings]]
-== Machine Learning Settings
+=== Machine Learning Settings
 You do not need to configure any settings to use {ml}. It is enabled by default.
 
 [float]
 [[general-ml-settings]]
-=== General Machine Learning Settings
+==== General Machine Learning Settings
 
 `xpack.ml.enabled`::
 Set to `true` (default) to enable {ml}. +
 +
 If set to `false` in `elasticsearch.yml`, the {ml} APIs are disabled.
-You also cannot open jobs or start {dfeeds}.
-If set to `false` in `kibana.yml`, the {ml} icon is not visible in {kib}. +
+You also cannot open jobs, start {dfeeds}, or receive transport (internal)
+communication requests related to {ml} APIs. +
 +
-IMPORTANT: If you want to use {ml} features in your cluster, you must enable
-{ml} on all master-eligible nodes. This is the default behavior.
+IMPORTANT: If you want to use {ml} features in your cluster, you must have
+`xpack.ml.enabled` set to `true` on all master-eligible nodes. This is the
+default behavior.
 
 `node.ml`::
 Set to `true` (default) to identify the node as a _machine learning node_. +
@@ -26,5 +28,3 @@ least one machine learning node in your cluster. +
 +
 IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, disable
 the `node.ml` role.
-
-//Eventually this node information should be added to https://www.elastic.co/guide/en/elasticsearch/reference/5.3/modules-node.html

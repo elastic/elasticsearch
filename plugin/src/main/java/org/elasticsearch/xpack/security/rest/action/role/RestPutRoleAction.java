@@ -47,6 +47,11 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_security_put_role_action";
+    }
+
+    @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutRoleRequestBuilder requestBuilder = new SecurityClient(client)
                 .preparePutRole(request.param("name"), request.content(), request.getXContentType())

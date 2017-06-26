@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
+import org.elasticsearch.xpack.common.http.HttpProxy;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.HttpResponse;
@@ -52,11 +53,12 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
             new ObjectParser<>("reporting_attachment_kibana_payload", true, null);
 
     static {
-        PARSER.declareInt(Builder::retries, new ParseField("retries"));
-        PARSER.declareBoolean(Builder::inline, new ParseField("inline"));
-        PARSER.declareString(Builder::interval, new ParseField("interval"));
-        PARSER.declareString(Builder::url, new ParseField("url"));
-        PARSER.declareObjectOrDefault(Builder::auth, (p, s) -> s.parseAuth(p), () -> null, new ParseField("auth"));
+        PARSER.declareInt(Builder::retries, ReportingAttachment.RETRIES);
+        PARSER.declareBoolean(Builder::inline, ReportingAttachment.INLINE);
+        PARSER.declareString(Builder::interval, ReportingAttachment.INTERVAL);
+        PARSER.declareString(Builder::url, ReportingAttachment.URL);
+        PARSER.declareObjectOrDefault(Builder::auth, (p, s) -> s.parseAuth(p), () -> null, ReportingAttachment.AUTH);
+        PARSER.declareObjectOrDefault(Builder::proxy, (p, s) -> s.parseProxy(p), () -> null, ReportingAttachment.PROXY);
         PAYLOAD_PARSER.declareString(KibanaReportingPayload::setPath, new ParseField("path"));
     }
 
@@ -100,6 +102,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
                 .readTimeout(TimeValue.timeValueSeconds(15))
                 .method(HttpMethod.POST)
                 .auth(attachment.auth())
+                .proxy(attachment.proxy())
                 .putHeader("kbn-xsrf", new TextTemplate("reporting"))
                 .build();
         HttpRequest request = requestTemplate.render(templateEngine, model);
@@ -113,6 +116,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
                 .auth(attachment.auth())
                 .path(path)
                 .scheme(request.scheme())
+                .proxy(attachment.proxy())
                 .putHeader("kbn-xsrf", new TextTemplate("reporting"))
                 .build();
         HttpRequest pollingRequest = pollingRequestTemplate.render(templateEngine, model);
@@ -207,7 +211,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     }
 
     /**
-     * A helper class to parse the HTTPAuth data, which is read by an old school pull parser, that is handed over in the ctor.
+     * A helper class to parse HTTP auth and proxy structures, which is read by an old school pull parser, that is handed over in the ctor.
      * See the static parser definition at the top
      */
     private static class AuthParseContext {
@@ -221,6 +225,14 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         HttpAuth parseAuth(XContentParser parser) {
             try {
                 return authRegistry.parse(parser);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        HttpProxy parseProxy(XContentParser parser) {
+            try {
+                return HttpProxy.parse(parser);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -256,6 +268,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         private TimeValue interval;
         private Integer retries;
         private HttpAuth auth;
+        private HttpProxy proxy;
 
         Builder(String id) {
             this.id = id;
@@ -287,8 +300,13 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
             return this;
         }
 
+        Builder proxy(HttpProxy proxy) {
+            this.proxy = proxy;
+            return this;
+        }
+
         ReportingAttachment build() {
-            return new ReportingAttachment(id, url, inline, interval, retries, auth);
+            return new ReportingAttachment(id, url, inline, interval, retries, auth, proxy);
         }
     }
 }

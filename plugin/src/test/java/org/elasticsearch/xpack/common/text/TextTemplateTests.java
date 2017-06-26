@@ -13,7 +13,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.template.CompiledTemplate;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.Before;
@@ -54,10 +54,17 @@ public class TextTemplateTests extends ESTestCase {
         merged = unmodifiableMap(merged);
         ScriptType type = randomFrom(ScriptType.values());
 
-        CompiledTemplate compiledTemplate = templateParams -> "rendered_text";
-        when(service.compileTemplate(new Script(type, lang, templateText,
+        TemplateScript.Factory compiledTemplate = templateParams ->
+                new TemplateScript(templateParams) {
+                    @Override
+                    public String execute() {
+                        return "rendered_text";
+                    }
+                };
+
+        when(service.compile(new Script(type, lang, templateText,
                 type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
-                merged), Watcher.SCRIPT_EXECUTABLE_CONTEXT)).thenReturn(compiledTemplate);
+                merged), Watcher.SCRIPT_TEMPLATE_CONTEXT)).thenReturn(compiledTemplate);
 
         TextTemplate template = templateBuilder(type, templateText, params);
         assertThat(engine.render(template, model), is("rendered_text"));
@@ -69,10 +76,17 @@ public class TextTemplateTests extends ESTestCase {
         Map<String, Object> model = singletonMap("key", "model_val");
         ScriptType type = randomFrom(ScriptType.values());
 
-        CompiledTemplate compiledTemplate = templateParams -> "rendered_text";
-        when(service.compileTemplate(new Script(type, lang, templateText,
+        TemplateScript.Factory compiledTemplate = templateParams ->
+            new TemplateScript(templateParams) {
+                @Override
+                public String execute() {
+                    return "rendered_text";
+                }
+            };
+
+        when(service.compile(new Script(type, lang, templateText,
                 type == ScriptType.INLINE ? Collections.singletonMap("content_type", "text/plain") : null,
-                model), Watcher.SCRIPT_EXECUTABLE_CONTEXT)).thenReturn(compiledTemplate);
+                model), Watcher.SCRIPT_TEMPLATE_CONTEXT)).thenReturn(compiledTemplate);
 
         TextTemplate template = templateBuilder(type, templateText, params);
         assertThat(engine.render(template, model), is("rendered_text"));
@@ -82,9 +96,16 @@ public class TextTemplateTests extends ESTestCase {
         String templateText = "_template";
         Map<String, Object> model = singletonMap("key", "model_val");
 
-        CompiledTemplate compiledTemplate = templateParams -> "rendered_text";
-        when(service.compileTemplate(new Script(ScriptType.INLINE, lang, templateText,
-                Collections.singletonMap("content_type", "text/plain"), model), Watcher.SCRIPT_EXECUTABLE_CONTEXT))
+        TemplateScript.Factory compiledTemplate = templateParams ->
+            new TemplateScript(templateParams) {
+                @Override
+                public String execute() {
+                    return "rendered_text";
+                }
+            };
+
+        when(service.compile(new Script(ScriptType.INLINE, lang, templateText,
+                Collections.singletonMap("content_type", "text/plain"), model), Watcher.SCRIPT_TEMPLATE_CONTEXT))
                 .thenReturn(compiledTemplate);
 
         TextTemplate template = new TextTemplate(templateText);
@@ -97,10 +118,10 @@ public class TextTemplateTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder().startObject();
         switch (type) {
             case INLINE:
-                builder.field("inline", template.getTemplate());
+                builder.field("source", template.getTemplate());
                 break;
             case STORED:
-                builder.field("stored", template.getTemplate());
+                builder.field("id", template.getTemplate());
         }
         builder.field("params", template.getParams());
         builder.endObject();

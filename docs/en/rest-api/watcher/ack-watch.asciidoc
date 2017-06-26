@@ -84,8 +84,13 @@ check the status:
 [source,js]
 --------------------------------------------------
 POST _xpack/watcher/watch/my_watch/_execute
+{
+  "record_execution" : true
+}
+
 GET _xpack/watcher/watch/my_watch
 --------------------------------------------------
+// CONSOLE
 // TEST[continued]
 
 and the action is now in `ackable` state:
@@ -96,23 +101,36 @@ and the action is now in `ackable` state:
   "found": true,
   "_id": "my_watch",
   "status": {
-    "version": 1,
+    "version": 2,
     "actions": {
       "test_index": {
         "ack": {
           "timestamp": "2015-05-26T18:04:27.723Z",
           "state": "ackable"
+        },
+        "last_execution" : {
+          "timestamp": "2015-05-25T18:04:27.723Z",
+          "successful": true
+        },
+        "last_successful_execution" : {
+          "timestamp": "2015-05-25T18:04:27.723Z",
+          "successful": true
         }
       }
     },
-    "state": ...
+    "state": ...,
+    "last_checked": ...,
+    "last_met_condition": ...
   },
   "watch": ...
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"state": \.\.\./"state": "$body.status.state"/]
 // TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
+// TESTRESPONSE[s/"last_checked": \.\.\./"last_checked": "$body.status.last_checked"/]
+// TESTRESPONSE[s/"last_met_condition": \.\.\./"last_met_condition": "$body.status.last_met_condition"/]
 // TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.ack.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-25T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.last_execution.timestamp"/]
 
 Now we can acknowledge it:
 
@@ -122,6 +140,7 @@ PUT _xpack/watcher/watch/my_watch/_ack/test_index
 GET _xpack/watcher/watch/my_watch
 --------------------------------------------------
 // CONSOLE
+// TEST[continued]
 
 [source,js]
 --------------------------------------------------
@@ -129,23 +148,36 @@ GET _xpack/watcher/watch/my_watch
   "found": true,
   "_id": "my_watch",
   "status": {
-    "version": 1,
+    "version": 3,
     "actions": {
       "test_index": {
         "ack": {
           "timestamp": "2015-05-26T18:04:27.723Z",
-          "state": "acknowledged"
+          "state": "acked"
+        },
+        "last_execution" : {
+          "timestamp": "2015-05-25T18:04:27.723Z",
+          "successful": true
+        },
+        "last_successful_execution" : {
+          "timestamp": "2015-05-25T18:04:27.723Z",
+          "successful": true
         }
       }
     },
-    "state": ...
+    "state": ...,
+    "last_checked": ...,
+    "last_met_condition": ...
   },
   "watch": ...
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"state": \.\.\./"state": "$body.status.state"/]
 // TESTRESPONSE[s/"watch": \.\.\./"watch": "$body.watch"/]
+// TESTRESPONSE[s/"last_checked": \.\.\./"last_checked": "$body.status.last_checked"/]
+// TESTRESPONSE[s/"last_met_condition": \.\.\./"last_met_condition": "$body.status.last_met_condition"/]
 // TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.ack.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-25T18:04:27.723Z"/"timestamp": "$body.status.actions.test_index.last_execution.timestamp"/]
 
 Acknowledging an action throttles further executions of that action until its
 `ack.state` is reset to `awaits_successful_execution`. This happens when the
@@ -167,58 +199,46 @@ parameter:
 --------------------------------------------------
 POST _xpack/watcher/watch/my_watch/_ack
 --------------------------------------------------
+// TEST[s/^/POST _xpack\/watcher\/watch\/my_watch\/_execute\n{ "record_execution" : true }\n/]
 // CONSOLE
 
-[float]
-==== Timeouts
 
-If you acknowledge a watch while it is executing, the request blocks and waits
-for the watch execution to finish. For some watches, this can take a significant
-amount of time. By default, the acknowledge action has a timeout of 10 seconds.
-You can change the timeout setting by specifying the `master_timeout` parameter.
-
-The following snippet shows how to change the default timeout of the acknowledge
-action to 30 seconds:
-
-[source,js]
---------------------------------------------------
-POST _xpack/watcher/watch/my_watch/_ack?master_timeout=30s
---------------------------------------------------
-// CONSOLE
-
-[float]
-==== Response format
-[source,js]
-
-The response format looks like:
+The response looks like a get watch response, but only contains the status:
 
 [source,js]
 --------------------------------------------------
 {
-   "status": {
-      "last_checked": "2015-05-26T18:21:08.630Z",
-      "last_met_condition": "2015-05-26T18:21:08.630Z",
-      "actions": {
-         "my-action": {
-            "ack_status": {
-               "timestamp": "2015-05-26T18:21:09.982Z",
-               "state": "acked"
-            },
-            "last_execution": {
-               "timestamp": "2015-05-26T18:21:04.106Z",
-               "successful": true
-            },
-            "last_successful_execution": {
-               "timestamp": "2015-05-26T18:21:04.106Z",
-               "successful": true
-            },
-            "last_throttle": {
-               "timestamp": "2015-05-26T18:21:08.630Z",
-               "reason": "throttling interval is set to [5 seconds] but time elapsed since last execution is [4 seconds and 530 milliseconds]"
-            }
-         }
+  "status": {
+    "state": {
+      "active": true,
+      "timestamp": "2015-05-26T18:04:27.723Z"
+    },
+    "last_checked": "2015-05-26T18:04:27.753Z",
+    "last_met_condition": "2015-05-26T18:04:27.763Z",
+    "actions": {
+      "test_index": {
+        "ack" : {
+          "timestamp": "2015-05-26T18:04:27.713Z",
+          "state": "acked"
+        },
+        "last_execution" : {
+          "timestamp": "2015-05-25T18:04:27.733Z",
+          "successful": true
+        },
+        "last_successful_execution" : {
+          "timestamp": "2015-05-25T18:04:27.773Z",
+          "successful": true
+        }
       }
-   }
+    },
+    "version": 2
+  }
 }
+
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"last_checked": "2015-05-26T18:04:27.753Z"/"last_checked": "$body.status.last_checked"/]
+// TESTRESPONSE[s/"last_met_condition": "2015-05-26T18:04:27.763Z"/"last_met_condition": "$body.status.last_met_condition"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.723Z"/"timestamp": "$body.status.state.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-26T18:04:27.713Z"/"timestamp": "$body.status.actions.test_index.ack.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-25T18:04:27.733Z"/"timestamp": "$body.status.actions.test_index.last_execution.timestamp"/]
+// TESTRESPONSE[s/"timestamp": "2015-05-25T18:04:27.773Z"/"timestamp": "$body.status.actions.test_index.last_successful_execution.timestamp"/]

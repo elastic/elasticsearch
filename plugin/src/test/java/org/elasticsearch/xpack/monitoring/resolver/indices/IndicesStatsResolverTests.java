@@ -61,7 +61,7 @@ public class IndicesStatsResolverTests extends MonitoringIndexNameResolverTestCa
         assertThat(resolver.index(doc), equalTo(".monitoring-es-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));
 
         assertSource(resolver.source(doc, XContentType.JSON),
-                Sets.newHashSet("cluster_uuid", "timestamp", "source_node", "indices_stats"), XContentType.JSON);
+                Sets.newHashSet("cluster_uuid", "timestamp", "type", "source_node", "indices_stats"), XContentType.JSON);
     }
 
     /**

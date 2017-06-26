@@ -185,12 +185,12 @@ public class CertificateTool extends EnvironmentAwareCommand {
                 file = resolvePath(input);
             }
         }
-        return file;
+        return file.toAbsolutePath();
     }
 
     @SuppressForbidden(reason = "resolve paths against CWD for a CLI tool")
     private static Path resolvePath(String pathStr) {
-        return PathUtils.get(Strings.cleanPath(pathStr)).toAbsolutePath();
+        return PathUtils.get(pathStr).normalize();
     }
 
     /**
@@ -203,7 +203,7 @@ public class CertificateTool extends EnvironmentAwareCommand {
     static Collection<CertificateInformation> getCertificateInformationList(Terminal terminal, String inputFile)
             throws Exception {
         if (inputFile != null) {
-            return parseFile(resolvePath(inputFile));
+            return parseFile(resolvePath(inputFile).toAbsolutePath());
         }
         Map<String, CertificateInformation> map = new HashMap<>();
         boolean done = false;
@@ -311,7 +311,7 @@ public class CertificateTool extends EnvironmentAwareCommand {
                             Environment env, int keysize, int days) throws Exception {
         if (caCertPath != null) {
             assert caKeyPath != null;
-            final String resolvedCaCertPath = resolvePath(caCertPath).toString();
+            final String resolvedCaCertPath = resolvePath(caCertPath).toAbsolutePath().toString();
             Certificate[] certificates = CertUtils.readCertificates(Collections.singletonList(resolvedCaCertPath), env);
             if (certificates.length != 1) {
                 throw new IllegalArgumentException("expected a single certificate in file [" + caCertPath + "] but found [" +
@@ -613,11 +613,12 @@ public class CertificateTool extends EnvironmentAwareCommand {
             if (validFilename == false) {
                 return new Name(name, principal, null, "[" + filename + "] is not a valid filename");
             }
-            return new Name(name, principal, Strings.cleanPath(filename), null);
+            return new Name(name, principal, resolvePath(filename).toString(), null);
         }
 
         static boolean isValidFilename(String name) {
-            return ALLOWED_FILENAME_CHAR_PATTERN.matcher(Strings.cleanPath(name)).matches()
+            return ALLOWED_FILENAME_CHAR_PATTERN.matcher(name).matches()
+                    && ALLOWED_FILENAME_CHAR_PATTERN.matcher(resolvePath(name).toString()).matches()
                     && name.startsWith(".") == false;
         }
     }

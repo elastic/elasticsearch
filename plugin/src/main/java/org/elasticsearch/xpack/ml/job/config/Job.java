@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -43,7 +43,7 @@ import java.util.concurrent.TimeUnit;
  * data time fields are {@code null} until the job has seen some data or it is
  * finished respectively.
  */
-public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent {
+public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentObject {
 
     public static final String TYPE = "job";
 
@@ -559,7 +559,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         return compatibleTypes;
     }
 
-    public static class Builder implements Writeable, ToXContent  {
+    public static class Builder implements Writeable, ToXContentObject {
 
         private String id;
         private String jobType = ANOMALY_DETECTOR_JOB_TYPE;
@@ -752,6 +752,29 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             return this;
         }
 
+        /**
+         * Return the list of fields that have been set and are invalid to
+         * be set when the job is created e.g. model snapshot Id should not
+         * be set at job creation.
+         * @return List of fields set fields that should not be.
+         */
+        public List<String> invalidCreateTimeSettings() {
+            List<String> invalidCreateValues = new ArrayList<>();
+            if (modelSnapshotId != null) {
+                invalidCreateValues.add(MODEL_SNAPSHOT_ID.getPreferredName());
+            }
+            if (lastDataTime != null) {
+                invalidCreateValues.add(LAST_DATA_TIME.getPreferredName());
+            }
+            if (finishedTime != null) {
+                invalidCreateValues.add(FINISHED_TIME.getPreferredName());
+            }
+            if (createTime != null) {
+                invalidCreateValues.add(CREATE_TIME.getPreferredName());
+            }
+            return invalidCreateValues;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(id);
@@ -908,6 +931,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_DATA_DESCRIPTION));
             }
 
+            checkTimeFieldNotInAnalysisConfig(dataDescription, analysisConfig);
+
             checkValidBackgroundPersistInterval();
             checkValueNotLessThan(0, RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
             checkValueNotLessThan(0, MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
@@ -954,7 +979,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             validateInputFields();
 
             // Creation time is NOT required in user input, hence validated only on build
-            Date createTime = ExceptionsHelper.requireNonNull(this.createTime, CREATE_TIME.getPreferredName());
+            ExceptionsHelper.requireNonNull(createTime, CREATE_TIME.getPreferredName());
 
             if (Strings.isNullOrEmpty(resultsIndexName)) {
                 resultsIndexName = AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
@@ -968,10 +993,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
             return new Job(
                     id, jobType, jobVersion, description, createTime, finishedTime, lastDataTime,
-                    analysisConfig, analysisLimits,
-                    dataDescription, modelPlotConfig, renormalizationWindowDays, backgroundPersistInterval,
-                    modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
-                    resultsIndexName, deleted);
+                    analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
+                    backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings,
+                    modelSnapshotId, resultsIndexName, deleted);
         }
 
         private void checkValidBackgroundPersistInterval() {
@@ -979,6 +1003,12 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 TimeUtils.checkMultiple(backgroundPersistInterval, TimeUnit.SECONDS, BACKGROUND_PERSIST_INTERVAL);
                 checkValueNotLessThan(MIN_BACKGROUND_PERSIST_INTERVAL.getSeconds(), BACKGROUND_PERSIST_INTERVAL.getPreferredName(),
                         backgroundPersistInterval.getSeconds());
+            }
+        }
+
+        static void checkTimeFieldNotInAnalysisConfig(DataDescription dataDescription, AnalysisConfig analysisConfig) {
+            if (analysisConfig.analysisFields().contains(dataDescription.getTimeField())) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG));
             }
         }
     }

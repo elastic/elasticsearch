@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction.Request;
 import org.elasticsearch.xpack.ml.action.util.PageParams;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
-public class GetBucketActionRequestTests extends AbstractStreamableXContentTestCase<GetBucketsAction.Request> {
+public class GetBucketActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
@@ -57,7 +57,7 @@ public class GetBucketActionRequestTests extends AbstractStreamableXContentTestC
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return GetBucketsAction.Request.parseRequest(null, parser);
     }
 

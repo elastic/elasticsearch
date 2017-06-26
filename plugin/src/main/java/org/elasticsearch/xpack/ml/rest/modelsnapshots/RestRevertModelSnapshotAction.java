@@ -30,6 +30,11 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_revert_model_snapshot_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         String snapshotId = restRequest.param(RevertModelSnapshotAction.Request.SNAPSHOT_ID.getPreferredName());

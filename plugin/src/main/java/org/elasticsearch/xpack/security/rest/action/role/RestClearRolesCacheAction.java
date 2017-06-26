@@ -33,6 +33,11 @@ public final class RestClearRolesCacheAction extends SecurityBaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_security_clear_roles_cache_action";
+    }
+
+    @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         String[] roles = request.paramAsStringArrayOrEmptyIfAll("name");
 

@@ -15,14 +15,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.ExportException;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.security.InternalClient;
 
 import java.util.Arrays;
 import java.util.Collection;
-
-import static org.elasticsearch.xpack.monitoring.exporter.Exporter.EXPORT_PIPELINE_NAME;
 
 /**
  * LocalBulk exports monitoring data in the local cluster using bulk requests. Its usage is not thread safe since the
@@ -61,7 +60,7 @@ public class LocalBulk extends ExportBulk {
 
             try {
                 MonitoringIndexNameResolver<MonitoringDoc> resolver = resolvers.getResolver(doc);
-                IndexRequest request = new IndexRequest(resolver.index(doc), doc.getType());
+                IndexRequest request = new IndexRequest(resolver.index(doc), "doc");
                 if (Strings.hasText(doc.getId())) {
                     request.id(doc.getId());
                 }
@@ -69,7 +68,7 @@ public class LocalBulk extends ExportBulk {
 
                 // allow the use of ingest pipelines to be completely optional
                 if (usePipeline) {
-                    request.setPipeline(EXPORT_PIPELINE_NAME);
+                    request.setPipeline(MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION));
                 }
 
                 requestBuilder.add(request);

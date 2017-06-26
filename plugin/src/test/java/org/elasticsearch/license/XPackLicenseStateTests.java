@@ -8,6 +8,7 @@ package org.elasticsearch.license;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.logstash.Logstash;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.hamcrest.Matchers;
 
@@ -289,5 +290,15 @@ public class XPackLicenseStateTests extends ESTestCase {
     public void testMachineLearningInactivePlatinumTrial() throws Exception {
         assertAllowed(TRIAL, false, XPackLicenseState::isMachineLearningAllowed, false);
         assertAllowed(PLATINUM, false, XPackLicenseState::isMachineLearningAllowed, false);
+    }
+
+    public void testLogstashAllowed() {
+        assertAllowed(randomMode(), true, XPackLicenseState::isLogstashAllowed, true);
+        assertAllowed(randomMode(), false, XPackLicenseState::isLogstashAllowed, false);
+    }
+
+    public void testLogstashAckNotBasicToTrial() {
+        OperationMode from = randomFrom(STANDARD, BASIC, GOLD, PLATINUM);
+        assertAckMesssages(Logstash.NAME, from, TRIAL, 1);
     }
 }

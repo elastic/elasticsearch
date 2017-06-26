@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.OpenJobAction.Request;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
 public class OpenJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
@@ -30,7 +30,7 @@ public class OpenJobActionRequestTests extends AbstractStreamableXContentTestCas
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(null, parser);
     }
 }

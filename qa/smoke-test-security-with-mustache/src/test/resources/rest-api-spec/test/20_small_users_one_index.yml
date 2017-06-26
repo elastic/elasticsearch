@@ -74,7 +74,7 @@ teardown:
                   "privileges": ["read", "create"],
                   "query" : {
                     "template" : {
-                      "inline" : {
+                      "source" : {
                         "term" : { "user.username" : "{{_user.username}}" }
                       }
                     }
@@ -142,7 +142,7 @@ teardown:
                   "privileges": ["read", "create"],
                   "query" : {
                     "template" : {
-                      "inline" : {
+                      "source" : {
                         "term" : { "user.metadata.customer_id" : "{{_user.metadata.customer_id}}" }
                       }
                     }

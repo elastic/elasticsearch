@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.notifications;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
 
 import java.util.Date;
@@ -60,7 +60,7 @@ public class AuditMessageTests extends AbstractSerializingTestCase<AuditMessage>
     }
 
     @Override
-    protected AuditMessage parseInstance(XContentParser parser) {
+    protected AuditMessage doParseInstance(XContentParser parser) {
         return AuditMessage.PARSER.apply(parser, null);
     }
 

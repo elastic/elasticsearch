@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.xpack.ml.action.util;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class PageParams extends ToXContentToBytes implements Writeable {
+public class PageParams implements ToXContentObject, Writeable {
 
     public static final ParseField PAGE = new ParseField("page");
     public static final ParseField FROM = new ParseField("from");

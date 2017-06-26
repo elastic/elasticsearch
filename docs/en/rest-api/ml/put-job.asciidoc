@@ -1,22 +1,22 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-put-job]]
-==== Create Jobs
+=== Create Jobs
 
 The create job API enables you to instantiate a job.
 
-===== Request
+==== Request
 
 `PUT _xpack/ml/anomaly_detectors/<job_id>`
 
 //===== Description
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
   (string) Identifier for the job
 
 
-===== Request Body
+==== Request Body
 
 `analysis_config`::
   (object) The analysis configuration, which specifies how to analyze the data.
@@ -43,12 +43,14 @@ The create job API enables you to instantiate a job.
   `.ml-anomalies-shared`.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
-===== Examples
+==== Examples
 
 The following example creates the `it-ops-kpi` job:
 
@@ -93,7 +95,8 @@ When the job is created, you receive the following results:
         "detector_description": "low_sum(events_per_min)",
         "function": "low_sum",
         "field_name": "events_per_min",
-        "detector_rules": []
+        "detector_rules": [],
+        "detector_index": 0
       }
     ],
     "influencers": []

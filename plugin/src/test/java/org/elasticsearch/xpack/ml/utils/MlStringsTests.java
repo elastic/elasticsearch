@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MlStringsTests extends ESTestCase {
     public void testDoubleQuoteIfNotAlphaNumeric() {
@@ -30,5 +32,12 @@ public class MlStringsTests extends ESTestCase {
         assertThat(MlStrings.isValidId("A"), is(false));
         assertThat(MlStrings.isValidId("!afafd"), is(false));
         assertThat(MlStrings.isValidId("_all"), is(false));
+    }
+
+    public void testGetParentField() {
+        assertThat(MlStrings.getParentField(null), is(nullValue()));
+        assertThat(MlStrings.getParentField("foo"), equalTo("foo"));
+        assertThat(MlStrings.getParentField("foo.bar"), equalTo("foo"));
+        assertThat(MlStrings.getParentField("x.y.z"), equalTo("x.y"));
     }
 }

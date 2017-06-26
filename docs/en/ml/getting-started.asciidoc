@@ -59,7 +59,7 @@ When you install {xpack} into {es} and {kib}, the {ml} features are
 enabled by default. If you have multiple nodes in your cluster, you can
 optionally dedicate nodes to specific purposes. If you want to control which
 nodes are _machine learning nodes_ or limit which nodes run resource-intensive
-activity related to jobs, see <<ml-settings>>.
+activity related to jobs, see <<xpack-settings>>.
 
 
 [float]
@@ -315,7 +315,7 @@ analytical task.
 --
 This tutorial uses {kib} to create jobs and view results, but you can
 alternatively use APIs to accomplish most tasks.
-For API reference information, see <<ml-apis>>.
+For API reference information, see {ref}/ml-apis.html[Machine Learning APIs].
 
 The {xpackml} features in {kib} use pop-ups. You must configure your
 web browser so that it does not block pop-up windows or create an
@@ -463,7 +463,7 @@ job is running.
 TIP: The `create_single_metic.sh` script creates a similar job and {dfeed} by
 using the {ml} APIs. You can download that script by clicking
 here: https://download.elastic.co/demos/machine_learning/gettingstarted/create_single_metric.sh[create_single_metric.sh]
-For API reference information, see <<ml-apis>>.
+For API reference information, see {ref}/ml-apis.html[Machine Learning APIs].
 
 [[ml-gs-job1-manage]]
 === Managing Jobs

@@ -18,7 +18,7 @@
             },
             "condition" : {
               "script" : {
-                "inline" : "FOO == 1",
+                "source" : "FOO == 1",
                 "lang" : "painless"
               }
             },

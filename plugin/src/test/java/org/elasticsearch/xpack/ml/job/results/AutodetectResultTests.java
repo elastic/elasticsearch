@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshotTests;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.QuantilesTests;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -22,7 +22,7 @@ import java.util.List;
 public class AutodetectResultTests extends AbstractSerializingTestCase<AutodetectResult> {
 
     @Override
-    protected AutodetectResult parseInstance(XContentParser parser) {
+    protected AutodetectResult doParseInstance(XContentParser parser) {
         return AutodetectResult.PARSER.apply(parser, null);
     }
 

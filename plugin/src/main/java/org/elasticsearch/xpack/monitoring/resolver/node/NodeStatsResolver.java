@@ -28,6 +28,7 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
             // Common information
             "cluster_uuid",
             "timestamp",
+            "type",
             "source_node",
             // Extra information
             "node_stats.node_id",

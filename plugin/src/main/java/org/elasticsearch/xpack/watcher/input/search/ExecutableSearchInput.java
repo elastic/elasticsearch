@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.input.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -21,7 +21,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.support.XContentFilterKeysUtils;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.watch.Payload;
@@ -37,12 +36,12 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
-    private final WatcherClientProxy client;
+    private final Client client;
     private final WatcherSearchTemplateService searchTemplateService;
-    @Nullable private final TimeValue timeout;
+    private final TimeValue timeout;
 
-    public ExecutableSearchInput(SearchInput input, Logger logger, WatcherClientProxy client,
-                                 WatcherSearchTemplateService searchTemplateService, @Nullable TimeValue defaultTimeout) {
+    public ExecutableSearchInput(SearchInput input, Logger logger, Client client,
+                                 WatcherSearchTemplateService searchTemplateService, TimeValue defaultTimeout) {
         super(input, logger);
         this.client = client;
         this.searchTemplateService = searchTemplateService;
@@ -55,7 +54,6 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         try {
             Script template = input.getRequest().getOrCreateTemplate();
             String renderedTemplate = searchTemplateService.renderTemplate(template, ctx, payload);
-            // We need to make a copy, so that we don't modify the original instance that we keep around in a watch:
             request = new WatcherSearchTemplateRequest(input.getRequest(), new BytesArray(renderedTemplate));
             return doExecute(ctx, request);
         } catch (Exception e) {
@@ -69,7 +67,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
             logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().id(), request.getSearchSource().utf8ToString());
         }
 
-        SearchResponse response = client.search(searchTemplateService.toSearchRequest(request), timeout);
+        SearchResponse response = client.search(searchTemplateService.toSearchRequest(request)).actionGet(timeout);
 
         if (logger.isDebugEnabled()) {
             logger.debug("[{}] found [{}] hits", ctx.id(), response.getHits().getTotalHits());

@@ -33,9 +33,3 @@
         index: test_index
 
  - match: { hits.total: 5 }
-
- - do:
-     cluster.health:
-        index: ".monitoring-*" # include monitoring-data-* and monitoring-es-*
-        wait_for_active_shards: 4 # 1 primary and 1 replica each for the two monitoring indices
-        timeout: 25s

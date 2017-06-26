@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.watch;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -74,7 +75,6 @@ import org.elasticsearch.xpack.watcher.input.search.SearchInputFactory;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInputFactory;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
@@ -143,7 +143,7 @@ import static org.mockito.Mockito.mock;
 
 public class WatchTests extends ESTestCase {
     private ScriptService scriptService;
-    private WatcherClientProxy client;
+    private Client client;
     private HttpClient httpClient;
     private EmailService emailService;
     private TextTemplateEngine templateEngine;
@@ -157,7 +157,7 @@ public class WatchTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         scriptService = mock(ScriptService.class);
-        client = mock(WatcherClientProxy.class);
+        client = mock(Client.class);
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
         templateEngine = mock(TextTemplateEngine.class);
@@ -249,15 +249,7 @@ public class WatchTests extends ESTestCase {
         WatchStatus watchStatus = new WatchStatus(new DateTime(clock.millis()), unmodifiableMap(actionsStatuses));
 
         Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, clock);
-        XContentBuilder builder = jsonBuilder().startObject()
-                .startObject("trigger").endObject();
-        if (randomBoolean()) {
-            builder.field("_status", watchStatus);
-        } else {
-            builder.field("status", watchStatus);
-        }
-
-        builder.endObject();
+        XContentBuilder builder = jsonBuilder().startObject().startObject("trigger").endObject().field("status", watchStatus).endObject();
         Watch watch = watchParser.parse("foo", true, builder.bytes(), XContentType.JSON);
         assertThat(watch.status().state().getTimestamp().getMillis(), is(clock.millis()));
         for (ActionWrapper action : actions) {
@@ -354,7 +346,7 @@ public class WatchTests extends ESTestCase {
             builder.field("script", "return true");
         } else {
             builder.startObject("script");
-            builder.field("inline", "return true");
+            builder.field("source", "return true");
             builder.endObject();
         }
         builder.endObject();
@@ -369,7 +361,7 @@ public class WatchTests extends ESTestCase {
             builder.field("script", "return true");
         } else {
             builder.startObject("script");
-            builder.field("inline", "return true");
+            builder.field("source", "return true");
             builder.endObject();
         }
         builder.endObject();
@@ -482,7 +474,7 @@ public class WatchTests extends ESTestCase {
             case SearchTransform.TYPE:
                 SearchTransform transform = new SearchTransform(
                         templateRequest(searchSource()), timeout, timeZone);
-                return new ExecutableSearchTransform(transform, logger, client, searchTemplateService, null);
+                return new ExecutableSearchTransform(transform, logger, client, searchTemplateService, TimeValue.timeValueMinutes(1));
             default: // chain
                 SearchTransform searchTransform = new SearchTransform(
                         templateRequest(searchSource()), timeout, timeZone);
@@ -492,7 +484,7 @@ public class WatchTests extends ESTestCase {
                 return new ExecutableChainTransform(chainTransform, logger, Arrays.<ExecutableTransform>asList(
                         new ExecutableSearchTransform(new SearchTransform(
                                 templateRequest(searchSource()), timeout, timeZone),
-                                logger, client, searchTemplateService, null),
+                                logger, client, searchTemplateService, TimeValue.timeValueMinutes(1)),
                         new ExecutableScriptTransform(new ScriptTransform(mockScript("_script")),
                             logger, scriptService)));
         }
@@ -520,7 +512,7 @@ public class WatchTests extends ESTestCase {
             IndexAction action = new IndexAction("_index", "_type", randomBoolean() ? "123" : null, null, timeout, timeZone);
             list.add(new ActionWrapper("_index_" + randomAlphaOfLength(8), randomThrottler(),
                     AlwaysConditionTests.randomCondition(scriptService),  randomTransform(),
-                    new ExecutableIndexAction(action, logger, client, null)));
+                    new ExecutableIndexAction(action, logger, client, TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30))));
         }
         if (randomBoolean()) {
             HttpRequestTemplate httpRequest = HttpRequestTemplate.builder("test.host", randomIntBetween(8000, 9000))

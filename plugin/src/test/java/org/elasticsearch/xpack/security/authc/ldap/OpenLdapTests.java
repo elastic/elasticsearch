@@ -6,6 +6,8 @@
 package org.elasticsearch.xpack.security.authc.ldap;
 
 import com.unboundid.ldap.sdk.LDAPException;
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +35,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 
 @Network
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1823")
 public class OpenLdapTests extends ESTestCase {
 
     public static final String OPEN_LDAP_URL = "ldaps://54.200.235.244:636";

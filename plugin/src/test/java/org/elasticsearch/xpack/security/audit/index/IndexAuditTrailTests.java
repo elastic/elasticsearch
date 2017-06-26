@@ -42,7 +42,6 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail.Message;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
 import org.elasticsearch.xpack.security.user.SystemUser;
@@ -88,7 +87,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     private static boolean remoteIndexing;
     private static InternalTestCluster remoteCluster;
     private static Settings remoteSettings;
-    private static byte[] systemKey;
 
     private TransportAddress remoteAddress = buildNewFakeTransportAddress();
     private TransportAddress localAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 0);
@@ -103,7 +101,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     @BeforeClass
     public static void configureBeforeClass() {
         remoteIndexing = randomBoolean();
-        systemKey = CryptoService.generateKey();
         if (remoteIndexing == false) {
             remoteSettings = Settings.EMPTY;
         }
@@ -139,7 +136,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         logger.info("--> remote indexing enabled. security enabled: [{}], SSL enabled: [{}], nodes: [{}]", useSecurity, useGeneratedSSL,
                 numNodes);
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(numNodes, useGeneratedSSL, systemKey(), createTempDir(), Scope.SUITE) {
+                new SecuritySettingsSource(numNodes, useGeneratedSSL, createTempDir(), Scope.SUITE) {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 Settings.Builder builder = Settings.builder()
@@ -218,11 +215,6 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
     @Override
     protected Set<String> excludeTemplates() {
         return Collections.singleton(IndexAuditTrail.INDEX_TEMPLATE_NAME);
-    }
-
-    @Override
-    protected byte[] systemKey() {
-        return systemKey;
     }
 
     @Override

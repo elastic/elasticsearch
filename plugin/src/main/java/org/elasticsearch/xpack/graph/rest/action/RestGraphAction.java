@@ -58,16 +58,20 @@ public class RestGraphAction extends XPackRestHandler {
     public RestGraphAction(Settings settings, RestController controller) {
         super(settings);
 
-        // @deprecated Remove in 6.0
-        // NOTE: Old versions did not end with "/_explore"; they were just "/explore"
-        controller.registerWithDeprecatedHandler(GET, "/{index}" + URI_BASE + "/_graph/_explore", this,
-                                                 GET, "/{index}/_graph/explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, "/{index}" + URI_BASE + "/_graph/_explore", this,
-                                                 POST, "/{index}/_graph/explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(GET, "/{index}/{type}" + URI_BASE + "/_graph/_explore", this,
-                                                 GET, "/{index}/{type}/_graph/explore", deprecationLogger);
-        controller.registerWithDeprecatedHandler(POST, "/{index}/{type}" + URI_BASE + "/_graph/_explore", this,
-                                                 POST, "/{index}/{type}/_graph/explore", deprecationLogger);
+        // @deprecated Remove in 7.0
+        controller.registerWithDeprecatedHandler(GET, "/{index}" + URI_BASE + "/graph/_explore", this,
+                                                 GET, "/{index}" + URI_BASE + "/_graph/_explore", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/{index}" + URI_BASE + "/graph/_explore", this,
+                                                 POST, "/{index}" + URI_BASE + "/_graph/_explore", deprecationLogger);
+        controller.registerWithDeprecatedHandler(GET, "/{index}/{type}" + URI_BASE + "/graph/_explore", this,
+                                                 GET, "/{index}/{type}" + URI_BASE + "/_graph/_explore", deprecationLogger);
+        controller.registerWithDeprecatedHandler(POST, "/{index}/{type}" + URI_BASE + "/graph/_explore", this,
+                                                 POST, "/{index}/{type}" + URI_BASE + "/_graph/_explore", deprecationLogger);
+    }
+
+    @Override
+    public String getName() {
+        return "xpack_graph_action";
     }
 
     @Override

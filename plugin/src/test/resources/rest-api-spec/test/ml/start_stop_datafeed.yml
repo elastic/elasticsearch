@@ -8,6 +8,12 @@ setup:
               properties:
                 time:
                   type: date
+                airline:
+                  type: keyword
+                airport:
+                  type: text
+                responsetime:
+                  type: float
 
   - do:
       xpack.ml.put_job:
@@ -18,7 +24,8 @@ setup:
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}],
+                "influencers": ["airport"]
             },
             "data_description" : {
                 "format":"xcontent",
@@ -110,7 +117,7 @@ setup:
           datafeed_id: "start-stop-datafeed-datafeed-1"
           start: 0
     - do:
-        catch: /cannot start datafeed \[start-stop-datafeed-datafeed-1\] because job \[start-stop-datafeed-job\] is not open/
+        catch: /cannot start datafeed \[start-stop-datafeed-datafeed-1\] because job \[start-stop-datafeed-job\] is closed/
         xpack.ml.start_datafeed:
           datafeed_id: "start-stop-datafeed-datafeed-1"
           start: 0
@@ -194,6 +201,41 @@ setup:
         job_id: "start-stop-datafeed-job"
 
   - do:
-      catch: /No node found to start datafeed \[start-stop-datafeed-datafeed-1\].*\[utopia\] does not exist.*/
+      catch: /datafeed \[start-stop-datafeed-datafeed-1] cannot retrieve data because index \[utopia\] does not exist/
       xpack.ml.start_datafeed:
         datafeed_id: "start-stop-datafeed-datafeed-1"
+
+---
+"Test start given field without mappings":
+  - do:
+      xpack.ml.put_job:
+        job_id: start-stop-datafeed-job-field-without-mappings
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count","by_field_name":"airline2"}]
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      xpack.ml.put_datafeed:
+        datafeed_id: start-stop-datafeed-job-field-without-mappings-feed
+        body:  >
+          {
+            "job_id":"start-stop-datafeed-job-field-without-mappings",
+            "indexes":"airline-data",
+            "types":"response"
+          }
+
+  - do:
+      xpack.ml.open_job:
+        job_id: "start-stop-datafeed-job-field-without-mappings"
+
+  - do:
+      catch: /datafeed \[start-stop-datafeed-job-field-without-mappings-feed] cannot retrieve field \[airline2\] because it has no mappings/
+      xpack.ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-job-field-without-mappings-feed"

@@ -1,16 +1,16 @@
-//lcawley: Verified example output 2017-04-11
+[role="xpack"]
 [[ml-post-data]]
-==== Post Data to Jobs
+=== Post Data to Jobs
 
 The post data API enables you to send data to an anomaly detection job for analysis.
 
 
-===== Request
+==== Request
 
 `POST _xpack/ml/anomaly_detectors/<job_id>/_data --data-binary @<data-file.json>`
 
 
-===== Description
+==== Description
 
 The job must have a state of `open` to receive and process the data.
 
@@ -35,13 +35,13 @@ It is not currently possible to post data to multiple jobs using wildcards
 or a comma-separated list.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
 		(string) Identifier for the job
 
 
-===== Request Body
+==== Request Body
 
 `reset_start`::
 		(string) Specifies the start of the bucket resetting range
@@ -50,13 +50,15 @@ or a comma-separated list.
 		(string) Specifies the end of the bucket resetting range
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example posts data from the farequote.json file to the `farequote` job:
 

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -14,6 +13,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -25,7 +25,7 @@ import java.util.Objects;
 /**
  * The description of how searches should be chunked.
  */
-public class ChunkingConfig extends ToXContentToBytes implements Writeable {
+public class ChunkingConfig implements ToXContentObject, Writeable {
 
     public static final ParseField MODE_FIELD = new ParseField("mode");
     public static final ParseField TIME_SPAN_FIELD = new ParseField("time_span");

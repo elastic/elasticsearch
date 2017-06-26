@@ -22,7 +22,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
-import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
@@ -38,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
+import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -288,6 +289,7 @@ public class HttpExporterTests extends ESTestCase {
     public void testCreateResources() {
         final boolean useIngest = randomBoolean();
         final boolean clusterAlertManagement = randomBoolean();
+        final boolean createOldTemplates = randomBoolean();
         final TimeValue templateTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
         final TimeValue pipelineTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
         final TimeValue aliasTimeout = randomFrom(TimeValue.timeValueSeconds(30), null);
@@ -301,6 +303,10 @@ public class HttpExporterTests extends ESTestCase {
 
         if (clusterAlertManagement == false) {
             builder.put("xpack.monitoring.exporters._http.cluster_alerts.management.enabled", false);
+        }
+
+        if (createOldTemplates == false) {
+            builder.put("xpack.monitoring.exporters._http.index.template.create_legacy_templates", false);
         }
 
         if (templateTimeout != null) {
@@ -322,10 +328,6 @@ public class HttpExporterTests extends ESTestCase {
 
         final List<HttpResource> resources = multiResource.getResources();
         final int version = (int)resources.stream().filter((resource) -> resource instanceof VersionHttpResource).count();
-        final List<DataTypeMappingHttpResource> typeMappings =
-                resources.stream().filter((resource) -> resource instanceof DataTypeMappingHttpResource)
-                                  .map(DataTypeMappingHttpResource.class::cast)
-                                  .collect(Collectors.toList());
         final List<TemplateHttpResource> templates =
                 resources.stream().filter((resource) -> resource instanceof TemplateHttpResource)
                                   .map(TemplateHttpResource.class::cast)
@@ -354,11 +356,10 @@ public class HttpExporterTests extends ESTestCase {
 
         // expected number of resources
         assertThat(multiResource.getResources().size(),
-                   equalTo(version + typeMappings.size() + templates.size() + pipelines.size() + watcherCheck.size() + bwc.size()));
+                   equalTo(version + templates.size() + pipelines.size() + watcherCheck.size() + bwc.size()));
         assertThat(version, equalTo(1));
-        assertThat(typeMappings, hasSize(MonitoringTemplateUtils.NEW_DATA_TYPES.length));
-        assertThat(templates, hasSize(6));
-        assertThat(pipelines, hasSize(useIngest ? 1 : 0));
+        assertThat(templates, hasSize(createOldTemplates ? 5 + OLD_TEMPLATE_IDS.length : 5));
+        assertThat(pipelines, hasSize(useIngest ? PIPELINE_IDS.length : 0));
         assertThat(watcherCheck, hasSize(clusterAlertManagement ? 1 : 0));
         assertThat(watches, hasSize(clusterAlertManagement ? ClusterAlertsUtil.WATCH_IDS.length : 0));
         assertThat(bwc, hasSize(1));
@@ -402,7 +403,8 @@ public class HttpExporterTests extends ESTestCase {
         }
 
         if (useIngest) {
-            assertThat(parameters.remove("pipeline"), equalTo(Exporter.EXPORT_PIPELINE_NAME));
+            assertThat(parameters.remove("pipeline"),
+                       equalTo(MonitoringTemplateUtils.pipelineName(MonitoringTemplateUtils.TEMPLATE_VERSION)));
         }
 
         // should have removed everything

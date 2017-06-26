@@ -40,13 +40,13 @@ import java.util.function.BiConsumer;
 /**
  * Registry for the ML index templates and settings
  */
-public class MachineLearningTemplateRegistry  extends AbstractComponent implements ClusterStateListener {
+public class MachineLearningTemplateRegistry extends AbstractComponent implements ClusterStateListener {
     private static final String ASYNC = "async";
 
     private final Client client;
     private final ThreadPool threadPool;
 
-    public static String [] TEMPLATE_NAMES = new String [] {Auditor.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
+    public static final String [] TEMPLATE_NAMES = new String [] {Auditor.NOTIFICATIONS_INDEX, MlMetaIndex.INDEX_NAME,
             AnomalyDetectorsIndex.jobStateIndexName(), AnomalyDetectorsIndex.jobResultsIndexPrefix()};
 
     final AtomicBoolean putMlNotificationsIndexTemplateCheck = new AtomicBoolean(false);

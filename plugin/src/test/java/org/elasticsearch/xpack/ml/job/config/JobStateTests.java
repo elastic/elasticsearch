@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;

@@ -54,6 +54,11 @@ public class RestAckWatchAction extends WatcherRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_watcher_ack_watch_action";
+    }
+
+    @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
         AckWatchRequest ackWatchRequest = new AckWatchRequest(request.param("id"));
         String[] actions = request.paramAsStringArray("actions", null);

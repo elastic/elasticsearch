@@ -1,17 +1,17 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-open-job]]
-==== Open Jobs
+=== Open Jobs
 
 A job must be opened in order for it to be ready to receive and analyze data.
 A job can be opened and closed multiple times throughout its lifecycle.
 
 
-===== Request
+==== Request
 
 `POST _xpack/ml/anomaly_detectors/{job_id}/_open`
 
 
-===== Description
+==== Description
 
 A job must be open in order to it to accept and analyze data.
 
@@ -21,13 +21,13 @@ When you open an existing job, the most recent model state is automatically load
 The job is ready to resume its analysis from where it left off, once new data is received.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
 (string) Identifier for the job
 
 
-===== Request Body
+==== Request Body
 
 `open_timeout`::
   (time) Controls the time to wait until a job has opened.
@@ -38,13 +38,15 @@ The job is ready to resume its analysis from where it left off, once new data is
   last closed is treated as a maintenance window. That is to say, it is not an anomaly
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example opens the `event_rate` job and sets an optional property:
 

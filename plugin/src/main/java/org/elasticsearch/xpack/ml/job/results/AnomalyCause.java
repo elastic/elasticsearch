@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.util.Objects;
  * Anomaly Cause POJO.
  * Used as a nested level inside population anomaly records.
  */
-public class AnomalyCause extends ToXContentToBytes implements Writeable {
+public class AnomalyCause implements ToXContentObject, Writeable {
     public static final ParseField ANOMALY_CAUSE = new ParseField("anomaly_cause");
     /**
      * Result fields

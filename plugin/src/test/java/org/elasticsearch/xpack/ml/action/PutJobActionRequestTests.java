@@ -5,11 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractStreamableXContentTestCase;
 import org.elasticsearch.xpack.ml.action.PutJobAction.Request;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
+import java.io.IOException;
 import java.util.Date;
 
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
@@ -18,11 +23,10 @@ import static org.elasticsearch.xpack.ml.job.config.JobTests.randomValidJobId;
 public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     private final String jobId = randomValidJobId();
-    private final Date date = new Date();
 
     @Override
     protected Request createTestInstance() {
-        Job.Builder jobConfiguration = buildJobBuilder(jobId, date);
+        Job.Builder jobConfiguration = buildJobBuilder(jobId, null);
         return new Request(jobConfiguration);
     }
 
@@ -32,8 +36,17 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser) {
+    protected Request doParseInstance(XContentParser parser) {
         return Request.parseRequest(jobId, parser);
     }
 
+    public void testParseRequest_InvalidCreateSetting() throws IOException {
+        Job.Builder jobConfiguration = buildJobBuilder(jobId, null);
+        jobConfiguration.setLastDataTime(new Date());
+        XContentBuilder xContentBuilder = toXContent(jobConfiguration, XContentType.JSON);
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(NamedXContentRegistry.EMPTY, xContentBuilder.bytes());
+
+        expectThrows(IllegalArgumentException.class, () -> Request.parseRequest(jobId, parser));
+    }
 }

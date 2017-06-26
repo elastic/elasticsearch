@@ -19,12 +19,14 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -32,9 +34,14 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 
 public class WatcherLifeCycleService extends AbstractComponent implements ClusterStateListener {
 
+    // this is the required index.format setting for watcher to start up at all
+    // this index setting is set by the upgrade API or automatically when a 6.0 index template is created
+    private static final int EXPECTED_INDEX_FORMAT_VERSION = 6;
+
     private final WatcherService watcherService;
     private final ClusterService clusterService;
     private final ExecutorService executor;
+    private AtomicReference<List<String>> previousAllocationIds = new AtomicReference<>(Collections.emptyList());
     private volatile WatcherMetaData watcherMetaData;
 
     public WatcherLifeCycleService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
@@ -49,7 +56,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
-                stop();
+                stop("stopping before shutting down");
             }
         });
         watcherMetaData = new WatcherMetaData(!settings.getAsBoolean("xpack.watcher.start_immediately", true));
@@ -59,8 +66,8 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         start(clusterService.state(), true);
     }
 
-    public void stop() {
-        watcherService.stop();
+    public void stop(String reason) {
+        watcherService.stop(reason);
     }
 
     private synchronized void start(ClusterState state, boolean manual) {
@@ -90,8 +97,9 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         }
     }
 
-    /*
-     * TODO possible optimization
+    /**
+     * @param event The event of containing the new cluster state
+     *
      * stop certain parts of watcher, when there are no watcher indices on this node by checking the shardrouting
      * note that this is not easily possible, because of the execute watch api, that needs to be able to execute anywhere!
      * this means, only certain components can be stopped
@@ -113,17 +121,19 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
 
         boolean currentWatcherStopped = watcherMetaData != null && watcherMetaData.manuallyStopped() == true;
         if (currentWatcherStopped) {
-            logger.debug("watcher manually marked to shutdown in cluster state update, shutting down");
-            executor.execute(this::stop);
+            executor.execute(() -> this.stop("watcher manually marked to shutdown in cluster state update, shutting down"));
         } else {
             if (watcherService.state() == WatcherState.STARTED && event.state().nodes().getLocalNode().isDataNode()) {
                 DiscoveryNode localNode = event.state().nodes().getLocalNode();
                 RoutingNode routingNode = event.state().getRoutingNodes().node(localNode.getId());
-                IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX,
-                        event.state().metaData());
-                // no watcher index, time to pause
+                IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
+
+                // no watcher index, time to pause, if we currently have shards here
                 if (watcherIndexMetaData == null) {
-                    executor.execute(watcherService::pauseExecution);
+                    if (previousAllocationIds.get().isEmpty() == false) {
+                        previousAllocationIds.set(Collections.emptyList());
+                        executor.execute(() -> watcherService.pauseExecution("no watcher index found"));
+                    }
                     return;
                 }
 
@@ -132,33 +142,37 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
 
                 // no local shards, empty out watcher and not waste resources!
                 if (localShards.isEmpty()) {
-                    executor.execute(watcherService::pauseExecution);
+                    if (previousAllocationIds.get().isEmpty() == false) {
+                        executor.execute(() -> watcherService.pauseExecution("no local watcher shards"));
+                        previousAllocationIds.set(Collections.emptyList());
+                    }
                     return;
                 }
-
-                List<String> previousAllocationIds = event.previousState().getRoutingNodes().node(localNode.getId())
-                        .shardsWithState(Watch.INDEX, RELOCATING, STARTED).stream()
-                        .map(ShardRouting::allocationId)
-                        .map(AllocationId::getId)
-                        .collect(Collectors.toList());
 
                 List<String> currentAllocationIds = localShards.stream()
                         .map(ShardRouting::allocationId)
                         .map(AllocationId::getId)
                         .collect(Collectors.toList());
+                Collections.sort(currentAllocationIds);
 
-                if (previousAllocationIds.size() == currentAllocationIds.size()) {
-                    // make sure we can compare the created list of allocation ids
-                    Collections.sort(previousAllocationIds);
-                    Collections.sort(currentAllocationIds);
-                    if (previousAllocationIds.equals(currentAllocationIds) == false) {
-                        executor.execute(() -> watcherService.reload(event.state()));
-                    }
-                } else {
-                    executor.execute(() -> watcherService.reload(event.state()));
+                if (previousAllocationIds.get().equals(currentAllocationIds) == false) {
+                    previousAllocationIds.set(currentAllocationIds);
+                    executor.execute(() -> watcherService.reload(event.state(), "different shard allocation ids"));
                 }
             } else if (watcherService.state() != WatcherState.STARTED && watcherService.state() != WatcherState.STARTING) {
-                executor.execute(() -> start(event.state(), false));
+                IndexMetaData watcherIndexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metaData());
+                IndexMetaData triggeredWatchesIndexMetaData = WatchStoreUtils.getConcreteIndex(TriggeredWatchStore.INDEX_NAME,
+                        event.state().metaData());
+                String indexFormatSetting = IndexMetaData.INDEX_FORMAT_SETTING.getKey();
+                boolean isIndexInternalFormatWatchIndex = watcherIndexMetaData == null ||
+                        watcherIndexMetaData.getSettings().getAsInt(indexFormatSetting, 0) == EXPECTED_INDEX_FORMAT_VERSION;
+                boolean isIndexInternalFormatTriggeredWatchIndex = triggeredWatchesIndexMetaData == null ||
+                        triggeredWatchesIndexMetaData.getSettings().getAsInt(indexFormatSetting, 0) == EXPECTED_INDEX_FORMAT_VERSION;
+                if (isIndexInternalFormatTriggeredWatchIndex && isIndexInternalFormatWatchIndex) {
+                    executor.execute(() -> start(event.state(), false));
+                } else {
+                    logger.warn("Not starting watcher, the indices have not been upgraded yet. Please run the Upgrade API");
+                }
             }
         }
     }

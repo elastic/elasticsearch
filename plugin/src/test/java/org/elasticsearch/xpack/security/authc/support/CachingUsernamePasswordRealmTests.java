@@ -5,27 +5,27 @@
  */
 package org.elasticsearch.xpack.security.authc.support;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.user.User;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -185,6 +185,35 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(realm.authInvocationCounter.intValue(), is(2));
     }
 
+    public void testCacheDisabledUser() {
+        AlwaysAuthenticateCachingRealm realm = new AlwaysAuthenticateCachingRealm(globalSettings);
+        realm.setUsersEnabled(false);
+
+        String user = "testUser";
+        SecureString password = new SecureString("password");
+
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, password), future);
+        assertThat(future.actionGet().enabled(), equalTo(false));
+
+        assertThat(realm.authInvocationCounter.intValue(), is(1));
+
+        realm.setUsersEnabled(true);
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, password), future);
+        future.actionGet();
+        assertThat(future.actionGet().enabled(), equalTo(true));
+
+        assertThat(realm.authInvocationCounter.intValue(), is(2));
+
+        future = new PlainActionFuture<>();
+        realm.authenticate(new UsernamePasswordToken(user, password), future);
+        future.actionGet();
+        assertThat(future.actionGet().enabled(), equalTo(true));
+
+        assertThat(realm.authInvocationCounter.intValue(), is(2));
+    }
+
     public void testCacheWithVeryLowTtlExpiresBetweenAuthenticateCalls() throws InterruptedException {
         TimeValue ttl = TimeValue.timeValueNanos(randomIntBetween(10, 100));
         Settings settings = Settings.builder()
@@ -231,19 +260,19 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(realm.authInvocationCounter.intValue(), is(1));
 
         // After 100 ms (from the original start time), authenticate (read from cache). We don't care about the result
-        Thread.sleep(start + 100 - System.currentTimeMillis());
+        sleepUntil(start + 100);
         future = new PlainActionFuture<>();
         realm.authenticate(authToken, future);
         future.actionGet();
 
         // After 200 ms (from the original start time), authenticate (read from cache). We don't care about the result
-        Thread.sleep(start + 200 - System.currentTimeMillis());
+        sleepUntil(start + 200);
         future = new PlainActionFuture<>();
         realm.authenticate(authToken, future);
         future.actionGet();
 
         // After 300 ms (from the original start time), authenticate again. The cache entry should have expired (despite the previous reads)
-        Thread.sleep(start + 300 - System.currentTimeMillis());
+        sleepUntil(start + 300);
         future = new PlainActionFuture<>();
         realm.authenticate(authToken, future);
         final User user2 = future.actionGet();
@@ -251,6 +280,13 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         // Due to slow VMs etc, the cache might have expired more than once during the test, but we can accept that.
         // We have other tests that verify caching works - this test just checks that it expires even when there are repeated reads.
         assertThat(realm.authInvocationCounter.intValue(), greaterThan(1));
+    }
+
+    private void sleepUntil(long until) throws InterruptedException {
+        final long sleep = until - System.currentTimeMillis();
+        if (sleep > 0) {
+            Thread.sleep(sleep);
+        }
     }
 
     public void testAuthenticateContract() throws Exception {
@@ -439,6 +475,8 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         public final AtomicInteger authInvocationCounter = new AtomicInteger(0);
         public final AtomicInteger lookupInvocationCounter = new AtomicInteger(0);
 
+        private boolean usersEnabled = true;
+
         AlwaysAuthenticateCachingRealm(Settings globalSettings) {
             this(new RealmConfig("always-test", Settings.EMPTY, globalSettings, new ThreadContext(Settings.EMPTY)));
         }
@@ -447,10 +485,15 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             super("always", config);
         }
 
+        void setUsersEnabled(boolean usersEnabled) {
+            this.usersEnabled = usersEnabled;
+        }
+
         @Override
         protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
             authInvocationCounter.incrementAndGet();
-            listener.onResponse(new User(token.principal(), new String[] { "testRole1", "testRole2" }));
+            final User user = new User(token.principal(), new String[] { "testRole1", "testRole2" }, null, null, emptyMap(), usersEnabled);
+            listener.onResponse(user);
         }
 
         @Override

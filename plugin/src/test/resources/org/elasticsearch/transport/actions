@@ -16,6 +16,7 @@ cluster:monitor/main
 cluster:monitor/nodes/hot_threads
 cluster:monitor/nodes/info
 cluster:monitor/nodes/stats
+cluster:monitor/nodes/usage
 cluster:monitor/remote/info
 cluster:monitor/state
 cluster:monitor/stats
@@ -118,6 +119,7 @@ cluster:monitor/xpack/ml/job/results/buckets/get
 cluster:monitor/xpack/ml/job/model_snapshots/get
 cluster:monitor/xpack/ml/job/results/records/get
 cluster:monitor/xpack/ml/job/results/influencers/get
+cluster:internal/xpack/ml/datafeed/isolate
 cluster:admin/xpack/ml/datafeeds/preview
 cluster:admin/xpack/ml/datafeeds/put
 cluster:admin/xpack/ml/datafeeds/update
@@ -129,6 +131,7 @@ cluster:admin/xpack/ml/job/model_snapshots/revert
 cluster:admin/xpack/ml/datafeeds/delete
 cluster:admin/xpack/ml/job/data/post
 cluster:admin/xpack/ml/job/close
+cluster:internal/xpack/ml/job/kill/process
 cluster:admin/xpack/ml/filters/put
 cluster:admin/xpack/ml/job/put
 cluster:monitor/xpack/ml/job/get
@@ -149,3 +152,6 @@ cluster:admin/persistent/update_status
 cluster:admin/persistent/remove
 cluster:internal/xpack/ml/job/finalize_job_execution
 cluster:admin/reindex/rethrottle
+indices:data/write/update/byquery
+indices:data/write/delete/byquery
+indices:data/write/reindex

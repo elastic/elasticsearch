@@ -20,15 +20,27 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.DATA_INDEX;
+import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.LAST_UPDATED_VERSION;
+import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.OLD_TEMPLATE_IDS;
+import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.PIPELINE_IDS;
+import static org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils.TEMPLATE_IDS;
+import static org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter.TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING;
+import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.DOES_NOT_EXIST;
+import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.EXISTS;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyMapOf;
 import static org.mockito.Matchers.eq;
@@ -49,21 +61,53 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     private final XPackLicenseState licenseState = mock(XPackLicenseState.class);
     private final boolean remoteClusterHasWatcher = randomBoolean();
     private final boolean validLicense = randomBoolean();
+    private final boolean createOldTemplates = randomBoolean();
 
     /**
      * kibana, logstash, beats
      */
-    private final int EXPECTED_TYPES = MonitoringTemplateUtils.NEW_DATA_TYPES.length;
-    private final int EXPECTED_TEMPLATES = 6;
+    private final int EXPECTED_TEMPLATES = 5 + (createOldTemplates ? OLD_TEMPLATE_IDS.length : 0);
+    private final int EXPECTED_PIPELINES = PIPELINE_IDS.length;
     private final int EXPECTED_WATCHES = 4;
 
     private final RestClient client = mock(RestClient.class);
     private final Response versionResponse = mock(Response.class);
+    private final ResolversRegistry registry = new ResolversRegistry(Settings.EMPTY);
+    private final List<String> templateNames = new ArrayList<>(EXPECTED_TEMPLATES);
+    private final List<String> pipelineNames = new ArrayList<>(EXPECTED_PIPELINES);
+    private final List<String> watchNames = new ArrayList<>(EXPECTED_WATCHES);
+
+    private final Settings exporterSettings = Settings.builder().put(TEMPLATE_CREATE_LEGACY_VERSIONS_SETTING, createOldTemplates).build();
 
     private final MultiHttpResource resources =
             HttpExporter.createResources(
-                    new Exporter.Config("_http", "http", Settings.EMPTY, Settings.EMPTY, clusterService, licenseState),
-                                        new ResolversRegistry(Settings.EMPTY));
+                    new Exporter.Config("_http", "http", Settings.EMPTY, exporterSettings, clusterService, licenseState), registry);
+
+    @Before
+    public void setupResources() {
+        templateNames.addAll(Arrays.stream(TEMPLATE_IDS).map(MonitoringTemplateUtils::templateName).collect(Collectors.toList()));
+
+        // TODO: when resolvers are removed, all templates managed by this loop should be included in the TEMPLATE_IDS above
+        for (final MonitoringIndexNameResolver resolver : registry) {
+            final String templateName = resolver.templateName();
+
+            if (templateNames.contains(templateName) == false) {
+                templateNames.add(templateName);
+            }
+        }
+
+        if (createOldTemplates) {
+            templateNames.addAll(
+                    Arrays.stream(OLD_TEMPLATE_IDS).map(MonitoringTemplateUtils::oldTemplateName).collect(Collectors.toList()));
+        }
+
+        pipelineNames.addAll(Arrays.stream(PIPELINE_IDS).map(MonitoringTemplateUtils::pipelineName).collect(Collectors.toList()));
+        watchNames.addAll(Arrays.stream(ClusterAlertsUtil.WATCH_IDS).map(id -> "my_cluster_uuid_" + id).collect(Collectors.toList()));
+
+        assertThat("Not all templates are supplied", templateNames, hasSize(EXPECTED_TEMPLATES));
+        assertThat("Not all pipelines are supplied", pipelineNames, hasSize(EXPECTED_PIPELINES));
+        assertThat("Not all watches are supplied", watchNames, hasSize(EXPECTED_WATCHES));
+    }
 
     public void testInvalidVersionBlocks() throws IOException {
         final HttpEntity entity = new StringEntity("{\"version\":{\"number\":\"unknown\"}}", ContentType.APPLICATION_JSON);
@@ -80,116 +124,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyNoMoreInteractions(client);
     }
 
-    public void testTypeMappingCheckBlocksAfterSuccessfulVersion() throws IOException {
+    public void testTemplateCheckBlocksAfterSuccessfulVersion() throws IOException {
         final Exception exception = failureGetException();
         final boolean firstSucceeds = randomBoolean();
         int expectedGets = 1;
         int expectedPuts = 0;
 
         whenValidVersionResponse();
-
-        // failure in the middle of various templates being checked/published; suggests a node dropped
-        if (firstSucceeds) {
-            final boolean successfulFirst = randomBoolean();
-            // -2 from one success + a necessary failure after it!
-            final int extraPasses = Math.max(randomIntBetween(0, EXPECTED_TYPES - 2), 0);
-            final int successful = randomIntBetween(0, extraPasses);
-            final int unsuccessful = extraPasses - successful;
-
-            final Response first = successfulFirst ? successfulGetTypeMappingResponse() : unsuccessfulGetTypeMappingResponse();
-
-            final List<Response> otherResponses = getTypeMappingResponses(successful, unsuccessful);
-
-            // last check fails implies that N - 2 publishes succeeded!
-            when(client.performRequest(eq("GET"), startsWith("/" + DATA_INDEX + "/_mapping/"), anyMapOf(String.class, String.class)))
-                    .thenReturn(first, otherResponses.toArray(new Response[otherResponses.size()]))
-                    .thenThrow(exception);
-            whenSuccessfulPutTypeMappings(otherResponses.size() + 1);
-
-            expectedGets += 1 + successful + unsuccessful;
-            expectedPuts = (successfulFirst ? 0 : 1) + unsuccessful;
-        } else {
-            when(client.performRequest(eq("GET"), startsWith("/" + DATA_INDEX + "/_mapping/"), anyMapOf(String.class, String.class)))
-                    .thenThrow(exception);
-        }
-
-        assertTrue(resources.isDirty());
-        assertFalse(resources.checkAndPublish(client));
-        // ensure it didn't magically become not-dirty
-        assertTrue(resources.isDirty());
-
-        verifyVersionCheck();
-        verifyGetTypeMappings(expectedGets);
-        verifyPutTypeMappings(expectedPuts);
-        verifyNoMoreInteractions(client);
-    }
-
-    public void testTypeMappingPublishBlocksAfterSuccessfulVersion() throws IOException {
-        final Exception exception = failurePutException();
-        final boolean firstSucceeds = randomBoolean();
-        int expectedGets = 1;
-        int expectedPuts = 1;
-
-        whenValidVersionResponse();
-
-        // failure in the middle of various templates being checked/published; suggests a node dropped
-        if (firstSucceeds) {
-            final Response firstSuccess = successfulPutResponse();
-            // -2 from one success + a necessary failure after it!
-            final int extraPasses = randomIntBetween(0, EXPECTED_TYPES - 2);
-            final int successful = randomIntBetween(0, extraPasses);
-            final int unsuccessful = extraPasses - successful;
-
-            final List<Response> otherResponses = successfulPutResponses(unsuccessful);
-
-            // first one passes for sure, so we need an extra "unsuccessful" GET
-            whenGetTypeMappingResponse(successful, unsuccessful + 2);
-
-            // previous publishes must have succeeded
-            when(client.performRequest(eq("PUT"),
-                                       startsWith("/" + DATA_INDEX + "/_mapping/"),
-                                       anyMapOf(String.class, String.class),
-                                       any(HttpEntity.class)))
-                    .thenReturn(firstSuccess, otherResponses.toArray(new Response[otherResponses.size()]))
-                    .thenThrow(exception);
-
-            // GETs required for each PUT attempt (first is guaranteed "unsuccessful")
-            expectedGets += successful + unsuccessful + 1;
-            // unsuccessful are PUT attempts + the guaranteed successful PUT (first)
-            expectedPuts += unsuccessful + 1;
-        } else {
-            // fail the check so that it has to attempt the PUT
-            whenGetTypeMappingResponse(0, 1);
-
-            when(client.performRequest(eq("PUT"),
-                                       startsWith("/" + DATA_INDEX + "/_mapping/"),
-                                       anyMapOf(String.class, String.class),
-                                       any(HttpEntity.class)))
-                    .thenThrow(exception);
-        }
-
-        assertTrue(resources.isDirty());
-        assertFalse(resources.checkAndPublish(client));
-        // ensure it didn't magically become not-dirty
-        assertTrue(resources.isDirty());
-
-        verifyVersionCheck();
-        verifyGetTypeMappings(expectedGets);
-        verifyPutTypeMappings(expectedPuts);
-        verifyNoMoreInteractions(client);
-    }
-
-    public void testTemplateCheckBlocksAfterSuccessfulTypeMapping() throws IOException {
-        final int successfulGetTypeMappings = randomIntBetween(0, EXPECTED_TYPES);
-        final int unsuccessfulGetTypeMappings = EXPECTED_TYPES - successfulGetTypeMappings;
-        final Exception exception = failureGetException();
-        final boolean firstSucceeds = randomBoolean();
-        int expectedGets = 1;
-        int expectedPuts = 0;
-
-        whenValidVersionResponse();
-        whenGetTypeMappingResponse(successfulGetTypeMappings, unsuccessfulGetTypeMappings);
-        whenSuccessfulPutTypeMappings(EXPECTED_TYPES);
 
         // failure in the middle of various templates being checked/published; suggests a node dropped
         if (firstSucceeds) {
@@ -198,10 +139,17 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
             final int extraPasses = randomIntBetween(0, EXPECTED_TEMPLATES - 2);
             final int successful = randomIntBetween(0, extraPasses);
             final int unsuccessful = extraPasses - successful;
+            final String templateName = templateNames.get(0);
 
-            final Response first = successfulFirst ? successfulGetResponse() : unsuccessfulGetResponse();
+            final Response first;
 
-            final List<Response> otherResponses = getResponses(successful, unsuccessful);
+            if (successfulFirst) {
+                first = successfulGetResourceResponse("/_template/", templateName);
+            } else {
+                first = unsuccessfulGetResourceResponse("/_template/", templateName);
+            }
+
+            final List<Response> otherResponses = getTemplateResponses(1, successful, unsuccessful);
 
             // last check fails implies that N - 2 publishes succeeded!
             when(client.performRequest(eq("GET"), startsWith("/_template/"), anyMapOf(String.class, String.class)))
@@ -222,24 +170,18 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertTrue(resources.isDirty());
 
         verifyVersionCheck();
-        verifyGetTypeMappings(EXPECTED_TYPES);
-        verifyPutTypeMappings(unsuccessfulGetTypeMappings);
         verifyGetTemplates(expectedGets);
         verifyPutTemplates(expectedPuts);
         verifyNoMoreInteractions(client);
     }
 
-    public void testTemplatePublishBlocksAfterSuccessfulTypeMapping() throws IOException {
-        final int successfulGetTypeMappings = randomIntBetween(0, EXPECTED_TYPES);
-        final int unsuccessfulGetTypeMappings = EXPECTED_TYPES - successfulGetTypeMappings;
+    public void testTemplatePublishBlocksAfterSuccessfulVersion() throws IOException {
         final Exception exception = failurePutException();
         final boolean firstSucceeds = randomBoolean();
         int expectedGets = 1;
         int expectedPuts = 1;
 
         whenValidVersionResponse();
-        whenGetTypeMappingResponse(successfulGetTypeMappings, unsuccessfulGetTypeMappings);
-        whenSuccessfulPutTypeMappings(EXPECTED_TYPES);
 
         // failure in the middle of various templates being checked/published; suggests a node dropped
         if (firstSucceeds) {
@@ -277,29 +219,50 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertTrue(resources.isDirty());
 
         verifyVersionCheck();
-        verifyGetTypeMappings(EXPECTED_TYPES);
-        verifyPutTypeMappings(unsuccessfulGetTypeMappings);
         verifyGetTemplates(expectedGets);
         verifyPutTemplates(expectedPuts);
         verifyNoMoreInteractions(client);
     }
 
     public void testPipelineCheckBlocksAfterSuccessfulTemplates() throws IOException {
-        final int successfulGetTypeMappings = randomIntBetween(0, EXPECTED_TYPES);
-        final int unsuccessfulGetTypeMappings = EXPECTED_TYPES - successfulGetTypeMappings;
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final Exception exception = failureGetException();
+        final boolean firstSucceeds = randomBoolean();
+        int expectedGets = 1;
+        int expectedPuts = 0;
 
         whenValidVersionResponse();
-        whenGetTypeMappingResponse(successfulGetTypeMappings, unsuccessfulGetTypeMappings);
-        whenSuccessfulPutTypeMappings(EXPECTED_TYPES);
         whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
         whenSuccessfulPutTemplates(EXPECTED_TEMPLATES);
 
-        // we only expect a single pipeline for now
-        when(client.performRequest(eq("GET"), startsWith("/_ingest/pipeline/"), anyMapOf(String.class, String.class)))
-                .thenThrow(exception);
+        // failure in the middle of various templates being checked/published; suggests a node dropped
+        if (firstSucceeds) {
+            final boolean successfulFirst = randomBoolean();
+            final String pipelineName = pipelineNames.get(0);
+
+            final Response first;
+
+            if (successfulFirst) {
+                first = successfulGetResourceResponse("/_ingest/pipeline/", pipelineName);
+            } else {
+                first = unsuccessfulGetResourceResponse("/_ingest/pipeline/", pipelineName);
+            }
+
+            // last check fails
+            when(client.performRequest(eq("GET"), startsWith("/_ingest/pipeline/"), anyMapOf(String.class, String.class)))
+                    .thenReturn(first)
+                    .thenThrow(exception);
+            if (successfulFirst == false) {
+                whenSuccessfulPutPipelines(1);
+            }
+
+            expectedGets = EXPECTED_PIPELINES;
+            expectedPuts = successfulFirst ? 0 : 1;
+        } else {
+            when(client.performRequest(eq("GET"), startsWith("/_ingest/pipeline/"), anyMapOf(String.class, String.class)))
+                    .thenThrow(exception);
+        }
 
         assertTrue(resources.isDirty());
         assertFalse(resources.checkAndPublish(client));
@@ -307,36 +270,54 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertTrue(resources.isDirty());
 
         verifyVersionCheck();
-        verifyGetTypeMappings(EXPECTED_TYPES);
-        verifyPutTypeMappings(unsuccessfulGetTypeMappings);
         verifyGetTemplates(EXPECTED_TEMPLATES);
         verifyPutTemplates(unsuccessfulGetTemplates);
-        verifyGetPipelines(1);
-        verifyPutPipelines(0);
+        verifyGetPipelines(expectedGets);
+        verifyPutPipelines(expectedPuts);
         verifyNoMoreInteractions(client);
     }
 
     public void testPipelinePublishBlocksAfterSuccessfulTemplates() throws IOException {
-        final int successfulGetTypeMappings = randomIntBetween(0, EXPECTED_TYPES);
-        final int unsuccessfulGetTypeMappings = EXPECTED_TYPES - successfulGetTypeMappings;
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final Exception exception = failurePutException();
+        final boolean firstSucceeds = randomBoolean();
+        int expectedGets = 1;
+        int expectedPuts = 1;
 
         whenValidVersionResponse();
-        whenGetTypeMappingResponse(successfulGetTypeMappings, unsuccessfulGetTypeMappings);
-        whenSuccessfulPutTypeMappings(EXPECTED_TYPES);
         whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
         whenSuccessfulPutTemplates(EXPECTED_TEMPLATES);
-        // pipeline can't be there
-        whenGetPipelines(0, 1);
 
-        // we only expect a single pipeline for now
-        when(client.performRequest(eq("PUT"),
-                                   startsWith("/_ingest/pipeline/"),
-                                   anyMapOf(String.class, String.class),
-                                   any(HttpEntity.class)))
-                .thenThrow(exception);
+        // failure in the middle of various templates being checked/published; suggests a node dropped
+        if (firstSucceeds) {
+            final Response firstSuccess = successfulPutResponse();
+
+            // We only have two pipelines for now, so the both GETs need to be "unsuccessful" for until we have a third
+            whenGetPipelines(0, 2);
+
+            // previous publishes must have succeeded
+            when(client.performRequest(eq("PUT"),
+                                       startsWith("/_ingest/pipeline/"),
+                                       anyMapOf(String.class, String.class),
+                                       any(HttpEntity.class)))
+                    .thenReturn(firstSuccess)
+                    .thenThrow(exception);
+
+            // GETs required for each PUT attempt (first is guaranteed "unsuccessful")
+            expectedGets += 1;
+            // unsuccessful are PUT attempts
+            expectedPuts += 1;
+        } else {
+            // fail the check so that it has to attempt the PUT
+            whenGetPipelines(0, 1);
+
+            when(client.performRequest(eq("PUT"),
+                                       startsWith("/_ingest/pipeline/"),
+                                       anyMapOf(String.class, String.class),
+                                       any(HttpEntity.class)))
+                    .thenThrow(exception);
+        }
 
         assertTrue(resources.isDirty());
         assertFalse(resources.checkAndPublish(client));
@@ -344,31 +325,25 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertTrue(resources.isDirty());
 
         verifyVersionCheck();
-        verifyGetTypeMappings(EXPECTED_TYPES);
-        verifyPutTypeMappings(unsuccessfulGetTypeMappings);
         verifyGetTemplates(EXPECTED_TEMPLATES);
         verifyPutTemplates(unsuccessfulGetTemplates);
-        verifyGetPipelines(1);
-        verifyPutPipelines(1);
+        verifyGetPipelines(expectedGets);
+        verifyPutPipelines(expectedPuts);
         verifyNoMoreInteractions(client);
     }
 
     public void testWatcherCheckBlocksAfterSuccessfulPipelines() throws IOException {
-        final int successfulGetTypeMappings = randomIntBetween(0, EXPECTED_TYPES);
-        final int unsuccessfulGetTypeMappings = EXPECTED_TYPES - successfulGetTypeMappings;
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
-        final int successfulGetPipelines = randomIntBetween(0, 1);
-        final int unsuccessfulGetPipelines = 1 - successfulGetPipelines;
+        final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);
+        final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
         final Exception exception = failureGetException();
 
         whenValidVersionResponse();
-        whenGetTypeMappingResponse(successfulGetTypeMappings, unsuccessfulGetTypeMappings);
-        whenSuccessfulPutTypeMappings(EXPECTED_TYPES);
         whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
         whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
-        whenSuccessfulPutPipelines(1);
+        whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
         whenSuccessfulBackwardsCompatibilityAliases();
 
         // there's only one check
@@ -380,11 +355,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertTrue(resources.isDirty());
 
         verifyVersionCheck();
-        verifyGetTypeMappings(EXPECTED_TYPES);
-        verifyPutTypeMappings(unsuccessfulGetTypeMappings);
         verifyGetTemplates(EXPECTED_TEMPLATES);
         verifyPutTemplates(unsuccessfulGetTemplates);
-        verifyGetPipelines(1);
+        verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyBackwardsCompatibilityAliases();
         verifyWatcherCheck();
@@ -392,24 +365,20 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testWatchCheckBlocksAfterSuccessfulWatcherCheck() throws IOException {
-        final int successfulGetTypeMappings = randomIntBetween(0, EXPECTED_TYPES);
-        final int unsuccessfulGetTypeMappings = EXPECTED_TYPES - successfulGetTypeMappings;
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
-        final int successfulGetPipelines = randomIntBetween(0, 1);
-        final int unsuccessfulGetPipelines = 1 - successfulGetPipelines;
+        final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);
+        final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
         final Exception exception = validLicense ? failureGetException() : failureDeleteException();
         final boolean firstSucceeds = randomBoolean();
         int expectedGets = 1;
         int expectedPuts = 0;
 
         whenValidVersionResponse();
-        whenGetTypeMappingResponse(successfulGetTypeMappings, unsuccessfulGetTypeMappings);
-        whenSuccessfulPutTypeMappings(EXPECTED_TYPES);
         whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
         whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
-        whenSuccessfulPutPipelines(1);
+        whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
         whenSuccessfulBackwardsCompatibilityAliases();
         whenWatcherCanBeUsed(validLicense);
 
@@ -423,8 +392,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                 final int successful = randomIntBetween(0, extraPasses);
                 final int unsuccessful = extraPasses - successful;
 
-                final Response first = successfulFirst ? successfulGetResponse() : unsuccessfulGetResponse();
-                final List<Response> otherResponses = getResponses(successful, unsuccessful);
+                final String watchId = watchNames.get(0);
+                final Response first = successfulFirst ? successfulGetWatchResponse(watchId) : unsuccessfulGetWatchResponse(watchId);
+                final List<Response> otherResponses = getWatcherResponses(1, successful, unsuccessful);
 
                 // last check fails implies that N - 2 publishes succeeded!
                 when(client.performRequest(eq("GET"), startsWith("/_xpack/watcher/watch/"), anyMapOf(String.class, String.class)))
@@ -462,11 +432,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertTrue(resources.isDirty());
 
         verifyVersionCheck();
-        verifyGetTypeMappings(EXPECTED_TYPES);
-        verifyPutTypeMappings(unsuccessfulGetTypeMappings);
         verifyGetTemplates(EXPECTED_TEMPLATES);
         verifyPutTemplates(unsuccessfulGetTemplates);
-        verifyGetPipelines(1);
+        verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyBackwardsCompatibilityAliases();
         verifyWatcherCheck();
@@ -480,24 +448,20 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testWatchPublishBlocksAfterSuccessfulWatcherCheck() throws IOException {
-        final int successfulGetTypeMappings = randomIntBetween(0, EXPECTED_TYPES);
-        final int unsuccessfulGetTypeMappings = EXPECTED_TYPES - successfulGetTypeMappings;
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
-        final int successfulGetPipelines = randomIntBetween(0, 1);
-        final int unsuccessfulGetPipelines = 1 - successfulGetPipelines;
+        final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);
+        final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
         final Exception exception = failurePutException();
         final boolean firstSucceeds = randomBoolean();
         int expectedGets = 1;
         int expectedPuts = 1;
 
         whenValidVersionResponse();
-        whenGetTypeMappingResponse(successfulGetTypeMappings, unsuccessfulGetTypeMappings);
-        whenSuccessfulPutTypeMappings(EXPECTED_TYPES);
         whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
         whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
-        whenSuccessfulPutPipelines(1);
+        whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
         whenSuccessfulBackwardsCompatibilityAliases();
         // license needs to be valid, otherwise we'll do DELETEs, which are tested earlier
         whenWatcherCanBeUsed(true);
@@ -544,11 +508,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertTrue(resources.isDirty());
 
         verifyVersionCheck();
-        verifyGetTypeMappings(EXPECTED_TYPES);
-        verifyPutTypeMappings(unsuccessfulGetTypeMappings);
         verifyGetTemplates(EXPECTED_TEMPLATES);
         verifyPutTemplates(unsuccessfulGetTemplates);
-        verifyGetPipelines(1);
+        verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyBackwardsCompatibilityAliases();
         verifyWatcherCheck();
@@ -558,22 +520,18 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testSuccessfulChecksOnElectedMasterNode() throws IOException {
-        final int successfulGetTypeMappings = randomIntBetween(0, EXPECTED_TYPES);
-        final int unsuccessfulGetTypeMappings = EXPECTED_TYPES - successfulGetTypeMappings;
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
-        final int successfulGetPipelines = randomIntBetween(0, 1);
-        final int unsuccessfulGetPipelines = 1 - successfulGetPipelines;
+        final int successfulGetPipelines = randomIntBetween(0, EXPECTED_PIPELINES);
+        final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
         final int successfulGetWatches = randomIntBetween(0, EXPECTED_WATCHES);
         final int unsuccessfulGetWatches = EXPECTED_WATCHES - successfulGetWatches;
 
         whenValidVersionResponse();
-        whenGetTypeMappingResponse(successfulGetTypeMappings, unsuccessfulGetTypeMappings);
-        whenSuccessfulPutTypeMappings(EXPECTED_TYPES);
         whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
         whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
-        whenSuccessfulPutPipelines(1);
+        whenSuccessfulPutPipelines(unsuccessfulGetPipelines);
         if (remoteClusterHasWatcher) {
             whenWatcherCanBeUsed(validLicense);
             if (validLicense) {
@@ -594,11 +552,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertFalse(resources.isDirty());
 
         verifyVersionCheck();
-        verifyGetTypeMappings(EXPECTED_TYPES);
-        verifyPutTypeMappings(unsuccessfulGetTypeMappings);
         verifyGetTemplates(EXPECTED_TEMPLATES);
         verifyPutTemplates(unsuccessfulGetTemplates);
-        verifyGetPipelines(1);
+        verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyWatcherCheck();
         if (remoteClusterHasWatcher) {
@@ -622,19 +578,15 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
         final MultiHttpResource resources =
                 HttpExporter.createResources(
-                        new Exporter.Config("_http", "http", Settings.EMPTY, Settings.EMPTY, clusterService, licenseState),
+                        new Exporter.Config("_http", "http", Settings.EMPTY, exporterSettings, clusterService, licenseState),
                         new ResolversRegistry(Settings.EMPTY));
 
-        final int successfulGetTypeMappings = randomIntBetween(0, EXPECTED_TYPES);
-        final int unsuccessfulGetTypeMappings = EXPECTED_TYPES - successfulGetTypeMappings;
         final int successfulGetTemplates = randomIntBetween(0, EXPECTED_TEMPLATES);
         final int unsuccessfulGetTemplates = EXPECTED_TEMPLATES - successfulGetTemplates;
         final int successfulGetPipelines = randomIntBetween(0, 1);
-        final int unsuccessfulGetPipelines = 1 - successfulGetPipelines;
+        final int unsuccessfulGetPipelines = EXPECTED_PIPELINES - successfulGetPipelines;
 
         whenValidVersionResponse();
-        whenGetTypeMappingResponse(successfulGetTypeMappings, unsuccessfulGetTypeMappings);
-        whenSuccessfulPutTypeMappings(EXPECTED_TYPES);
         whenGetTemplates(successfulGetTemplates, unsuccessfulGetTemplates);
         whenSuccessfulPutTemplates(unsuccessfulGetTemplates);
         whenGetPipelines(successfulGetPipelines, unsuccessfulGetPipelines);
@@ -648,11 +600,9 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         assertFalse(resources.isDirty());
 
         verifyVersionCheck();
-        verifyGetTypeMappings(EXPECTED_TYPES);
-        verifyPutTypeMappings(unsuccessfulGetTypeMappings);
         verifyGetTemplates(EXPECTED_TEMPLATES);
         verifyPutTemplates(unsuccessfulGetTemplates);
-        verifyGetPipelines(1);
+        verifyGetPipelines(EXPECTED_PIPELINES);
         verifyPutPipelines(unsuccessfulGetPipelines);
         verifyBackwardsCompatibilityAliases();
         verifyNoMoreInteractions(client);
@@ -676,65 +626,73 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         return randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
     }
 
-    private Response successfulGetResponse() {
-        return response("GET", "/_get_something", successfulCheckStatus());
-    }
-
     private Response unsuccessfulGetResponse() {
         return response("GET", "/_get_something", notFoundCheckStatus());
     }
 
-    private Response successfulGetTypeMappingResponse() {
-        final Response response;
+    private Response successfulGetWatchResponse(final String watchId) {
+        final HttpEntity goodEntity = entityForClusterAlert(EXISTS, LAST_UPDATED_VERSION);
 
+        return response("GET", "/_xpack/watcher/watch/" + watchId, successfulCheckStatus(), goodEntity);
+    }
+    private Response unsuccessfulGetWatchResponse(final String watchId) {
         if (randomBoolean()) {
-            // it returned 200, but we also need it to contain _something_ in the JSON {...}
-            final HttpEntity entity = new StringEntity("{\"" + DATA_INDEX + "\":{}}", ContentType.APPLICATION_JSON);
+            final HttpEntity badEntity = entityForClusterAlert(DOES_NOT_EXIST, LAST_UPDATED_VERSION);
 
-            response = successfulGetResponse();
-
-            when(response.getEntity()).thenReturn(entity);
-        } else {
-            // simulates the index does not exist
-            response = unsuccessfulGetResponse();
+            return response("GET", "/_xpack/watcher/watch/" + watchId, successfulCheckStatus(), badEntity);
         }
 
-        return response;
+        return unsuccessfulGetResponse();
     }
 
-    private Response unsuccessfulGetTypeMappingResponse() {
-        // "unsuccessful" for type mappings is a response code 200, but the response is literally "{}"
-        final Response response = successfulGetResponse();
-        final HttpEntity entity = new StringEntity("{}", ContentType.APPLICATION_JSON);
+    private Response successfulGetResourceResponse(final String resourcePath, final String resourceName) {
+        final HttpEntity goodEntity = entityForResource(EXISTS, resourceName, LAST_UPDATED_VERSION);
 
-        when(response.getEntity()).thenReturn(entity);
-
-        return response;
+        return response("GET", resourcePath + resourceName, successfulCheckStatus(), goodEntity);
     }
 
-    private List<Response> getTypeMappingResponses(final int successful, final int unsuccessful) {
+    private Response unsuccessfulGetResourceResponse(final String resourcePath, final String resourceName) {
+        if (randomBoolean()) {
+            final HttpEntity badEntity = entityForResource(DOES_NOT_EXIST, resourceName, LAST_UPDATED_VERSION);
+
+            return response("GET", resourcePath + resourceName, successfulCheckStatus(), badEntity);
+        }
+
+        return unsuccessfulGetResponse();
+    }
+
+    private List<Response> getResourceResponses(final String resourcePath, final List<String> resourceNames,
+                                                final int skip, final int successful, final int unsuccessful) {
         final List<Response> responses = new ArrayList<>(successful + unsuccessful);
 
         for (int i = 0; i < successful; ++i) {
-            responses.add(successfulGetTypeMappingResponse());
+            responses.add(successfulGetResourceResponse(resourcePath, resourceNames.get(i + skip)));
         }
 
         for (int i = 0; i < unsuccessful; ++i) {
-            responses.add(unsuccessfulGetTypeMappingResponse());
+            responses.add(unsuccessfulGetResourceResponse(resourcePath, resourceNames.get(i + successful + skip)));
         }
 
         return responses;
     }
 
-    private List<Response> getResponses(final int successful, final int unsuccessful) {
+    private List<Response> getTemplateResponses(final int skip, final int successful, final int unsuccessful) {
+        return getResourceResponses("/_template/", templateNames, skip, successful, unsuccessful);
+    }
+
+    private List<Response> getPipelineResponses(final int skip, final int successful, final int unsuccessful) {
+        return getResourceResponses("/_ingest/pipeline/", pipelineNames, skip, successful, unsuccessful);
+    }
+
+    private List<Response> getWatcherResponses(final int skip, final int successful, final int unsuccessful) {
         final List<Response> responses = new ArrayList<>(successful + unsuccessful);
 
         for (int i = 0; i < successful; ++i) {
-            responses.add(successfulGetResponse());
+            responses.add(successfulGetWatchResponse(watchNames.get(i + skip)));
         }
 
         for (int i = 0; i < unsuccessful; ++i) {
-            responses.add(unsuccessfulGetResponse());
+            responses.add(unsuccessfulGetWatchResponse(watchNames.get(i + successful + skip)));
         }
 
         return responses;
@@ -783,37 +741,8 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         when(client.performRequest(eq("GET"), eq("/"), anyMapOf(String.class, String.class))).thenReturn(versionResponse);
     }
 
-    private void whenGetTypeMappingResponse(final int successful, final int unsuccessful) throws IOException {
-        final List<Response> gets = getTypeMappingResponses(successful, unsuccessful);
-
-        if (gets.size() == 1) {
-            when(client.performRequest(eq("GET"), startsWith("/" + DATA_INDEX + "/_mapping"), anyMapOf(String.class, String.class)))
-                    .thenReturn(gets.get(0));
-        } else {
-            when(client.performRequest(eq("GET"), startsWith("/" + DATA_INDEX + "/_mapping"), anyMapOf(String.class, String.class)))
-                    .thenReturn(gets.get(0), gets.subList(1, gets.size()).toArray(new Response[gets.size() - 1]));
-        }
-    }
-
-    private void whenSuccessfulPutTypeMappings(final int successful) throws IOException {
-        final List<Response> successfulPuts = successfulPutResponses(successful);
-
-        // empty is possible if they all exist
-        if (successful == 1) {
-            when(client.performRequest(eq("PUT"),
-                                       startsWith("/" + DATA_INDEX + "/_mapping"),
-                                       anyMapOf(String.class, String.class), any(HttpEntity.class)))
-                    .thenReturn(successfulPuts.get(0));
-        } else if (successful > 1) {
-            when(client.performRequest(eq("PUT"),
-                                       startsWith("/" + DATA_INDEX + "/_mapping"),
-                                       anyMapOf(String.class, String.class), any(HttpEntity.class)))
-                    .thenReturn(successfulPuts.get(0), successfulPuts.subList(1, successful).toArray(new Response[successful - 1]));
-        }
-    }
-
     private void whenGetTemplates(final int successful, final int unsuccessful) throws IOException {
-        final List<Response> gets = getResponses(successful, unsuccessful);
+        final List<Response> gets = getTemplateResponses(0, successful, unsuccessful);
 
         if (gets.size() == 1) {
             when(client.performRequest(eq("GET"), startsWith("/_template/"), anyMapOf(String.class, String.class)))
@@ -838,7 +767,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private void whenGetPipelines(final int successful, final int unsuccessful) throws IOException {
-        final List<Response> gets = getResponses(successful, unsuccessful);
+        final List<Response> gets = getPipelineResponses(0, successful, unsuccessful);
 
         if (gets.size() == 1) {
             when(client.performRequest(eq("GET"), startsWith("/_ingest/pipeline/"), anyMapOf(String.class, String.class)))
@@ -903,7 +832,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     private void whenGetWatches(final int successful, final int unsuccessful) throws IOException {
-        final List<Response> gets = getResponses(successful, unsuccessful);
+        final List<Response> gets = getWatcherResponses(0, successful, unsuccessful);
 
         if (gets.size() == 1) {
             when(client.performRequest(eq("GET"), startsWith("/_xpack/watcher/watch/"), anyMapOf(String.class, String.class)))
@@ -968,18 +897,6 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
 
     private void verifyVersionCheck() throws IOException {
         verify(client).performRequest(eq("GET"), eq("/"), anyMapOf(String.class, String.class));
-    }
-
-    private void verifyGetTypeMappings(final int called) throws IOException {
-        verify(client, times(called))
-                .performRequest(eq("GET"), startsWith("/" + DATA_INDEX + "/_mapping"), anyMapOf(String.class, String.class));
-    }
-
-    private void verifyPutTypeMappings(final int called) throws IOException {
-        verify(client, times(called)).performRequest(eq("PUT"),                                  // method
-                                                     startsWith("/" + DATA_INDEX + "/_mapping"), // endpoint
-                                                     anyMapOf(String.class, String.class),       // parameters (e.g., timeout)
-                                                     any(HttpEntity.class));                     // raw template
     }
 
     private void verifyGetTemplates(final int called) throws IOException {

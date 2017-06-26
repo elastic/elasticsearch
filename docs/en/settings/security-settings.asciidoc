@@ -57,6 +57,25 @@ Set to `false` to prevent document and field level security
 from being configured. Defaults to `true`.
 
 [float]
+[[token-service-settings]]
+=== Token Service Settings
+
+You can set the following token service settings in
+`elasticsearch.yml`.
+
+`xpack.security.authc.token.enabled`::
+Set to `false` to disable the built-in token service. Defaults to `true`.
+
+`xpack.security.authc.token.passphrase`::
+A secure passphrase that must be the same on each node and greater than
+8 characters in length. This passphrase is used to derive a cryptographic key
+with which the tokens will be encrypted and authenticated.
+
+`xpack.security.authc.token.timeout`::
+The length of time that a token is valid for. By default this value is `20m` or
+20 minutes. The maximum value is 1 hour.
+
+[float]
 [[realm-settings]]
 === Realm Settings
 You configure realm settings in the `xpack.security.authc.realms` 
@@ -221,8 +240,8 @@ the filter.  If not set, the user DN is passed into the filter. Defaults to Empt
 
 `unmapped_groups_as_roles`::                
 Takes a boolean variable. When this element is set to `true`, the names of any 
-unmapped LDAP groups are used as role names and assigned to the user. Defaults
-to `false`.
+LDAP groups that are not referenced in a role-mapping _file_ are used as role
+names and assigned to the user. Defaults to `false`.
 
 `files.role_mapping`::               
 The <<security-files-location,location>> for the <<ldap-role-mapping, 
@@ -233,6 +252,10 @@ YAML role mapping configuration file>>. Defaults to
 Boolean value that specifies whether Securityshould follow referrals returned 
 by the LDAP server. Referrals are URLs returned by the server that are to be 
 used to continue the LDAP operation (e.g. search). Defaults to `true`.
+
+`metadata`::
+A list of additional LDAP attributes that should be loaded from the
+LDAP server and stored in the authenticated user's metadata field.
 
 `timeout.tcp_connect`::
 The TCP connect timeout period for establishing an LDAP connection.
@@ -331,12 +354,12 @@ The domain name of Active Directory. The cluster can derive the URL and
 otherwise specified. Required.
 
 `unmapped_groups_as_roles`::                                                         
-Takes a boolean variable. When this element is set to `true`, the names of 
-any unmapped groups and the user's relative distinguished name are used as 
-role names and assigned to the user. Defaults to `false`.
+Takes a boolean variable. When this element is set to `true`, the names of any
+LDAP groups that are not referenced in a role-mapping _file_ are used as role
+names and assigned to the user. Defaults to `false`.
 
 `files.role_mapping`::         
-The <<security-files-location,location>> for the <<ad-role-mapping, YAML 
+The <<security-files-location,location>> for the <<ldap-role-mapping, YAML
 role mapping configuration file>>. Defaults to  `CONFIG_DIR/x-pack/role_mapping.yml`. 
 
 `user_search.base_dn`::        
@@ -383,7 +406,11 @@ Specifies whether the group search should be `sub_tree`, `one_level` or
 `base` specifies that the `base_dn` is a group object, and that it is 
 the only group considered. Defaults to `sub_tree`.
 
-`timeout.tcp_connect`::         
+`metadata`::
+A list of additional LDAP attributes that should be loaded from the
+LDAP server and stored in the authenticated user's metadata field.
+
+`timeout.tcp_connect`::
 The TCP connect timeout period for establishing an LDAP connection.  
 An `s` at the end indicates seconds, or `ms` indicates milliseconds.
 Defaults to `5s` (5 seconds ).

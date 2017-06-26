@@ -1,28 +1,28 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-put-datafeed]]
-==== Create {dfeeds-cap}
+=== Create {dfeeds-cap}
 
 The create {dfeed} API enables you to instantiate a {dfeed}.
 
 
-===== Request
+==== Request
 
 `PUT _xpack/ml/datafeeds/<feed_id>`
 
 
-===== Description
+==== Description
 
 You must create a job before you create a {dfeed}.  You can associate only one
 {dfeed} to each job.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `feed_id` (required)::
   (string) A numerical character string that uniquely identifies the {dfeed}.
 
 
-===== Request Body
+==== Request Body
 
 `aggregations`::
   (object) If set, the {dfeed} performs aggregation searches.
@@ -61,7 +61,7 @@ You must create a job before you create a {dfeed}.  You can associate only one
   (object) Specifies scripts that evaluate custom expressions and returns
   script fields to the {dfeed}.
   The <<ml-detectorconfig,detector configuration objects>> in a job can contain
-  functions that use these script fields. 
+  functions that use these script fields.
   For more information,
   see {ref}/search-request-script-fields.html[Script Fields].
 
@@ -77,12 +77,14 @@ For more information about these properties,
 see <<ml-datafeed-resource>>.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
-===== Examples
+==== Examples
 
 The following example creates the `datafeed-it-ops-kpi` {dfeed}:
 

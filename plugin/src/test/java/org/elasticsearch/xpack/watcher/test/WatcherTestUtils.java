@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -45,7 +46,6 @@ import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.Wid;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 
+import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,9 +70,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import javax.mail.internet.AddressException;
-
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static java.util.Collections.emptyMap;
 import static org.apache.lucene.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -166,12 +164,12 @@ public final class WatcherTestUtils {
 
     public static Watch createTestWatch(String watchName, HttpClient httpClient, EmailService emailService,
                                         WatcherSearchTemplateService searchTemplateService, Logger logger) throws AddressException {
-        WatcherClientProxy client = WatcherClientProxy.of(ESIntegTestCase.client());
+        Client client = ESIntegTestCase.client();
         return createTestWatch(watchName, client, httpClient, emailService, searchTemplateService, logger);
     }
 
 
-    public static Watch createTestWatch(String watchName, WatcherClientProxy client, HttpClient httpClient, EmailService emailService,
+    public static Watch createTestWatch(String watchName, Client client, HttpClient httpClient, EmailService emailService,
                                         WatcherSearchTemplateService searchTemplateService, Logger logger) throws AddressException {
 
         WatcherSearchTemplateRequest transformRequest =
@@ -226,7 +224,7 @@ public final class WatcherTestUtils {
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
                 AlwaysCondition.INSTANCE,
-                new ExecutableSearchTransform(searchTransform, logger, client, searchTemplateService, null),
+                new ExecutableSearchTransform(searchTransform, logger, client, searchTemplateService, TimeValue.timeValueMinutes(1)),
                 new TimeValue(0),
                 actions,
                 metadata,
@@ -239,6 +237,7 @@ public final class WatcherTestUtils {
                 .build();
         Map<String, ScriptContext> contexts = new HashMap<>(ScriptModule.CORE_CONTEXTS);
         contexts.put(Watcher.SCRIPT_EXECUTABLE_CONTEXT.name, Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+        contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         return new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
     }
 

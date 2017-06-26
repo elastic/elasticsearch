@@ -1,23 +1,23 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-get-bucket]]
-==== Get Buckets
+=== Get Buckets
 
 The get bucket API enables you to retrieve job results for one or more buckets.
 
 
-===== Request
+==== Request
 
 `GET _xpack/ml/anomaly_detectors/<job_id>/results/buckets` +
 
 `GET _xpack/ml/anomaly_detectors/<job_id>/results/buckets/<timestamp>`
 
 
-===== Description
+==== Description
 
 This API presents a chronological view of the records, grouped by bucket.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id`::
   (string) Identifier for the job
@@ -28,7 +28,7 @@ This API presents a chronological view of the records, grouped by bucket.
   about all buckets.
 
 
-===== Request Body
+==== Request Body
 
 `anomaly_score`::
   (double) Returns buckets with anomaly scores higher than this value.
@@ -69,16 +69,18 @@ The API returns the following information:
   <<ml-results-buckets,Buckets>>.
 
 
-===== Authorization
+==== Authorization
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
 privileges to use this API. You also need `read` index privilege on the index
 that stores the results. The `machine_learning_admin` and `machine_learning_user`
 roles provide these privileges. For more information, see
-<<security-privileges>> and <<built-in-roles>>.
+{xpack-ref}/security-privileges.html[Security Privileges] and
+{xpack-ref}/built-in-roles.html[Built-in Roles].
+//<<security-privileges>> and <<built-in-roles>>.
 
 
-===== Examples
+==== Examples
 
 The following example gets bucket information for the `it-ops-kpi` job:
 

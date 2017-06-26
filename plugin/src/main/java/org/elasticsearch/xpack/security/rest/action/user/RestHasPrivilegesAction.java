@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.rest.action.user;
 
-import java.io.IOException;
-
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,7 +21,8 @@ import org.elasticsearch.xpack.security.action.user.HasPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
-import org.elasticsearch.xpack.security.user.User;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -44,6 +43,11 @@ public class RestHasPrivilegesAction extends SecurityBaseRestHandler {
         controller.registerHandler(POST, "/_xpack/security/user/{username}/_has_privileges", this);
         controller.registerHandler(GET, "/_xpack/security/user/_has_privileges", this);
         controller.registerHandler(POST, "/_xpack/security/user/_has_privileges", this);
+    }
+
+    @Override
+    public String getName() {
+        return "xpack_security_has_priviledges_action";
     }
 
     @Override

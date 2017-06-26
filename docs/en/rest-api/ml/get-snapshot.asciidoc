@@ -1,11 +1,11 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-get-snapshot]]
-==== Get Model Snapshots
+=== Get Model Snapshots
 
 The get model snapshots API enables you to retrieve information about model snapshots.
 
 
-===== Request
+==== Request
 
 `GET _xpack/ml/anomaly_detectors/<job_id>/model_snapshots` +
 
@@ -13,7 +13,7 @@ The get model snapshots API enables you to retrieve information about model snap
 
 //===== Description
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id`::
   (string) Identifier for the job.
@@ -22,7 +22,7 @@ The get model snapshots API enables you to retrieve information about model snap
   (string) Identifier for the model snapshot. If you do not specify this
   optional parameter, the API returns information about all model snapshots.
 
-===== Request Body
+==== Request Body
 
 `desc`::
   (boolean) If true, the results are sorted in descending order.
@@ -44,7 +44,7 @@ The get model snapshots API enables you to retrieve information about model snap
   (string) Returns snapshots with timestamps after this time.
 
 
-===== Results
+==== Results
 
 The API returns the following information:
 
@@ -53,13 +53,15 @@ The API returns the following information:
   <<ml-snapshot-resource,Model Snapshots>>.
 
 
-===== Authorization
+==== Authorization
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see <<privileges-list-cluster>>.
+privileges to use this API. For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example gets model snapshot information for the
 `it_ops_new_logs` job:

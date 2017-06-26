@@ -168,8 +168,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             @Nullable
             private String assignmentExplanation;
 
-
-            JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobState state,
+            public JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobState state,
                      @Nullable  DiscoveryNode node, @Nullable String assignmentExplanation, @Nullable TimeValue opentime) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
@@ -220,7 +219,15 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                // TODO: Have callers wrap the content with an object as they choose rather than forcing it upon them
                 builder.startObject();
+                {
+                    toUnwrappedXContent(builder);
+                }
+                return builder.endObject();
+            }
+
+            public XContentBuilder toUnwrappedXContent(XContentBuilder builder) throws IOException {
                 builder.field(Job.ID.getPreferredName(), jobId);
                 builder.field(DATA_COUNTS, dataCounts);
                 if (modelSizeStats != null) {
@@ -247,7 +254,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 if (openTime != null) {
                     builder.field("open_time", openTime.getStringRep());
                 }
-                builder.endObject();
                 return builder;
             }
 
@@ -370,9 +376,11 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-            MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
+            MlMetadata clusterMlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
+            MlMetadata mlMetadata = (clusterMlMetadata == null) ? MlMetadata.EMPTY_METADATA : clusterMlMetadata;
+
             if (Job.ALL.equals(request.getJobId())) {
-                request.expandedJobsIds = mlMetadata.getJobs().keySet().stream().collect(Collectors.toList());
+                request.expandedJobsIds = new ArrayList<>(mlMetadata.getJobs().keySet());
             } else {
                 if (mlMetadata.getJobs().containsKey(request.getJobId()) == false) {
                     throw ExceptionsHelper.missingJobException(request.getJobId());
@@ -399,11 +407,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         @Override
         protected QueryPage<Response.JobStats> readTaskResponse(StreamInput in) throws IOException {
             return new QueryPage<>(in, Response.JobStats::new);
-        }
-
-        @Override
-        protected boolean accumulateExceptions() {
-            return true;
         }
 
         @Override

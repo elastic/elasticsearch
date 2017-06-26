@@ -6,12 +6,12 @@
 package org.elasticsearch.xpack.security;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -20,7 +20,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.XPackFeatureSet;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 
@@ -51,13 +49,12 @@ public class SecurityFeatureSet implements XPackFeatureSet {
     private final NativeRoleMappingStore roleMappingStore;
     @Nullable
     private final IPFilter ipFilter;
-    private final boolean systemKeyUsed;
 
     @Inject
     public SecurityFeatureSet(Settings settings, @Nullable XPackLicenseState licenseState,
                               @Nullable Realms realms, @Nullable CompositeRolesStore rolesStore,
                               @Nullable NativeRoleMappingStore roleMappingStore,
-                              @Nullable IPFilter ipFilter, Environment environment) {
+                              @Nullable IPFilter ipFilter) {
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         this.licenseState = licenseState;
         this.realms = realms;
@@ -65,7 +62,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         this.roleMappingStore = roleMappingStore;
         this.settings = settings;
         this.ipFilter = ipFilter;
-        this.systemKeyUsed = enabled && Files.exists(CryptoService.resolveSystemKey(environment));
     }
 
     @Override
@@ -99,7 +95,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         Map<String, Object> sslUsage = sslUsage(settings);
         Map<String, Object> auditUsage = auditUsage(settings);
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
-        Map<String, Object> systemKeyUsage = systemKeyUsage();
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
 
         final AtomicReference<Map<String, Object>> rolesUsageRef = new AtomicReference<>();
@@ -109,7 +104,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
             if (countDown.countDown()) {
                 listener.onResponse(new Usage(available(), enabled(), realmsUsage,
                         rolesUsageRef.get(), roleMappingUsageRef.get(),
-                        sslUsage, auditUsage, ipFilterUsage, systemKeyUsage, anonymousUsage));
+                        sslUsage, auditUsage, ipFilterUsage, anonymousUsage));
             }
         };
 
@@ -163,11 +158,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         return ipFilter.usageStats();
     }
 
-    Map<String, Object> systemKeyUsage() {
-        // we can piggy back on the encryption enabled method as it is only enabled if there is a system key
-        return singletonMap("enabled", systemKeyUsed);
-    }
-
     public static class Usage extends XPackFeatureSet.Usage {
 
         private static final String REALMS_XFIELD = "realms";
@@ -176,7 +166,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         private static final String SSL_XFIELD = "ssl";
         private static final String AUDIT_XFIELD = "audit";
         private static final String IP_FILTER_XFIELD = "ipfilter";
-        private static final String SYSTEM_KEY_XFIELD = "system_key";
         private static final String ANONYMOUS_XFIELD = "anonymous";
 
         private Map<String, Object> realmsUsage;
@@ -184,7 +173,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         private Map<String, Object> sslUsage;
         private Map<String, Object> auditUsage;
         private Map<String, Object> ipFilterUsage;
-        private Map<String, Object> systemKeyUsage;
         private Map<String, Object> anonymousUsage;
         private Map<String, Object> roleMappingStoreUsage;
 
@@ -195,7 +183,10 @@ public class SecurityFeatureSet implements XPackFeatureSet {
             sslUsage = in.readMap();
             auditUsage = in.readMap();
             ipFilterUsage = in.readMap();
-            systemKeyUsage = in.readMap();
+            if (in.getVersion().before(Version.V_6_0_0_alpha3)) {
+                // system key has been removed but older send its usage, so read the map and ignore
+                in.readMap();
+            }
             anonymousUsage = in.readMap();
             roleMappingStoreUsage = in.readMap();
         }
@@ -203,8 +194,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         public Usage(boolean available, boolean enabled, Map<String, Object> realmsUsage,
                      Map<String, Object> rolesStoreUsage, Map<String, Object> roleMappingStoreUsage,
                      Map<String, Object> sslUsage, Map<String, Object> auditUsage,
-                     Map<String, Object> ipFilterUsage, Map<String, Object> systemKeyUsage,
-                     Map<String, Object> anonymousUsage) {
+                     Map<String, Object> ipFilterUsage, Map<String, Object> anonymousUsage) {
             super(XPackPlugin.SECURITY, available, enabled);
             this.realmsUsage = realmsUsage;
             this.rolesStoreUsage = rolesStoreUsage;
@@ -212,7 +202,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
             this.sslUsage = sslUsage;
             this.auditUsage = auditUsage;
             this.ipFilterUsage = ipFilterUsage;
-            this.systemKeyUsage = systemKeyUsage;
             this.anonymousUsage = anonymousUsage;
         }
 
@@ -224,7 +213,10 @@ public class SecurityFeatureSet implements XPackFeatureSet {
             out.writeMap(sslUsage);
             out.writeMap(auditUsage);
             out.writeMap(ipFilterUsage);
-            out.writeMap(systemKeyUsage);
+            if (out.getVersion().before(Version.V_6_0_0_alpha3)) {
+                // system key has been removed but older versions still expected it so send a empty map
+                out.writeMap(Collections.emptyMap());
+            }
             out.writeMap(anonymousUsage);
             out.writeMap(roleMappingStoreUsage);
         }
@@ -239,7 +231,6 @@ public class SecurityFeatureSet implements XPackFeatureSet {
                 builder.field(SSL_XFIELD, sslUsage);
                 builder.field(AUDIT_XFIELD, auditUsage);
                 builder.field(IP_FILTER_XFIELD, ipFilterUsage);
-                builder.field(SYSTEM_KEY_XFIELD, systemKeyUsage);
                 builder.field(ANONYMOUS_XFIELD, anonymousUsage);
             }
         }

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.config.JobUpdate;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriterFactory;
 
@@ -40,6 +42,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -51,28 +54,32 @@ public class AutodetectCommunicator implements Closeable {
 
     private final Job job;
     private final JobTask jobTask;
-    private final DataCountsReporter dataCountsReporter;
     private final AutodetectProcess autodetectProcess;
+    private final StateStreamer stateStreamer;
+    private final DataCountsReporter dataCountsReporter;
     private final AutoDetectResultProcessor autoDetectResultProcessor;
-    private final Consumer<Exception> handler;
+    private final Consumer<Exception> onFinishHandler;
     private final ExecutorService autodetectWorkerExecutor;
     private final NamedXContentRegistry xContentRegistry;
     private volatile boolean processKilled;
 
-    AutodetectCommunicator(Job job, JobTask jobTask, AutodetectProcess process, DataCountsReporter dataCountsReporter,
-                           AutoDetectResultProcessor autoDetectResultProcessor, Consumer<Exception> handler,
-                           NamedXContentRegistry xContentRegistry, ExecutorService autodetectWorkerExecutor) {
+    AutodetectCommunicator(Job job, JobTask jobTask, AutodetectProcess process, StateStreamer stateStreamer,
+                           DataCountsReporter dataCountsReporter, AutoDetectResultProcessor autoDetectResultProcessor,
+                           Consumer<Exception> onFinishHandler, NamedXContentRegistry xContentRegistry,
+                           ExecutorService autodetectWorkerExecutor) {
         this.job = job;
         this.jobTask = jobTask;
         this.autodetectProcess = process;
+        this.stateStreamer = stateStreamer;
         this.dataCountsReporter = dataCountsReporter;
         this.autoDetectResultProcessor = autoDetectResultProcessor;
-        this.handler = handler;
+        this.onFinishHandler = onFinishHandler;
         this.xContentRegistry = xContentRegistry;
         this.autodetectWorkerExecutor = autodetectWorkerExecutor;
     }
 
-    public void writeJobInputHeader() throws IOException {
+    public void init(ModelSnapshot modelSnapshot) throws IOException {
+        autodetectProcess.restoreState(stateStreamer, modelSnapshot);
         createProcessWriter(Optional.empty()).writeHeader();
     }
 
@@ -124,14 +131,19 @@ public class AutodetectCommunicator implements Closeable {
      * @param restart   Whether the job should be restarted by persistent tasks
      * @param reason    The reason for closing the job
      */
-    public void close(boolean restart, String reason) throws IOException {
+    public void close(boolean restart, String reason) {
         Future<?> future = autodetectWorkerExecutor.submit(() -> {
             checkProcessIsAlive();
             try {
-                autodetectProcess.close();
+                if (autodetectProcess.isReady()) {
+                    autodetectProcess.close();
+                } else {
+                    killProcess(false, false);
+                    stateStreamer.cancel();
+                }
                 autoDetectResultProcessor.awaitCompletion();
             } finally {
-                handler.accept(restart ? new ElasticsearchException(reason) : null);
+                onFinishHandler.accept(restart ? new ElasticsearchException(reason) : null);
             }
             LOGGER.info("[{}] job closed", job.getId());
             return null;
@@ -146,10 +158,25 @@ public class AutodetectCommunicator implements Closeable {
         }
     }
 
-    public void killProcess() throws IOException {
-        processKilled = true;
-        autoDetectResultProcessor.setProcessKilled();
-        autodetectProcess.kill();
+    public void killProcess(boolean awaitCompletion, boolean finish) throws IOException {
+        try {
+            processKilled = true;
+            autoDetectResultProcessor.setProcessKilled();
+            autodetectProcess.kill();
+            autodetectWorkerExecutor.shutdown();
+
+            if (awaitCompletion) {
+                try {
+                    autoDetectResultProcessor.awaitCompletion();
+                } catch (TimeoutException e) {
+                    LOGGER.warn(new ParameterizedMessage("[{}] Timed out waiting for killed job", job.getId()), e);
+                }
+            }
+        } finally {
+            if (finish) {
+                onFinishHandler.accept(null);
+            }
+        }
     }
 
     public void writeUpdateProcessMessage(ModelPlotConfig config, List<JobUpdate.DetectorUpdate> updates,
@@ -161,7 +188,7 @@ public class AutodetectCommunicator implements Closeable {
             if (updates != null) {
                 for (JobUpdate.DetectorUpdate update : updates) {
                     if (update.getRules() != null) {
-                        autodetectProcess.writeUpdateDetectorRulesMessage(update.getIndex(), update.getRules());
+                        autodetectProcess.writeUpdateDetectorRulesMessage(update.getDetectorIndex(), update.getRules());
                     }
                 }
             }

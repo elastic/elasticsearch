@@ -13,18 +13,19 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,7 +45,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     @Override
-    protected Job parseInstance(XContentParser parser) {
+    protected Job doParseInstance(XContentParser parser) {
         return Job.PARSER.apply(parser, null).build();
     }
 
@@ -179,13 +180,13 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         Detector.Builder d1 = new Detector.Builder("max", "field");
         d1.setByFieldName("by_field");
 
-        Detector.Builder d2 = new Detector.Builder("metric", "field2");
+        Detector.Builder d2 = new Detector.Builder("median", "field2");
         d2.setOverFieldName("over_field");
 
         AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
         ac.setSummaryCountFieldName("agg");
 
-        List<String> analysisFields = ac.build().analysisFields();
+        Set<String> analysisFields = ac.build().analysisFields();
         assertTrue(analysisFields.size() == 5);
 
         assertTrue(analysisFields.contains("agg"));
@@ -195,8 +196,8 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertTrue(analysisFields.contains("over_field"));
 
         assertFalse(analysisFields.contains("max"));
+        assertFalse(analysisFields.contains("median"));
         assertFalse(analysisFields.contains(""));
-        assertFalse(analysisFields.contains(null));
 
         Detector.Builder d3 = new Detector.Builder("count", null);
         d3.setByFieldName("by2");
@@ -216,14 +217,14 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         assertFalse(analysisFields.contains("count"));
         assertFalse(analysisFields.contains("max"));
+        assertFalse(analysisFields.contains("median"));
         assertFalse(analysisFields.contains(""));
-        assertFalse(analysisFields.contains(null));
     }
 
     // JobConfigurationVerifierTests:
 
     public void testCopyConstructor() {
-        for (int i = 0; i < NUMBER_OF_TESTQUERIES; i++) {
+        for (int i = 0; i < NUMBER_OF_TEST_RUNS; i++) {
             Job job = createTestInstance();
             Job copy = new Job.Builder(job).build();
             assertEquals(job, copy);
@@ -233,7 +234,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testCheckValidId_IdTooLong()  {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setId("averyveryveryaveryveryveryaveryveryveryaveryveryveryaveryveryveryaveryveryverylongid");
-        expectThrows(IllegalArgumentException.class, () -> builder.build());
+        expectThrows(IllegalArgumentException.class, builder::build);
     }
 
     public void testCheckValidId_GivenAllValidChars() {
@@ -356,7 +357,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testBuilder_withInvalidIndexNameThrows() {
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsIndexName("_bad^name");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertEquals(Messages.getMessage(Messages.INVALID_ID, Job.RESULTS_INDEX_NAME.getPreferredName(), "_bad^name"), e.getMessage());
     }
 
@@ -374,10 +375,11 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertThat(job.getJobVersion(), is(nullValue()));
 
         // Assert parsing a job without version works as expected
-        XContentBuilder xContentBuilder = toXContent(job, randomFrom(XContentType.values()));
-        try (XContentParser parser = XContentFactory.xContent(xContentBuilder.bytes())
-                .createParser(NAMED_X_CONTENT_REGISTRY, xContentBuilder.bytes())) {
-            Job parsed = Job.PARSER.apply(parser, null).build();
+        XContentType xContentType = randomFrom(XContentType.values());
+        XContentBuilder xContentBuilder = toXContent(job, xContentType);
+
+        try(XContentParser parser = createParser(XContentFactory.xContent(xContentType), xContentBuilder.bytes())) {
+            Job parsed = parseInstance(parser);
             assertThat(parsed, equalTo(job));
         }
     }
@@ -388,6 +390,19 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertThat(e.getMessage(), equalTo("A data_description must be set"));
+    }
+
+    public void testBuilder_givenTimeFieldInAnalysisConfig() {
+        DataDescription.Builder dataDescriptionBuilder = new DataDescription.Builder();
+        // field name used here matches what's in createAnalysisConfig()
+        dataDescriptionBuilder.setTimeField("client");
+
+        Job.Builder jobBuilder = new Job.Builder("time-field-in-analysis-config");
+        jobBuilder.setAnalysisConfig(createAnalysisConfig());
+        jobBuilder.setDataDescription(dataDescriptionBuilder);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, jobBuilder::build);
+        assertThat(e.getMessage(), equalTo(Messages.getMessage(Messages.JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG)));
     }
 
     public void testGetCompatibleJobTypes_givenVersionBefore_V_5_4() {
@@ -401,6 +416,24 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertThat(Job.getCompatibleJobTypes(Version.V_5_4_0).size(), equalTo(1));
         assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0), contains(Job.ANOMALY_DETECTOR_JOB_TYPE));
         assertThat(Job.getCompatibleJobTypes(Version.V_5_5_0).size(), equalTo(1));
+    }
+
+    public void testInvalidCreateTimeSettings() {
+        Job.Builder builder = new Job.Builder("invalid-settings");
+        builder.setModelSnapshotId("snapshot-foo");
+        assertEquals(Collections.singletonList(Job.MODEL_SNAPSHOT_ID.getPreferredName()), builder.invalidCreateTimeSettings());
+
+        builder.setCreateTime(new Date());
+        builder.setFinishedTime(new Date());
+        builder.setLastDataTime(new Date());
+
+        Set<String> expected = new HashSet();
+        expected.add(Job.CREATE_TIME.getPreferredName());
+        expected.add(Job.FINISHED_TIME.getPreferredName());
+        expected.add(Job.LAST_DATA_TIME.getPreferredName());
+        expected.add(Job.MODEL_SNAPSHOT_ID.getPreferredName());
+
+        assertEquals(expected, new HashSet<>(builder.invalidCreateTimeSettings()));
     }
 
     public static Job.Builder buildJobBuilder(String id, Date date) {
@@ -426,8 +459,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         Detector.Builder d1 = new Detector.Builder("info_content", "domain");
         d1.setOverFieldName("client");
         Detector.Builder d2 = new Detector.Builder("min", "field");
-        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
-        return ac;
+        return new AnalysisConfig.Builder(Arrays.asList(d1.build(), d2.build()));
     }
 
     public static Job createRandomizedJob() {

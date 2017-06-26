@@ -34,7 +34,6 @@ public class NodeStatsCollectorTests extends AbstractCollectorTestCase {
     public void testNodeStatsCollector() throws Exception {
         String[] nodes = internalCluster().getNodeNames();
         for (String node : nodes) {
-            logger.info("--> collecting node stats on node [{}]", node);
             Collection<MonitoringDoc> results = newNodeStatsCollector(node).doCollect();
             assertThat(results, hasSize(1));
 

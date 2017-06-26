@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -88,7 +88,7 @@ public class AnomalyCauseTests extends AbstractSerializingTestCase<AnomalyCause>
     }
 
     @Override
-    protected AnomalyCause parseInstance(XContentParser parser) {
+    protected AnomalyCause doParseInstance(XContentParser parser) {
         return AnomalyCause.PARSER.apply(parser, null);
     }
 

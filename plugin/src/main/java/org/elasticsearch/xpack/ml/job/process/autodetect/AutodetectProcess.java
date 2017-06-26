@@ -7,9 +7,10 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
-import org.elasticsearch.xpack.ml.job.process.NativeController;
+import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.io.Closeable;
@@ -22,6 +23,19 @@ import java.util.List;
  * Interface representing the native C++ autodetect process
  */
 public interface AutodetectProcess extends Closeable {
+
+    /**
+     * Restore state from the given {@link ModelSnapshot}
+     * @param stateStreamer the streamer of the job state
+     * @param modelSnapshot the model snapshot to restore
+     */
+    void restoreState(StateStreamer stateStreamer, ModelSnapshot modelSnapshot);
+
+    /**
+     * Is the process ready to receive data?
+     * @return {@code true} if the process is ready to receive data
+     */
+    boolean isReady();
 
     /**
      * Write the record to autodetect. The record parameter should not be encoded

@@ -7,13 +7,17 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
+import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
+import org.elasticsearch.xpack.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.job.results.AutodetectResult;
 
 import java.io.IOException;
 import java.time.ZonedDateTime;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -31,12 +35,23 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
     private static final String FLUSH_ID = "flush-1";
 
+    private final String jobId;
     private final ZonedDateTime startTime;
     private final BlockingQueue<AutodetectResult> results = new LinkedBlockingDeque<>();
     private volatile boolean open = true;
 
-    public BlackHoleAutodetectProcess() {
+    public BlackHoleAutodetectProcess(String jobId) {
+        this.jobId = jobId;
         startTime = ZonedDateTime.now();
+    }
+
+    @Override
+    public void restoreState(StateStreamer stateStreamer, ModelSnapshot modelSnapshot) {
+    }
+
+    @Override
+    public boolean isReady() {
+        return true;
     }
 
     @Override
@@ -74,7 +89,12 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
     @Override
     public void close() throws IOException {
-        open = false;
+        if (open) {
+            Quantiles quantiles = new Quantiles(jobId, new Date(), "black hole quantiles");
+            AutodetectResult result = new AutodetectResult(null, null, null, quantiles, null, null, null, null, null);
+            results.add(result);
+            open = false;
+        }
     }
 
     @Override
@@ -95,10 +115,11 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
                     while (open) {
                         result = results.poll(100, TimeUnit.MILLISECONDS);
                         if (result != null) {
-                            break;
+                            return true;
                         }
                     }
-                    return open;
+                    result = results.poll();
+                    return result != null;
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return false;

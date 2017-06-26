@@ -1,15 +1,15 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-revert-snapshot]]
-==== Revert Model Snapshots
+=== Revert Model Snapshots
 
 The revert model snapshot API enables you to revert to a specific snapshot.
 
-===== Request
+==== Request
 
 `POST _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>/_revert`
 
 
-===== Description
+==== Description
 
 The {ml} feature in {xpack} reacts quickly to anomalous input, learning new behaviors in data.
 Highly anomalous input increases the variance in the models whilst the system learns
@@ -49,7 +49,7 @@ Model size (in bytes) is available as part of the Job Resource Model Size Stats.
 IMPORTANT: Before you revert to a saved snapshot, you must close the job.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
   (string) Identifier for the job
@@ -57,7 +57,7 @@ IMPORTANT: Before you revert to a saved snapshot, you must close the job.
 `snapshot_id` (required)::
   (string) Identifier for the model snapshot
 
-===== Request Body
+==== Request Body
 
 `delete_intervening_results`::
   (boolean) If true, deletes the results in the time period between the
@@ -69,13 +69,15 @@ the job will not accept input data that is older than the current time.
 If you want to resend data, then delete the intervening results.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example reverts to the `1491856080` snapshot for the
 `it_ops_new_kpi` job:

@@ -11,6 +11,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -18,10 +20,13 @@ import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.junit.After;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -118,7 +123,7 @@ public class MlJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"job_id\":\"given-multiple-jobs-job-3\""));
     }
 
-    private Response createFarequoteJob(String jobId) throws Exception {
+    private Response createFarequoteJob(String jobId) throws IOException {
         String job = "{\n" + "    \"description\":\"Analysis of response time by airline\",\n"
                 + "    \"analysis_config\" : {\n" + "        \"bucket_span\": \"3600s\",\n"
                 + "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
@@ -180,10 +185,14 @@ public class MlJobIT extends ESRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
         String responseAsString = responseEntityToString(response);
 
-        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName)
-                + "\":{\"aliases\":{\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId1)
-                + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId1 + "\",\"boost\":1.0}}}},\"" +
-                AnomalyDetectorsIndex.jobResultsAliasedName(jobId2)));
+        assertThat(responseAsString,
+                containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName("custom-" + indexName) + "\":{\"aliases\":{"));
+        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId1)
+                + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId1 + "\",\"boost\":1.0}}}}"));
+        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId1) + "\":{}"));
+        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId2)
+                + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId2 + "\",\"boost\":1.0}}}}"));
+        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId2) + "\":{}"));
 
         response = client().performRequest("get", "_cat/indices");
         assertEquals(200, response.getStatusLine().getStatusCode());
@@ -415,20 +424,24 @@ public class MlJobIT extends ESRestTestCase {
                 client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
     }
 
-    public void testDeleteJobAfterMissingAlias() throws Exception {
+    public void testDeleteJobAfterMissingAliases() throws Exception {
         String jobId = "delete-job-after-missing-alias-job";
-        String aliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
+        String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
         String indexName = AnomalyDetectorsIndex.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndex.RESULTS_INDEX_DEFAULT;
         createFarequoteJob(jobId);
 
         Response response = client().performRequest("get", "_cat/aliases");
         assertEquals(200, response.getStatusLine().getStatusCode());
         String responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString(aliasName));
+        assertThat(responseAsString, containsString(readAliasName));
+        assertThat(responseAsString, containsString(writeAliasName));
 
-        // Manually delete the alias so that we can test that deletion proceeds
+        // Manually delete the aliases so that we can test that deletion proceeds
         // normally anyway
-        response = client().performRequest("delete", indexName + "/_alias/" + aliasName);
+        response = client().performRequest("delete", indexName + "/_alias/" + readAliasName);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        response = client().performRequest("delete", indexName + "/_alias/" + writeAliasName);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
         // check alias was deleted
@@ -460,7 +473,7 @@ public class MlJobIT extends ESRestTestCase {
         String recordResult =
                 String.format(Locale.ROOT,
                         "{\"job_id\":\"%s\", \"timestamp\": \"%s\", \"bucket_span\":%d, \"result_type\":\"record\"}",
-                        jobId, 123, 1, 1);
+                        jobId, 123, 1);
         client().performRequest("put", indexName + "/doc/" + 123,
                 Collections.singletonMap("refresh", "true"), new StringEntity(recordResult, ContentType.APPLICATION_JSON));
         client().performRequest("put", indexName + "-001/doc/" + 123,
@@ -523,6 +536,97 @@ public class MlJobIT extends ESRestTestCase {
 
         expectThrows(ResponseException.class, () ->
                 client().performRequest("get", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+    }
+
+    public void testDelete_multipleRequest() throws Exception {
+        String jobId = "delete-job-mulitple-times";
+        createFarequoteJob(jobId);
+
+        ConcurrentMapLong<Response> responses = ConcurrentCollections.newConcurrentMapLong();
+        ConcurrentMapLong<ResponseException> responseExceptions = ConcurrentCollections.newConcurrentMapLong();
+        AtomicReference<IOException> ioe = new AtomicReference<>();
+        AtomicInteger recreationGuard = new AtomicInteger(0);
+        AtomicReference<Response> recreationResponse = new AtomicReference<>();
+        AtomicReference<ResponseException> recreationException = new AtomicReference<>();
+
+        Runnable deleteJob = () -> {
+            try {
+                boolean forceDelete = randomBoolean();
+                String url = MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId;
+                if (forceDelete) {
+                    url += "?force=true";
+                }
+                Response response = client().performRequest("delete", url);
+                responses.put(Thread.currentThread().getId(), response);
+            } catch (ResponseException re) {
+                responseExceptions.put(Thread.currentThread().getId(), re);
+            } catch (IOException e) {
+                ioe.set(e);
+            }
+
+            // Immediately after the first deletion finishes, recreate the job.  This should pick up
+            // race conditions where another delete request deletes part of the newly created job.
+            if (recreationGuard.getAndIncrement() == 0) {
+                try {
+                    recreationResponse.set(createFarequoteJob(jobId));
+                } catch (ResponseException re) {
+                    recreationException.set(re);
+                } catch (IOException e) {
+                    ioe.set(e);
+                }
+            }
+        };
+
+        // The idea is to hit the situation where one request waits for
+        // the other to complete. This is difficult to schedule but
+        // hopefully it will happen in CI
+        int numThreads = 5;
+        Thread [] threads = new Thread[numThreads];
+        for (int i=0; i<numThreads; i++) {
+            threads[i] = new Thread(deleteJob);
+        }
+        for (int i=0; i<numThreads; i++) {
+            threads[i].start();
+        }
+        for (int i=0; i<numThreads; i++) {
+            threads[i].join();
+        }
+
+        if (ioe.get() != null) {
+            // This looks redundant but the check is done so we can
+            // print the exception's error message
+            assertNull(ioe.get().getMessage(), ioe.get());
+        }
+
+        assertEquals(numThreads, responses.size() + responseExceptions.size());
+
+        // 404s are ok as it means the job had already been deleted.
+        for (ResponseException re : responseExceptions.values()) {
+            assertEquals(re.getMessage(), 404, re.getResponse().getStatusLine().getStatusCode());
+        }
+
+        for (Response response : responses.values()) {
+            assertEquals(responseEntityToString(response), 200, response.getStatusLine().getStatusCode());
+        }
+
+        assertNotNull(recreationResponse.get());
+        assertEquals(responseEntityToString(recreationResponse.get()), 200, recreationResponse.get().getStatusLine().getStatusCode());
+
+        if (recreationException.get() != null) {
+            assertNull(recreationException.get().getMessage(), recreationException.get());
+        }
+
+        // Check that the job aliases exist.  These are the last thing to be deleted when a job is deleted, so
+        // if there's been a race between deletion and recreation these are what will be missing.
+        Response response = client().performRequest("get", "_aliases");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        String responseAsString = responseEntityToString(response);
+
+        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
+                + "\":{\"filter\":{\"term\":{\"job_id\":{\"value\":\"" + jobId + "\",\"boost\":1.0}}}}"));
+        assertThat(responseAsString, containsString("\"" + AnomalyDetectorsIndex.resultsWriteAlias(jobId) + "\":{}"));
+
+        assertEquals(numThreads, recreationGuard.get());
     }
 
     private static String responseEntityToString(Response response) throws Exception {

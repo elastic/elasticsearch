@@ -1,31 +1,33 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-valid-job]]
-==== Validate Jobs
+=== Validate Jobs
 
 The validate jobs API validates job configuration information.
 
-===== Request
+==== Request
 
 `POST _xpack/ml/anomaly_detectors/_validate`
 
-===== Description
+==== Description
 
 This API enables you validate the job configuration before you create the job.
 
 
-===== Request Body
+==== Request Body
 
 For a list of the properties that you can specify in the body of this API,
 see <<ml-job-resource,Job Resources>>.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example validates job configuration information:
 

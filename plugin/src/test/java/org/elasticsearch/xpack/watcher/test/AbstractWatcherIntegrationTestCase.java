@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResp
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -27,8 +28,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Callback;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -97,6 +96,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -206,6 +206,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         } else {
             types.add(XPackPlugin.class);
         }
+        types.add(CommonAnalysisPlugin.class);
         return types;
     }
 
@@ -476,10 +477,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         }
     }
 
-    protected SearchResponse searchWatchRecords(Callback<SearchRequestBuilder> requestBuilderCallback) {
+    protected SearchResponse searchWatchRecords(Consumer<SearchRequestBuilder> requestBuilderCallback) {
         SearchRequestBuilder builder =
                 client().prepareSearch(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").setTypes(HistoryStore.DOC_TYPE);
-        requestBuilderCallback.handle(builder);
+        requestBuilderCallback.accept(builder);
         return builder.get();
     }
 

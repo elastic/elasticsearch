@@ -5,7 +5,239 @@ If you authenticate users with the `native` or `file` realms, you can manage
 role assignment user the <<managing-native-users, User Management APIs>> or the
 <<managing-file-users, file-realm>> command-line tool respectively.
 
-For other types of realms, you configure role mappings for users and groups in a
+For other types of realms, you must create _role-mappings_ that define which
+roles should be assigned to each user based on their username, groups, or
+other metadata.
+
+{security} allows role-mappings to be defined via an
+<<mapping-roles-api, API>>, or managed through <<mapping-roles-file, files>>.
+These two sources of role-mapping are combined inside of {security}, so it is
+possible for a single user to have some roles that have been mapped through
+the API, and other roles that are mapped through files.
+
+When you use role-mappings, you assign existing roles to users.
+The available roles should either be added using the
+<<roles-management-api, Role Management APIs>> or defined in the
+<<roles-management-file, roles file>>. Either role-mapping method can use
+either role management method. For example, when you use the role mapping API,
+you are able to map users to both API-managed roles and file-managed roles
+(and likewise for file-based role-mappings).
+
+[[mapping-roles-api]]
+==== Using the Role Mapping API
+
+You can define role-mappings through the
+<<security-api-role-mapping, role mapping API>>.
+
+Each role-mapping has a distinct name which is used to interact with it via the
+API. The name does not affect the behaviour of the mapping in any way, but it
+is needed so that you can update or delete an existing mapping.
+
+A mapping has _rules_ that determine which users should be matched by this
+mapping, a list of _roles_ that will be granted to the users that match.
+
+The rule is a logical condition that is expressed using a JSON DSL.
+An mapping example with a simple rule is shown below:
+
+[source, js]
+------------------------------------------------------------
+{
+  "roles": [ "superuser" ],
+  "enabled": true,
+  "rules": {
+    "any": [
+      {
+        "field": {
+          "username": "esadmin"
+        }
+      },
+      {
+        "field": {
+          "groups": "cn=admins,dc=example,dc=com"
+        }
+      }
+    ]
+  }
+}
+------------------------------------------------------------
+// NOTCONSOLE
+
+This mapping matches any user where either of these conditions are met:
+
+- the username is `esadmin`
+- the user is in the `cn=admins,dc=example,dc=com` group
+
+
+The rules can be more complex and include wildcard matching:
+[source, js]
+------------------------------------------------------------
+{
+  "roles": [ "superuser" ],
+  "enabled": true,
+  "rules": {
+    "all": [
+      {
+        "any": [
+          {
+            "field": {
+              "dn": "*,ou=admin,dc=example,dc=com"
+            }
+          },
+          {
+            "field": {
+              "username": [ "es-admin", "es-system" ]
+            }
+          }
+        ]
+      },
+      {
+        "field": {
+          "groups": "cn=people,dc=example,dc=com"
+        }
+      },
+      {
+        "except": {
+          "field": {
+            "metadata.terminated_date": null
+          }
+        }
+      }
+    ]
+  }
+}
+------------------------------------------------------------
+// NOTCONSOLE
+
+The mapping above matches any user where *all* of these conditions are met:
+
+- the _Distinguished Name_ matches the pattern `*,ou=admin,dc=example,dc=com`,
+  or the username is `es-admin`, or the username is `es-system`
+- the user in in the `cn=people,dc=example,dc=com` group
+- the user does not have a `terminated_date`
+
+[float]
+===== The Role Mapping DSL
+The DSL supports the following rule types:
+
+|=======================
+| Type     | Value Type (child)         | Description
+
+| `any`    | An array of rules          | Evaluates to `true` if *any* of its
+                                          children are true
+| `all`    | An array of rules          | Evaluates to `true` if *all* of its
+                                          children are true
+| `field`  | An object                  | <<mapping-roles-rule-field, See below>>
+| `except` | A single rule as an object | Only valid as a child of an `all`
+                                          rule, the `except` is `true` if its
+                                          child is `false` (negation).
+|=======================
+
+[float]
+[[mapping-roles-rule-field]]
+===== The `field` Rule
+
+The `field` rule is the primary building block for a role-mapping expression.
+It takes a single object as value, and that object must contains a single
+member with key _F_ and value _V_. The field rule looks up the value of _F_
+within the user object and then tests whether the user-value _matches_ the
+provided value _V_.
+
+The value specified in the field rule may be one of the following types:
+[cols="2,3m,5"]
+|=======================
+| Type               | Example                     | Description
+
+| Simple String      | "esadmin"                   | Matches exactly the provided value
+| Wildcard String    | "*,dc=example,dc=com"       | Matches the provided value using a wildcard
+| Regular Expression | "/.\*-admin[0-9]*/"         | Matches the provided value using a
+                                                     {ref}/query-dsl-regexp-query.html#regexp-syntax[Lucene regexp]
+| Number             | 7                           | Matches an equivalent numerical value
+| Null               | null                        | Matches a null, or missing value
+| Array              | ["admin", "operator"]       | Tests each element in the  array in
+                                                     accordance with the definitions above.
+                                                     The match is successful if _any_ of elements match.
+|=======================
+
+===== Available User Fields
+
+The _user object_ against which the rules are evaluated has the following fields:
+[cols="1s,1,3"]
+|=======================
+| Name        | Type            | Description
+
+| username    | string          | The username by which {security} knows this user.
+| dn          | string          | The _Distinguished Name_ of the user.
+| groups      | array-of-string | The groups to which the user belongs.
+| metadata    | object          | Additional metadata for the user.
+| realm       | object          | The realm that authenticated the user.
+                                  The only field in this object is the realm name.
+|=======================
+
+Example:
+[source, js]
+------------------------------------------------------------
+{
+  "username": "jsmith",
+  "dn"      : "cn=jsmith,ou=users,dc=example,dc=com",
+  "groups"  : [ "cn=admin,ou=groups,dc=example,dc=com", "cn=esusers,ou=groups,dc=example,dc=com" ],
+  "metadata": { "cn": "John Smith" },
+  "realm"   : { "name": "ldap1" }
+}
+------------------------------------------------------------
+// NOTCONSOLE
+
+The `groups` field is multi-valued - a user may belong to many groups. When a
+`field` rule is applied against a multi-valued field, it is considered to match
+if _at least one_ of the member values matches. This means that the rule:
+
+[source, js]
+------------------------------------------------------------
+{ "field" : { "groups" : "admin" } }
+------------------------------------------------------------
+// NOTCONSOLE
+
+will match any user who is a member of the `admin` group, regardless of any
+other groups they may belong to.
+
+===== Role Mapping Examples
+
+- Match *all users*
+[source, js]
+------------------------------------------------------------
+{ "field" : { "username" : "*" } }
+------------------------------------------------------------
+// NOTCONSOLE
+
+- Match users who authenticated against a *specific realm*:
+[source, js]
+------------------------------------------------------------
+{ "field" : { "realm.name" : "ldap1" } }
+------------------------------------------------------------
+// NOTCONSOLE
+
+- Match users within a particular *LDAP sub-tree*: +
+[source, js]
+------------------------------------------------------------
+{ "field" : { "dn" : "*,ou=subtree,dc=example,dc=com" } }
+------------------------------------------------------------
+// NOTCONSOLE
+
+- Match users within a particular *LDAP sub-tree* in a *specific realm*:
+[source, js]
+------------------------------------------------------------
+{
+  "all": [
+    { "field" : { "dn" : "*,ou=subtree,dc=example,dc=com" } },
+    { "field" : { "realm.name" : "ldap1" } }
+  ]
+}
+------------------------------------------------------------
+// NOTCONSOLE
+
+[[mapping-roles-file]]
+==== Using Role Mapping Files
+
+To use file based role-mappings, you must configure the mappings in a
 YAML file and copy it to each node in the cluster. Tools like Puppet or Chef can
 help with this.
 
@@ -26,20 +258,20 @@ are values. The mappings can have a many-to-many relationship. When you map role
 to groups, the roles of a user in that group are the combination of the roles
 assigned to that group and the roles assigned to that user.
 
-[[ad-role-mapping]]
-The available roles are either added using the <<roles-management-api, Role Management APIs>>
-or defined in the <<roles-management-file, roles file>>. To specify users and
-groups in the role mappings, you use their _Distinguished Names_ (DNs). A DN is
-a string that uniquely identifies the user or group, for example
-`"cn=John Doe,cn=contractors,dc=example,dc=com"`.
+==== Realm Specific Details
+[float]
+[[ldap-role-mapping]]
+===== Active Directory and LDAP Realms
+To specify users and groups in the role mappings, you use their
+_Distinguished Names_ (DNs). A DN is a string that uniquely identifies the user
+or group, for example `"cn=John Doe,cn=contractors,dc=example,dc=com"`.
 
 NOTE: {security} only supports Active Directory security groups. You cannot map
       distribution groups to roles.
 
-[[ldap-role-mapping]]
-For example, the following snippet maps the `admins` group to the `monitoring`
-role and maps the `John Doe` user, the `users` group, and the `admins` group to
-the `user` role.
+For example, the following snippet uses the file-based method to map the
+`admins` group to the `monitoring` role and map the `John Doe` user, the
+`users` group, and the `admins` group to the `user` role.
 
 [source, yaml]
 ------------------------------------------------------------
@@ -54,9 +286,41 @@ user:
 <2> The distinguished name of an LDAP group or an Active Directory security group.
 <3> The distinguished name of an LDAP or Active Directory user.
 
+We can use the role-mapping API to define equivalent mappings as follows:
+[source,js]
+--------------------------------------------------
+PUT _xpack/security/role_mapping/admins
+{
+  "roles" : [ "monitoring", "user" ],
+  "rules" : { "field" : { "groups" : "cn=admins,dc=example,dc=com" } },
+  "enabled": true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/security/role_mapping/basic_users
+{
+  "roles" : [ "user" ],
+  "rules" : { "any" : [
+      { "field" : { "dn" : "cn=John Doe,cn=contractors,dc=example,dc=com" } },
+      { "field" : { "groups" : "cn=users,dc=example,dc=com" } }
+  ] },
+  "enabled": true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+[float]
 [[pki-role-mapping]]
-PKI realms only support mapping users to roles, as there is no notion of a group
-in PKI. For example:
+===== PKI Realms
+PKI realms support mapping users to roles, but you cannot map groups as
+the PKI realm has no notion of a group.
+
+This is an example using a file-based mapping:
 
 [source, yaml]
 ------------------------------------------------------------
@@ -65,3 +329,28 @@ monitoring:
 user:
   - "cn=John Doe,ou=example,o=com"
 ------------------------------------------------------------
+
+And the equivalent mappings using the API:
+[source,js]
+--------------------------------------------------
+PUT _xpack/security/role_mapping/admin_user
+{
+  "roles" : [ "monitoring" ],
+  "rules" : { "field" : { "dn" : "cn=Admin,ou=example,o=com" } },
+  "enabled": true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST
+
+[source,js]
+--------------------------------------------------
+PUT _xpack/security/role_mapping/basic_user
+{
+  "roles" : [ "user" ],
+  "rules" : { "field" : { "dn" : "cn=John Doe,ou=example,o=com" } },
+  "enabled": true
+}
+--------------------------------------------------
+// CONSOLE
+// TEST

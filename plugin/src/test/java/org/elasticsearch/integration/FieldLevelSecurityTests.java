@@ -26,21 +26,25 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndicesRequestCache;
+import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.join.ParentJoinPlugin;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
@@ -48,11 +52,12 @@ import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.join.query.JoinQueryBuilders.hasChildQuery;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
-import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
+import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -113,7 +118,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
                 "      - names: '*'\n" +
                 "        privileges: [ ALL ]\n" +
                 "        field_security:\n" +
-                "           grant: [ field1 ]\n" +
+                "           grant: [ field1, join_field* ]\n" +
                 "role3:\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
@@ -1293,7 +1298,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().getFields().terms("field2").size(), equalTo(1L));
     }
 
-    public void testParentChild() {
+    public void testParentChild_parentField() {
         assertAcked(prepareCreate("test")
                 .setSettings("mapping.single_type", false)
                 .addMapping("parent")
@@ -1305,7 +1310,42 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
         client().prepareIndex("test", "child", "c1").setSource("field1", "red").setParent("p1").get();
         client().prepareIndex("test", "child", "c2").setSource("field1", "yellow").setParent("p1").get();
         refresh();
+        verifyParentChild();
+    }
 
+    public void testParentChild_joinField() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject()
+              .startObject("properties")
+                  .startObject("join_field")
+                      .field("type", "join")
+                      .startObject("relations")
+                          .field("parent", "child")
+                      .endObject()
+                  .endObject()
+              .endObject()
+              .endObject();
+        assertAcked(prepareCreate("test")
+              .addMapping("doc", mapping));
+        ensureGreen();
+
+        // index simple data
+        client().prepareIndex("test", "doc", "p1").setSource("join_field", "parent").get();
+        Map<String, Object> source = new HashMap<>();
+        source.put("field1", "red");
+        Map<String, Object> joinField = new HashMap<>();
+        joinField.put("name", "child");
+        joinField.put("parent", "p1");
+        source.put("join_field", joinField);
+        client().prepareIndex("test", "doc", "c1").setSource(source).setRouting("p1").get();
+        source = new HashMap<>();
+        source.put("field1", "yellow");
+        source.put("join_field", joinField);
+        client().prepareIndex("test", "doc", "c2").setSource(source).setRouting("p1").get();
+        refresh();
+        verifyParentChild();
+    }
+
+    private void verifyParentChild() {
         SearchResponse searchResponse = client()
                 .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
                 .prepareSearch("test")

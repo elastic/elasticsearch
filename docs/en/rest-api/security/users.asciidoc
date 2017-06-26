@@ -10,10 +10,10 @@ To add a user, submit a PUT or POST request to the `/_xpack/security/user/<usern
 endpoint.
 
 [[username-validation]]
-NOTE: A username must be at least 1 character and no longer than 30 characters.
-      The first character must be a letter (`a-z` or `A-Z`) or an underscore (`_`).
-      Subsequent characters can be letters, underscores (`_`), digits (`0-9`),
-      or any of the following symbols `@`, `-`, `.` or `$`
+NOTE: Usernames must be at least 1 and no more than 1024 characters. They can 
+      contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces, 
+      punctuation, and printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block]. 
+      Leading or trailing whitespace is not allowed.
 
 [source,js]
 --------------------------------------------------

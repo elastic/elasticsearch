@@ -12,15 +12,16 @@ import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.xpack.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
@@ -28,12 +29,14 @@ import javax.net.ssl.SSLEngine;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isNotSslRecordException;
 import static org.elasticsearch.xpack.security.transport.SSLExceptionHelper.isReceivedCertificateUnknownException;
-
 
 /**
  * Implementation of a transport that extends the {@link Netty4Transport} to add SSL and IP Filtering
@@ -42,16 +45,32 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     private final SSLService sslService;
     @Nullable private final IPFilter authenticator;
-    private final Settings transportSSLSettings;
+    private final SSLConfiguration sslConfiguration;
+    private final Map<String, SSLConfiguration> profileConfiguration;
 
-    @Inject
     public SecurityNetty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                                    NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService,
                                    @Nullable IPFilter authenticator, SSLService sslService) {
         super(settings, threadPool, networkService, bigArrays, namedWriteableRegistry, circuitBreakerService);
         this.authenticator = authenticator;
         this.sslService = sslService;
-        this.transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
+        final Settings transportSSLSettings = settings.getByPrefix(setting("transport.ssl."));
+        sslConfiguration = sslService.sslConfiguration(transportSSLSettings, Settings.EMPTY);
+        Map<String, Settings> profileSettingsMap = settings.getGroups("transport.profiles.", true);
+        Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileSettingsMap.size() + 1);
+        for (Map.Entry<String, Settings> entry : profileSettingsMap.entrySet()) {
+            Settings profileSettings = entry.getValue();
+            final Settings profileSslSettings = profileSslSettings(profileSettings);
+            SSLConfiguration configuration =  sslService.sslConfiguration(profileSslSettings, transportSSLSettings);
+            profileConfiguration.put(entry.getKey(), configuration);
+        }
+
+        if (profileConfiguration.containsKey(TransportSettings.DEFAULT_PROFILE) == false) {
+            profileConfiguration.put(TransportSettings.DEFAULT_PROFILE, sslConfiguration);
+
+        }
+
+        this.profileConfiguration = Collections.unmodifiableMap(profileConfiguration);
     }
 
     @Override
@@ -64,7 +83,11 @@ public class SecurityNetty4Transport extends Netty4Transport {
 
     @Override
     protected ChannelHandler getServerChannelInitializer(String name, Settings settings) {
-        return new SecurityServerChannelInitializer(name, settings);
+        SSLConfiguration configuration = profileConfiguration.get(name);
+        if (configuration == null) {
+            throw new IllegalStateException("unknown profile: " + name);
+        }
+        return new SecurityServerChannelInitializer(settings, name, configuration);
     }
 
     @Override
@@ -76,7 +99,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
     protected void onException(Channel channel, Exception e) {
         if (!lifecycle.started()) {
             // just close and ignore - we are already stopped and just need to make sure we release all resources
-            disconnectFromNodeChannel(channel, e);
+            closeChannelWhileHandlingExceptions(channel);
         } else if (isNotSslRecordException(e)) {
             if (logger.isTraceEnabled()) {
                 logger.trace(
@@ -84,43 +107,39 @@ public class SecurityNetty4Transport extends Netty4Transport {
             } else {
                 logger.warn("received plaintext traffic on an encrypted channel, closing connection {}", channel);
             }
-            disconnectFromNodeChannel(channel, e);
+            closeChannelWhileHandlingExceptions(channel);
         } else if (isCloseDuringHandshakeException(e)) {
             if (logger.isTraceEnabled()) {
                 logger.trace(new ParameterizedMessage("connection {} closed during ssl handshake", channel), e);
             } else {
                 logger.warn("connection {} closed during handshake", channel);
             }
-            disconnectFromNodeChannel(channel, e);
+            closeChannelWhileHandlingExceptions(channel);
         } else if (isReceivedCertificateUnknownException(e)) {
             if (logger.isTraceEnabled()) {
                 logger.trace(new ParameterizedMessage("client did not trust server's certificate, closing connection {}", channel), e);
             } else {
                 logger.warn("client did not trust this server's certificate, closing connection {}", channel);
             }
-            disconnectFromNodeChannel(channel, e);
+            closeChannelWhileHandlingExceptions(channel);
         } else {
             super.onException(channel, e);
         }
-
     }
 
     class SecurityServerChannelInitializer extends ServerChannelInitializer {
+        private final SSLConfiguration configuration;
 
-        private final Settings securityProfileSettings;
+        SecurityServerChannelInitializer(Settings settings, String name, SSLConfiguration configuration) {
+            super(name, settings);
+            this.configuration = configuration;
 
-        SecurityServerChannelInitializer(String name, Settings profileSettings) {
-            super(name, profileSettings);
-            this.securityProfileSettings = profileSettings.getByPrefix(setting("ssl."));
-            assert sslService.isConfigurationValidForServerUsage(securityProfileSettings, true) :
-                    "the ssl configuration is not valid for server use but we are running as a server. this should have been caught by" +
-                            " the key config validation";
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
-            SSLEngine serverEngine = sslService.createSSLEngine(securityProfileSettings, transportSSLSettings);
+            SSLEngine serverEngine = sslService.createSSLEngine(configuration, null, -1);
             serverEngine.setUseClientMode(false);
             ch.pipeline().addFirst(new SslHandler(serverEngine));
             if (authenticator != null) {
@@ -134,25 +153,24 @@ public class SecurityNetty4Transport extends Netty4Transport {
         private final boolean hostnameVerificationEnabled;
 
         SecurityClientChannelInitializer() {
-            this.hostnameVerificationEnabled =
-                    sslService.getVerificationMode(transportSSLSettings, Settings.EMPTY).isHostnameVerificationEnabled();
+            this.hostnameVerificationEnabled = sslConfiguration.verificationMode().isHostnameVerificationEnabled();
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
-            ch.pipeline().addFirst(new ClientSslHandlerInitializer(transportSSLSettings, sslService, hostnameVerificationEnabled));
+            ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled));
         }
     }
 
     private static class ClientSslHandlerInitializer extends ChannelOutboundHandlerAdapter {
 
         private final boolean hostnameVerificationEnabled;
-        private final Settings sslSettings;
+        private final SSLConfiguration sslConfiguration;
         private final SSLService sslService;
 
-        private ClientSslHandlerInitializer(Settings sslSettings, SSLService sslService, boolean hostnameVerificationEnabled) {
-            this.sslSettings = sslSettings;
+        private ClientSslHandlerInitializer(SSLConfiguration sslConfiguration, SSLService sslService, boolean hostnameVerificationEnabled) {
+            this.sslConfiguration = sslConfiguration;
             this.hostnameVerificationEnabled = hostnameVerificationEnabled;
             this.sslService = sslService;
         }
@@ -164,10 +182,10 @@ public class SecurityNetty4Transport extends Netty4Transport {
             if (hostnameVerificationEnabled) {
                 InetSocketAddress inetSocketAddress = (InetSocketAddress) remoteAddress;
                 // we create the socket based on the name given. don't reverse DNS
-                sslEngine = sslService.createSSLEngine(sslSettings, Settings.EMPTY, inetSocketAddress.getHostString(),
+                sslEngine = sslService.createSSLEngine(sslConfiguration, inetSocketAddress.getHostString(),
                         inetSocketAddress.getPort());
             } else {
-                sslEngine = sslService.createSSLEngine(sslSettings, Settings.EMPTY);
+                sslEngine = sslService.createSSLEngine(sslConfiguration, null, -1);
             }
 
             sslEngine.setUseClientMode(true);

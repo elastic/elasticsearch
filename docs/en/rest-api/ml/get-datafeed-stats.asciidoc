@@ -1,25 +1,25 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-get-datafeed-stats]]
-==== Get {dfeed-cap} Statistics
+=== Get {dfeed-cap} Statistics
 
 The get {dfeed} statistics API enables you to retrieve usage information for
 {dfeeds}.
 
 
-===== Request
+==== Request
 
 `GET _xpack/ml/datafeeds/_stats` +
 
 `GET _xpack/ml/datafeeds/<feed_id>/_stats`
 
 
-===== Description
+==== Description
 
 If the {dfeed} is stopped, the only information you receive is the
 `datafeed_id` and the `state`.
 
 
-===== Path Parameters
+==== Path Parameters
 
 `feed_id`::
   (string) Identifier for the {dfeed}.
@@ -27,7 +27,7 @@ If the {dfeed} is stopped, the only information you receive is the
   omit the `feed_id` to get information about all {dfeeds}.
 
 
-===== Results
+==== Results
 
 The API returns the following information:
 
@@ -36,13 +36,15 @@ The API returns the following information:
   For more information, see <<ml-datafeed-counts>>.
 
 
-===== Authorization
+==== Authorization
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see <<privileges-list-cluster>>.
+privileges to use this API. For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example gets usage information for the
 `datafeed-farequote` {dfeed}:
@@ -69,7 +71,7 @@ The API returns the following results:
         "ephemeral_id": "KHMWPZoMToOzSsZY9lDDgQ",
         "transport_address": "127.0.0.1:9300",
         "attributes": {
-          "max_running_jobs": "10"
+          "ml.enabled": "true"
         }
       },
       "assignment_explanation": ""

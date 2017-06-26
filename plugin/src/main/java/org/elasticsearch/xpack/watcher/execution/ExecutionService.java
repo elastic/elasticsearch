@@ -8,8 +8,13 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -17,8 +22,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.common.stats.Counters;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -27,7 +36,6 @@ import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.input.Input;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
@@ -65,14 +73,15 @@ public class ExecutionService extends AbstractComponent {
     private final ThreadPool threadPool;
     private final Watch.Parser parser;
     private final ClusterService clusterService;
-    private final WatcherClientProxy client;
+    private final Client client;
+    private final TimeValue indexDefaultTimeout;
 
     private volatile CurrentExecutions currentExecutions;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
                             Clock clock, ThreadPool threadPool, Watch.Parser parser, ClusterService clusterService,
-                            WatcherClientProxy client) {
+                            Client client) {
         super(settings);
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
@@ -84,6 +93,7 @@ public class ExecutionService extends AbstractComponent {
         this.parser = parser;
         this.clusterService = clusterService;
         this.client = client;
+        this.indexDefaultTimeout = settings.getAsTime("xpack.watcher.internal.ops.index.default_timeout", TimeValue.timeValueSeconds(30));
     }
 
     public void start(ClusterState state) throws Exception {
@@ -124,10 +134,14 @@ public class ExecutionService extends AbstractComponent {
         }
     }
 
-    public synchronized void pauseExecution() {
+    /**
+     * Pause the execution of the watcher executor
+     * @return the number of tasks that have been removed
+     */
+    public synchronized int pauseExecution() {
         int cancelledTaskCount = executor.queue().drainTo(new ArrayList<>());
         this.clearExecutions();
-        logger.debug("paused execution service, cancelled [{}] queued tasks", cancelledTaskCount);
+        return cancelledTaskCount;
     }
 
     public TimeValue defaultThrottlePeriod() {
@@ -186,7 +200,7 @@ public class ExecutionService extends AbstractComponent {
 
         threadPool.generic().execute(() -> {
             for (TriggerEvent event : events) {
-                GetResponse response = client.getWatch(event.jobName());
+                GetResponse response = getWatch(event.jobName());
                 if (response.isExists() == false) {
                     logger.warn("unable to find watch [{}] in watch index, perhaps it has been deleted", event.jobName());
                 } else {
@@ -227,7 +241,7 @@ public class ExecutionService extends AbstractComponent {
 
         DateTime now = new DateTime(clock.millis(), UTC);
         for (TriggerEvent event : events) {
-            GetResponse response = client.getWatch(event.jobName());
+            GetResponse response = getWatch(event.jobName());
             if (response.isExists() == false) {
                 logger.warn("unable to find watch [{}] in watch index, perhaps it has been deleted", event.jobName());
                 continue;
@@ -263,7 +277,7 @@ public class ExecutionService extends AbstractComponent {
             } else {
                 boolean watchExists = false;
                 try {
-                    GetResponse response = client.getWatch(ctx.watch().id());
+                    GetResponse response = getWatch(ctx.watch().id());
                     watchExists = response.isExists();
                 } catch (IndexNotFoundException e) {}
 
@@ -277,7 +291,7 @@ public class ExecutionService extends AbstractComponent {
 
                     record = executeInner(ctx);
                     if (ctx.recordExecution()) {
-                        client.updateWatchStatus(ctx.watch());
+                        updateWatchStatus(ctx.watch());
                     }
                 }
             }
@@ -285,27 +299,55 @@ public class ExecutionService extends AbstractComponent {
             record = createWatchRecord(record, ctx, e);
             logWatchRecord(ctx, e);
         } finally {
-            if (ctx.knownWatch() && record != null && ctx.recordExecution()) {
-                try {
-                    if (ctx.overrideRecordOnConflict()) {
-                        historyStore.forcePut(record);
-                    } else {
-                        historyStore.put(record);
+            if (ctx.knownWatch()) {
+                if (record != null && ctx.recordExecution()) {
+                    try {
+                        if (ctx.overrideRecordOnConflict()) {
+                            historyStore.forcePut(record);
+                        } else {
+                            historyStore.put(record);
+                        }
+                    } catch (Exception e) {
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to update watch record [{}]", ctx.id()), e);
+                        // TODO log watch record in logger, when saving in history store failed, otherwise the info is gone!
                     }
-                } catch (Exception e) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to update watch record [{}]", ctx.id()), e);
-                    // TODO log watch record in logger, when saving in history store failed, otherwise the info is gone!
                 }
-            }
-            try {
-                triggeredWatchStore.delete(ctx.id());
-            } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to delete triggered watch [{}]", ctx.id()), e);
+                try {
+                    triggeredWatchStore.delete(ctx.id());
+                } catch (Exception e) {
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to delete triggered watch [{}]", ctx.id()), e);
+                }
             }
             currentExecutions.remove(ctx.watch().id());
             logger.trace("finished [{}]/[{}]", ctx.watch().id(), ctx.id());
         }
         return record;
+    }
+
+    /**
+     * Updates and persists the status of the given watch
+     *
+     * If the watch is missing (because it might have been deleted by the user during an execution), then this method
+     * does nothing and just returns without throwing an exception
+     */
+    public void updateWatchStatus(Watch watch) throws IOException {
+        // at the moment we store the status together with the watch,
+        // so we just need to update the watch itself
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(Watch.INCLUDE_STATUS_KEY, "true"));
+        XContentBuilder source = JsonXContent.contentBuilder().
+                startObject()
+                .field(Watch.Field.STATUS.getPreferredName(), watch.status(), params)
+                .endObject();
+
+        UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
+        updateRequest.doc(source);
+        updateRequest.version(watch.version());
+        try {
+            client.update(updateRequest).actionGet(indexDefaultTimeout);
+        } catch (DocumentMissingException e) {
+            // do not rethrow this exception, otherwise the watch history will contain an exception
+            // even though the execution might have been fine
+        }
     }
 
     private WatchRecord createWatchRecord(WatchRecord existingRecord, WatchExecutionContext ctx, Exception e) {
@@ -326,7 +368,7 @@ public class ExecutionService extends AbstractComponent {
         if (logger.isDebugEnabled()) {
             logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to execute watch [{}]", ctx.watch().id()), e);
         } else {
-            logger.warn("Failed to execute watch [{}]", ctx.watch().id());
+            logger.warn("failed to execute watch [{}]", ctx.watch().id());
         }
     }
 
@@ -425,7 +467,7 @@ public class ExecutionService extends AbstractComponent {
         assert triggeredWatches != null;
         int counter = 0;
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
-            GetResponse response = client.getWatch(triggeredWatch.id().watchId());
+            GetResponse response = getWatch(triggeredWatch.id().watchId());
             if (response.isExists() == false) {
                 String message = "unable to find watch for record [" + triggeredWatch.id().watchId() + "]/[" + triggeredWatch.id() +
                         "], perhaps it has been deleted, ignoring...";
@@ -447,6 +489,18 @@ public class ExecutionService extends AbstractComponent {
             }
         }
         logger.debug("triggered execution of [{}] watches", counter);
+    }
+
+    /**
+     * Gets a watch but in a synchronous way, so that no async calls need to be built
+     * @param id The id of watch
+     * @return The GetResponse of calling the get API of this watch
+     */
+    private GetResponse getWatch(String id) {
+        GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, id).preference(Preference.LOCAL.type()).realtime(true);
+        PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
+        client.get(getRequest, future);
+        return future.actionGet();
     }
 
     public Map<String, Object> usageStats() {

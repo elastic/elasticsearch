@@ -1,6 +1,12 @@
+[role="xpack"]
 [[graph-api]]
 == Graph APIs
 
-* <<graph-api-explore>>
+The Graph "explore" API is accessible via the
+`/_xpack/graph/_explore` endpoint.
+See {kibana}/graph-api-explore.html[Explore API].
 
-include::graph/explore.asciidoc[]
+//* <<graph-api-explore>>
+
+//TO-DO: Create a formatted API reference topic for explore:
+//include::graph/explore.asciidoc[]

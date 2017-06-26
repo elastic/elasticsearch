@@ -20,12 +20,12 @@ import java.io.IOException;
 public enum MonitoringIndex implements Writeable {
 
     /**
-     * Data that drives information about the "cluster" (e.g., a node or instance).
+     * A formerly used index format, which is no longer relevant. This is maintained to allow BWC for older clients.
      */
-    DATA {
+    IGNORED_DATA {
         @Override
         public boolean matchesIndexName(String indexName) {
-            return "_data".equals(indexName);
+            return false;
         }
     },
 
@@ -64,10 +64,11 @@ public enum MonitoringIndex implements Writeable {
      * @throws IllegalArgumentException if {@code indexName} is unrecognized
      */
     public static MonitoringIndex from(String indexName) {
-        for (MonitoringIndex index : values()) {
-            if (index.matchesIndexName(indexName)) {
-                return index;
-            }
+        if (TIMESTAMPED.matchesIndexName(indexName)) {
+            return TIMESTAMPED;
+        } else if ("_data".equals(indexName)) {
+            // we explicitly ignore this where it's used to maintain binary BWC
+            return IGNORED_DATA;
         }
 
         throw new IllegalArgumentException("unrecognized index name [" + indexName + "]");

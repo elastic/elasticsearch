@@ -130,7 +130,7 @@ setup:
                   "request" : {
                     "indices" : "idx",
                     "template" : {
-                      "inline" : "{\"query\": {\"bool\" : { \"must\": [{\"term\": {\"value\": \"val_{{ctx.payload.number}}\"}}]}}}"
+                      "source" : "{\"query\": {\"bool\" : { \"must\": [{\"term\": {\"value\": \"val_{{ctx.payload.number}}\"}}]}}}"
                     }
                   }
                 }

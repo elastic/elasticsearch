@@ -12,9 +12,9 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
@@ -31,7 +31,7 @@ public class WatcherServiceTests extends ESTestCase {
         ExecutionService executionService = mock(ExecutionService.class);
         when(executionService.validate(anyObject())).thenReturn(true);
         Watch.Parser parser = mock(Watch.Parser.class);
-        WatcherClientProxy client = mock(WatcherClientProxy.class);
+        InternalClient client = mock(InternalClient.class);
 
         WatcherService service = new WatcherService(Settings.EMPTY, triggerService, triggeredWatchStore,
                 executionService, parser, client);

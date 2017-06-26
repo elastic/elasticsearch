@@ -1,15 +1,17 @@
 {
   "index_patterns": ".monitoring-alerts-${monitoring.template.version}",
+  "version": 6000002,
   "settings": {
     "index": {
       "number_of_shards": 1,
       "number_of_replicas": 1,
-      "codec": "best_compression",
-      "mapping.single_type": false
+      "format": 6,
+      "codec": "best_compression"
     }
   },
   "mappings": {
     "doc": {
+      "dynamic": false,
       "properties": {
         "timestamp": {
           "type": "date"
@@ -30,7 +32,6 @@
           "type": "text"
         },
         "metadata": {
-          "dynamic": false,
           "properties": {
             "cluster_uuid": {
               "type": "keyword"
@@ -54,6 +55,5 @@
         }
       }
     }
-  },
-  "version": 60000
+  }
 }

@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 
 public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Response, PutJobAction.RequestBuilder> {
@@ -70,6 +71,13 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
                 // If we have both URI and body jobBuilder ID, they must be identical
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(),
                         jobBuilder.getId(), jobId));
+            }
+
+            // Some fields cannot be set at create time
+            List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();
+            if (invalidJobCreationSettings.isEmpty() == false) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS,
+                        String.join(",", invalidJobCreationSettings)));
             }
 
             return new Request(jobBuilder);

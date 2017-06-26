@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.util.Date;
 import java.util.Objects;
@@ -57,7 +57,7 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     }
 
     @Override
-    protected ModelPlot parseInstance(XContentParser parser) {
+    protected ModelPlot doParseInstance(XContentParser parser) {
         return ModelPlot.PARSER.apply(parser, null);
     }
 

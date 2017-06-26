@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
@@ -45,10 +45,9 @@ import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.junit.Before;
 
+import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.util.Map;
-
-import javax.mail.internet.AddressException;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
@@ -269,7 +268,7 @@ public class WebhookActionTests extends ESTestCase {
 
     private Watch createWatch(String watchId, final String account) throws AddressException, IOException {
         return WatcherTestUtils.createTestWatch(watchId,
-                mock(WatcherClientProxy.class),
+                mock(Client.class),
                 ExecuteScenario.Success.client(),
                 new AbstractWatcherIntegrationTestCase.NoopEmailService() {
 

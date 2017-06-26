@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
-import org.elasticsearch.test.junit.annotations.Network;
 
 import java.util.List;
 
@@ -21,6 +22,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @Network
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1823")
 public class SearchGroupsResolverTests extends GroupsResolverTestCase {
 
     public static final String BRUCE_BANNER_DN = "uid=hulk,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";

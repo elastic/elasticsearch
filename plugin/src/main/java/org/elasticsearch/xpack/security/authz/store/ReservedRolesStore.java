@@ -49,7 +49,7 @@ public class ReservedRolesStore {
                 .put("remote_monitoring_agent", new RoleDescriptor("remote_monitoring_agent",
                         new String[] {
                             "manage_index_templates", "manage_ingest_pipelines", "monitor",
-                            "cluster:admin/xpack/watcher/watch/get",
+                            "cluster:monitor/xpack/watcher/watch/get",
                             "cluster:admin/xpack/watcher/watch/put",
                             "cluster:admin/xpack/watcher/watch/delete",
                         },
@@ -90,6 +90,10 @@ public class ReservedRolesStore {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(HistoryStore.INDEX_PREFIX + "*")
                                         .privileges("read")
                                         .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
+                .put("logstash_admin", new RoleDescriptor("logstash_admin", null, new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices(".logstash*")
+                        .privileges("create", "delete", "index", "manage", "read").build() },
+                    null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .immutableMap();
     }
 

@@ -32,6 +32,10 @@ public abstract class SecurityClusterClientYamlTestCase extends ESClientYamlSuit
 
     @Before
     public void waitForSecuritySetup() throws Exception {
+        waitForSecurity();
+    }
+
+    public static void waitForSecurity() throws Exception {
         String masterNode = null;
         HttpEntity entity = client().performRequest("GET", "/_cat/nodes?h=id,master").getEntity();
         String catNodesResponse = EntityUtils.toString(entity, StandardCharsets.UTF_8);
@@ -77,5 +81,4 @@ public abstract class SecurityClusterClientYamlTestCase extends ESClientYamlSuit
             }
         });
     }
-
 }

@@ -8,6 +8,7 @@ apply plugin: 'elasticsearch.rest-test'
 dependencies {
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'runtime')
     testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
+    testCompile project(path: ':modules:analysis-common', configuration: 'runtime')
 }
 
 task setupClusterOne {}
@@ -17,6 +18,7 @@ configOne.setting('node.name', 'cluster1-node1')
 configOne.setting('xpack.monitoring.enabled', false)
 configOne.setting('xpack.ml.enabled', false)
 configOne.plugin(':x-pack-elasticsearch:plugin')
+configOne.module(project.project(':modules:analysis-common'))
 configOne.setupCommand('setupDummyUser',
         'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser')
 configOne.waitCondition = { node, ant ->
@@ -38,6 +40,7 @@ configTwo.setting('node.name', 'cluster2-node1')
 configTwo.setting('xpack.monitoring.enabled', false)
 configTwo.setting('xpack.ml.enabled', false)
 configTwo.plugin(':x-pack-elasticsearch:plugin')
+configTwo.module(project.project(':modules:analysis-common'))
 configTwo.setupCommand('setupDummyUser',
         'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser')
 configTwo.waitCondition = { node, ant ->

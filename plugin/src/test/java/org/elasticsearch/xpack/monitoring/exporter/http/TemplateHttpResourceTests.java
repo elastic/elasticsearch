@@ -8,11 +8,16 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.Version;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.DOES_NOT_EXIST;
+import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.ERROR;
+import static org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse.EXISTS;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -23,6 +28,7 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
     private final String templateName = ".my_template";
     private final String templateValue = "{\"template\":\".xyz-*\",\"mappings\":{}}";
     private final Supplier<String> template = () -> templateValue;
+    private final int minimumVersion = Math.min(MonitoringTemplateUtils.LAST_UPDATED_VERSION, Version.CURRENT.id);
 
     private final TemplateHttpResource resource = new TemplateHttpResource(owner, masterTimeout, templateName, template);
 
@@ -43,16 +49,34 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
         assertThat(byteStream.available(), is(0));
     }
 
-    public void testDoCheckTrue() throws IOException {
-        assertCheckExists(resource, "/_template", templateName);
+    public void testDoCheckExists() throws IOException {
+        final HttpEntity entity = entityForResource(EXISTS, templateName, minimumVersion);
+
+        doCheckWithStatusCode(resource, "/_template", templateName, successfulCheckStatus(), EXISTS, entity);
     }
 
-    public void testDoCheckFalse() throws IOException {
-        assertCheckDoesNotExist(resource, "/_template", templateName);
+    public void testDoCheckDoesNotExist() throws IOException {
+        if (randomBoolean()) {
+            // it does not exist because it's literally not there
+            assertCheckDoesNotExist(resource, "/_template", templateName);
+        } else {
+            // it does not exist because we need to replace it
+            final HttpEntity entity = entityForResource(DOES_NOT_EXIST, templateName, minimumVersion);
+
+            doCheckWithStatusCode(resource, "/_template", templateName, successfulCheckStatus(), DOES_NOT_EXIST, entity);
+        }
     }
 
-    public void testDoCheckNullWithException() throws IOException {
-        assertCheckWithException(resource, "/_template", templateName);
+    public void testDoCheckError() throws IOException {
+        if (randomBoolean()) {
+            // error because of a server error
+            assertCheckWithException(resource, "/_template", templateName);
+        } else {
+            // error because of a malformed response
+            final HttpEntity entity = entityForResource(ERROR, templateName, minimumVersion);
+
+            doCheckWithStatusCode(resource, "/_template", templateName, successfulCheckStatus(), ERROR, entity);
+        }
     }
 
     public void testDoPublishTrue() throws IOException {
@@ -68,7 +92,7 @@ public class TemplateHttpResourceTests extends AbstractPublishableHttpResourceTe
     }
 
     public void testParameters() {
-        assertParameters(resource);
+        assertVersionParameters(resource);
     }
 
 }

@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.NamedPipeHelper;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -73,19 +72,10 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         AutodetectResultsParser resultsParser = new AutodetectResultsParser(settings);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
                 job.getId(), processPipes.getLogStream().get(), processPipes.getProcessInStream().get(),
-                processPipes.getProcessOutStream().get(), numberOfAnalysisFields, filesToDelete,
-                resultsParser, onProcessCrash
-        );
+                processPipes.getProcessOutStream().get(), processPipes.getRestoreStream().orElse(null), numberOfAnalysisFields,
+                filesToDelete, resultsParser, onProcessCrash);
         try {
             autodetect.start(executorService, stateProcessor, processPipes.getPersistStream().get());
-            if (modelSnapshot != null) {
-                try (OutputStream r = processPipes.getRestoreStream().get()) {
-                    jobProvider.restoreStateToStream(job.getId(), modelSnapshot, r);
-                } catch (Exception e) {
-                    // TODO: should we fail to start?
-                    LOGGER.error("Error restoring model state for job " + job.getId(), e);
-                }
-            }
             return autodetect;
         } catch (EsRejectedExecutionException e) {
             try {

@@ -44,12 +44,13 @@ public class MonitoringBulkTimestampedResolverTests
         MonitoringBulkDoc doc = newMonitoringDoc();
 
         MonitoringBulkTimestampedResolver resolver = newResolver(doc);
-        assertThat(resolver.index(doc), equalTo(".monitoring-kibana-2-2015.07.22"));
+        assertThat(resolver.index(doc), equalTo(".monitoring-kibana-" + MonitoringTemplateUtils.TEMPLATE_VERSION + "-2015.07.22"));
 
         assertSource(resolver.source(doc, XContentType.JSON),
                 Sets.newHashSet(
                         "cluster_uuid",
                         "timestamp",
+                        "type",
                         "source_node",
                         "kibana_stats",
                         "kibana_stats.field1"), XContentType.JSON);

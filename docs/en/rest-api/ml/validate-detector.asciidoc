@@ -1,31 +1,33 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-valid-detector]]
-==== Validate Detectors
+=== Validate Detectors
 
 The validate detectors API validates detector configuration information.
 
-===== Request
+==== Request
 
 `POST _xpack/ml/anomaly_detectors/_validate/detector`
 
-===== Description
+==== Description
 
 This API enables you validate the detector configuration before you create a job.
 
 
-===== Request Body
+==== Request Body
 
 For a list of the properties that you can specify in the body of this API,
 see <<ml-detectorconfig,detector configuration objects>>.
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example validates detector configuration information:
 

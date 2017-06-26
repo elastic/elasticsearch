@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLimits> {
 
@@ -23,7 +24,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
     }
 
     @Override
-    protected AnalysisLimits parseInstance(XContentParser parser) {
+    protected AnalysisLimits doParseInstance(XContentParser parser) {
         return AnalysisLimits.PARSER.apply(parser, null);
     }
 
@@ -63,7 +64,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
     }
 
     public void testVerify_GivenNegativeCategorizationExamplesLimit() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new AnalysisLimits(1L, -1L));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new AnalysisLimits(1L, -1L));
         String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW,
                 AnalysisLimits.CATEGORIZATION_EXAMPLES_LIMIT, 0, -1L);
         assertEquals(errorMessage, e.getMessage());

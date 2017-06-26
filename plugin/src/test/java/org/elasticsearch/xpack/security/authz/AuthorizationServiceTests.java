@@ -5,6 +5,14 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -20,6 +28,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsAction;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
@@ -40,9 +50,8 @@ import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.index.reindex.DeleteByQueryAction;
-import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
@@ -75,12 +84,14 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
@@ -113,23 +124,17 @@ import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -152,13 +157,16 @@ public class AuthorizationServiceTests extends ESTestCase {
     public void setup() {
         rolesStore = mock(CompositeRolesStore.class);
         clusterService = mock(ClusterService.class);
-        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS); 
+        final Settings settings = Settings.builder()
+                .put("search.remote.other_cluster.seeds", "localhost:9999")
+                .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         auditTrail = mock(AuditTrailService.class);
-        threadContext = new ThreadContext(Settings.EMPTY);
+        threadContext = new ThreadContext(settings);
         threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(settings);
         doAnswer((i) -> {
             ActionListener<Role> callback =
                     (ActionListener<Role>) i.getArguments()[2];
@@ -180,8 +188,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
             return Void.TYPE;
         }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
-        authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
-                auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(Settings.EMPTY));
+        authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
+                auditTrail, new DefaultAuthenticationFailureHandler(), threadPool, new AnonymousUser(settings));
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -241,6 +249,65 @@ public class AuthorizationServiceTests extends ESTestCase {
                 () -> authorize(createAuthentication(user), "indices:a", request),
                 "indices:a", "test user");
         verify(auditTrail).accessDenied(user, "indices:a", request);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testUserWithNoRolesCanPerformRemoteSearch() {
+        SearchRequest request = new SearchRequest();
+        request.indices("other_cluster:index1", "*_cluster:index2", "other_cluster:other_*");
+        User user = new User("test user");
+        mockEmptyMetaData();
+        authorize(createAuthentication(user), SearchAction.NAME, request);
+        verify(auditTrail).accessGranted(user, SearchAction.NAME, request);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    /**
+     * This test mimics {@link #testUserWithNoRolesCanPerformRemoteSearch()} except that
+     * while the referenced index _looks_ like a remote index, the remote cluster name has not
+     * been defined, so it is actually a local index and access should be denied
+     */
+    public void testUserWithNoRolesCannotPerformLocalSearch() {
+        SearchRequest request = new SearchRequest();
+        request.indices("no_such_cluster:index");
+        User user = new User("test user");
+        mockEmptyMetaData();
+        assertThrowsAuthorizationException(
+                () -> authorize(createAuthentication(user), SearchAction.NAME, request),
+                SearchAction.NAME, "test user");
+        verify(auditTrail).accessDenied(user, SearchAction.NAME, request);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    /**
+     * This test mimics {@link #testUserWithNoRolesCannotPerformLocalSearch()} but includes
+     * both local and remote indices, including wildcards
+     */
+    public void testUserWithNoRolesCanPerformMultiClusterSearch() {
+        SearchRequest request = new SearchRequest();
+        request.indices("local_index", "wildcard_*", "other_cluster:remote_index", "*:foo?");
+        User user = new User("test user");
+        mockEmptyMetaData();
+        assertThrowsAuthorizationException(
+                () -> authorize(createAuthentication(user), SearchAction.NAME, request),
+                SearchAction.NAME, "test user");
+        verify(auditTrail).accessDenied(user, SearchAction.NAME, request);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    /**
+     * Verifies that the behaviour tested in {@link #testUserWithNoRolesCanPerformRemoteSearch}
+     * does not work for requests that are not remote-index-capable.
+     */
+    public void testRemoteIndicesOnlyWorkWithApplicableRequestTypes() {
+        DeleteIndexRequest request = new DeleteIndexRequest();
+        request.indices("other_cluster:index1", "other_cluster:index2");
+        User user = new User("test user");
+        mockEmptyMetaData();
+        assertThrowsAuthorizationException(
+                () -> authorize(createAuthentication(user), DeleteIndexAction.NAME, request),
+                DeleteIndexAction.NAME, "test user");
+        verify(auditTrail).accessDenied(user, DeleteIndexAction.NAME, request);
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -1000,5 +1067,83 @@ public class AuthorizationServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(state.metaData()).thenReturn(MetaData.EMPTY_META_DATA);
         return state;
+    }
+
+    public void testProxyRequestFailsOnNonProxyAction() {
+        TransportRequest request = TransportRequest.Empty.INSTANCE;
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, request);
+        User user = new User("test user", "role");
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+                () -> authorize(createAuthentication(user), "indices:some/action", transportRequest));
+        assertThat(illegalStateException.getMessage(),
+                startsWith("originalRequest is a proxy request for: [org.elasticsearch.transport.TransportRequest$"));
+        assertThat(illegalStateException.getMessage(), endsWith("] but action: [indices:some/action] isn't"));
+    }
+
+    public void testProxyRequestFailsOnNonProxyRequest() {
+        TransportRequest request = TransportRequest.Empty.INSTANCE;
+        User user = new User("test user", "role");
+        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+                () -> authorize(createAuthentication(user), TransportActionProxy.getProxyAction("indices:some/action"), request));
+        assertThat(illegalStateException.getMessage(),
+                startsWith("originalRequest is not a proxy request: [org.elasticsearch.transport.TransportRequest$"));
+        assertThat(illegalStateException.getMessage(),
+                endsWith("] but action: [internal:transport/proxy/indices:some/action] is a proxy action"));
+    }
+
+    public void testProxyRequestAuthenticationDenied() {
+        TransportRequest proxiedRequest = new SearchRequest();
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, proxiedRequest);
+        String action = TransportActionProxy.getProxyAction(SearchTransportService.QUERY_ACTION_NAME);
+        User user = new User("test user", "no_indices");
+        roleMap.put("no_indices", new RoleDescriptor("no_indices", null, null, null));
+        assertThrowsAuthorizationException(
+                () -> authorize(createAuthentication(user), action, transportRequest), action, "test user");
+        verify(auditTrail).accessDenied(user, action, proxiedRequest);
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testProxyRequestAuthenticationGrantedWithAllPrivileges() {
+        User user = new User("test user", "a_all");
+        roleMap.put("a_all", new RoleDescriptor("a_role", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() }, null));
+        mockEmptyMetaData();
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, clearScrollRequest);
+        String action = TransportActionProxy.getProxyAction(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+        authorize(createAuthentication(user), action, transportRequest);
+        verify(auditTrail).accessGranted(user, action, clearScrollRequest);
+    }
+
+    public void testProxyRequestAuthenticationGranted() {
+        User user = new User("test user", "a_all");
+        roleMap.put("a_all", new RoleDescriptor("a_role", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("read_cross_cluster").build() }, null));
+        mockEmptyMetaData();
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, clearScrollRequest);
+        String action = TransportActionProxy.getProxyAction(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+        authorize(createAuthentication(user), action, transportRequest);
+        verify(auditTrail).accessGranted(user, action, clearScrollRequest);
+    }
+
+    public void testProxyRequestAuthenticationDeniedWithReadPrivileges() {
+        User user = new User("test user", "a_all");
+        roleMap.put("a_all", new RoleDescriptor("a_role", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("read").build() }, null));
+        mockEmptyMetaData();
+        DiscoveryNode node = new DiscoveryNode("foo", buildNewFakeTransportAddress(), Version.CURRENT);
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        TransportRequest transportRequest = TransportActionProxy.wrapRequest(node, clearScrollRequest);
+        String action = TransportActionProxy.getProxyAction(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+        assertThrowsAuthorizationException(
+                () -> authorize(createAuthentication(user), action, transportRequest), action, "test user");
+        verify(auditTrail).accessDenied(user, action, clearScrollRequest);
     }
 }

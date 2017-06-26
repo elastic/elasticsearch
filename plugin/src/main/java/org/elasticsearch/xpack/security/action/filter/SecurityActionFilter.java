@@ -13,9 +13,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
-import org.elasticsearch.action.search.ClearScrollRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -32,27 +29,18 @@ import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.action.interceptor.RequestInterceptor;
-import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.privilege.HealthAndStatsPrivilege;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.support.Automatons;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
-
-import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
 
 public class SecurityActionFilter extends AbstractComponent implements ActionFilter {
 
@@ -61,8 +49,6 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
-    private final CryptoService cryptoService;
-    private final AuditTrail auditTrail;
     private final SecurityActionMapper actionMapper = new SecurityActionMapper();
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
@@ -72,14 +58,11 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
 
     @Inject
     public SecurityActionFilter(Settings settings, AuthenticationService authcService, AuthorizationService authzService,
-                                CryptoService cryptoService, AuditTrailService auditTrail, XPackLicenseState licenseState,
-                                Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
+                                XPackLicenseState licenseState, Set<RequestInterceptor> requestInterceptors, ThreadPool threadPool,
                                 SecurityContext securityContext, DestructiveOperations destructiveOperations) {
         super(settings);
         this.authcService = authcService;
         this.authzService = authzService;
-        this.cryptoService = cryptoService;
-        this.auditTrail = auditTrail;
         this.licenseState = licenseState;
         this.requestInterceptors = requestInterceptors;
         this.threadContext = threadPool.getThreadContext();
@@ -103,17 +86,10 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
 
         if (licenseState.isAuthAllowed()) {
             final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
-            final Supplier<ThreadContext.StoredContext> toRestore = threadContext.newRestorableContext(true);
-            final ActionListener<ActionResponse> signingListener = new ContextPreservingActionListener<>(toRestore,
-                    ActionListener.wrap(r -> {
-                        try {
-                            listener.onResponse(sign(r));
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    }, listener::onFailure));
-            ActionListener<Void> authenticatedListener =
-                    ActionListener.wrap((aVoid) -> chain.proceed(task, action, request, signingListener), signingListener::onFailure);
+            final ActionListener<ActionResponse> contextPreservingListener =
+                    ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
+            ActionListener<Void> authenticatedListener = ActionListener.wrap(
+                    (aVoid) -> chain.proceed(task, action, request, contextPreservingListener), contextPreservingListener::onFailure);
             try {
                 if (useSystemUser) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
@@ -177,56 +153,19 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                     (userRoles, runAsRoles) -> {
                         authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
                         final User user = authentication.getUser();
-                        ActionRequest unsignedRequest = unsign(user, securityAction, request);
 
                             /*
                              * We use a separate concept for code that needs to be run after authentication and authorization that could
                              * affect the running of the action. This is done to make it more clear of the state of the request.
                              */
                         for (RequestInterceptor interceptor : requestInterceptors) {
-                            if (interceptor.supports(unsignedRequest)) {
-                                interceptor.intercept(unsignedRequest, user);
+                            if (interceptor.supports(request)) {
+                                interceptor.intercept(request, user);
                             }
                         }
                         listener.onResponse(null);
                     });
             asyncAuthorizer.authorize(authzService);
         }
-    }
-
-    ActionRequest unsign(User user, String action, final ActionRequest request) {
-        try {
-            if (request instanceof SearchScrollRequest) {
-                SearchScrollRequest scrollRequest = (SearchScrollRequest) request;
-                String scrollId = scrollRequest.scrollId();
-                scrollRequest.scrollId(cryptoService.unsignAndVerify(scrollId));
-            } else if (request instanceof ClearScrollRequest) {
-                ClearScrollRequest clearScrollRequest = (ClearScrollRequest) request;
-                boolean isClearAllScrollRequest = clearScrollRequest.scrollIds().contains("_all");
-                if (!isClearAllScrollRequest) {
-                    List<String> signedIds = clearScrollRequest.scrollIds();
-                    List<String> unsignedIds = new ArrayList<>(signedIds.size());
-                    for (String signedId : signedIds) {
-                        unsignedIds.add(cryptoService.unsignAndVerify(signedId));
-                    }
-                    clearScrollRequest.scrollIds(unsignedIds);
-                }
-            }
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            auditTrail.tamperedRequest(user, action, request);
-            throw authorizationError("invalid request. {}", e.getMessage());
-        }
-        return request;
-    }
-
-    private <Response extends ActionResponse> Response sign(Response response) throws IOException {
-        if (response instanceof SearchResponse) {
-            SearchResponse searchResponse = (SearchResponse) response;
-            String scrollId = searchResponse.getScrollId();
-            if (scrollId != null && !cryptoService.isSigned(scrollId)) {
-                searchResponse.scrollId(cryptoService.sign(scrollId));
-            }
-        }
-        return response;
     }
 }

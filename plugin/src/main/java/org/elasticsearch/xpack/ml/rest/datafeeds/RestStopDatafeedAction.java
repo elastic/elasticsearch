@@ -33,6 +33,11 @@ public class RestStopDatafeedAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_stop_datafeed_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
         StopDatafeedAction.Request jobDatafeedRequest;

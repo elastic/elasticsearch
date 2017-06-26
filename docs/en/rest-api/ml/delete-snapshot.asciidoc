@@ -1,23 +1,22 @@
+[role="xpack"]
 [[ml-delete-snapshot]]
-==== Delete Model Snapshots
+=== Delete Model Snapshots
 
 The delete model snapshot API enables you to delete an existing model snapshot.
 
 
-===== Request
+==== Request
 
 `DELETE _xpack/ml/anomaly_detectors/<job_id>/model_snapshots/<snapshot_id>`
 
 
-===== Description
+==== Description
 
 IMPORTANT: You cannot delete the active model snapshot. To delete that snapshot,
-first revert to a different one.
+first revert to a different one. To identify the active model snapshot, refer to
+the `model_snapshot_id` in the results from the get jobs API.
 
-//TBD: Where do you see restorePriority? Per old docs, the active model snapshot
-//is "...the snapshot with the highest restorePriority".
-
-===== Path Parameters
+==== Path Parameters
 
 `job_id` (required)::
   (string) Identifier for the job
@@ -26,13 +25,14 @@ first revert to a different one.
   (string) Identifier for the model snapshot
 
 
-===== Authorization
+==== Authorization
 
 You must have `manage_ml`, or `manage` cluster privileges to use this API.
-For more information, see <<privileges-list-cluster>>.
+For more information, see {xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example deletes the `1491948163` snapshot:
 

@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import java.io.IOException;
+import org.supercsv.io.CsvListWriter;
+import org.supercsv.prefs.CsvPreference;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-
-import org.supercsv.io.CsvListWriter;
-import org.supercsv.prefs.CsvPreference;
 
 /**
  * Write the records to the outputIndex stream as UTF 8 encoded CSV

@@ -211,6 +211,21 @@ public class SSLService extends AbstractComponent {
      */
     public SSLEngine createSSLEngine(Settings settings, Settings fallbackSettings, String host, int port) {
         SSLConfiguration configuration = sslConfiguration(settings, fallbackSettings);
+        return createSSLEngine(configuration, host, port);
+    }
+
+    /**
+     * Creates an {@link SSLEngine} based on the provided configuration. This SSLEngine can be used for a connection that requires
+     * hostname verification assuming the provided
+     * host and port are correct. The SSLEngine created by this method is most useful for clients with hostname verification enabled
+     * @param configuration the ssl configuration
+     * @param host the host of the remote endpoint. If using hostname verification, this should match what is in the remote endpoint's
+     *             certificate
+     * @param port the port of the remote endpoint
+     * @return {@link SSLEngine}
+     * @see #sslConfiguration(Settings, Settings)
+     */
+    public SSLEngine createSSLEngine(SSLConfiguration configuration, String host, int port) {
         SSLContext sslContext = sslContext(configuration);
         SSLEngine sslEngine = sslContext.createSSLEngine(host, port);
         String[] ciphers = supportedCiphers(sslEngine.getSupportedCipherSuites(), configuration.cipherSuites(), false);
@@ -235,15 +250,10 @@ public class SSLService extends AbstractComponent {
 
     /**
      * Returns whether the provided settings results in a valid configuration that can be used for server connections
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix
-     * @param useTransportFallback if {@code true} this will use the transport configuration for fallback, otherwise the global
-     *                             configuration will be used
+     * @param sslConfiguration the configuration to check
      */
-    public boolean isConfigurationValidForServerUsage(Settings settings, boolean useTransportFallback) {
-        SSLConfiguration fallback = useTransportFallback ? transportSSLConfiguration.get() : globalSSLConfiguration;
-        SSLConfiguration sslConfiguration = new SSLConfiguration(settings, fallback);
-        return sslConfiguration.keyConfig() != KeyConfig.NONE
-                || (useTransportFallback && transportSSLConfiguration.get().keyConfig() == KeyConfig.NONE);
+    public boolean isConfigurationValidForServerUsage(SSLConfiguration sslConfiguration) {
+        return sslConfiguration.keyConfig() != KeyConfig.NONE;
     }
 
     /**
@@ -323,7 +333,7 @@ public class SSLService extends AbstractComponent {
      *                         results in a fallback to the global configuration
      * @return the ssl configuration for the provided settings. If the settings are empty, the global configuration is returned
      */
-    SSLConfiguration sslConfiguration(Settings settings, Settings fallbackSettings) {
+    public SSLConfiguration sslConfiguration(Settings settings, Settings fallbackSettings) {
         if (settings.isEmpty() && fallbackSettings.isEmpty()) {
             return globalSSLConfiguration;
         }

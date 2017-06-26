@@ -157,10 +157,6 @@ public class SSLServiceTests extends ESTestCase {
         assertThat(sslEngine, notNullValue());
     }
 
-    public void testCreateWithoutAnySettingsValidForServer() throws Exception {
-        SSLService sslService = new SSLService(Settings.EMPTY, env);
-        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, true));
-    }
 
     public void testCreateWithKeystoreIsValidForServer() throws Exception {
         Settings settings = Settings.builder()
@@ -168,7 +164,8 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.keystore.password", "testnode")
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, false));
+
+        assertTrue(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(Settings.EMPTY)));
     }
 
     public void testValidForServerWithFallback() throws Exception {
@@ -177,8 +174,7 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.ssl.truststore.password", "testnode")
                 .build();
         SSLService sslService = new SSLService(settings, env);
-        // transport is valid in default config
-        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, true));
+        assertFalse(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(Settings.EMPTY)));
 
         settings = Settings.builder()
                 .put("xpack.ssl.truststore.path", testnodeStore)
@@ -187,10 +183,10 @@ public class SSLServiceTests extends ESTestCase {
                 .put("xpack.security.transport.ssl.keystore.password", "testnode")
                 .build();
         sslService = new SSLService(settings, env);
-        assertFalse(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, false));
-        assertTrue(sslService.isConfigurationValidForServerUsage(
-                settings.getByPrefix("xpack.security.transport.ssl."), false));
-        assertTrue(sslService.isConfigurationValidForServerUsage(Settings.EMPTY, true));
+        assertFalse(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(Settings.EMPTY)));
+        assertTrue(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(
+                settings.getByPrefix("xpack.security.transport.ssl."))));
+        assertFalse(sslService.isConfigurationValidForServerUsage(sslService.sslConfiguration(Settings.EMPTY)));
     }
 
     public void testGetVerificationMode() throws Exception {
@@ -344,16 +340,20 @@ public class SSLServiceTests extends ESTestCase {
 
     public void testSSLStrategy() {
         // this just exhaustively verifies that the right things are called and that it uses the right parameters
-        Settings settings = Settings.builder().build();
+        VerificationMode mode = randomFrom(VerificationMode.values());
+        Settings settings = Settings.builder()
+                .put("supported_protocols", "protocols")
+                .put("cipher_suites", "")
+                .put("verification_mode", mode.name())
+                .build();
         SSLService sslService = mock(SSLService.class);
-        SSLConfiguration sslConfig = mock(SSLConfiguration.class);
+        SSLConfiguration sslConfig = new SSLConfiguration(settings);
         SSLParameters sslParameters = mock(SSLParameters.class);
         SSLContext sslContext = mock(SSLContext.class);
         String[] protocols = new String[] { "protocols" };
         String[] ciphers = new String[] { "ciphers!!!" };
         String[] supportedCiphers = new String[] { "supported ciphers" };
         List<String> requestedCiphers = new ArrayList<>(0);
-        VerificationMode mode = randomFrom(VerificationMode.values());
         ArgumentCaptor<HostnameVerifier> verifier = ArgumentCaptor.forClass(HostnameVerifier.class);
         SSLIOSessionStrategy sslStrategy = mock(SSLIOSessionStrategy.class);
 
@@ -362,9 +362,6 @@ public class SSLServiceTests extends ESTestCase {
         when(sslService.supportedCiphers(supportedCiphers, requestedCiphers, false)).thenReturn(ciphers);
         when(sslService.sslParameters(sslContext)).thenReturn(sslParameters);
         when(sslParameters.getCipherSuites()).thenReturn(supportedCiphers);
-        when(sslConfig.supportedProtocols()).thenReturn(Arrays.asList(protocols));
-        when(sslConfig.cipherSuites()).thenReturn(requestedCiphers);
-        when(sslConfig.verificationMode()).thenReturn(mode);
         when(sslService.sslIOSessionStrategy(eq(sslContext), eq(protocols), eq(ciphers), verifier.capture())).thenReturn(sslStrategy);
 
         // ensure it actually goes through and calls the real method

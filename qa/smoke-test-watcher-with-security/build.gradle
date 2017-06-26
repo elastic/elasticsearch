@@ -20,6 +20,9 @@ integTestRunner {
 
 integTestCluster {
   dependsOn copyWatcherRestTests
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'logger.level', 'DEBUG'
   plugin ':x-pack-elasticsearch:plugin'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',

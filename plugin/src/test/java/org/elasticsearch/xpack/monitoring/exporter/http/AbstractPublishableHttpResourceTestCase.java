@@ -9,6 +9,9 @@ import java.util.HashMap;
 import org.apache.http.HttpEntity;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -187,19 +190,43 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         assertThat(parameters.isEmpty(), is(true));
     }
 
+    protected void assertVersionParameters(final PublishableHttpResource resource) {
+        final Map<String, String> parameters = new HashMap<>(resource.getParameters());
+
+        if (masterTimeout != null) {
+            assertThat(parameters.remove("master_timeout"), is(masterTimeout.toString()));
+        }
+
+        assertThat(parameters.remove("filter_path"), is("*.version"));
+        assertThat(parameters.isEmpty(), is(true));
+    }
+
     protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
                                          final RestStatus status,
                                          final CheckResponse expected)
             throws IOException {
-        doCheckWithStatusCode(resource, resourceBasePath, resourceName, status, GET_EXISTS, GET_DOES_NOT_EXIST, expected);
+        doCheckWithStatusCode(resource, resourceBasePath, resourceName, status, expected, null);
+    }
+
+    protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
+                                         final RestStatus status, final CheckResponse expected, final HttpEntity entity)
+            throws IOException {
+        doCheckWithStatusCode(resource, resourceBasePath, resourceName, status, GET_EXISTS, GET_DOES_NOT_EXIST, expected, entity);
     }
 
     protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
                                          final RestStatus status, final Set<Integer> exists, final Set<Integer> doesNotExist,
                                          final CheckResponse expected)
             throws IOException {
+        doCheckWithStatusCode(resource, resourceBasePath, resourceName, status, exists, doesNotExist, expected, null);
+    }
+
+    protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
+                                         final RestStatus status, final Set<Integer> exists, final Set<Integer> doesNotExist,
+                                         final CheckResponse expected, final HttpEntity entity)
+            throws IOException {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
-        final Response response = response("GET", endpoint, status);
+        final Response response = response("GET", endpoint, status, entity);
 
         doCheckWithStatusCode(resource, getParameters(resource.getParameters(), exists, doesNotExist), endpoint, expected, response);
     }
@@ -327,6 +354,74 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         parametersWithIgnore.putIfAbsent("ignore", "404");
 
         return parametersWithIgnore;
+    }
+
+    protected HttpEntity entityForResource(final CheckResponse expected, final String resourceName, final int minimumVersion) {
+        HttpEntity entity = null;
+
+        switch (expected) {
+            // the version check is what is expected to cause it to be replaced
+            case DOES_NOT_EXIST:
+                final int olderVersion = minimumVersion - randomIntBetween(1, 10000);
+
+                entity = randomFrom(
+                    new StringEntity("{}", ContentType.APPLICATION_JSON),
+                    new StringEntity("{\"" + resourceName + "\":{}}", ContentType.APPLICATION_JSON),
+                    new StringEntity("{\"" + resourceName + "\":{\"version\":\"123\"}}", ContentType.APPLICATION_JSON),
+                    new StringEntity("{\"" + resourceName + "\":{\"version\":" + olderVersion + "}}", ContentType.APPLICATION_JSON)
+                );
+                break;
+            // the version is there and it's exactly what we specify
+            case EXISTS:
+                entity = new StringEntity("{\"" + resourceName + "\":{\"version\":" + minimumVersion + "}}", ContentType.APPLICATION_JSON);
+                break;
+            // malformed
+            case ERROR:
+                entity = randomFrom(
+                    new StringEntity("{", ContentType.APPLICATION_JSON),
+                    new StringEntity("{\"" + resourceName + "\":\"not an object\"}", ContentType.APPLICATION_JSON)
+                );
+                break;
+            default:
+                fail("Unhandled/unknown CheckResponse");
+        }
+
+        return entity;
+    }
+
+    protected HttpEntity entityForClusterAlert(final CheckResponse expected, final int minimumVersion) {
+        HttpEntity entity = null;
+
+        switch (expected) {
+            // the version check is what is expected to cause it to be replaced
+            case DOES_NOT_EXIST:
+                final int olderVersion = minimumVersion - randomIntBetween(1, 10000);
+
+                entity = randomFrom(
+                    new StringEntity("{}", ContentType.APPLICATION_JSON),
+                    new StringEntity("{\"metadata\":{}}", ContentType.APPLICATION_JSON),
+                    new StringEntity("{\"metadata\":{\"xpack\":{\"version_created\":\"123\"}}}", ContentType.APPLICATION_JSON),
+                    new StringEntity("{\"metadata\":{\"xpack\":{\"version_created\":" + olderVersion + "}}}}", ContentType.APPLICATION_JSON)
+                );
+                break;
+            // the version is there and it's exactly what we specify
+            case EXISTS:
+                entity = new StringEntity("{\"metadata\":{\"xpack\":{\"version_created\":" +
+                                          minimumVersion + "}}}", ContentType.APPLICATION_JSON);
+                break;
+            // malformed
+            case ERROR:
+                entity = randomFrom(
+                    new StringEntity("{", ContentType.APPLICATION_JSON),
+                    new StringEntity("{\"\"metadata\":\"not an object\"}", ContentType.APPLICATION_JSON),
+                    new StringEntity("{\"\"metadata\":{\"xpack\":\"not an object\"}}", ContentType.APPLICATION_JSON)
+                );
+                break;
+            default:
+                fail("Unhandled/unknown CheckResponse");
+        }
+
+        return entity;
     }
 
 }

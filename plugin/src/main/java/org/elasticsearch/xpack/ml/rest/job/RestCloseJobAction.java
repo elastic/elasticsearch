@@ -28,6 +28,11 @@ public class RestCloseJobAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_close_job_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request = new Request(restRequest.param(Job.ID.getPreferredName()));
         if (restRequest.hasParam(Request.TIMEOUT.getPreferredName())) {

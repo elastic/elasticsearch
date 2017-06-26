@@ -1,6 +1,6 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-job-resource]]
-==== Job Resources
+=== Job Resources
 
 A job resource has the following properties:
 
@@ -73,7 +73,7 @@ so do not set the `background_persist_interval` value too low.
   are retained.
 
 [[ml-analysisconfig]]
-===== Analysis Configuration Objects
+==== Analysis Configuration Objects
 
 An analysis configuration object has the following properties:
 
@@ -85,6 +85,9 @@ An analysis configuration object has the following properties:
   (string) If not null, the values of the specified field will be categorized.
   The resulting categories can be used in a detector by setting `by_field_name`,
   `over_field_name`, or `partition_field_name` to the keyword `mlcategory`.
+  For more information, see
+  {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+//<<ml-configuring-categories>>.
 
 `categorization_filters`::
   (array of strings) If `categorization_field_name` is specified,
@@ -93,7 +96,9 @@ An analysis configuration object has the following properties:
   off the categorization field values. This functionality is useful to fine tune
   categorization by excluding sequences that should not be taken into
   consideration for defining categories. For example, you can exclude SQL
-  statements that appear in your log files.
+  statements that appear in your log files. For more information, see
+  {xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+//<<ml-configuring-categories>>.
 
 `detectors`::
   (array) An array of detector configuration objects,
@@ -152,7 +157,7 @@ LEAVE UNDOCUMENTED
 
 [float]
 [[ml-detectorconfig]]
-===== Detector Configuration Objects
+==== Detector Configuration Objects
 
 Detector configuration objects specify which data fields a job analyzes.
 They also specify which analytical functions are used.
@@ -183,12 +188,15 @@ NOTE: The `field_name` cannot contain double quotes or backslashes.
 `function`::
   (string) The analysis function that is used.
   For example, `count`, `rare`, `mean`, `min`, `max`, and `sum`. For more
-  information, see <<ml-functions>>.
+  information, see {xpack-ref}/ml-functions.html[Function Reference].
+//<<ml-functions>>.
 
 `over_field_name`::
   (string) The field used to split the data.
-  In particular, this property is used for analyzing the splits with respect to the history of all splits.
-  It is used for finding unusual values in the population of all splits.
+  In particular, this property is used for analyzing the splits with respect to
+  the history of all splits. It is used for finding unusual values in the
+  population of all splits. For more information, see
+  {xpack-ref}/ml-configuring-pop.html[Performing Population Analysis].
 
 `partition_field_name`::
   (string) The field used to segment the analysis.
@@ -207,9 +215,13 @@ LEAVE UNDOCUMENTED
   (array) TBD
 ////
 
+`detector_index`::
+  (integer) Unique ID for the detector, used when updating it.
+  Based on the order of detectors within the `analysis_config`, starting at zero.
+
 [float]
 [[ml-datadescription]]
-===== Data Description Objects
+==== Data Description Objects
 
 The data description defines the format of the input data when you send data to
 the job by using the <<ml-post-data,post data>> API. Note that when configure
@@ -243,7 +255,7 @@ job creation fails.
 
 [float]
 [[ml-apilimits]]
-===== Analysis Limits
+==== Analysis Limits
 
 Limits can be applied for the resources required to hold the mathematical models in memory.
 These limits are approximate and can be set per job. They do not control the
@@ -259,6 +271,10 @@ The `analysis_limits` object has the following properties:
   If you set this value to `0`, no examples are stored. +
 
 NOTE: The `categorization_examples_limit` only applies to analysis that uses categorization.
+For more information, see
+{xpack-ref}/ml-configuring-categories.html[Categorizing Log Messages].
+
+//<<ml-configuring-categories>>.
 
 `model_memory_limit`::
   (long) The approximate maximum amount of memory resources that are required
@@ -268,7 +284,7 @@ NOTE: The `categorization_examples_limit` only applies to analysis that uses cat
 
 [float]
 [[ml-apimodelplotconfig]]
-===== Model Plot Config
+==== Model Plot Config
 
 This advanced configuration option stores model information along with the
 results. It provides a more detailed view into anomaly detection. If you enable
@@ -290,5 +306,5 @@ The `model_plot_config` object has the following properties:
 
 `terms`::
   (string) Limits data collection to this comma separated list of _partition_
-  or _by_ field names. If terms are not specified or it is an empty string,
+  or _by_ field values. If terms are not specified or it is an empty string,
   no filtering is applied. For example, `"CPU,NetworkIn,DiskWrites"`

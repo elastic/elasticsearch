@@ -1,6 +1,6 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-jobstats]]
-==== Job Statistics
+=== Job Statistics
 
 The get job statistics API provides information about the operational
 progress of a job.
@@ -43,7 +43,7 @@ progress of a job.
 
 [float]
 [[ml-datacounts]]
-===== Data Counts Objects
+==== Data Counts Objects
 
 The `data_counts` object describes the number of records processed
 and any related error counts.
@@ -128,7 +128,7 @@ necessarily a cause for concern.
 
 [float]
 [[ml-modelsizestats]]
-===== Model Size Stats Objects
+==== Model Size Stats Objects
 
 The `model_size_stats` object has the following properties:
 
@@ -178,7 +178,7 @@ NOTE: The `over` field values are counted separately for each detector and parti
 
 [float]
 [[ml-stats-node]]
-===== Node Objects
+==== Node Objects
 
 The `node` objects contains properties for the node that runs the job.
 This information is available only for open jobs.

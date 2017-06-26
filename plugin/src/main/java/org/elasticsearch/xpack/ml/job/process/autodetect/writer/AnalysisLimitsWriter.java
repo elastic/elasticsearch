@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
+import org.elasticsearch.xpack.ml.job.config.AnalysisLimits;
+
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.Objects;
-
-import org.elasticsearch.xpack.ml.job.config.AnalysisLimits;
 
 import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.EQUALS;
 import static org.elasticsearch.xpack.ml.job.process.autodetect.writer.WriterConstants.NEW_LINE;

@@ -203,7 +203,7 @@ public class ScriptTransformTests extends ESTestCase {
         if (scriptType == ScriptType.STORED) {
             assertThat(e.getMessage(), containsString("unable to get stored script with unsupported lang [not_a_valid_lang]"));
             assertWarnings("specifying the field [lang] for executing stored scripts is deprecated;" +
-                    " use only the field [stored] to specify an <id>");
+                    " use only the field [id] to specify an <id>");
         } else {
             assertThat(e.getMessage(), containsString("script_lang not supported [not_a_valid_lang]"));
         }
@@ -211,8 +211,8 @@ public class ScriptTransformTests extends ESTestCase {
 
     static String scriptTypeField(ScriptType type) {
         switch (type) {
-            case INLINE: return "inline";
-            case STORED: return "stored";
+            case INLINE: return "source";
+            case STORED: return "id";
             default:
                 throw illegalArgument("unsupported script type [{}]", type);
         }

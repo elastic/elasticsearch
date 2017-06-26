@@ -6,16 +6,20 @@
 package org.elasticsearch.xpack.ml.job.config;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.RecordWriter;
+import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.utils.ToXContentParams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,7 +38,7 @@ import java.util.stream.Collectors;
  * <code>fieldname</code> must be set and only one of <code>byFieldName</code>
  * and <code>overFieldName</code> should be set.
  */
-public class Detector extends ToXContentToBytes implements Writeable {
+public class Detector implements ToXContentObject, Writeable {
 
     public enum ExcludeFrequent implements Writeable {
         ALL,
@@ -77,6 +81,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
     public static final ParseField USE_NULL_FIELD = new ParseField("use_null");
     public static final ParseField EXCLUDE_FREQUENT_FIELD = new ParseField("exclude_frequent");
     public static final ParseField DETECTOR_RULES_FIELD = new ParseField("detector_rules");
+    public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
 
     public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("detector", Builder::new);
 
@@ -96,6 +101,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
         }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
         PARSER.declareObjectArray(Builder::setDetectorRules,
                 (parser, parseFieldMatcher) -> DetectionRule.PARSER.apply(parser, parseFieldMatcher).build(), DETECTOR_RULES_FIELD);
+        PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
     }
 
     public static final String COUNT = "count";
@@ -312,6 +318,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
     private final boolean useNull;
     private final ExcludeFrequent excludeFrequent;
     private final List<DetectionRule> detectorRules;
+    private final int detectorIndex;
 
     public Detector(StreamInput in) throws IOException {
         detectorDescription = in.readString();
@@ -323,6 +330,12 @@ public class Detector extends ToXContentToBytes implements Writeable {
         useNull = in.readBoolean();
         excludeFrequent = in.readBoolean() ? ExcludeFrequent.readFromStream(in) : null;
         detectorRules = in.readList(DetectionRule::new);
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
+            detectorIndex = in.readInt();
+        } else {
+            // negative means unknown, and is expected for 5.4 jobs
+            detectorIndex = -1;
+        }
     }
 
     @Override
@@ -341,6 +354,9 @@ public class Detector extends ToXContentToBytes implements Writeable {
             out.writeBoolean(false);
         }
         out.writeList(detectorRules);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
+            out.writeInt(detectorIndex);
+        }
     }
 
     @Override
@@ -367,12 +383,19 @@ public class Detector extends ToXContentToBytes implements Writeable {
             builder.field(EXCLUDE_FREQUENT_FIELD.getPreferredName(), excludeFrequent);
         }
         builder.field(DETECTOR_RULES_FIELD.getPreferredName(), detectorRules);
+        // negative means "unknown", which should only happen for a 5.4 job
+        if (detectorIndex >= 0
+                // no point writing this to cluster state, as the indexes will get reassigned on reload anyway
+                && params.paramAsBoolean(ToXContentParams.FOR_CLUSTER_STATE, false) == false) {
+            builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
+        }
         builder.endObject();
         return builder;
     }
 
     private Detector(String detectorDescription, String function, String fieldName, String byFieldName, String overFieldName,
-            String partitionFieldName, boolean useNull, ExcludeFrequent excludeFrequent, List<DetectionRule> detectorRules) {
+                     String partitionFieldName, boolean useNull, ExcludeFrequent excludeFrequent, List<DetectionRule> detectorRules,
+                     int detectorIndex) {
         this.function = function;
         this.fieldName = fieldName;
         this.byFieldName = byFieldName;
@@ -380,10 +403,9 @@ public class Detector extends ToXContentToBytes implements Writeable {
         this.partitionFieldName = partitionFieldName;
         this.useNull = useNull;
         this.excludeFrequent = excludeFrequent;
-        // REMOVE THIS LINE WHEN REMOVING JACKSON_DATABIND:
-        detectorRules = detectorRules != null ? detectorRules : Collections.emptyList();
         this.detectorRules = Collections.unmodifiableList(detectorRules);
         this.detectorDescription = detectorDescription != null ? detectorDescription : DefaultDetectorDescription.of(this);
+        this.detectorIndex = detectorIndex;
     }
 
     public String getDetectorDescription() {
@@ -462,6 +484,13 @@ public class Detector extends ToXContentToBytes implements Writeable {
     }
 
     /**
+     * @return the detector index or a negative number if unknown
+     */
+    public int getDetectorIndex() {
+        return detectorIndex;
+    }
+
+    /**
      * Returns a list with the byFieldName, overFieldName and partitionFieldName that are not null
      *
      * @return a list with the byFieldName, overFieldName and partitionFieldName that are not null
@@ -515,14 +544,15 @@ public class Detector extends ToXContentToBytes implements Writeable {
                 Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
                 Objects.equals(this.useNull, that.useNull) &&
                 Objects.equals(this.excludeFrequent, that.excludeFrequent) &&
-                Objects.equals(this.detectorRules, that.detectorRules);
+                Objects.equals(this.detectorRules, that.detectorRules) &&
+                this.detectorIndex == that.detectorIndex;
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(detectorDescription, function, fieldName, byFieldName,
                 overFieldName, partitionFieldName, useNull, excludeFrequent,
-                detectorRules);
+                detectorRules, detectorIndex);
     }
 
     public static class Builder {
@@ -546,6 +576,8 @@ public class Detector extends ToXContentToBytes implements Writeable {
         private boolean useNull = false;
         private ExcludeFrequent excludeFrequent;
         private List<DetectionRule> detectorRules = Collections.emptyList();
+        // negative means unknown, and is expected for v5.4 jobs
+        private int detectorIndex = -1;
 
         public Builder() {
         }
@@ -560,9 +592,8 @@ public class Detector extends ToXContentToBytes implements Writeable {
             useNull = detector.useNull;
             excludeFrequent = detector.excludeFrequent;
             detectorRules = new ArrayList<>(detector.detectorRules.size());
-            for (DetectionRule rule : detector.getDetectorRules()) {
-                detectorRules.add(rule);
-            }
+            detectorRules.addAll(detector.getDetectorRules());
+            detectorIndex = detector.detectorIndex;
         }
 
         public Builder(String function, String fieldName) {
@@ -606,58 +637,52 @@ public class Detector extends ToXContentToBytes implements Writeable {
             this.detectorRules = detectorRules;
         }
 
-        public List<DetectionRule> getDetectorRules() {
-            return detectorRules;
+        public void setDetectorIndex(int detectorIndex) {
+            this.detectorIndex = detectorIndex;
         }
 
         public Detector build() {
-            return build(false);
-        }
-
-        public Detector build(boolean isSummarised) {
             boolean emptyField = Strings.isEmpty(fieldName);
             boolean emptyByField = Strings.isEmpty(byFieldName);
             boolean emptyOverField = Strings.isEmpty(overFieldName);
             boolean emptyPartitionField = Strings.isEmpty(partitionFieldName);
             if (Detector.ANALYSIS_FUNCTIONS.contains(function) == false) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_UNKNOWN_FUNCTION, function));
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_UNKNOWN_FUNCTION, function));
             }
 
             if (emptyField && emptyByField && emptyOverField) {
                 if (!Detector.COUNT_WITHOUT_FIELD_FUNCTIONS.contains(function)) {
-                    throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_NO_ANALYSIS_FIELD_NOT_COUNT));
+                    throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_NO_ANALYSIS_FIELD_NOT_COUNT));
                 }
-            }
-
-            if (isSummarised && Detector.METRIC.equals(function)) {
-                throw new IllegalArgumentException(
-                        Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED, Detector.METRIC));
             }
 
             // check functions have required fields
 
             if (emptyField && Detector.FIELD_NAME_FUNCTIONS.contains(function)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_REQUIRES_FIELDNAME, function));
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_REQUIRES_FIELDNAME, function));
             }
 
             if (!emptyField && (Detector.FIELD_NAME_FUNCTIONS.contains(function) == false)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION, function));
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION, function));
             }
 
             if (emptyByField && Detector.BY_FIELD_NAME_FUNCTIONS.contains(function)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_REQUIRES_BYFIELD, function));
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_REQUIRES_BYFIELD, function));
             }
 
             if (!emptyByField && Detector.NO_BY_FIELD_NAME_FUNCTIONS.contains(function)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_BYFIELD_INCOMPATIBLE_FUNCTION, function));
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.JOB_CONFIG_BYFIELD_INCOMPATIBLE_FUNCTION, function));
             }
 
             if (emptyOverField && Detector.OVER_FIELD_NAME_FUNCTIONS.contains(function)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_REQUIRES_OVERFIELD, function));
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_FUNCTION_REQUIRES_OVERFIELD, function));
             }
 
             if (!emptyOverField && Detector.NO_OVER_FIELD_NAME_FUNCTIONS.contains(function)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_OVERFIELD_INCOMPATIBLE_FUNCTION, function));
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.JOB_CONFIG_OVERFIELD_INCOMPATIBLE_FUNCTION, function));
             }
 
             // field names cannot contain certain characters
@@ -670,7 +695,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
             if (detectorRules.isEmpty() == false) {
                 if (FUNCTIONS_WITHOUT_RULE_SUPPORT.contains(function)) {
                     String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION, function);
-                    throw new IllegalArgumentException(msg);
+                    throw ExceptionsHelper.badRequestException(msg);
                 }
                 for (DetectionRule rule : detectorRules) {
                     checkScoping(rule);
@@ -680,18 +705,18 @@ public class Detector extends ToXContentToBytes implements Writeable {
             // partition, by and over field names cannot be duplicates
             if (!emptyPartitionField) {
                 if (partitionFieldName.equals(byFieldName)) {
-                    throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
+                    throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
                             PARTITION_FIELD_NAME_FIELD.getPreferredName(), BY_FIELD_NAME_FIELD.getPreferredName(),
                             partitionFieldName));
                 }
                 if (partitionFieldName.equals(overFieldName)) {
-                    throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
+                    throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
                             PARTITION_FIELD_NAME_FIELD.getPreferredName(), OVER_FIELD_NAME_FIELD.getPreferredName(),
                             partitionFieldName));
                 }
             }
             if (!emptyByField && byFieldName.equals(overFieldName)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
                         BY_FIELD_NAME_FIELD.getPreferredName(), OVER_FIELD_NAME_FIELD.getPreferredName(),
                         byFieldName));
             }
@@ -700,34 +725,34 @@ public class Detector extends ToXContentToBytes implements Writeable {
             // days of the Splunk app and could be removed now BUT ONLY IF THE C++ CODE IS CHANGED
             // FIRST - see https://github.com/elastic/x-pack-elasticsearch/issues/858
             if (COUNT.equals(byFieldName)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED,
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED,
                         BY_FIELD_NAME_FIELD.getPreferredName()));
             }
             if (COUNT.equals(overFieldName)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED,
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED,
                         OVER_FIELD_NAME_FIELD.getPreferredName()));
             }
 
             if (BY.equals(byFieldName)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_BY_DISALLOWED,
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_BY_DISALLOWED,
                         BY_FIELD_NAME_FIELD.getPreferredName()));
             }
             if (BY.equals(overFieldName)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_BY_DISALLOWED,
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_BY_DISALLOWED,
                         OVER_FIELD_NAME_FIELD.getPreferredName()));
             }
 
             if (OVER.equals(byFieldName)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_OVER_DISALLOWED,
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_OVER_DISALLOWED,
                         BY_FIELD_NAME_FIELD.getPreferredName()));
             }
             if (OVER.equals(overFieldName)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_OVER_DISALLOWED,
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_OVER_DISALLOWED,
                         OVER_FIELD_NAME_FIELD.getPreferredName()));
             }
 
             return new Detector(detectorDescription, function, fieldName, byFieldName, overFieldName, partitionFieldName,
-                    useNull, excludeFrequent, detectorRules);
+                    useNull, excludeFrequent, detectorRules, detectorIndex);
         }
 
         public List<String> extractAnalysisFields() {
@@ -739,17 +764,17 @@ public class Detector extends ToXContentToBytes implements Writeable {
         /**
          * Check that the characters used in a field name will not cause problems.
          *
-         * @param field
-         *            The field name to be validated
-         * @return true
+         * @param field The field name to be validated
          */
-        public static boolean verifyFieldName(String field) throws ElasticsearchParseException {
+        public static void verifyFieldName(String field) throws ElasticsearchParseException {
             if (field != null && containsInvalidChar(field)) {
-                throw new IllegalArgumentException(
+                throw ExceptionsHelper.badRequestException(
                         Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME_CHARS, field, Detector.PROHIBITED));
-
             }
-            return true;
+            if (RecordWriter.CONTROL_FIELD_NAME.equals(field)) {
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME, field, RecordWriter.CONTROL_FIELD_NAME));
+            }
         }
 
         private static boolean containsInvalidChar(String field) {
@@ -758,7 +783,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
                     return true;
                 }
             }
-            return field.chars().anyMatch(ch -> Character.isISOControl(ch));
+            return field.chars().anyMatch(Character::isISOControl);
         }
 
         private void checkScoping(DetectionRule rule) throws ElasticsearchParseException {
@@ -769,7 +794,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
                 if (!validOptions.contains(condition.getFieldName())) {
                     String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_CONDITION_INVALID_FIELD_NAME, validOptions,
                             condition.getFieldName());
-                    throw new IllegalArgumentException(msg);
+                    throw ExceptionsHelper.badRequestException(msg);
                 }
             }
         }
@@ -779,7 +804,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
             if (targetFieldName != null && !analysisFields.contains(targetFieldName)) {
                 String msg =
                         Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_INVALID_TARGET_FIELD_NAME, analysisFields, targetFieldName);
-                throw new IllegalArgumentException(msg);
+                throw ExceptionsHelper.badRequestException(msg);
             }
         }
 
@@ -833,7 +858,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
                 if (fieldName.equals(detector.byFieldName)) {
                     return ScopingLevel.BY;
                 }
-                throw new IllegalArgumentException(
+                throw ExceptionsHelper.badRequestException(
                         "fieldName '" + fieldName + "' does not match an analysis field");
             }
         }

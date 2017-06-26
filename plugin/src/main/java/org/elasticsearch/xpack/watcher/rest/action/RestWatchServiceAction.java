@@ -36,6 +36,11 @@ public class RestWatchServiceAction extends WatcherRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_watcher_service_action";
+    }
+
+    @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client)
             throws IOException {
         return channel -> client.watcherService(new WatcherServiceRequest().stop(),
@@ -59,6 +64,11 @@ public class RestWatchServiceAction extends WatcherRestHandler {
         }
 
         @Override
+        public String getName() {
+            return "xpack_watcher_start_service_action";
+        }
+
+        @Override
         public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client)
                 throws IOException {
             return channel -> client.watcherService(new WatcherServiceRequest().start(),
@@ -70,6 +80,11 @@ public class RestWatchServiceAction extends WatcherRestHandler {
 
         StopRestHandler(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public String getName() {
+            return "xpack_watcher_stop_service_action";
         }
 
         @Override

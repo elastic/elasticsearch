@@ -13,37 +13,39 @@ import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.ResultCode;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
+import org.junit.After;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/971")
 public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
+
+    private LDAPConnection connection;
+
+    @After
+    public void closeConnection() {
+        if (connection != null) {
+            connection.close();
+        }
+    }
 
     /**
      * Tests that a client-side timeout in the asynchronous LDAP SDK is treated as a failure, rather
      * than simply returning no results.
      */
     public void testSearchTimeoutIsFailure() throws Exception {
-
         ldapServers[0].setProcessingDelayMillis(100);
 
         final LDAPConnectionOptions options = new LDAPConnectionOptions();
         options.setConnectTimeoutMillis(500);
         options.setResponseTimeoutMillis(5);
-
-        final LDAPURL ldapurl = new LDAPURL(ldapUrls()[0]);
-        final LDAPConnection connection = LdapUtils.privilegedConnect(
-                () -> new LDAPConnection(options,
-                        ldapurl.getHost(), ldapurl.getPort())
-        );
+        connect(options);
 
         final Settings settings = Settings.builder()
                 .put("group_search.base_dn", "ou=groups,o=sevenSeas")
@@ -61,6 +63,15 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
         final Throwable cause = exception.getCause();
         assertThat(cause, instanceOf(LDAPException.class));
         assertThat(((LDAPException) cause).getResultCode(), is(ResultCode.TIMEOUT));
+    }
+
+    private void connect(LDAPConnectionOptions options) throws LDAPException {
+        if (connection != null) {
+            throw new IllegalStateException("Already connected (" + connection.getConnectionName() + ' '
+                    + connection.getConnectedAddress() + ')');
+        }
+        final LDAPURL ldapurl = new LDAPURL(ldapUrls()[0]);
+        this.connection = LdapUtils.privilegedConnect(() -> new LDAPConnection(options, ldapurl.getHost(), ldapurl.getPort()));
     }
 
 }

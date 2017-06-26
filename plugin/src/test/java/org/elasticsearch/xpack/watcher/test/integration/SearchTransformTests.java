@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.input.simple.ExecutableSimpleInput;
 import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.transform.Transform;
@@ -106,8 +105,8 @@ public class SearchTransformTests extends ESIntegTestCase {
 
         WatcherSearchTemplateRequest request = templateRequest(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()), "idx");
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()),
-                watcherSearchTemplateService(), null);
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, client(),
+                watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
@@ -143,8 +142,8 @@ public class SearchTransformTests extends ESIntegTestCase {
                 QueryBuilders.wrapperQuery(jsonBuilder().startObject()
                 .startObject("_unknown_query_").endObject().endObject().bytes())), "idx");
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
-        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, WatcherClientProxy.of(client()),
-                watcherSearchTemplateService(), null);
+        ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, client(),
+                watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
 
         WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
@@ -215,8 +214,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
-                                                                             xContentRegistry(), scriptService());
+        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, client(), xContentRegistry(), scriptService());
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());
@@ -277,7 +275,7 @@ public class SearchTransformTests extends ESIntegTestCase {
 
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform executableSearchTransform = new ExecutableSearchTransform(searchTransform, logger,
-                WatcherClientProxy.of(client()), watcherSearchTemplateService(), null);
+                client(), watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
 
         return executableSearchTransform.execute(ctx, Payload.Simple.EMPTY);
     }
@@ -301,7 +299,7 @@ public class SearchTransformTests extends ESIntegTestCase {
 
         @Override
         public List<ScriptContext> getContexts() {
-            return Collections.singletonList(Watcher.SCRIPT_EXECUTABLE_CONTEXT);
+            return Collections.singletonList(Watcher.SCRIPT_TEMPLATE_CONTEXT);
         }
     }
 }

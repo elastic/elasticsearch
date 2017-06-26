@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -14,7 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -48,7 +49,7 @@ import java.util.concurrent.TimeUnit;
  * used around integral types and booleans so they can take <code>null</code>
  * values.
  */
-public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContent {
+public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements ToXContentObject {
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("datafeeds");
@@ -99,7 +100,8 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return parsedScriptFields;
         }, SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
-        PARSER.declareBoolean(Builder::setSource, SOURCE);
+        // TODO this is to read former _source field. Remove in v7.0.0
+        PARSER.declareBoolean((builder, value) -> {}, SOURCE);
         PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.PARSER, CHUNKING_CONFIG);
     }
 
@@ -122,12 +124,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     private final AggregatorFactories.Builder aggregations;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
-    private final boolean source;
     private final ChunkingConfig chunkingConfig;
 
     private DatafeedConfig(String id, String jobId, TimeValue queryDelay, TimeValue frequency, List<String> indices, List<String> types,
                            QueryBuilder query, AggregatorFactories.Builder aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
-                           Integer scrollSize, boolean source, ChunkingConfig chunkingConfig) {
+                           Integer scrollSize, ChunkingConfig chunkingConfig) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -138,7 +139,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         this.aggregations = aggregations;
         this.scriptFields = scriptFields;
         this.scrollSize = scrollSize;
-        this.source = source;
         this.chunkingConfig = chunkingConfig;
     }
 
@@ -165,7 +165,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.scriptFields = null;
         }
         this.scrollSize = in.readOptionalVInt();
-        this.source = in.readBoolean();
+        if (in.getVersion().before(Version.V_5_5_0)) {
+            // read former _source field
+            in.readBoolean();
+        }
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
     }
 
@@ -195,10 +198,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     public Integer getScrollSize() {
         return scrollSize;
-    }
-
-    public boolean isSource() {
-        return source;
     }
 
     public QueryBuilder getQuery() {
@@ -240,11 +239,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
     /**
      * Returns the date histogram interval as epoch millis if valid, or throws
-     * an {@link IllegalArgumentException} with the validation error
+     * an {@link ElasticsearchException} with the validation error
      */
     private static long validateAndGetDateHistogramInterval(DateHistogramAggregationBuilder dateHistogram) {
         if (dateHistogram.timeZone() != null && dateHistogram.timeZone().equals(DateTimeZone.UTC) == false) {
-            throw new IllegalArgumentException("ML requires date_histogram.time_zone to be UTC");
+            throw ExceptionsHelper.badRequestException("ML requires date_histogram.time_zone to be UTC");
         }
 
         if (dateHistogram.dateHistogramInterval() != null) {
@@ -277,21 +276,21 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 case MONTH_OF_YEAR:
                 case YEAR_OF_CENTURY:
                 case QUARTER:
-                    throw new IllegalArgumentException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
+                    throw ExceptionsHelper.badRequestException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
                 default:
-                    throw new IllegalArgumentException("Unexpected dateTimeUnit [" + dateTimeUnit + "]");
+                    throw ExceptionsHelper.badRequestException("Unexpected dateTimeUnit [" + dateTimeUnit + "]");
             }
         } else {
             interval = TimeValue.parseTimeValue(calendarInterval, "date_histogram.interval");
         }
         if (interval.days() > 7) {
-            throw new IllegalArgumentException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
+            throw ExceptionsHelper.badRequestException(invalidDateHistogramCalendarIntervalMessage(calendarInterval));
         }
         return interval.millis();
     }
 
     private static String invalidDateHistogramCalendarIntervalMessage(String interval) {
-        throw new IllegalArgumentException("When specifying a date_histogram calendar interval ["
+        throw ExceptionsHelper.badRequestException("When specifying a date_histogram calendar interval ["
                 + interval + "], ML does not accept intervals longer than a week because of " +
                 "variable lengths of periods greater than a week");
     }
@@ -338,7 +337,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             out.writeBoolean(false);
         }
         out.writeOptionalVInt(scrollSize);
-        out.writeBoolean(source);
+        if (out.getVersion().before(Version.V_5_5_0)) {
+            // write former _source field
+            out.writeBoolean(false);
+        }
         out.writeOptionalWriteable(chunkingConfig);
     }
 
@@ -371,9 +373,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             builder.endObject();
         }
         builder.field(SCROLL_SIZE.getPreferredName(), scrollSize);
-        if (source) {
-            builder.field(SOURCE.getPreferredName(), source);
-        }
         if (chunkingConfig != null) {
             builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
         }
@@ -407,13 +406,12 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 && Objects.equals(this.scrollSize, that.scrollSize)
                 && Objects.equals(this.aggregations, that.aggregations)
                 && Objects.equals(this.scriptFields, that.scriptFields)
-                && Objects.equals(this.source, that.source)
                 && Objects.equals(this.chunkingConfig, that.chunkingConfig);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, jobId, frequency, queryDelay, indices, types, query, scrollSize, aggregations, scriptFields, source,
+        return Objects.hash(id, jobId, frequency, queryDelay, indices, types, query, scrollSize, aggregations, scriptFields,
                 chunkingConfig);
     }
 
@@ -438,7 +436,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private AggregatorFactories.Builder aggregations;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
-        private boolean source = false;
         private ChunkingConfig chunkingConfig;
 
         public Builder() {
@@ -461,7 +458,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.aggregations = config.aggregations;
             this.scriptFields = config.scriptFields;
             this.scrollSize = config.scrollSize;
-            this.source = config.source;
             this.chunkingConfig = config.chunkingConfig;
         }
 
@@ -512,13 +508,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             if (scrollSize < 0) {
                 String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE,
                         DatafeedConfig.SCROLL_SIZE.getPreferredName(), scrollSize);
-                throw new IllegalArgumentException(msg);
+                throw ExceptionsHelper.badRequestException(msg);
             }
             this.scrollSize = scrollSize;
-        }
-
-        public void setSource(boolean enabled) {
-            this.source = enabled;
         }
 
         public void setChunkingConfig(ChunkingConfig chunkingConfig) {
@@ -529,18 +521,18 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             if (!MlStrings.isValidId(id)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName()));
+                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName()));
             }
             if (indices == null || indices.isEmpty() || indices.contains(null) || indices.contains("")) {
                 throw invalidOptionValue(INDICES.getPreferredName(), indices);
             }
-            if (types == null || types.isEmpty() || types.contains(null) || types.contains("")) {
+            if (types == null || types.contains(null) || types.contains("")) {
                 throw invalidOptionValue(TYPES.getPreferredName(), types);
             }
             validateAggregations();
             setDefaultChunkingConfig();
             return new DatafeedConfig(id, jobId, queryDelay, frequency, indices, types, query, aggregations, scriptFields, scrollSize,
-                    source, chunkingConfig);
+                    chunkingConfig);
         }
 
         private void validateAggregations() {
@@ -548,23 +540,24 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 return;
             }
             if (scriptFields != null && !scriptFields.isEmpty()) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
+                throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.DATAFEED_CONFIG_CANNOT_USE_SCRIPT_FIELDS_WITH_AGGS));
             }
             List<AggregationBuilder> aggregatorFactories = aggregations.getAggregatorFactories();
             if (aggregatorFactories.isEmpty()) {
-                throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
+                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
             }
             AggregationBuilder topLevelAgg = aggregatorFactories.get(0);
             if (topLevelAgg instanceof HistogramAggregationBuilder) {
                 if (((HistogramAggregationBuilder) topLevelAgg).interval() <= 0) {
-                    throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+                    throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
                 }
             } else if (topLevelAgg instanceof DateHistogramAggregationBuilder) {
                 if (validateAndGetDateHistogramInterval((DateHistogramAggregationBuilder) topLevelAgg) <= 0) {
-                    throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
+                    throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_INTERVAL_MUST_BE_GREATER_THAN_ZERO);
                 }
             } else {
-                throw new IllegalArgumentException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
+                throw ExceptionsHelper.badRequestException(Messages.DATAFEED_AGGREGATIONS_REQUIRES_DATE_HISTOGRAM);
             }
         }
 
@@ -582,7 +575,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
         private static ElasticsearchException invalidOptionValue(String fieldName, Object value) {
             String msg = Messages.getMessage(Messages.DATAFEED_CONFIG_INVALID_OPTION_VALUE, fieldName, value);
-            throw new IllegalArgumentException(msg);
+            throw ExceptionsHelper.badRequestException(msg);
         }
     }
 }

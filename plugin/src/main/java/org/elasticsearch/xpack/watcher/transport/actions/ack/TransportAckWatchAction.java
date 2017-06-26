@@ -7,10 +7,13 @@ package org.elasticsearch.xpack.watcher.transport.actions.ack;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -19,8 +22,8 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
@@ -36,12 +39,12 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
     private final Clock clock;
     private final Watch.Parser parser;
-    private final WatcherClientProxy client;
+    private final Client client;
 
     @Inject
     public TransportAckWatchAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
                                    IndexNameExpressionResolver indexNameExpressionResolver, Clock clock, XPackLicenseState licenseState,
-                                   Watch.Parser parser, WatcherClientProxy client) {
+                                   Watch.Parser parser, InternalClient client) {
         super(settings, AckWatchAction.NAME, transportService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, AckWatchRequest::new);
         this.clock = clock;
@@ -51,7 +54,10 @@ public class TransportAckWatchAction extends WatcherTransportAction<AckWatchRequ
 
     @Override
     protected void doExecute(AckWatchRequest request, ActionListener<AckWatchResponse> listener) {
-        client.getWatch(request.getWatchId(), ActionListener.wrap((response) -> {
+        GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, request.getWatchId())
+                .preference(Preference.LOCAL.type()).realtime(true);
+
+        client.get(getRequest, ActionListener.wrap((response) -> {
             if (response.isExists() == false) {
                 listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getWatchId()));
             } else {

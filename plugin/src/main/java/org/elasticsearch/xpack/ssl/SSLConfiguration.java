@@ -21,7 +21,7 @@ import java.util.Objects;
 /**
  * Represents the configuration for an SSLContext
  */
-class SSLConfiguration {
+public final class SSLConfiguration {
 
     // These settings are never registered, but they exist so that we can parse the values defined under grouped settings. Also, some are
     // implemented as optional settings, which provides a declarative manner for fallback as we typically fallback to values from a
@@ -97,7 +97,7 @@ class SSLConfiguration {
     /**
      * The verification mode for this configuration; this mode controls certificate and hostname verification
      */
-    VerificationMode verificationMode() {
+    public VerificationMode verificationMode() {
         return verificationMode;
     }
 

@@ -26,6 +26,11 @@ public class RestDeleteFilterAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_ml_delete_filter_action";
+    }
+
+    @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         Request request = new Request(restRequest.param(Request.FILTER_ID.getPreferredName()));
         return channel -> client.execute(DeleteFilterAction.INSTANCE, request, new AcknowledgedRestListener<>(channel));

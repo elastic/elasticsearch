@@ -9,6 +9,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.ml.action.PostDataAction;
@@ -30,6 +31,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -47,6 +49,7 @@ public class DatafeedJobTests extends ESTestCase {
     private DataExtractor dataExtractor;
     private Client client;
     private DataDescription.Builder dataDescription;
+    ActionFuture<PostDataAction.Response> postDataFuture;
     private ActionFuture<FlushJobAction.Response> flushJobFuture;
     private ArgumentCaptor<FlushJobAction.Request> flushJobRequests;
 
@@ -63,7 +66,7 @@ public class DatafeedJobTests extends ESTestCase {
         client = mock(Client.class);
         dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
-        ActionFuture<PostDataAction.Response> jobDataFuture = mock(ActionFuture.class);
+        postDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
         currentTime = 0;
         xContentType = XContentType.JSON;
@@ -78,8 +81,8 @@ public class DatafeedJobTests extends ESTestCase {
         PostDataAction.Request expectedRequest = new PostDataAction.Request("_job_id");
         expectedRequest.setDataDescription(dataDescription.build());
         expectedRequest.setContent(new BytesArray(contentBytes), xContentType);
-        when(client.execute(same(PostDataAction.INSTANCE), eq(expectedRequest))).thenReturn(jobDataFuture);
-        when(jobDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
+        when(client.execute(same(PostDataAction.INSTANCE), eq(expectedRequest))).thenReturn(postDataFuture);
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(dataCounts));
 
         flushJobRequests = ArgumentCaptor.forClass(FlushJobAction.Request.class);
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
@@ -102,9 +105,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertNull(datafeedJob.runLookBack(0L, null));
 
         verify(dataExtractorFactory).newExtractor(0L, 1500L);
-        FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
-        flushRequest.setCalcInterim(true);
-        verify(client, never()).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
     }
 
     public void testLookBackRunWithNoEndTime() throws Exception {
@@ -121,7 +122,7 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
     }
 
-    public void testLookBackRunWithOverrideStartTime() throws Exception {
+    public void testLookBackRunWithStartTimeEarlierThanResumePoint() throws Exception {
         currentTime = 10000L;
         long latestFinalBucketEndTimeMs = -1;
         long latestRecordTimeMs = -1;
@@ -143,6 +144,28 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
     }
 
+    public void testContinueFromNow() throws Exception {
+        // We need to return empty counts so that the lookback doesn't update the last end time
+        when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(new DataCounts("_job_id")));
+
+        currentTime = 10000L;
+        long latestFinalBucketEndTimeMs = 5000;
+        long latestRecordTimeMs = 5000;
+
+        long frequencyMs = 1000;
+        long queryDelayMs = 500;
+        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, latestFinalBucketEndTimeMs, latestRecordTimeMs);
+        datafeedJob.runLookBack(10000L, null);
+
+        // advance time
+        currentTime = 12000L;
+
+        expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runRealtime());
+
+        verify(dataExtractorFactory, times(1)).newExtractor(10000L, 11000L);
+        Mockito.verifyNoMoreInteractions(dataExtractorFactory);
+    }
+
     public void testRealtimeRun() throws Exception {
         currentTime = 60000L;
         long frequencyMs = 100;
@@ -154,15 +177,17 @@ public class DatafeedJobTests extends ESTestCase {
         verify(dataExtractorFactory).newExtractor(1000L + 1L, currentTime - queryDelayMs);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
         flushRequest.setCalcInterim(true);
-        flushRequest.setAdvanceTime("1000");
+        flushRequest.setAdvanceTime("59000");
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
     }
 
-    public void testEmptyDataCount() throws Exception {
+    public void testEmptyDataCountGivenlookback() throws Exception {
         when(dataExtractor.hasNext()).thenReturn(false);
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1);
         expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+        verify(client, times(1)).execute(same(FlushJobAction.INSTANCE), any());
+        assertThat(flushJobRequests.getValue().getAdvanceTime(), is(nullValue()));
     }
 
     public void testExtractionProblem() throws Exception {
@@ -205,7 +230,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertEquals(1000L, startTimeCaptor.getAllValues().get(1).longValue());
         assertEquals(1000L, endTimeCaptor.getAllValues().get(0).longValue());
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
-        verify(client, times(0)).execute(same(FlushJobAction.INSTANCE), any());
+        verify(client, times(1)).execute(same(FlushJobAction.INSTANCE), any());
     }
 
     public void testPostAnalysisProblemIsConflict() throws Exception {
@@ -228,7 +253,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertEquals(1000L, startTimeCaptor.getAllValues().get(1).longValue());
         assertEquals(1000L, endTimeCaptor.getAllValues().get(0).longValue());
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
-        verify(client, times(0)).execute(same(FlushJobAction.INSTANCE), any());
+        verify(client, times(1)).execute(same(FlushJobAction.INSTANCE), any());
     }
 
     public void testFlushAnalysisProblem() throws Exception {
@@ -261,5 +286,4 @@ public class DatafeedJobTests extends ESTestCase {
         return new DatafeedJob("_job_id", dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, client, auditor,
                 currentTimeSupplier, latestFinalBucketEndTimeMs, latestRecordTimeMs);
     }
-
 }

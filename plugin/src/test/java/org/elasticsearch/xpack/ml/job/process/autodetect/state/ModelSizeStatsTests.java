@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.state;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats.MemoryStatus;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import java.util.Date;
 
@@ -81,7 +81,7 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
     }
 
     @Override
-    protected ModelSizeStats parseInstance(XContentParser parser) {
+    protected ModelSizeStats doParseInstance(XContentParser parser) {
         return ModelSizeStats.PARSER.apply(parser, null).build();
     }
 

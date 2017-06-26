@@ -5,9 +5,9 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.test.AbstractStreamableTestCase;
 import org.elasticsearch.xpack.ml.action.PutJobAction.Response;
 import org.elasticsearch.xpack.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.support.AbstractStreamableTestCase;
 
 import static org.elasticsearch.xpack.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.job.config.JobTests.randomValidJobId;

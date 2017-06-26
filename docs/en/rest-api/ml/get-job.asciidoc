@@ -1,11 +1,11 @@
-//lcawley Verified example output 2017-04-11
+[role="xpack"]
 [[ml-get-job]]
-==== Get Jobs
+=== Get Jobs
 
 The get jobs API enables you to retrieve configuration information for jobs.
 
 
-===== Request
+==== Request
 
 `GET _xpack/ml/anomaly_detectors/` +
 
@@ -13,7 +13,7 @@ The get jobs API enables you to retrieve configuration information for jobs.
 
 //===== Description
 
-===== Path Parameters
+==== Path Parameters
 
 `job_id`::
   (string) Identifier for the job.
@@ -21,7 +21,7 @@ The get jobs API enables you to retrieve configuration information for jobs.
   the `job_id` to get information about all jobs.
 
 
-===== Results
+==== Results
 
 The API returns the following information:
 
@@ -30,13 +30,15 @@ The API returns the following information:
   For more information, see <<ml-job-resource,Job Resources>>.
 
 
-===== Authorization
+==== Authorization
 
 You must have `monitor_ml`, `monitor`, `manage_ml`, or `manage` cluster
-privileges to use this API. For more information, see <<privileges-list-cluster>>.
+privileges to use this API. For more information, see
+{xpack-ref}/security-privileges.html[Security Privileges].
+//<<privileges-list-cluster>>.
 
 
-===== Examples
+==== Examples
 
 The following example gets configuration information for the `farequote` job:
 
@@ -67,7 +69,8 @@ The API returns the following results:
             "function": "mean",
             "field_name": "responsetime",
             "partition_field_name": "airline",
-            "detector_rules": []
+            "detector_rules": [],
+            "detector_index": 0
           }
         ],
         "influencers": [

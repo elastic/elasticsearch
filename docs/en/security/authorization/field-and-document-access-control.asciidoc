@@ -320,7 +320,7 @@ of the current authenticated user:
       "privileges" : [ "read" ],
       "query" : {
         "template" : {
-          "inline" : {
+          "source" : {
             "term" : { "acl.username" : "{{_user.username}}" }
           }
         }
@@ -355,7 +355,7 @@ based on the `group.id` field in your documents:
       "privileges" : [ "read" ],
       "query" : {
         "template" : {
-          "inline" : {
+          "source" : {
             "term" : { "group.id" : "{{_user.metadata.group_id}}" }
           }
         }

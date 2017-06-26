@@ -5,15 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.job.config;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.ml.job.config.DataDescription.DataFormat;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
-import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,15 +58,15 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         DataDescription.Builder description = new DataDescription.Builder();
         expectThrows(IllegalArgumentException.class, () -> description.setTimeFormat(null));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> description.setTimeFormat("invalid"));
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> description.setTimeFormat("invalid"));
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, "invalid"), e.getMessage());
 
-        e = expectThrows(IllegalArgumentException.class, () -> description.setTimeFormat(""));
+        e = expectThrows(ElasticsearchException.class, () -> description.setTimeFormat(""));
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, ""), e.getMessage());
 
-        e = expectThrows(IllegalArgumentException.class, () -> description.setTimeFormat("y-M-dd"));
+        e = expectThrows(ElasticsearchException.class, () -> description.setTimeFormat("y-M-dd"));
         assertEquals(Messages.getMessage(Messages.JOB_CONFIG_INVALID_TIMEFORMAT, "y-M-dd"), e.getMessage());
-        expectThrows(IllegalArgumentException.class, () -> description.setTimeFormat("YYY-mm-UU hh:mm:ssY"));
+        expectThrows(ElasticsearchException.class, () -> description.setTimeFormat("YYY-mm-UU hh:mm:ssY"));
     }
 
     public void testTransform_GivenDelimitedAndEpoch() {
@@ -268,7 +269,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
     }
 
     @Override
-    protected DataDescription parseInstance(XContentParser parser) {
+    protected DataDescription doParseInstance(XContentParser parser) {
         return DataDescription.PARSER.apply(parser, null).build();
     }
 }

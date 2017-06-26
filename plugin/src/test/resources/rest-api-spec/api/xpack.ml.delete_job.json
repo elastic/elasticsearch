@@ -1,5 +1,6 @@
 {
   "xpack.ml.delete_job": {
+    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-delete-job.html",
     "methods": [ "DELETE" ],
     "url": {
       "path": "/_xpack/ml/anomaly_detectors/{job_id}",
@@ -9,6 +10,13 @@
           "type": "string",
           "required": true,
           "description": "The ID of the job to delete"
+        }
+      },
+      "params": {
+        "force": {
+          "type": "boolean",
+          "required": false,
+          "description": "True if the job should be forcefully deleted"
         }
       }
     },

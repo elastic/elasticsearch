@@ -50,6 +50,11 @@ public class RestHijackOperationAction extends WatcherRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "xpack_watcher_hijack_operation_action";
+    }
+
+    @Override
     public RestChannelConsumer doPrepareRequest(RestRequest request, WatcherClient client) throws IOException {
         // we have to consume the id parameter lest the request will fail for the wrong reason
         if (request.hasParam("id")) {
@@ -71,6 +76,11 @@ public class RestHijackOperationAction extends WatcherRestHandler {
 
         private UnsupportedHandler(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public String getName() {
+            return "xpack_watcher_unsupported_action";
         }
 
         @Override

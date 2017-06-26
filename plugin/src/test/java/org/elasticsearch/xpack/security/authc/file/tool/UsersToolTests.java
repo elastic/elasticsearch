@@ -177,7 +177,7 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testParseInvalidUsername() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            UsersTool.parseUsername(Collections.singletonList("$34dkl"), Settings.EMPTY);
+            UsersTool.parseUsername(Collections.singletonList("áccented"), Settings.EMPTY);
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid username"));
@@ -254,10 +254,10 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testParseInvalidRole() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            UsersTool.parseRoles(terminal, new Environment(settings), "$345");
+            UsersTool.parseRoles(terminal, new Environment(settings), "fóóbár");
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
-        assertTrue(e.getMessage(), e.getMessage().contains("Invalid role [$345]"));
+        assertTrue(e.getMessage(), e.getMessage().contains("Invalid role [fóóbár]"));
     }
 
     public void testParseMultipleRoles() throws Exception {

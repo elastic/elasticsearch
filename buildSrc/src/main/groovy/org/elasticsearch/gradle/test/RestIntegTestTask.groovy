@@ -51,13 +51,14 @@ public class RestIntegTestTask extends DefaultTask {
     boolean includePackaged = false
 
     public RestIntegTestTask() {
-        runner = project.tasks.create("${name}Runner", RandomizedTestingTask.class)
+        runner = project.tasks.create("${name}Runner", RestRandomizedTestingTask.class)
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
         runner.dependsOn(clusterInit)
         runner.classpath = project.sourceSets.test.runtimeClasspath
         runner.testClassesDir = project.sourceSets.test.output.classesDir
         clusterConfig = project.extensions.create("${name}Cluster", ClusterConfiguration.class, project)
+        runner.clusterConfig = clusterConfig
 
         // start with the common test configuration
         runner.configure(BuildPlugin.commonTestConfig(project))
@@ -183,6 +184,17 @@ public class RestIntegTestTask extends DefaultTask {
             stream.close()
         }
         println('=========================================')
+    }
 
+    static class RestRandomizedTestingTask extends RandomizedTestingTask {
+        protected ClusterConfiguration clusterConfig
+
+        @Option(
+            option = "debug-jvm",
+            description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
+        )
+        public void setDebug(boolean enabled) {
+            clusterConfig.debug = enabled;
+        }
     }
 }

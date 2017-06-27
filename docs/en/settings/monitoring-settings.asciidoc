@@ -1,5 +1,6 @@
+[role="xpack"]
 [[monitoring-settings]]
-== Monitoring Settings
+===  Monitoring Settings
 
 Monitoring is enabled by default when you install {xpack}. You configure
 <<monitoring-collection-settings, `xpack.monitoring.collection`>>
@@ -17,13 +18,13 @@ For more information, see
 
 [float]
 [[general-monitoring-settings]]
-=== General Monitoring Settings
+==== General Monitoring Settings
 `xpack.monitoring.enabled`::
 Set to `false` to disable {es} {monitoring} for Elasticsearch.
 
 [float]
 [[monitoring-collection-settings]]
-=== Monitoring Collection Settings
+==== Monitoring Collection Settings
 
 `xpack.monitoring.collection.cluster.state.timeout`::
 

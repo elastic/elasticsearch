@@ -66,7 +66,13 @@ public class NetworkBytesReference extends BytesReference {
 
     @Override
     public NetworkBytesReference slice(int from, int length) {
-        BytesArray newBytesArray = (BytesArray) bytesArray.slice(from, length);
+        BytesReference ref = bytesArray.slice(from, length);
+        BytesArray newBytesArray;
+        if (ref instanceof BytesArray) {
+            newBytesArray = (BytesArray) ref;
+        } else {
+            newBytesArray = new BytesArray(ref.toBytesRef());
+        }
 
         int newReadIndex = Math.min(Math.max(readIndex - from, 0), length);
         int newWriteIndex = Math.min(Math.max(writeIndex - from, 0), length);

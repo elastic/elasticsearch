@@ -109,9 +109,9 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler})
      */
     public RecoveryTarget(final IndexShard indexShard,
-                          final DiscoveryNode sourceNode,
-                          final PeerRecoveryTargetService.RecoveryListener listener,
-                          final LongConsumer ensureClusterStateVersionCallback) {
+                   final DiscoveryNode sourceNode,
+                   final PeerRecoveryTargetService.RecoveryListener listener,
+                   final LongConsumer ensureClusterStateVersionCallback) {
         super("recovery_status");
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
@@ -354,7 +354,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private void ensureRefCount() {
         if (refCount() <= 0) {
             throw new ElasticsearchException("RecoveryStatus is used but it's refcount is 0. Probably a mismatch between incRef/decRef " +
-                "calls");
+                    "calls");
         }
     }
 

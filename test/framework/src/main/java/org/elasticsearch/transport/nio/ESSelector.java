@@ -177,7 +177,7 @@ public abstract class ESSelector implements Closeable {
     }
 
     public PlainActionFuture<Boolean> isRunningFuture() {
-        return PlainActionFuture.newFuture();
+        return isRunningFuture;
     }
 
     private void closeChannel(NioChannel channel) {

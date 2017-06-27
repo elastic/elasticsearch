@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -327,6 +326,11 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      *
      */
     public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
+        // It's possible for replicaNodeVersion to be null, when deassociating dead nodes
+        // that have been removed, the shards are failed, and part of the shard failing
+        // calls this method with an out-of-date RoutingNodes, where the version might not
+        // be accessible. Therefore, we need to protect against the version being null
+        // (meaning the node will be going away).
         return assignedShards(shardId).stream()
                 .filter(shr -> !shr.primary() && shr.active())
                 .filter(shr -> node(shr.currentNodeId()) != null)

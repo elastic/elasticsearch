@@ -23,9 +23,9 @@
   - match: { hits.total: 1 }
 
   - do:
-      put_template:
+      put_script:
         id: "1"
-        body: { "template": { "query": { "term": { "text": "{{template}}" } } } }
+        body: { "script": { "lang": "mustache", "source": { "query": { "term": { "text": "{{template}}" } } } } }
   - match: { acknowledged: true }
 
   - do:
@@ -88,9 +88,9 @@
       indices.refresh: {}
 
   - do:
-      put_template:
+      put_script:
         id: "template_1"
-        body: { "template": { "query": { "match": { "{{field}}": { "query" : "{{value}}", "operator" : "{{operator}}{{^operator}}or{{/operator}}" } } }, "size": "{{size}}" } }
+        body: { "script": { "lang": "mustache", "source": { "query": { "match": { "{{field}}": { "query" : "{{value}}", "operator" : "{{operator}}{{^operator}}or{{/operator}}" } } }, "size": "{{size}}" } } }
   - match: { acknowledged: true }
 
   - do:

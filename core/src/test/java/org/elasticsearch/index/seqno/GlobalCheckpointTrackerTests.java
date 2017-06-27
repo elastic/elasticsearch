@@ -611,7 +611,9 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                         tracker.trackingLocalCheckpoints.get(allocationId),
                         equalTo(primaryContext.trackingLocalCheckpoints().get(allocationId)));
             } else {
-                assertThat(allocationId, tracker.trackingLocalCheckpoints.get(allocationId), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                assertThat(
+                        allocationId,
+                        tracker.trackingLocalCheckpoints.get(allocationId), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
             }
         }
 

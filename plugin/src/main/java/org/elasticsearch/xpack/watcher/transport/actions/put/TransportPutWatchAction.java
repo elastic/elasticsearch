@@ -14,20 +14,19 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 
 import java.time.Clock;
-import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.joda.time.DateTimeZone.UTC;
@@ -50,16 +49,16 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     }
 
     @Override
-    protected void doExecute(PutWatchRequest request, ActionListener<PutWatchResponse> listener) {
+    protected void doExecute(final PutWatchRequest request, final ActionListener<PutWatchResponse> listener) {
         try {
             DateTime now = new DateTime(clock.millis(), UTC);
             Watch watch = parser.parseWithSecrets(request.getId(), false, request.getSource(), now, request.xContentType());
             watch.setState(request.isActive(), now);
 
             try (XContentBuilder builder = jsonBuilder()) {
-                Payload.XContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(Watch.INCLUDE_STATUS_KEY, "true"));
+                Payload.XContent.Params params = WatcherParams.builder().hideSecrets(false).put(Watch.INCLUDE_STATUS_KEY, "true").build();
                 watch.toXContent(builder, params);
-                BytesReference bytesReference = builder.bytes();
+                final BytesReference bytesReference = builder.bytes();
 
                 IndexRequest indexRequest = new IndexRequest(Watch.INDEX).type(Watch.DOC_TYPE).id(request.getId());
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

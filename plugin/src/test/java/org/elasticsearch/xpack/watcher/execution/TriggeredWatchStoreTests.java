@@ -31,6 +31,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,15 +42,28 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.notification.email.EmailService;
+import org.elasticsearch.xpack.support.clock.ClockMock;
+import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
+import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
+import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
+import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+import org.elasticsearch.xpack.watcher.trigger.schedule.CronSchedule;
+import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.elasticsearch.xpack.watcher.watch.WatchTests;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 
+import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -328,6 +344,31 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
         Collection<TriggeredWatch> triggeredWatches = triggeredWatchStore.findTriggeredWatches(Collections.singletonList(watch), cs);
         assertThat(triggeredWatches, hasSize(0));
+    }
+
+    public void testTriggeredWatchParser() throws Exception {
+        EmailService emailService = mock(EmailService.class);
+        HttpClient httpClient = mock(HttpClient.class);
+        WatcherSearchTemplateService searchTemplateService = mock(WatcherSearchTemplateService.class);
+
+        Watch watch = WatcherTestUtils.createTestWatch("fired_test", client, httpClient, emailService, searchTemplateService, logger);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), DateTime.now(DateTimeZone.UTC), DateTime.now(DateTimeZone.UTC));
+        Wid wid = new Wid("_record", DateTime.now(DateTimeZone.UTC));
+        TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
+        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+        triggeredWatch.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+
+        ScheduleRegistry scheduleRegistry = new ScheduleRegistry(Collections.singleton(new CronSchedule.Parser()));
+        TriggerEngine triggerEngine = new WatchTests.ParseOnlyScheduleTriggerEngine(Settings.EMPTY, scheduleRegistry, new ClockMock());
+        TriggerService triggerService = new TriggerService(Settings.EMPTY, singleton(triggerEngine));
+
+        TriggeredWatch.Parser parser = new TriggeredWatch.Parser(Settings.EMPTY, triggerService);
+        TriggeredWatch parsedTriggeredWatch = parser.parse(triggeredWatch.id().value(), 0, jsonBuilder.bytes());
+
+        XContentBuilder jsonBuilder2 = XContentFactory.jsonBuilder();
+        parsedTriggeredWatch.toXContent(jsonBuilder2, ToXContent.EMPTY_PARAMS);
+
+        assertThat(jsonBuilder.bytes().utf8ToString(), equalTo(jsonBuilder2.bytes().utf8ToString()));
     }
 
     private RefreshResponse mockRefreshResponse(int total, int successful) {

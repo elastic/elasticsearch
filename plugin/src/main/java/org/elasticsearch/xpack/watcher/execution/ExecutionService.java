@@ -7,7 +7,10 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -16,6 +19,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Setting;
@@ -44,11 +48,11 @@ import org.joda.time.DateTime;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
-import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -194,54 +198,46 @@ public class ExecutionService extends AbstractComponent {
         if (!started.get()) {
             throw new IllegalStateException("not started");
         }
-        final List<TriggeredWatch> triggeredWatches = new ArrayList<>();
-        final List<TriggeredExecutionContext> contexts = new ArrayList<>();
-        DateTime now = new DateTime(clock.millis(), UTC);
-
-        threadPool.generic().execute(() -> {
-            for (TriggerEvent event : events) {
-                GetResponse response = getWatch(event.jobName());
-                if (response.isExists() == false) {
-                    logger.warn("unable to find watch [{}] in watch index, perhaps it has been deleted", event.jobName());
-                } else {
-                    try {
-                        Watch watch =
-                                parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now, XContentType.JSON);
-                        TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event, defaultThrottlePeriod);
-                        contexts.add(ctx);
-                        triggeredWatches.add(new TriggeredWatch(ctx.id(), event));
-                    } catch (IOException e) {
-                        logger.warn("unable to parse watch [{}]", event.jobName());
+        Tuple<List<TriggeredWatch>, List<TriggeredExecutionContext>> watchesAndContext = createTriggeredWatchesAndContext(events);
+        List<TriggeredWatch> triggeredWatches = watchesAndContext.v1();
+        triggeredWatchStore.putAll(triggeredWatches, ActionListener.wrap(
+                response -> executeTriggeredWatches(response, watchesAndContext),
+                e -> {
+                    Throwable cause = ExceptionsHelper.unwrapCause(e);
+                    if (cause instanceof EsRejectedExecutionException) {
+                        logger.debug("failed to store watch records due to overloaded threadpool [{}]",
+                                ExceptionsHelper.detailedMessage(e));
+                    } else {
+                        logger.warn("failed to store watch records", e);
                     }
-                }
-            }
-
-            if (triggeredWatches.isEmpty() == false) {
-                logger.trace("saving triggered [{}] watches", triggeredWatches.size());
-
-                triggeredWatchStore.putAll(triggeredWatches, ActionListener.wrap(
-                        (slots) -> {
-                            int slot = 0;
-                            while ((slot = slots.nextSetBit(slot)) != -1) {
-                                executeAsync(contexts.get(slot), triggeredWatches.get(slot));
-                                slot++;
-                            }
-                        },
-                        (e) -> logger.warn("failed to store watch [] records", e)));
-            }
-        });
+                }));
     }
 
-    void processEventsSync(Iterable<TriggerEvent> events) throws Exception {
+    void processEventsSync(Iterable<TriggerEvent> events) throws IOException {
         if (!started.get()) {
             throw new IllegalStateException("not started");
         }
-        final List<TriggeredWatch> triggeredWatches = new ArrayList<>();
-        final List<TriggeredExecutionContext> contexts = new ArrayList<>();
+        Tuple<List<TriggeredWatch>, List<TriggeredExecutionContext>> watchesAndContext = createTriggeredWatchesAndContext(events);
+        List<TriggeredWatch> triggeredWatches = watchesAndContext.v1();
+        logger.debug("saving watch records [{}]", triggeredWatches.size());
+        BulkResponse bulkResponse = triggeredWatchStore.putAll(triggeredWatches);
+        executeTriggeredWatches(bulkResponse, watchesAndContext);
+    }
+
+    /**
+     * Create a tuple of triggered watches and their corresponding contexts, usable for sync and async processing
+     *
+     * @param events The iterable list of trigger events to create the two lists from
+     * @return       Two linked lists that contain the triggered watches and contexts
+     */
+    private Tuple<List<TriggeredWatch>, List<TriggeredExecutionContext>> createTriggeredWatchesAndContext(Iterable<TriggerEvent> events)
+            throws IOException {
+        final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
+        final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
 
         DateTime now = new DateTime(clock.millis(), UTC);
         for (TriggerEvent event : events) {
-            GetResponse response = getWatch(event.jobName());
+            GetResponse response = client.prepareGet(Watch.INDEX, Watch.DOC_TYPE, event.jobName()).get(TimeValue.timeValueSeconds(10));
             if (response.isExists() == false) {
                 logger.warn("unable to find watch [{}] in watch index, perhaps it has been deleted", event.jobName());
                 continue;
@@ -252,13 +248,23 @@ public class ExecutionService extends AbstractComponent {
             triggeredWatches.add(new TriggeredWatch(ctx.id(), event));
         }
 
-        if (triggeredWatches.isEmpty() == false) {
-            logger.debug("saving triggered [{}] watches", triggeredWatches.size());
-            BitSet slots = triggeredWatchStore.putAll(triggeredWatches);
-            int slot = 0;
-            while ((slot = slots.nextSetBit(slot)) != -1) {
-                executeAsync(contexts.get(slot), triggeredWatches.get(slot));
-                slot++;
+        return Tuple.tuple(triggeredWatches, contexts);
+    }
+
+    /**
+     * Execute triggered watches, which have been successfully indexed into the triggered watches index
+     *
+     * @param response            The bulk response containing the response of indexing triggered watches
+     * @param watchesAndContext   The triggered watches and context objects needed for execution
+     */
+    private void executeTriggeredWatches(final BulkResponse response,
+                                         final Tuple<List<TriggeredWatch>, List<TriggeredExecutionContext>> watchesAndContext) {
+        for (int i = 0; i < response.getItems().length; i++) {
+            BulkItemResponse itemResponse = response.getItems()[i];
+            if (itemResponse.isFailed()) {
+                logger.error("could not store triggered watch with id [{}]: [{}]", itemResponse.getId(), itemResponse.getFailureMessage());
+            } else {
+                executeAsync(watchesAndContext.v2().get(i), watchesAndContext.v1().get(i));
             }
         }
     }

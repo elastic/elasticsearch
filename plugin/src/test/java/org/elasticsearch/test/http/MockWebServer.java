@@ -56,6 +56,8 @@ public class MockWebServer implements Closeable {
     private final SSLContext sslContext;
     private final boolean needClientAuth;
     private final Set<CountDownLatch> latches = ConcurrentCollections.newConcurrentSet();
+    private String hostname;
+    private int port;
 
     /**
      * Instantiates a webserver without https
@@ -92,6 +94,10 @@ public class MockWebServer implements Closeable {
         }
 
         server.start();
+        // Uses #InetSocketAddress.getHostString() to prevent reverse dns lookups, eager binding, so we can find out host/port regardless
+        // if the webserver was already shut down
+        this.hostname = server.getAddress().getHostString();
+        this.port = server.getAddress().getPort();
         server.createContext("/", s -> {
             try {
                 MockResponse response = responses.poll();
@@ -182,17 +188,17 @@ public class MockWebServer implements Closeable {
     }
 
     /**
-     * @return The hostname the server is bound to. Uses #InetSocketAddress.getHostString() to prevent reverse dns lookups
+     * @return The hostname the server is bound to.
      */
     public String getHostName() {
-        return server.getAddress().getHostString();
+        return hostname;
     }
 
     /**
      * @return The tcp port that the server is bound to
      */
     public int getPort() {
-        return server.getAddress().getPort();
+        return port;
     }
 
     /**

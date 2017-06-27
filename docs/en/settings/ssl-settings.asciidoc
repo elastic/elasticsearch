@@ -1,7 +1,7 @@
 [float]
 === {component} TLS/SSL Settings
 You can configure the following TLS/SSL settings. If the settings are not configured,
-the {xpack-ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings]
+the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings]
 are used.
 
 ifdef::server[]
@@ -44,7 +44,7 @@ Java Cryptography Architecture documentation]. Defaults to the value of
 
 The following settings are used to specify a private key, certificate, and the
 trusted certificates that should be used when communicating over an SSL/TLS connection.
-If none of the settings below are specified, the {xpack-ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings] are used.
+If none of the settings below are specified, the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings] are used.
 ifdef::server[]
 A private key and certificate must be configured.
 endif::server[]
@@ -52,7 +52,7 @@ ifndef::server[]
 A private key and certificate are optional and would be used if the server requires client authentication for PKI
 authentication.
 endif::server[]
-If none of the settings below are specified, the {xpack-ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings] are used.
+If none of the settings below are specified, the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings] are used.
 
 [float]
 ===== PEM Encoded Files

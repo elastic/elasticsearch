@@ -115,7 +115,8 @@ public class AllocateStalePrimaryAllocationCommand extends BasePrimaryAllocation
 
         if (acceptDataLoss == false) {
             return explainOrThrowRejectedCommand(explain, allocation,
-                "allocating an empty primary for [" + index + "][" + shardId + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true");
+                "allocating a stale primary for [" + index + "][" + shardId + "] can result in data loss. " +
+                "Please confirm by setting the accept_data_loss parameter to true");
         }
 
         if (shardRouting.recoverySource().getType() != RecoverySource.Type.EXISTING_STORE) {

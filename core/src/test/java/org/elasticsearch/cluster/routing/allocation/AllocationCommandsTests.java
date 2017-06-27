@@ -189,7 +189,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             allocation.reroute(clusterState, new AllocationCommands(new AllocateStalePrimaryAllocationCommand(index, shardId.id(), "node1", false)), false, false);
             fail("expected IllegalArgumentException when allocating stale primary with acceptDataLoss flag set to false");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("allocating an empty primary for " + shardId + " can result in data loss. Please confirm by setting the accept_data_loss parameter to true"));
+            assertThat(e.getMessage(), containsString("allocating a stale primary for " + shardId + " can result in data loss. Please confirm by setting the accept_data_loss parameter to true"));
         }
 
         logger.info("--> allocating empty primary with acceptDataLoss flag set to true");

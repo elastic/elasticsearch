@@ -87,7 +87,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     /**
-     * Registers a channel to be closed by the selector event loop with which it is registered.
+     * Schedules a channel to be closed by the selector event loop with which it is registered.
      * <p>
      * If the current state is UNREGISTERED, the call will attempt to transition the state from UNREGISTERED
      * to CLOSING. If this transition is successful, the channel can no longer be registered with an event
@@ -118,8 +118,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     /**
-     * Closes the channel synchronously. This method should only be called from the selector thread. If it is
-     * called on an UNREGISTERED channel or from a non-selector thread an exception will be thrown.
+     * Closes the channel synchronously. This method should only be called from the selector thread.
      * <p>
      * Once this method returns, the channel will be closed.
      */
@@ -129,11 +128,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         // Whichever thread succeeds in setting the state to CLOSED will close the raw channel.
         for (; ; ) {
             int state = this.state.get();
-            if (state == UNREGISTERED) {
-                throw new IllegalStateException("Cannot close() an unregistered channel. Use closeAsync()");
-            } else if (selector.isOnCurrentThread() == false) {
-                throw new IllegalStateException("Cannot close() a channel from a non-selector thread");
-            } else if (state == REGISTERED && this.state.compareAndSet(REGISTERED, CLOSING)) {
+            if (state < CLOSING && this.state.compareAndSet(state, CLOSING)) {
                 close0();
             } else if (state == CLOSING) {
                 close0();

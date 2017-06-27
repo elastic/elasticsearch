@@ -34,9 +34,9 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
 
     private final InetSocketAddress remoteAddress;
     private final ConnectFuture connectFuture = new ConnectFuture();
+    private volatile SocketSelector socketSelector;
     private WriteContext writeContext;
     private ReadContext readContext;
-    private SocketSelector socketSelector;
 
     public NioSocketChannel(String profile, SocketChannel socketChannel) throws IOException {
         super(profile, socketChannel);
@@ -56,8 +56,11 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     @Override
     public void closeFromSelector() {
         // Even if the channel has already been closed we will clear any pending write operations just in case
-        if (state.get() > UNREGISTERED && getSelector().isOnCurrentThread() && writeContext.hasQueuedWriteOps()) {
-            writeContext.clearQueuedWriteOps(new ClosedChannelException());
+        if (state.get() > UNREGISTERED) {
+            SocketSelector selector = getSelector();
+            if (selector != null && selector.isOnCurrentThread() && writeContext.hasQueuedWriteOps()) {
+                writeContext.clearQueuedWriteOps(new ClosedChannelException());
+            }
         }
 
         super.closeFromSelector();

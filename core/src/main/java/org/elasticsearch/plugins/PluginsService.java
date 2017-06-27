@@ -430,7 +430,7 @@ public class PluginsService extends AbstractComponent {
 
         final Constructor<?> constructor = constructors[0];
         if (constructor.getParameterCount() > 2) {
-            throw new IllegalStateException("no public constructor of correct signature for [" + pluginClass.getName() + "]");
+            throw new IllegalStateException(signatureMessage(pluginClass));
         }
 
         final Class[] parameterTypes = constructor.getParameterTypes();
@@ -442,11 +442,21 @@ public class PluginsService extends AbstractComponent {
             } else if (constructor.getParameterCount() == 0) {
                 return (Plugin)constructor.newInstance();
             } else {
-                throw new IllegalStateException("no public constructor of correct signature for [" + pluginClass.getName() + "]");
+                throw new IllegalStateException(signatureMessage(pluginClass));
             }
         } catch (final ReflectiveOperationException e) {
             throw new IllegalStateException("failed to load plugin class [" + pluginClass.getName() + "]", e);
         }
+    }
+
+    private String signatureMessage(final Class<? extends Plugin> clazz) {
+        return String.format(
+                Locale.ROOT,
+                "no public constructor of correct signature for [%s]; must be [%s], [%s], or [%s]",
+                clazz.getName(),
+                "(org.elasticsearch.common.settings.Settings,java.nio.file.Path)",
+                "(org.elasticsearch.common.settings.Settings)",
+                "()");
     }
 
     public <T> List<T> filterPlugins(Class<T> type) {

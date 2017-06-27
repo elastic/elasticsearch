@@ -7,8 +7,6 @@ After=network-online.target
 [Service]
 Environment=ES_HOME=/usr/share/elasticsearch
 Environment=CONF_DIR=${path.conf}
-Environment=DATA_DIR=/var/lib/elasticsearch
-Environment=LOG_DIR=/var/log/elasticsearch
 Environment=PID_DIR=/var/run/elasticsearch
 EnvironmentFile=-${path.env}
 
@@ -22,8 +20,6 @@ ExecStartPre=/usr/share/elasticsearch/bin/elasticsearch-systemd-pre-exec
 ExecStart=/usr/share/elasticsearch/bin/elasticsearch \
                                                 -p ${PID_DIR}/elasticsearch.pid \
                                                 --quiet \
-                                                -Edefault.path.logs=${LOG_DIR} \
-                                                -Edefault.path.data=${DATA_DIR} \
                                                 --path.conf ${CONF_DIR}
 
 # StandardOutput is configured to redirect to journalctl since

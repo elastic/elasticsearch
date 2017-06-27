@@ -269,9 +269,6 @@ public class Node implements Closeable {
             Logger logger = Loggers.getLogger(Node.class, tmpSettings);
             final String nodeId = nodeEnvironment.nodeId();
             tmpSettings = addNodeNameIfNeeded(tmpSettings, nodeId);
-            if (DiscoveryNode.nodeRequiresLocalStorage(tmpSettings)) {
-                checkForIndexDataInDefaultPathData(tmpSettings, nodeEnvironment, logger);
-            }
             // this must be captured after the node name is possibly added to the settings
             final String nodeName = NODE_NAME_SETTING.get(tmpSettings);
             if (hadPredefinedNodeName == false) {
@@ -523,73 +520,6 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
-    }
-
-    /**
-     * Checks for path.data and default.path.data being configured, and there being index data in any of the paths in default.path.data.
-     *
-     * @param settings the settings to check for path.data and default.path.data
-     * @param nodeEnv  the current node environment
-     * @param logger   a logger where messages regarding the detection will be logged
-     * @throws IOException if an I/O exception occurs reading the directory structure
-     */
-    static void checkForIndexDataInDefaultPathData(
-            final Settings settings, final NodeEnvironment nodeEnv, final Logger logger) throws IOException {
-        if (!Environment.PATH_DATA_SETTING.exists(settings) || !Environment.DEFAULT_PATH_DATA_SETTING.exists(settings)) {
-            return;
-        }
-
-        boolean clean = true;
-        for (final String defaultPathData : Environment.DEFAULT_PATH_DATA_SETTING.get(settings)) {
-            final Path defaultNodeDirectory = NodeEnvironment.resolveNodePath(getPath(defaultPathData), nodeEnv.getNodeLockId());
-            if (Files.exists(defaultNodeDirectory) == false) {
-                continue;
-            }
-
-            if (isDefaultPathDataInPathData(nodeEnv, defaultNodeDirectory)) {
-                continue;
-            }
-
-            final NodeEnvironment.NodePath nodePath = new NodeEnvironment.NodePath(defaultNodeDirectory);
-            final Set<String> availableIndexFolders = nodeEnv.availableIndexFoldersForPath(nodePath);
-            if (availableIndexFolders.isEmpty()) {
-                continue;
-            }
-
-            clean = false;
-            logger.error("detected index data in default.path.data [{}] where there should not be any", nodePath.indicesPath);
-            for (final String availableIndexFolder : availableIndexFolders) {
-                logger.info(
-                        "index folder [{}] in default.path.data [{}] must be moved to any of {}",
-                        availableIndexFolder,
-                        nodePath.indicesPath,
-                        Arrays.stream(nodeEnv.nodePaths()).map(np -> np.indicesPath).collect(Collectors.toList()));
-            }
-        }
-
-        if (clean) {
-            return;
-        }
-
-        final String message = String.format(
-                Locale.ROOT,
-                "detected index data in default.path.data %s where there should not be any; check the logs for details",
-                Environment.DEFAULT_PATH_DATA_SETTING.get(settings));
-        throw new IllegalStateException(message);
-    }
-
-    private static boolean isDefaultPathDataInPathData(final NodeEnvironment nodeEnv, final Path defaultNodeDirectory) throws IOException {
-        for (final NodeEnvironment.NodePath dataPath : nodeEnv.nodePaths()) {
-            if (Files.isSameFile(dataPath.path, defaultNodeDirectory)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @SuppressForbidden(reason = "read path that is not configured in environment")
-    private static Path getPath(final String path) {
-        return PathUtils.get(path);
     }
 
     // visible for testing

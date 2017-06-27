@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.test
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.Version
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 
@@ -158,7 +159,7 @@ class NodeInfo {
             }
         }
         env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
-        if (nodeVersion.startsWith("5.")) {
+        if (Version.fromString(nodeVersion).major == 5) {
             args.addAll("-E", "path.conf=${confDir}")
         } else {
             args.addAll("--path.conf", "${confDir}")

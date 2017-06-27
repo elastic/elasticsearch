@@ -73,28 +73,6 @@ public class EnvironmentTests extends ESTestCase {
         assertThat(environment.resolveRepoURL(new URL("jar:http://localhost/test/../repo1?blah!/repo/")), nullValue());
     }
 
-    public void testDefaultPathData() {
-        final Path defaultPathData = createTempDir().toAbsolutePath();
-        final Settings settings = Settings.builder()
-                .put("path.home", createTempDir().toAbsolutePath())
-                .put("default.path.data", defaultPathData)
-                .build();
-        final Environment environment = new Environment(settings);
-        assertThat(environment.dataFiles(), equalTo(new Path[] { defaultPathData }));
-    }
-
-    public void testPathDataOverrideDefaultPathData() {
-        final Path pathData = createTempDir().toAbsolutePath();
-        final Path defaultPathData = createTempDir().toAbsolutePath();
-        final Settings settings = Settings.builder()
-                .put("path.home", createTempDir().toAbsolutePath())
-                .put("path.data", pathData)
-                .put("default.path.data", defaultPathData)
-                .build();
-        final Environment environment = new Environment(settings);
-        assertThat(environment.dataFiles(), equalTo(new Path[] { pathData }));
-    }
-
     public void testPathDataWhenNotSet() {
         final Path pathHome = createTempDir().toAbsolutePath();
         final Settings settings = Settings.builder().put("path.home", pathHome).build();
@@ -103,38 +81,10 @@ public class EnvironmentTests extends ESTestCase {
     }
 
     public void testPathDataNotSetInEnvironmentIfNotSet() {
-        final Path defaultPathData = createTempDir().toAbsolutePath();
-        final Settings settings = Settings.builder()
-                .put("path.home", createTempDir().toAbsolutePath())
-                .put("default.path.data", defaultPathData)
-                .build();
+        final Settings settings = Settings.builder().put("path.home", createTempDir().toAbsolutePath()).build();
         assertFalse(Environment.PATH_DATA_SETTING.exists(settings));
-        assertTrue(Environment.DEFAULT_PATH_DATA_SETTING.exists(settings));
         final Environment environment = new Environment(settings);
         assertFalse(Environment.PATH_DATA_SETTING.exists(environment.settings()));
-        assertTrue(Environment.DEFAULT_PATH_DATA_SETTING.exists(environment.settings()));
-    }
-
-    public void testDefaultPathLogs() {
-        final Path defaultPathLogs = createTempDir().toAbsolutePath();
-        final Settings settings = Settings.builder()
-                .put("path.home", createTempDir().toAbsolutePath())
-                .put("default.path.logs", defaultPathLogs)
-                .build();
-        final Environment environment = new Environment(settings);
-        assertThat(environment.logsFile(), equalTo(defaultPathLogs));
-    }
-
-    public void testPathLogsOverrideDefaultPathLogs() {
-        final Path pathLogs = createTempDir().toAbsolutePath();
-        final Path defaultPathLogs = createTempDir().toAbsolutePath();
-        final Settings settings = Settings.builder()
-                .put("path.home", createTempDir().toAbsolutePath())
-                .put("path.logs", pathLogs)
-                .put("default.path.logs", defaultPathLogs)
-                .build();
-        final Environment environment = new Environment(settings);
-        assertThat(environment.logsFile(), equalTo(pathLogs));
     }
 
     public void testPathLogsWhenNotSet() {

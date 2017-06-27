@@ -35,8 +35,6 @@ fi
 ES_HOME="/usr/share/elasticsearch"
 MAX_OPEN_FILES=65536
 MAX_MAP_COUNT=262144
-LOG_DIR="/var/log/elasticsearch"
-DATA_DIR="/var/lib/elasticsearch"
 CONF_DIR="${path.conf}"
 
 PID_DIR="/var/run/elasticsearch"
@@ -114,7 +112,7 @@ start() {
     cd $ES_HOME
     echo -n $"Starting $prog: "
     # if not running, start it up here, usually something like "daemon $exec"
-    daemon --user elasticsearch --pidfile $pidfile $exec -p $pidfile -d -Edefault.path.logs=$LOG_DIR -Edefault.path.data=$DATA_DIR --path.conf $CONF_DIR
+    daemon --user elasticsearch --pidfile $pidfile $exec -p $pidfile -d --path.conf $CONF_DIR
     retval=$?
     echo
     [ $retval -eq 0 ] && touch $lockfile

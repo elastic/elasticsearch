@@ -477,7 +477,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
 
             // Post upgrade checks:
             assertBusy(() -> {
-                Map<String, Object> rsp2 = toMap(client().performRequest("GET", "/" + index + "/_upgrade"));
+                Map<String, Object> rsp2 = toMap(client().performRequest("GET", "/_upgrade"));
+                logger.info("upgrade status response: {}", rsp2);
                 Map<?, ?> indexUpgradeStatus2 = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp2);
                 int totalBytes2 = (Integer) indexUpgradeStatus2.get("size_in_bytes");
                 assertThat(totalBytes2, greaterThan(0));

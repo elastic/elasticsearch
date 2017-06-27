@@ -54,7 +54,7 @@ echo elasticsearch-service-(x86|x64).exe was not found...
 :okExe
 set ES_VERSION=${project.version}
 
-if "%LOG_DIR%" == "" set LOG_DIR=%ES_HOME%\logs
+if "%SERVICE_LOG_DIR%" == "" set SERVICE_LOG_DIR=%ES_HOME%\logs
 
 if "x%1x" == "xx" goto displayUsage
 set SERVICE_CMD=%1
@@ -64,7 +64,7 @@ set SERVICE_ID=%1
 
 :checkServiceCmd
 
-if "%LOG_OPTS%" == "" set LOG_OPTS=--LogPath "%LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
+if "%LOG_OPTS%" == "" set LOG_OPTS=--LogPath "%SERVICE_LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
 
 if /i %SERVICE_CMD% == install goto doInstall
 if /i %SERVICE_CMD% == remove goto doRemove
@@ -222,11 +222,10 @@ if "%JVM_SS%" == "" (
 )
 
 CALL "%ES_HOME%\bin\elasticsearch.in.bat"
-if "%DATA_DIR%" == "" set DATA_DIR=%ES_HOME%\data
 
 if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
 
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%"
+set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%"
 
 if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
 if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0

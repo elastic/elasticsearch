@@ -118,27 +118,6 @@ setup() {
     [ "$status" -eq 3 ] || [ "$status" -eq 4 ]
 }
 
-@test "[INIT.D] don't mkdir when it contains a comma" {
-    # Remove these just in case they exist beforehand
-    rm -rf /tmp/aoeu,/tmp/asdf
-    rm -rf /tmp/aoeu,
-    # set DATA_DIR to DATA_DIR=/tmp/aoeu,/tmp/asdf
-    sed -i 's/DATA_DIR=.*/DATA_DIR=\/tmp\/aoeu,\/tmp\/asdf/' /etc/init.d/elasticsearch
-    cat /etc/init.d/elasticsearch | grep "DATA_DIR"
-    run service elasticsearch start
-    if [ "$status" -ne 0 ]; then
-      cat /var/log/elasticsearch/*
-      fail
-    fi
-    wait_for_elasticsearch_status
-    assert_file_not_exist /tmp/aoeu,/tmp/asdf
-    assert_file_not_exist /tmp/aoeu,
-    service elasticsearch stop
-    run service elasticsearch status
-    # precise returns 4, trusty 3
-    [ "$status" -eq 3 ] || [ "$status" -eq 4 ]
-}
-
 @test "[INIT.D] start Elasticsearch with custom JVM options" {
     assert_file_exist $ESENVFILE
     local es_java_opts=$ES_JAVA_OPTS

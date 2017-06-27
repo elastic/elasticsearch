@@ -155,7 +155,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                     .add(createRandomVersionNode()).build();
             state = ClusterState.builder(state).nodes(newNodes).build();
             state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after node leave
-            updateNodes(state, clusterStateServiceMap, MockIndicesService::new);
         }
 
         // Log the shard versions (for debugging if necessary)
@@ -170,8 +169,7 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             String name = "index_" + randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
             Settings.Builder settingsBuilder = Settings.builder()
                     .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
-                    .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 3))
-                    .put("index.routing.allocation.total_shards_per_node", 1);
+                    .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 3));
             CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));
@@ -179,24 +177,13 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
         state = cluster.reroute(state, new ClusterRerouteRequest());
 
         ClusterState previousState = state;
-        // apply cluster state to nodes (incl. master)
-        for (DiscoveryNode node : state.nodes()) {
-            IndicesClusterStateService indicesClusterStateService = clusterStateServiceMap.get(node);
-            ClusterState localState = adaptClusterStateToLocalNode(state, node);
-            ClusterState previousLocalState = adaptClusterStateToLocalNode(previousState, node);
-            final ClusterChangedEvent event = new ClusterChangedEvent("simulating change", localState, previousLocalState);
-            indicesClusterStateService.applyClusterState(event);
-
-            // check that cluster state has been properly applied to node
-            assertClusterStateMatchesNodeState(localState, indicesClusterStateService);
-        }
 
         logger.info("--> starting shards");
-        state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));;
-        state = cluster.reroute(state, new ClusterRerouteRequest());
-        logger.info("--> starting replicas");
-        state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));;
-        state = cluster.reroute(state, new ClusterRerouteRequest());
+        state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));
+        logger.info("--> starting replicas a random number of times");
+        for (int i = 0; i < randomIntBetween(1,4); i++) {
+            state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));
+        }
 
         logger.info("--> state before failing shards: {}", state);
         for (int i = 0; i < randomIntBetween(5, 10); i++) {

@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -185,6 +186,18 @@ public class AggregationsTests extends ESTestCase {
         parseAndAssert(true);
     }
 
+    /**
+     * Test that parsing works for a randomly created Aggregations object with a
+     * randomized aggregation tree. The test randomly chooses an
+     * {@link XContentType}, randomizes the order of the {@link XContent} fields
+     * and randomly sets the `humanReadable` flag when rendering the
+     * {@link XContent}.
+     *
+     * @param addRandomFields
+     *            if set, this will also add random {@link XContent} fields to
+     *            tests that the parsers are lenient to future additions to rest
+     *            responses
+     */
     private void parseAndAssert(boolean addRandomFields) throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         final ToXContent.Params params = new ToXContent.MapParams(singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));

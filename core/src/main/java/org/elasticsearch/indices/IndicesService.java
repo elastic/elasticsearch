@@ -293,24 +293,22 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
-        for (IndexService indexService : this) {
-            for (IndexShard indexShard : indexService) {
+        return new NodeIndicesStats(oldStats, statsByShard(this, flags));
+    }
+
+    Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
+        final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
+
+        for (final IndexService indexService : indicesService) {
+            for (final IndexShard indexShard : indexService) {
                 try {
-                    if (indexShard.routingEntry() == null) {
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags);
+
+                    if (indexShardStats == null) {
                         continue;
                     }
-                    IndexShardStats indexShardStats =
-                        new IndexShardStats(indexShard.shardId(),
-                            new ShardStats[]{
-                                new ShardStats(
-                                    indexShard.routingEntry(),
-                                    indexShard.shardPath(),
-                                    new CommonStats(indicesQueryCache, indexShard, flags),
-                                    indexShard.commitStats(),
-                                    indexShard.seqNoStats())});
 
-                    if (!statsByShard.containsKey(indexService.index())) {
+                    if (statsByShard.containsKey(indexService.index()) == false) {
                         statsByShard.put(indexService.index(), arrayAsArrayList(indexShardStats));
                     } else {
                         statsByShard.get(indexService.index()).add(indexShardStats);
@@ -321,7 +319,23 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         }
-        return new NodeIndicesStats(oldStats, statsByShard);
+
+        return statsByShard;
+    }
+
+    IndexShardStats indexShardStats(final IndicesService indicesService, final IndexShard indexShard, final CommonStatsFlags flags) {
+        if (indexShard.routingEntry() == null) {
+            return null;
+        }
+
+        return new IndexShardStats(indexShard.shardId(),
+                                   new ShardStats[] {
+                                       new ShardStats(indexShard.routingEntry(),
+                                                      indexShard.shardPath(),
+                                                      new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                                                      indexShard.commitStats(),
+                                                      indexShard.seqNoStats())
+                                   });
     }
 
     /**

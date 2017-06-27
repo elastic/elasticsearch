@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -149,6 +151,16 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             tribe1Defaults.put("tribe.t1." + entry.getKey(), entry.getValue());
             tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
         }
+        // TODO: rethink how these settings are generated for tribes once we support more than just string settings...
+        MockSecureSettings secureSettingsTemplate =
+            (MockSecureSettings) Settings.builder().put(cluster2SettingsSource.nodeSettings(0)).getSecureSettings();
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        for (String settingName : secureSettingsTemplate.getSettingNames()) {
+            String settingValue = secureSettingsTemplate.getString(settingName).toString();
+            secureSettings.setString(settingName, settingValue);
+            secureSettings.setString("tribe.t1." + settingName, settingValue);
+            secureSettings.setString("tribe.t2." + settingName, settingValue);
+        }
 
         Settings merged = Settings.builder()
                 .put(internalCluster().getDefaultSettings())
@@ -161,6 +173,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                 .put(tribe2Defaults.build())
                 .put(settings)
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
+                .setSecureSettings(secureSettings)
                 .build();
 
         final List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>(nodePlugins());

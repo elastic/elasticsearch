@@ -6,8 +6,8 @@ You configure settings for X-Pack features in the `elasticsearch.yml`,
 |{xpack} Feature  |{es} Settings                  |{kib} Settings                                |Logstash Settings
 |Graph            |No                             |{kibana-ref}/graph-settings-kb.html[Yes]      |No
 |Machine learning |{ref}/ml-settings.html[Yes]    |{kibana-ref}/ml-settings-kb.html[Yes]         |No
-|Monitoring       |{ref}/monitoring-settings.html[Yes]>>    |{kibana-ref}/monitoring-settings-kb.html[Yes] |{logstash-ref}/settings-xpack.html#monitoring-settings[Yes]
+|Monitoring       |{ref}/monitoring-settings.html[Yes]    |{kibana-ref}/monitoring-settings-kb.html[Yes] |{logstash-ref}/settings-xpack.html#monitoring-settings[Yes]
 |Reporting        |No                             |{kibana-ref}/reporting-settings-kb.html[Yes]  |No
-|Security         |{ref}/security-settings.html[Yes]>>      |{kibana-ref}/security-settings-kb.html[Yes]   |No
+|Security         |{ref}/security-settings.html[Yes]      |{kibana-ref}/security-settings-kb.html[Yes]   |No
 |Watcher          |{ref}/notification-settings.html[Yes]    |No                                  |No
 |=======================

@@ -11,8 +11,6 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
 
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -167,13 +165,30 @@ public class DatabaseMetaDataIT extends JdbcIntegrationTestCase {
             assertEquals("test.doc", results.getString(i++));
             assertEquals("name", results.getString(i++));
             assertEquals(Types.VARCHAR, results.getInt(i++));
+            assertEquals("VARCHAR", results.getString(i++));
+            assertEquals(1, results.getInt(i++));
+            assertEquals(null, results.getString(i++));
+            assertEquals(null, results.getString(i++));
+            assertEquals(10, results.getInt(i++)); // NOCOMMIT 10 seems wrong to hard code for stuff like strings
+            // NOCOMMIT I think it'd be more correct to return DatabaseMetaData.columnNullable because all fields are nullable in es
+            assertEquals(DatabaseMetaData.columnNullableUnknown, results.getInt(i++));
             assertEquals(null, results.getString(i++));
             assertEquals(null, results.getString(i++));
             assertEquals(null, results.getString(i++));
             assertEquals(null, results.getString(i++));
             assertEquals(null, results.getString(i++));
+            assertEquals(1, results.getInt(i++));
+            assertEquals("", results.getString(i++));
+            assertEquals(null, results.getString(i++));
+            assertEquals(null, results.getString(i++));
+            assertEquals(null, results.getString(i++));
+            assertEquals(null, results.getString(i++));
+            assertEquals("", results.getString(i++));
+            assertEquals("", results.getString(i++));
             assertFalse(results.next());
         });
+
+        // NOCOMMIT add some more columns and test that.
     }
 
     private static void assertColumn(String name, String type, ResultSetMetaData meta, int index) throws SQLException {

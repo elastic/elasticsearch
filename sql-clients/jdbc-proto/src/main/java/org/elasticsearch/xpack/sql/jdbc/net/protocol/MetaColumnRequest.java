@@ -50,6 +50,6 @@ public class MetaColumnRequest extends Request {
 
     @Override
     public String toString() {
-        return format(Locale.ROOT, "MetaColumn[index=%, table=%s, column=%s", type, column);
+        return "MetaColumn[index=" + index + ", type=" + type + " column=" + column + "]";
     }
 }

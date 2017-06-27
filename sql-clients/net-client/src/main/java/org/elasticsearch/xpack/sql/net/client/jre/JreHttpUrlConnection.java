@@ -71,7 +71,6 @@ public class JreHttpUrlConnection implements Closeable {
                 if (err == null) {
                     response = "server did not return a response";
                 } else {
-                    // NOCOMMIT figure out why this returns weird characters. Can reproduce with unauthorized.
                     response = new String(IOUtils.asBytes(err).bytes(), StandardCharsets.UTF_8);
                 }
                 throw new ClientException("Protocol/client error; server returned [" + con.getResponseMessage() + "]: " + response);

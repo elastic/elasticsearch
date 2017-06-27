@@ -57,7 +57,7 @@ class HttpClient {
     }
 
     BytesArray put(DataOutputConsumer os) throws SQLException {
-        return put("_jdbc/", os);
+        return put("_jdbc?error_trace=true", os); // NOCOMMIT Do something with the error trace. Useful for filing bugs and debugging.
     }
 
     BytesArray put(String path, DataOutputConsumer os) throws SQLException { // NOCOMMIT remove path?

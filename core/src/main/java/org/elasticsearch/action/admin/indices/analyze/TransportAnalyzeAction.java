@@ -185,10 +185,11 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             Tuple<String, TokenizerFactory> tokenizerFactory = parseTokenizerFactory(request, indexAnalyzers,
                         analysisRegistry, environment);
 
-            List<CharFilterFactory> charFilterFactoryList = parseCharFilterFactories(request, indexSettings, analysisRegistry, environment);
+            List<CharFilterFactory> charFilterFactoryList =
+                parseCharFilterFactories(request, indexSettings, analysisRegistry, environment, false);
 
             List<TokenFilterFactory> tokenFilterFactoryList = parseTokenFilterFactories(request, indexSettings, analysisRegistry,
-                environment, tokenizerFactory, charFilterFactoryList);
+                environment, tokenizerFactory, charFilterFactoryList, false);
 
             analyzer = new CustomAnalyzer(tokenizerFactory.v1(), tokenizerFactory.v2(),
                 charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
@@ -205,27 +206,19 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             final IndexSettings indexSettings = indexAnalyzers == null ? null : indexAnalyzers.getIndexSettings();
             // custom normalizer = if normalizer == null but filter or char_filter is not null and tokenizer/analyzer is null
             // get charfilter and filter from request
-            CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
-            charFilterFactories = getCharFilterFactories(request, indexSettings, analysisRegistry, environment, charFilterFactories);
-            for (CharFilterFactory charFilter : charFilterFactories) {
-                if (charFilter instanceof MultiTermAwareComponent == false) {
-                    throw new IllegalArgumentException("Custom normalizer may not use char filter ["
-                        + charFilter.name() + "]");
-                }
-            }
+            List<CharFilterFactory> charFilterFactoryList =
+                parseCharFilterFactories(request, indexSettings, analysisRegistry, environment, true);
 
-            TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
-            tokenFilterFactories = getTokenFilterFactories(request, indexSettings, analysisRegistry, environment, tokenFilterFactories);
-            for (TokenFilterFactory tokenFilter : tokenFilterFactories) {
-                if (tokenFilter instanceof MultiTermAwareComponent == false) {
-                    throw new IllegalArgumentException("Custom normalizer may not use filter ["
-                        + tokenFilter.name() + "]");
-                }
-            }
+            final String keywordTokenizerName = "keyword";
+            TokenizerFactory keywordTokenizerFactory = getTokenizerFactory(analysisRegistry, environment, keywordTokenizerName);
+
+            List<TokenFilterFactory> tokenFilterFactoryList =
+                parseTokenFilterFactories(request, indexSettings, analysisRegistry, environment, new Tuple<>(keywordTokenizerName, keywordTokenizerFactory), charFilterFactoryList, true);
 
             analyzer = new CustomAnalyzer("keyword_for_normalizer",
-                PreBuiltTokenizers.KEYWORD.getTokenizerFactory(Version.CURRENT),
-                charFilterFactories, tokenFilterFactories);
+                keywordTokenizerFactory,
+                charFilterFactoryList.toArray(new CharFilterFactory[charFilterFactoryList.size()]),
+                tokenFilterFactoryList.toArray(new TokenFilterFactory[tokenFilterFactoryList.size()]));
             closeAnalyzer = true;
         } else if (analyzer == null) {
             if (indexAnalyzers == null) {
@@ -499,7 +492,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
     }
 
     private static List<CharFilterFactory> parseCharFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
-                                                              Environment environment) throws IOException {
+                                                              Environment environment, boolean normalizer) throws IOException {
         List<CharFilterFactory> charFilterFactoryList = new ArrayList<>();
         if (request.charFilters() != null && request.charFilters().size() > 0) {
             List<AnalyzeRequest.NameOrDefinition> charFilters = request.charFilters();
@@ -540,6 +533,13 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 if (charFilterFactory == null) {
                     throw new IllegalArgumentException("failed to find char filter under [" + charFilter.name + "]");
                 }
+                if (normalizer) {
+                    if (charFilterFactory instanceof MultiTermAwareComponent == false) {
+                        throw new IllegalArgumentException("Custom normalizer may not use char filter ["
+                            + charFilterFactory.name() + "]");
+                    }
+                    charFilterFactory = (CharFilterFactory) ((MultiTermAwareComponent) charFilterFactory).getMultiTermComponent();
+                }
                 charFilterFactoryList.add(charFilterFactory);
             }
         }
@@ -548,7 +548,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
 
     private static List<TokenFilterFactory> parseTokenFilterFactories(AnalyzeRequest request, IndexSettings indexSettings, AnalysisRegistry analysisRegistry,
                                                                 Environment environment, Tuple<String, TokenizerFactory> tokenizerFactory,
-                                                                List<CharFilterFactory> charFilterFactoryList) throws IOException {
+                                                                List<CharFilterFactory> charFilterFactoryList, boolean normalizer) throws IOException {
         List<TokenFilterFactory> tokenFilterFactoryList = new ArrayList<>();
         if (request.tokenFilters() != null && request.tokenFilters().size() > 0) {
             List<AnalyzeRequest.NameOrDefinition> tokenFilters = request.tokenFilters();
@@ -595,6 +595,13 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 if (tokenFilterFactory == null) {
                     throw new IllegalArgumentException("failed to find or create token filter under [" + tokenFilter.name + "]");
                 }
+                if (normalizer) {
+                    if (tokenFilterFactory instanceof MultiTermAwareComponent == false) {
+                        throw new IllegalArgumentException("Custom normalizer may not use filter ["
+                            + tokenFilterFactory.name() + "]");
+                    }
+                    tokenFilterFactory = (TokenFilterFactory) ((MultiTermAwareComponent) tokenFilterFactory).getMultiTermComponent();
+                }
                 tokenFilterFactoryList.add(tokenFilterFactory);
             }
         }
@@ -624,12 +631,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
         } else {
             AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory;
             if (indexAnalzyers == null) {
-                tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(tokenizer.name);
-                if (tokenizerFactoryFactory == null) {
-                    throw new IllegalArgumentException("failed to find global tokenizer under [" + tokenizer.name + "]");
-                }
+                tokenizerFactory = getTokenizerFactory(analysisRegistry, environment, tokenizer.name);
                 name = tokenizer.name;
-                tokenizerFactory = tokenizerFactoryFactory.get(environment, tokenizer.name);
             } else {
                 tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(tokenizer.name, indexAnalzyers.getIndexSettings());
                 if (tokenizerFactoryFactory == null) {
@@ -642,6 +645,17 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             }
         }
         return new Tuple<>(name, tokenizerFactory);
+    }
+
+    private static TokenizerFactory getTokenizerFactory(AnalysisRegistry analysisRegistry, Environment environment, String name) throws IOException {
+        AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory;
+        TokenizerFactory tokenizerFactory;
+        tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(name);
+        if (tokenizerFactoryFactory == null) {
+            throw new IllegalArgumentException("failed to find global tokenizer under [" + name + "]");
+        }
+        tokenizerFactory = tokenizerFactoryFactory.get(environment, name);
+        return tokenizerFactory;
     }
 
     private static IndexSettings getNaIndexSettings(Settings settings) {

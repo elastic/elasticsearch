@@ -73,7 +73,6 @@ public class KnownActionsTests extends SecurityIntegTestCase {
         codeActions = loadCodeActions();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1856")
     public void testAllTransportHandlersAreKnown() {
         TransportService transportService = internalCluster().getDataNodeInstance(TransportService.class);
         for (String handler : transportService.requestHandlers.keySet()) {

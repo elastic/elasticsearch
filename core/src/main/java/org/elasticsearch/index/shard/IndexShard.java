@@ -2039,6 +2039,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                               final ActionListener<Releasable> onPermitAcquired, final String executorOnDelay) {
         verifyNotClosed();
         verifyReplicationTarget();
+        final boolean globalCheckpointUpdated;
         if (operationPrimaryTerm > primaryTerm) {
             synchronized (primaryTermMutex) {
                 if (operationPrimaryTerm > primaryTerm) {
@@ -2060,12 +2061,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             updateGlobalCheckpointOnReplica(globalCheckpoint);
                             getEngine().getTranslog().rollGeneration();
                         });
+                        globalCheckpointUpdated = true;
                     } catch (final Exception e) {
                         onPermitAcquired.onFailure(e);
                         return;
                     }
+                } else {
+                    globalCheckpointUpdated = false;
                 }
             }
+        } else {
+            globalCheckpointUpdated = false;
         }
 
         assert operationPrimaryTerm <= primaryTerm
@@ -2084,12 +2090,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                     primaryTerm);
                             onPermitAcquired.onFailure(new IllegalStateException(message));
                         } else {
-                            try {
-                                updateGlobalCheckpointOnReplica(globalCheckpoint);
-                            } catch (Exception e) {
-                                releasable.close();
-                                onPermitAcquired.onFailure(e);
-                                return;
+                            if (globalCheckpointUpdated == false) {
+                                try {
+                                    updateGlobalCheckpointOnReplica(globalCheckpoint);
+                                } catch (Exception e) {
+                                    releasable.close();
+                                    onPermitAcquired.onFailure(e);
+                                    return;
+                                }
                             }
                             onPermitAcquired.onResponse(releasable);
                         }

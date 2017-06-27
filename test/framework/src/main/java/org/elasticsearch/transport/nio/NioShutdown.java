@@ -51,8 +51,6 @@ public class NioShutdown {
 
         openChannels.close();
 
-        // TODO: There is a slight issue currently where an accepted channel can be added after the openChannels.close() call was made
-        // TODO: The selectors should maybe close their remaining registered channels just in case
         for (SocketSelector selector : socketSelectors) {
             shutdownSelector(selector);
         }

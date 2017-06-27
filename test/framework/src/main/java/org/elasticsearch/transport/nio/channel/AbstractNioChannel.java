@@ -102,6 +102,11 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      */
     @Override
     public CloseFuture closeAsync() {
+        if (selector != null && selector.isOnCurrentThread()) {
+            closeFromSelector();
+            return closeFuture;
+        }
+
         for (; ; ) {
             int state = this.state.get();
             if (state == UNREGISTERED && this.state.compareAndSet(UNREGISTERED, CLOSING)) {

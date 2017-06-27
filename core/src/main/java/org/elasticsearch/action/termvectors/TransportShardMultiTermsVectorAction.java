@@ -19,14 +19,16 @@
 
 package org.elasticsearch.action.termvectors;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -75,20 +77,19 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
 
     @Override
     protected MultiTermVectorsShardResponse shardOperation(MultiTermVectorsShardRequest request, ShardId shardId) {
-        MultiTermVectorsShardResponse response = new MultiTermVectorsShardResponse();
+        final MultiTermVectorsShardResponse response = new MultiTermVectorsShardResponse();
+        final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        final IndexShard indexShard = indexService.getShard(shardId.id());
         for (int i = 0; i < request.locations.size(); i++) {
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
             try {
-                IndexService indexService = indicesService.indexServiceSafe(request.index());
-                IndexShard indexShard = indexService.getShard(shardId.id());
                 TermVectorsResponse termVectorsResponse = TermVectorsService.getTermVectors(indexShard, termVectorsRequest);
-                termVectorsResponse.updateTookInMillis(termVectorsRequest.startTime());
                 response.add(request.locations.get(i), termVectorsResponse);
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 if (TransportActions.isShardNotAvailableException(t)) {
                     throw (ElasticsearchException) t;
                 } else {
-                    logger.debug("{} failed to execute multi term vectors for [{}]/[{}]", t, shardId, termVectorsRequest.type(), termVectorsRequest.id());
+                    logger.debug((Supplier<?>) () -> new ParameterizedMessage("{} failed to execute multi term vectors for [{}]/[{}]", shardId, termVectorsRequest.type(), termVectorsRequest.id()), t);
                     response.add(request.locations.get(i),
                             new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), t));
                 }

@@ -19,13 +19,14 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
-import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.BasicReplicationRequest;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportBroadcastReplicationAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
@@ -54,7 +55,9 @@ public class TransportRefreshAction extends TransportBroadcastReplicationAction<
 
     @Override
     protected BasicReplicationRequest newShardRequest(RefreshRequest request, ShardId shardId) {
-        return new BasicReplicationRequest(shardId);
+        BasicReplicationRequest replicationRequest = new BasicReplicationRequest(shardId);
+        replicationRequest.waitForActiveShards(ActiveShardCount.NONE);
+        return replicationRequest;
     }
 
     @Override

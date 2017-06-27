@@ -127,11 +127,6 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
-    public IndicesStatsRequestBuilder setPercolate(boolean percolate) {
-        request.percolate(percolate);
-        return this;
-    }
-
     public IndicesStatsRequestBuilder setSegments(boolean segments) {
         request.segments(segments);
         return this;
@@ -152,11 +147,6 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
         return this;
     }
 
-    public IndicesStatsRequestBuilder setSuggest(boolean suggest) {
-        request.suggest(suggest);
-        return this;
-    }
-
     public IndicesStatsRequestBuilder setRequestCache(boolean requestCache) {
         request.requestCache(requestCache);
         return this;
@@ -164,6 +154,11 @@ public class IndicesStatsRequestBuilder extends BroadcastOperationRequestBuilder
 
     public IndicesStatsRequestBuilder setRecovery(boolean recovery) {
         request.recovery(recovery);
+        return this;
+    }
+
+    public IndicesStatsRequestBuilder setIncludeSegmentFileSizes(boolean includeSegmentFileSizes) {
+        request.includeSegmentFileSizes(includeSegmentFileSizes);
         return this;
     }
 }

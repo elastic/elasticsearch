@@ -1,0 +1,31 @@
+[[cat-templates]]
+== cat templates
+
+The `templates` command provides information about existing templates.
+
+[source,js]
+--------------------------------------------------
+GET /_cat/templates?v&s=name
+--------------------------------------------------
+// CONSOLE
+// TEST[s/^/PUT _template\/template0\n{"index_patterns": "te*", "order": 0}\n/]
+// TEST[s/^/PUT _template\/template1\n{"index_patterns": "tea*", "order": 1}\n/]
+// TEST[s/^/PUT _template\/template2\n{"index_patterns": "teak*", "order": 2, "version": 7}\n/]
+
+which looks like
+
+[source,txt]
+--------------------------------------------------
+name      index_patterns order version
+template0 [te*]          0
+template1 [tea*]         1
+template2 [teak*]        2     7
+--------------------------------------------------
+// TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ _cat]
+
+The output shows that there are three existing templates,
+with template2 having a version value.
+
+The endpoint also supports giving a template name or pattern in the url
+to filter the results, for example `/_cat/templates/template*` or
+`/_cat/templates/template0`.

@@ -19,29 +19,32 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableSet;
@@ -59,24 +62,25 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
     /**
      * An action that lists the relevant shard data that needs to be fetched.
      */
-    public interface List<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
-        void list(ShardId shardId, IndexMetaData indexMetaData, String[] nodesIds, ActionListener<NodesResponse> listener);
+    public interface Lister<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
+        void list(ShardId shardId, DiscoveryNode[] nodes, ActionListener<NodesResponse> listener);
     }
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final String type;
-    private final ShardId shardId;
-    private final List<BaseNodesResponse<T>, T> action;
+    protected final ShardId shardId;
+    private final Lister<BaseNodesResponse<T>, T> action;
     private final Map<String, NodeEntry<T>> cache = new HashMap<>();
     private final Set<String> nodesToIgnore = new HashSet<>();
+    private final AtomicLong round = new AtomicLong();
     private boolean closed;
 
     @SuppressWarnings("unchecked")
-    protected AsyncShardFetch(ESLogger logger, String type, ShardId shardId, List<? extends BaseNodesResponse<T>, T> action) {
+    protected AsyncShardFetch(Logger logger, String type, ShardId shardId, Lister<? extends BaseNodesResponse<T>, T> action) {
         this.logger = logger;
         this.type = type;
         this.shardId = shardId;
-        this.action = (List<BaseNodesResponse<T>, T>) action;
+        this.action = (Lister<BaseNodesResponse<T>, T>) action;
     }
 
     @Override
@@ -104,29 +108,28 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * The ignoreNodes are nodes that are supposed to be ignored for this round, since fetching is async, we need
      * to keep them around and make sure we add them back when all the responses are fetched and returned.
      */
-    public synchronized FetchResult<T> fetchData(DiscoveryNodes nodes, MetaData metaData, Set<String> ignoreNodes) {
+    public synchronized FetchResult<T> fetchData(DiscoveryNodes nodes, Set<String> ignoreNodes) {
         if (closed) {
             throw new IllegalStateException(shardId + ": can't fetch data on closed async fetch");
         }
         nodesToIgnore.addAll(ignoreNodes);
         fillShardCacheWithDataNodes(cache, nodes);
-        Set<NodeEntry<T>> nodesToFetch = findNodesToFetch(cache);
+        List<NodeEntry<T>> nodesToFetch = findNodesToFetch(cache);
         if (nodesToFetch.isEmpty() == false) {
             // mark all node as fetching and go ahead and async fetch them
+            // use a unique round id to detect stale responses in processAsyncFetch
+            final long fetchingRound = round.incrementAndGet();
             for (NodeEntry<T> nodeEntry : nodesToFetch) {
-                nodeEntry.markAsFetching();
+                nodeEntry.markAsFetching(fetchingRound);
             }
-            String[] nodesIds = new String[nodesToFetch.size()];
-            int index = 0;
-            for (NodeEntry<T> nodeEntry : nodesToFetch) {
-                nodesIds[index++] = nodeEntry.getNodeId();
-            }
-            asyncFetch(shardId, nodesIds, metaData);
+            DiscoveryNode[] discoNodesToFetch = nodesToFetch.stream().map(NodeEntry::getNodeId).map(nodes::get)
+                .toArray(DiscoveryNode[]::new);
+            asyncFetch(discoNodesToFetch, fetchingRound);
         }
 
         // if we are still fetching, return null to indicate it
-        if (hasAnyNodeFetching(cache) == true) {
-            return new FetchResult<>(shardId, null, emptySet(), emptySet());
+        if (hasAnyNodeFetching(cache)) {
+            return new FetchResult<>(shardId, null, emptySet());
         } else {
             // nothing to fetch, yay, build the return value
             Map<DiscoveryNode, T> fetchData = new HashMap<>();
@@ -138,7 +141,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
                 DiscoveryNode node = nodes.get(nodeId);
                 if (node != null) {
-                    if (nodeEntry.isFailed() == true) {
+                    if (nodeEntry.isFailed()) {
                         // if its failed, remove it from the list of nodes, so if this run doesn't work
                         // we try again next round to fetch it again
                         it.remove();
@@ -159,7 +162,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             if (failedNodes.isEmpty() == false || allIgnoreNodes.isEmpty() == false) {
                 reroute(shardId, "nodes failed [" + failedNodes.size() + "], ignored [" + allIgnoreNodes.size() + "]");
             }
-            return new FetchResult<>(shardId, fetchData, failedNodes, allIgnoreNodes);
+            return new FetchResult<>(shardId, fetchData, allIgnoreNodes);
         }
     }
 
@@ -169,7 +172,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * the shard (response + failures), issuing a reroute at the end of it to make sure there will be another round
      * of allocations taking this new data into account.
      */
-    protected synchronized void processAsyncFetch(ShardId shardId, T[] responses, FailedNodeException[] failures) {
+    protected synchronized void processAsyncFetch(List<T> responses, List<FailedNodeException> failures, long fetchingRound) {
         if (closed) {
             // we are closed, no need to process this async fetch at all
             logger.trace("{} ignoring fetched [{}] results, already closed", shardId, type);
@@ -180,15 +183,19 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         if (responses != null) {
             for (T response : responses) {
                 NodeEntry<T> nodeEntry = cache.get(response.getNode().getId());
-                // if the entry is there, and not marked as failed already, process it
-                if (nodeEntry == null) {
-                    continue;
-                }
-                if (nodeEntry.isFailed()) {
-                    logger.trace("{} node {} has failed for [{}] (failure [{}])", shardId, nodeEntry.getNodeId(), type, nodeEntry.getFailure());
-                } else {
-                    logger.trace("{} marking {} as done for [{}]", shardId, nodeEntry.getNodeId(), type);
-                    nodeEntry.doneFetching(response);
+                if (nodeEntry != null) {
+                    if (nodeEntry.getFetchingRound() != fetchingRound) {
+                        assert nodeEntry.getFetchingRound() > fetchingRound : "node entries only replaced by newer rounds";
+                        logger.trace("{} received response for [{}] from node {} for an older fetching round (expected: {} but was: {})",
+                            shardId, nodeEntry.getNodeId(), type, nodeEntry.getFetchingRound(), fetchingRound);
+                    } else if (nodeEntry.isFailed()) {
+                        logger.trace("{} node {} has failed for [{}] (failure [{}])", shardId, nodeEntry.getNodeId(), type,
+                            nodeEntry.getFailure());
+                    } else {
+                        // if the entry is there, for the right fetching round and not marked as failed already, process it
+                        logger.trace("{} marking {} as done for [{}], result is [{}]", shardId, nodeEntry.getNodeId(), type, response);
+                        nodeEntry.doneFetching(response);
+                    }
                 }
             }
         }
@@ -196,15 +203,24 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             for (FailedNodeException failure : failures) {
                 logger.trace("{} processing failure {} for [{}]", shardId, failure, type);
                 NodeEntry<T> nodeEntry = cache.get(failure.nodeId());
-                // if the entry is there, and not marked as failed already, process it
-                if (nodeEntry != null && nodeEntry.isFailed() == false) {
-                    Throwable unwrappedCause = ExceptionsHelper.unwrapCause(failure.getCause());
-                    // if the request got rejected or timed out, we need to try it again next time...
-                    if (unwrappedCause instanceof EsRejectedExecutionException || unwrappedCause instanceof ReceiveTimeoutTransportException || unwrappedCause instanceof ElasticsearchTimeoutException) {
-                        nodeEntry.restartFetching();
-                    } else {
-                        logger.warn("{}: failed to list shard for {} on node [{}]", failure, shardId, type, failure.nodeId());
-                        nodeEntry.doneFetching(failure.getCause());
+                if (nodeEntry != null) {
+                    if (nodeEntry.getFetchingRound() != fetchingRound) {
+                        assert nodeEntry.getFetchingRound() > fetchingRound : "node entries only replaced by newer rounds";
+                        logger.trace("{} received failure for [{}] from node {} for an older fetching round (expected: {} but was: {})",
+                            shardId, nodeEntry.getNodeId(), type, nodeEntry.getFetchingRound(), fetchingRound);
+                    } else if (nodeEntry.isFailed() == false) {
+                        // if the entry is there, for the right fetching round and not marked as failed already, process it
+                        Throwable unwrappedCause = ExceptionsHelper.unwrapCause(failure.getCause());
+                        // if the request got rejected or timed out, we need to try it again next time...
+                        if (unwrappedCause instanceof EsRejectedExecutionException ||
+                            unwrappedCause instanceof ReceiveTimeoutTransportException ||
+                            unwrappedCause instanceof ElasticsearchTimeoutException) {
+                            nodeEntry.restartFetching();
+                        } else {
+                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("{}: failed to list shard for {} on node [{}]",
+                                shardId, type, failure.nodeId()), failure);
+                            nodeEntry.doneFetching(failure.getCause());
+                        }
                     }
                 }
             }
@@ -223,7 +239,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      */
     private void fillShardCacheWithDataNodes(Map<String, NodeEntry<T>> shardCache, DiscoveryNodes nodes) {
         // verify that all current data nodes are there
-        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.dataNodes()) {
+        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.getDataNodes()) {
             DiscoveryNode node = cursor.value;
             if (shardCache.containsKey(node.getId()) == false) {
                 shardCache.put(node.getId(), new NodeEntry<T>(node.getId()));
@@ -242,8 +258,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * Finds all the nodes that need to be fetched. Those are nodes that have no
      * data, and are not in fetch mode.
      */
-    private Set<NodeEntry<T>> findNodesToFetch(Map<String, NodeEntry<T>> shardCache) {
-        Set<NodeEntry<T>> nodesToFetch = new HashSet<>();
+    private List<NodeEntry<T>> findNodesToFetch(Map<String, NodeEntry<T>> shardCache) {
+        List<NodeEntry<T>> nodesToFetch = new ArrayList<>();
         for (NodeEntry<T> nodeEntry : shardCache.values()) {
             if (nodeEntry.hasData() == false && nodeEntry.isFetching() == false) {
                 nodesToFetch.add(nodeEntry);
@@ -268,22 +284,21 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * Async fetches data for the provided shard with the set of nodes that need to be fetched from.
      */
     // visible for testing
-    void asyncFetch(final ShardId shardId, final String[] nodesIds, final MetaData metaData) {
-        IndexMetaData indexMetaData = metaData.index(shardId.getIndex());
-        logger.trace("{} fetching [{}] from {}", shardId, type, nodesIds);
-        action.list(shardId, indexMetaData, nodesIds, new ActionListener<BaseNodesResponse<T>>() {
+    void asyncFetch(final DiscoveryNode[] nodes, long fetchingRound) {
+        logger.trace("{} fetching [{}] from {}", shardId, type, nodes);
+        action.list(shardId, nodes, new ActionListener<BaseNodesResponse<T>>() {
             @Override
             public void onResponse(BaseNodesResponse<T> response) {
-                processAsyncFetch(shardId, response.getNodes(), response.failures());
+                processAsyncFetch(response.getNodes(), response.failures(), fetchingRound);
             }
 
             @Override
-            public void onFailure(Throwable e) {
-                FailedNodeException[] failures = new FailedNodeException[nodesIds.length];
-                for (int i = 0; i < failures.length; i++) {
-                    failures[i] = new FailedNodeException(nodesIds[i], "total failure in fetching", e);
+            public void onFailure(Exception e) {
+                List<FailedNodeException> failures = new ArrayList<>(nodes.length);
+                for (final DiscoveryNode node: nodes) {
+                    failures.add(new FailedNodeException(node.getId(), "total failure in fetching", e));
                 }
-                processAsyncFetch(shardId, null, failures);
+                processAsyncFetch(null, failures, fetchingRound);
             }
         });
     }
@@ -296,13 +311,11 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
         private final ShardId shardId;
         private final Map<DiscoveryNode, T> data;
-        private final Set<String> failedNodes;
         private final Set<String> ignoreNodes;
 
-        public FetchResult(ShardId shardId, Map<DiscoveryNode, T> data, Set<String> failedNodes, Set<String> ignoreNodes) {
+        public FetchResult(ShardId shardId, Map<DiscoveryNode, T> data, Set<String> ignoreNodes) {
             this.shardId = shardId;
             this.data = data;
-            this.failedNodes = failedNodes;
             this.ignoreNodes = ignoreNodes;
         }
 
@@ -344,8 +357,9 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         private T value;
         private boolean valueSet;
         private Throwable failure;
+        private long fetchingRound;
 
-        public NodeEntry(String nodeId) {
+        NodeEntry(String nodeId) {
             this.nodeId = nodeId;
         }
 
@@ -357,13 +371,14 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
             return fetching;
         }
 
-        void markAsFetching() {
+        void markAsFetching(long fetchingRound) {
             assert fetching == false : "double marking a node as fetching";
-            fetching = true;
+            this.fetching = true;
+            this.fetchingRound = fetchingRound;
         }
 
         void doneFetching(T value) {
-            assert fetching == true : "setting value but not in fetching mode";
+            assert fetching : "setting value but not in fetching mode";
             assert failure == null : "setting value when failure already set";
             this.valueSet = true;
             this.value = value;
@@ -371,7 +386,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         }
 
         void doneFetching(Throwable failure) {
-            assert fetching == true : "setting value but not in fetching mode";
+            assert fetching : "setting value but not in fetching mode";
             assert valueSet == false : "setting failure when already set value";
             assert failure != null : "setting failure can't be null";
             this.failure = failure;
@@ -379,7 +394,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         }
 
         void restartFetching() {
-            assert fetching == true : "restarting fetching, but not in fetching mode";
+            assert fetching : "restarting fetching, but not in fetching mode";
             assert valueSet == false : "value can't be set when restarting fetching";
             assert failure == null : "failure can't be set when restarting fetching";
             this.fetching = false;
@@ -390,7 +405,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         }
 
         boolean hasData() {
-            return valueSet == true || failure != null;
+            return valueSet || failure != null;
         }
 
         Throwable getFailure() {
@@ -401,8 +416,12 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         @Nullable
         T getValue() {
             assert failure == null : "trying to fetch value, but its marked as failed, check isFailed";
-            assert valueSet == true : "value is not set, hasn't been fetched yet";
+            assert valueSet : "value is not set, hasn't been fetched yet";
             return value;
+        }
+
+        long getFetchingRound() {
+            return fetchingRound;
         }
     }
 }

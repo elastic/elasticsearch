@@ -20,16 +20,15 @@
 package org.elasticsearch.common.xcontent.yaml;
 
 import com.fasterxml.jackson.core.JsonParser;
+
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 
-/**
- *
- */
 public class YamlXContentParser extends JsonXContentParser {
 
-    public YamlXContentParser(JsonParser parser) {
-        super(parser);
+    public YamlXContentParser(NamedXContentRegistry xContentRegistry, JsonParser parser) {
+        super(xContentRegistry, parser);
     }
 
     @Override

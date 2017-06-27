@@ -22,8 +22,6 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-/**
- */
 public class ByteBufferStreamInput extends StreamInput {
 
     private final ByteBuffer buffer;
@@ -86,6 +84,13 @@ public class ByteBufferStreamInput extends StreamInput {
     @Override
     public int available() throws IOException {
         return buffer.remaining();
+    }
+
+    @Override
+    protected void ensureCanReadBytes(int length) throws EOFException {
+        if (buffer.remaining() < length) {
+            throw new EOFException("tried to read: " + length + " bytes but only " + buffer.remaining() + " remaining");
+        }
     }
 
     @Override

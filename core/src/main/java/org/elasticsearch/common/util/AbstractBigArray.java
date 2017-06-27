@@ -21,7 +21,6 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
 
@@ -88,6 +87,11 @@ abstract class AbstractBigArray extends AbstractArray {
 
     @Override
     public final long ramBytesUsed() {
+        return ramBytesEstimated(size);
+    }
+
+    /** Given the size of the array, estimate the number of bytes it will use. */
+    public final long ramBytesEstimated(final long size) {
         // rough approximate, we only take into account the size of the values, not the overhead of the array objects
         return ((long) pageIndex(size - 1) + 1) * pageSize() * numBytesPerElement();
     }

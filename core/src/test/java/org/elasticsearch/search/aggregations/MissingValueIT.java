@@ -54,7 +54,7 @@ public class MissingValueIT extends ESIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
-        assertAcked(prepareCreate("idx").addMapping("type", "date", "type=date", "location", "type=geo_point").get());
+        assertAcked(prepareCreate("idx").addMapping("type", "date", "type=date", "location", "type=geo_point", "str", "type=keyword").get());
         indexRandom(true,
                 client().prepareIndex("idx", "type", "1").setSource(),
                 client().prepareIndex("idx", "type", "2").setSource("str", "foo", "long", 3L, "double", 5.5, "date", "2015-05-07", "location", "1,2"));
@@ -124,7 +124,7 @@ public class MissingValueIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Histogram histogram = response.getAggregations().get("my_histogram");
         assertEquals(1, histogram.getBuckets().size());
-        assertEquals(10L, histogram.getBuckets().get(0).getKey());
+        assertEquals(10d, histogram.getBuckets().get(0).getKey());
         assertEquals(2, histogram.getBuckets().get(0).getDocCount());
     }
 
@@ -133,16 +133,16 @@ public class MissingValueIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Histogram histogram = response.getAggregations().get("my_histogram");
         assertEquals(2, histogram.getBuckets().size());
-        assertEquals(0L, histogram.getBuckets().get(0).getKey());
+        assertEquals(0d, histogram.getBuckets().get(0).getKey());
         assertEquals(1, histogram.getBuckets().get(0).getDocCount());
-        assertEquals(5L, histogram.getBuckets().get(1).getKey());
+        assertEquals(5d, histogram.getBuckets().get(1).getKey());
         assertEquals(1, histogram.getBuckets().get(1).getDocCount());
 
         response = client().prepareSearch("idx").addAggregation(histogram("my_histogram").field("long").interval(5).missing(3)).get();
         assertSearchResponse(response);
         histogram = response.getAggregations().get("my_histogram");
         assertEquals(1, histogram.getBuckets().size());
-        assertEquals(0L, histogram.getBuckets().get(0).getKey());
+        assertEquals(0d, histogram.getBuckets().get(0).getKey());
         assertEquals(2, histogram.getBuckets().get(0).getDocCount());
     }
 

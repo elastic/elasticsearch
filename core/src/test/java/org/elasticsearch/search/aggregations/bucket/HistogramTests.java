@@ -20,21 +20,26 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.BucketOrder;
 
-public class HistogramTests extends BaseAggregationTestCase<HistogramAggregatorBuilder> {
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
+
+public class HistogramTests extends BaseAggregationTestCase<HistogramAggregationBuilder> {
 
     @Override
-    protected HistogramAggregatorBuilder createTestAggregatorBuilder() {
-        HistogramAggregatorBuilder factory = new HistogramAggregatorBuilder("foo");
+    protected HistogramAggregationBuilder createTestAggregatorBuilder() {
+        HistogramAggregationBuilder factory = new HistogramAggregationBuilder("foo");
         factory.field(INT_FIELD_NAME);
-        factory.interval(randomIntBetween(1, 100000));
+        factory.interval(randomDouble() * 1000);
         if (randomBoolean()) {
-            long extendedBoundsMin = randomIntBetween(-100000, 100000);
-            long extendedBoundsMax = randomIntBetween((int) extendedBoundsMin, 200000);
-            factory.extendedBounds(new ExtendedBounds(extendedBoundsMin, extendedBoundsMax));
+            double minBound = randomDouble();
+            double maxBound = randomDoubleBetween(minBound, 1, true);
+            factory.extendedBounds(minBound, maxBound);
         }
         if (randomBoolean()) {
             factory.format("###.##");
@@ -52,29 +57,64 @@ public class HistogramTests extends BaseAggregationTestCase<HistogramAggregatorB
             factory.offset(randomIntBetween(0, 100000));
         }
         if (randomBoolean()) {
-            int branch = randomInt(5);
-            switch (branch) {
-            case 0:
-                factory.order(Order.COUNT_ASC);
-                break;
-            case 1:
-                factory.order(Order.COUNT_DESC);
-                break;
-            case 2:
-                factory.order(Order.KEY_ASC);
-                break;
-            case 3:
-                factory.order(Order.KEY_DESC);
-                break;
-            case 4:
-                factory.order(Order.aggregation("foo", true));
-                break;
-            case 5:
-                factory.order(Order.aggregation("foo", false));
-                break;
+            List<BucketOrder> order = randomOrder();
+            if(order.size() == 1 && randomBoolean()) {
+                factory.order(order.get(0));
+            } else {
+                factory.order(order);
             }
         }
         return factory;
+    }
+
+    public void testInvalidBounds() {
+        HistogramAggregationBuilder factory = new HistogramAggregationBuilder("foo");
+        factory.field(INT_FIELD_NAME);
+        factory.interval(randomDouble() * 1000);
+
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(Double.NaN, 1.0); });
+        assertThat(ex.getMessage(), startsWith("minBound must be finite, got: "));
+        ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(Double.POSITIVE_INFINITY, 1.0); });
+        assertThat(ex.getMessage(), startsWith("minBound must be finite, got: "));
+        ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(Double.NEGATIVE_INFINITY, 1.0); });
+        assertThat(ex.getMessage(), startsWith("minBound must be finite, got: "));
+
+        ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(0.0, Double.NaN); });
+        assertThat(ex.getMessage(), startsWith("maxBound must be finite, got: "));
+        ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(0.0, Double.POSITIVE_INFINITY); });
+        assertThat(ex.getMessage(), startsWith("maxBound must be finite, got: "));
+        ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(0.0, Double.NEGATIVE_INFINITY); });
+        assertThat(ex.getMessage(), startsWith("maxBound must be finite, got: "));
+
+        ex = expectThrows(IllegalArgumentException.class, () -> { factory.extendedBounds(0.5, 0.4); });
+        assertThat(ex.getMessage(), equalTo("maxBound [0.4] must be greater than minBound [0.5]"));
+    }
+
+    private List<BucketOrder> randomOrder() {
+        List<BucketOrder> orders = new ArrayList<>();
+        switch (randomInt(4)) {
+            case 0:
+                orders.add(BucketOrder.key(randomBoolean()));
+                break;
+            case 1:
+                orders.add(BucketOrder.count(randomBoolean()));
+                break;
+            case 2:
+                orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomBoolean()));
+                break;
+            case 3:
+                orders.add(BucketOrder.aggregation(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20), randomBoolean()));
+                break;
+            case 4:
+                int numOrders = randomIntBetween(1, 3);
+                for (int i = 0; i < numOrders; i++) {
+                    orders.addAll(randomOrder());
+                }
+                break;
+            default:
+                fail();
+        }
+        return orders;
     }
 
 }

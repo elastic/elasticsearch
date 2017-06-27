@@ -10,7 +10,7 @@ one or more `*.dic` files (all of which will automatically be picked up).
 For example, assuming the default hunspell location is used, the
 following directory layout will define the `en_US` dictionary:
 
-[source,js]
+[source,txt]
 --------------------------------------------------
 - conf
     |-- hunspell
@@ -42,24 +42,28 @@ settings:
 
 [source,js]
 --------------------------------------------------
+PUT /hunspell_example
 {
-    "analysis" : {
-        "analyzer" : {
-            "en" : {
-                "tokenizer" : "standard",
-                "filter" : [ "lowercase", "en_US" ]
-            }
-        },
-        "filter" : {
-            "en_US" : {
-                "type" : "hunspell",
-                "locale" : "en_US",
-                "dedup" : true
+    "settings": {
+        "analysis" : {
+            "analyzer" : {
+                "en" : {
+                    "tokenizer" : "standard",
+                    "filter" : [ "lowercase", "en_US" ]
+                }
+            },
+            "filter" : {
+                "en_US" : {
+                    "type" : "hunspell",
+                    "locale" : "en_US",
+                    "dedup" : true
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The hunspell token filter accepts four options:
 
@@ -87,12 +91,12 @@ the stemming is determined by the quality of the dictionary.
 [float]
 ==== Dictionary loading
 
-By default, the default Hunspell directory (`config/hunspell/`) is checked 
-for dictionaries when the node starts up, and any dictionaries are 
+By default, the default Hunspell directory (`config/hunspell/`) is checked
+for dictionaries when the node starts up, and any dictionaries are
 automatically loaded.
 
 Dictionary loading can be deferred until they are actually used by setting
-`indices.analysis.hunspell.dictionary.lazy` to `true`in the config file.
+`indices.analysis.hunspell.dictionary.lazy` to `true` in the config file.
 
 [float]
 ==== References

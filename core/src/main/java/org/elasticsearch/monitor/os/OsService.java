@@ -21,37 +21,29 @@ package org.elasticsearch.monitor.os;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 
-/**
- *
- */
 public class OsService extends AbstractComponent {
 
     private final OsProbe probe;
-
     private final OsInfo info;
+    private final SingleObjectCache<OsStats> osStatsCache;
 
-    private SingleObjectCache<OsStats> osStatsCache;
-
-    public final static Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.os.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1), false, Setting.Scope.CLUSTER);
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
+        Setting.timeSetting("monitor.os.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
+                Property.NodeScope);
 
     public OsService(Settings settings) {
         super(settings);
         this.probe = OsProbe.getInstance();
-
         TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
-
-        this.info = probe.osInfo();
-        this.info.refreshInterval = refreshInterval.millis();
-        this.info.allocatedProcessors = EsExecutors.boundedNumberOfProcessors(settings);
-
-        osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
-        logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
+        this.info = probe.osInfo(refreshInterval.millis(), EsExecutors.numberOfProcessors(settings));
+        this.osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
+        logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
     public OsInfo info() {
@@ -63,7 +55,7 @@ public class OsService extends AbstractComponent {
     }
 
     private class OsStatsCache extends SingleObjectCache<OsStats> {
-        public OsStatsCache(TimeValue interval, OsStats initValue) {
+        OsStatsCache(TimeValue interval, OsStats initValue) {
             super(interval, initValue);
         }
 

@@ -25,9 +25,6 @@ import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 
 import java.util.Map;
 
-/**
- *
- */
 public final class FieldNameAnalyzer extends DelegatingAnalyzerWrapper {
 
     private final Map<String, Analyzer> analyzers;

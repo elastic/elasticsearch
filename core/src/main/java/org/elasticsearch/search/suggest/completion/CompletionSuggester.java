@@ -19,7 +19,6 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
@@ -31,18 +30,13 @@ import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.Suggester;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -50,65 +44,46 @@ import java.util.Set;
 
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
-    public SuggestContextParser getContextParser() {
-        return new CompletionSuggestParser(this);
-    }
+    public static final CompletionSuggester INSTANCE = new CompletionSuggester();
+
+    private CompletionSuggester() {}
 
     @Override
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
             final CompletionSuggestionContext suggestionContext, final IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
-        final CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
-        if (fieldType == null) {
-            throw new IllegalArgumentException("field [" + suggestionContext.getField() + "] is not a completion field");
-        }
-        CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
-        spare.copyUTF8Bytes(suggestionContext.getText());
-        CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new Text(spare.toString()), 0, spare.length());
-        completionSuggestion.addTerm(completionSuggestEntry);
-        TopSuggestDocsCollector collector = new TopDocumentsCollector(suggestionContext.getSize());
-        suggest(searcher, suggestionContext.toQuery(), collector);
-        int numResult = 0;
-        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
-        for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : collector.get().scoreLookupDocs()) {
-            TopDocumentsCollector.SuggestDoc suggestDoc = (TopDocumentsCollector.SuggestDoc) suggestScoreDoc;
-            // collect contexts
-            Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
-            if (fieldType.hasContextMappings() && suggestDoc.getContexts().isEmpty() == false) {
-                contexts = fieldType.getContextMappings().getNamedContexts(suggestDoc.getContexts());
-            }
-            // collect payloads
-            final Map<String, List<Object>> payload = new HashMap<>(0);
-            Set<String> payloadFields = suggestionContext.getPayloadFields();
-            if (payloadFields.isEmpty() == false) {
-                final int readerIndex = ReaderUtil.subIndex(suggestDoc.doc, leaves);
-                final LeafReaderContext subReaderContext = leaves.get(readerIndex);
-                final int subDocId = suggestDoc.doc - subReaderContext.docBase;
-                for (String field : payloadFields) {
-                    MappedFieldType payloadFieldType = suggestionContext.getMapperService().fullName(field);
-                    if (payloadFieldType != null) {
-                        final AtomicFieldData data = suggestionContext.getIndexFieldDataService().getForField(payloadFieldType).load(subReaderContext);
-                        final ScriptDocValues scriptValues = data.getScriptValues();
-                        scriptValues.setNextDocId(subDocId);
-                        payload.put(field, new ArrayList<>(scriptValues.getValues()));
-                    } else {
-                        throw new IllegalArgumentException("payload field [" + field + "] does not exist");
-                    }
+        if (suggestionContext.getFieldType() != null) {
+            final CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
+            CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
+            spare.copyUTF8Bytes(suggestionContext.getText());
+            CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(
+                new Text(spare.toString()), 0, spare.length());
+            completionSuggestion.addTerm(completionSuggestEntry);
+            TopSuggestDocsCollector collector = new TopDocumentsCollector(suggestionContext.getSize());
+            suggest(searcher, suggestionContext.toQuery(), collector);
+            int numResult = 0;
+            for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : collector.get().scoreLookupDocs()) {
+                TopDocumentsCollector.SuggestDoc suggestDoc = (TopDocumentsCollector.SuggestDoc) suggestScoreDoc;
+                // collect contexts
+                Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
+                if (fieldType.hasContextMappings() && suggestDoc.getContexts().isEmpty() == false) {
+                    contexts = fieldType.getContextMappings().getNamedContexts(suggestDoc.getContexts());
+                }
+                if (numResult++ < suggestionContext.getSize()) {
+                    CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(suggestDoc.doc,
+                        new Text(suggestDoc.key.toString()), suggestDoc.score, contexts);
+                    completionSuggestEntry.addOption(option);
+                } else {
+                    break;
                 }
             }
-            if (numResult++ < suggestionContext.getSize()) {
-                CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(
-                        new Text(suggestDoc.key.toString()), suggestDoc.score, contexts, payload);
-                completionSuggestEntry.addOption(option);
-            } else {
-                break;
-            }
+            return completionSuggestion;
         }
-        return completionSuggestion;
+        return null;
     }
 
     private static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
         query = (CompletionQuery) query.rewrite(searcher.getIndexReader());
-        Weight weight = query.createWeight(searcher, collector.needsScores());
+        Weight weight = query.createWeight(searcher, collector.needsScores(), 1f);
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
             BulkScorer scorer = weight.bulkScorer(context);
             if (scorer != null) {
@@ -124,16 +99,16 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     // TODO: this should be refactored and moved to lucene
     // see https://issues.apache.org/jira/browse/LUCENE-6880
-    private final static class TopDocumentsCollector extends TopSuggestDocsCollector {
+    private static final class TopDocumentsCollector extends TopSuggestDocsCollector {
 
         /**
          * Holds a list of suggest meta data for a doc
          */
-        private final static class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
+        private static final class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
 
             private List<TopSuggestDocs.SuggestScoreDoc> suggestScoreDocs;
 
-            public SuggestDoc(int doc, CharSequence key, CharSequence context, float score) {
+            SuggestDoc(int doc, CharSequence key, CharSequence context, float score) {
                 super(doc, key, context, score);
             }
 
@@ -175,9 +150,9 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             }
         }
 
-        private final static class SuggestDocPriorityQueue extends PriorityQueue<SuggestDoc> {
+        private static final class SuggestDocPriorityQueue extends PriorityQueue<SuggestDoc> {
 
-            public SuggestDocPriorityQueue(int maxSize) {
+            SuggestDocPriorityQueue(int maxSize) {
                 super(maxSize);
             }
 
@@ -209,8 +184,10 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         private final SuggestDocPriorityQueue pq;
         private final Map<Integer, SuggestDoc> scoreDocMap;
 
-        public TopDocumentsCollector(int num) {
-            super(1); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
+        // TODO: expose dup removal
+
+        TopDocumentsCollector(int num) {
+            super(1, false); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
             this.num = num;
             this.scoreDocMap = new LinkedHashMap<>(num);
             this.pq = new SuggestDocPriorityQueue(num);

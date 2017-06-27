@@ -36,8 +36,6 @@ import java.util.concurrent.CountDownLatch;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 2)
 public class RejectionActionIT extends ESIntegTestCase {
 
@@ -45,12 +43,12 @@ public class RejectionActionIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("threadpool.search.size", 1)
-                .put("threadpool.search.queue_size", 1)
-                .put("threadpool.index.size", 1)
-                .put("threadpool.index.queue_size", 1)
-                .put("threadpool.get.size", 1)
-                .put("threadpool.get.queue_size", 1)
+                .put("thread_pool.search.size", 1)
+                .put("thread_pool.search.queue_size", 1)
+                .put("thread_pool.index.size", 1)
+                .put("thread_pool.index.queue_size", 1)
+                .put("thread_pool.get.size", 1)
+                .put("thread_pool.get.queue_size", 1)
                 .build();
     }
 
@@ -75,14 +73,14 @@ public class RejectionActionIT extends ESIntegTestCase {
                         }
 
                         @Override
-                        public void onFailure(Throwable e) {
+                        public void onFailure(Exception e) {
                             responses.add(e);
                             latch.countDown();
                         }
                     });
         }
         latch.await();
-        assertThat(responses.size(), equalTo(numberOfAsyncOps));
+
 
         // validate all responses
         for (Object response : responses) {
@@ -92,7 +90,7 @@ public class RejectionActionIT extends ESIntegTestCase {
                     assertTrue("got unexpected reason..." + failure.reason(), failure.reason().toLowerCase(Locale.ENGLISH).contains("rejected"));
                 }
             } else {
-                Throwable t = (Throwable) response;
+                Exception t = (Exception) response;
                 Throwable unwrap = ExceptionsHelper.unwrapCause(t);
                 if (unwrap instanceof SearchPhaseExecutionException) {
                     SearchPhaseExecutionException e = (SearchPhaseExecutionException) unwrap;
@@ -104,5 +102,6 @@ public class RejectionActionIT extends ESIntegTestCase {
                 }
             }
         }
+        assertThat(responses.size(), equalTo(numberOfAsyncOps));
     }
 }

@@ -25,24 +25,25 @@ import org.elasticsearch.tasks.TaskManager;
 import java.io.IOException;
 import java.util.function.Supplier;
 
-/**
- *
- */
 public class RequestHandlerRegistry<Request extends TransportRequest> {
 
     private final String action;
     private final TransportRequestHandler<Request> handler;
     private final boolean forceExecution;
+    private final boolean canTripCircuitBreaker;
     private final String executor;
     private final Supplier<Request> requestFactory;
     private final TaskManager taskManager;
 
-    public RequestHandlerRegistry(String action, Supplier<Request> requestFactory, TaskManager taskManager, TransportRequestHandler<Request> handler, String executor, boolean forceExecution) {
+    public RequestHandlerRegistry(String action, Supplier<Request> requestFactory, TaskManager taskManager,
+                                  TransportRequestHandler<Request> handler, String executor, boolean forceExecution,
+                                  boolean canTripCircuitBreaker) {
         this.action = action;
         this.requestFactory = requestFactory;
         assert newRequest() != null;
         this.handler = handler;
         this.forceExecution = forceExecution;
+        this.canTripCircuitBreaker = canTripCircuitBreaker;
         this.executor = executor;
         this.taskManager = taskManager;
     }
@@ -76,6 +77,10 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         return forceExecution;
     }
 
+    public boolean canTripCircuitBreaker() {
+        return canTripCircuitBreaker;
+    }
+
     public String getExecutor() {
         return executor;
     }
@@ -91,7 +96,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
 
         private final TaskManager taskManager;
 
-        public TransportChannelWrapper(TaskManager taskManager, Task task, TransportChannel channel) {
+        TransportChannelWrapper(TaskManager taskManager, Task task, TransportChannel channel) {
             super(channel);
             this.task = task;
             this.taskManager = taskManager;
@@ -110,9 +115,9 @@ public class RequestHandlerRegistry<Request extends TransportRequest> {
         }
 
         @Override
-        public void sendResponse(Throwable error) throws IOException {
+        public void sendResponse(Exception exception) throws IOException {
             endTask();
-            super.sendResponse(error);
+            super.sendResponse(exception);
         }
 
         private void endTask() {

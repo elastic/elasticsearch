@@ -28,8 +28,6 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import java.util.Collection;
 import java.util.Collections;
 
-/**
- */
 public abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoPointFieldData {
 
     @Override
@@ -61,7 +59,7 @@ public abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoPointF
 
             @Override
             public MultiGeoPointValues getGeoPointValues() {
-                return FieldData.emptyMultiGeoPoints(maxDoc);
+                return FieldData.emptyMultiGeoPoints();
             }
         };
     }

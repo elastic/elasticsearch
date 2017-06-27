@@ -32,7 +32,7 @@ The queries in this group are:
 
 <<query-dsl-prefix-query,`prefix` query>>::
 
-    Find documents where the field specified contains terms which being with
+    Find documents where the field specified contains terms which begin with
     the exact prefix specified.
 
 <<query-dsl-wildcard-query,`wildcard` query>>::

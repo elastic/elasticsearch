@@ -20,18 +20,20 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState.File;
 import org.elasticsearch.indices.recovery.RecoveryState.Index;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Timer;
 import org.elasticsearch.indices.recovery.RecoveryState.Translog;
-import org.elasticsearch.indices.recovery.RecoveryState.Type;
 import org.elasticsearch.indices.recovery.RecoveryState.VerifyIndex;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,6 +44,8 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.closeTo;
@@ -55,9 +59,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class RecoveryTargetTests extends ESTestCase {
     abstract class Streamer<T extends Streamable> extends Thread {
         private T lastRead;
-        final private AtomicBoolean shouldStop;
-        final private T source;
-        final AtomicReference<Throwable> error = new AtomicReference<>();
+        private final AtomicBoolean shouldStop;
+        private final T source;
+        final AtomicReference<Exception> error = new AtomicReference<>();
         final Version streamVersion;
 
         Streamer(AtomicBoolean shouldStop, T source) {
@@ -71,7 +75,7 @@ public class RecoveryTargetTests extends ESTestCase {
         }
 
         public T lastRead() throws Throwable {
-            Throwable t = error.get();
+            Exception t = error.get();
             if (t != null) {
                 throw t;
             }
@@ -82,7 +86,7 @@ public class RecoveryTargetTests extends ESTestCase {
             BytesStreamOutput out = new BytesStreamOutput();
             source.writeTo(out);
             out.close();
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             T obj = deserialize(in);
             lastRead = obj;
             return obj;
@@ -103,8 +107,8 @@ public class RecoveryTargetTests extends ESTestCase {
                     serializeDeserialize();
                 }
                 serializeDeserialize();
-            } catch (Throwable t) {
-                error.set(t);
+            } catch (Exception e) {
+                error.set(e);
             }
         }
     }
@@ -153,12 +157,7 @@ public class RecoveryTargetTests extends ESTestCase {
         Timer lastRead = streamer.serializeDeserialize();
         final long time = lastRead.time();
         assertThat(time, lessThanOrEqualTo(timer.time()));
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat("timer timer should progress compared to captured one ", time, lessThan(timer.time()));
-            }
-        });
+        assertBusy(() -> assertThat("timer timer should progress compared to captured one ", time, lessThan(timer.time())));
         assertThat("captured time shouldn't change", lastRead.time(), equalTo(time));
 
         if (randomBoolean()) {
@@ -337,7 +336,8 @@ public class RecoveryTargetTests extends ESTestCase {
     }
 
     public void testStageSequenceEnforcement() {
-        final DiscoveryNode discoveryNode = new DiscoveryNode("1", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        final DiscoveryNode discoveryNode = new DiscoveryNode("1", buildNewFakeTransportAddress(), emptyMap(), emptySet(),
+            Version.CURRENT);
         Stage[] stages = Stage.values();
         int i = randomIntBetween(0, stages.length - 1);
         int j;
@@ -348,8 +348,10 @@ public class RecoveryTargetTests extends ESTestCase {
         stages[i] = stages[j];
         stages[j] = t;
         try {
-            RecoveryState state = new RecoveryState(
-                    new ShardId("bla", "_na_", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode, discoveryNode);
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),
+                randomBoolean(), ShardRoutingState.INITIALIZING);
+            RecoveryState state = new RecoveryState(shardRouting, discoveryNode,
+                shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
             for (Stage stage : stages) {
                 state.setStage(stage);
             }
@@ -363,8 +365,10 @@ public class RecoveryTargetTests extends ESTestCase {
         i = randomIntBetween(1, stages.length - 1);
         ArrayList<Stage> list = new ArrayList<>(Arrays.asList(Arrays.copyOfRange(stages, 0, i)));
         list.addAll(Arrays.asList(stages));
-        RecoveryState state = new RecoveryState(new ShardId("bla", "_na_", 0), randomBoolean(), randomFrom(Type.values()), discoveryNode,
-                discoveryNode);
+        ShardRouting shardRouting = TestShardRouting.newShardRouting(new ShardId("bla", "_na_", 0), discoveryNode.getId(),
+            randomBoolean(), ShardRoutingState.INITIALIZING);
+        RecoveryState state = new RecoveryState(shardRouting, discoveryNode,
+            shardRouting.recoverySource().getType() == RecoverySource.Type.PEER ? discoveryNode : null);
         for (Stage stage : list) {
             state.setStage(stage);
         }
@@ -512,7 +516,7 @@ public class RecoveryTargetTests extends ESTestCase {
             @Override
             public void run() {
                 for (int i = 0; i < 1000; i++) {
-                    index.addFileDetail(randomAsciiOfLength(10), 100, true);
+                    index.addFileDetail(randomAlphaOfLength(10), 100, true);
                 }
                 stop.set(true);
             }

@@ -31,14 +31,16 @@ import org.elasticsearch.index.IndexSettings;
 import java.io.IOException;
 import java.io.Reader;
 
-/**
- */
 public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
 
     private static final String USER_DICT_OPTION = "user_dictionary";
+    private static final String NBEST_COST = "nbest_cost";
+    private static final String NBEST_EXAMPLES = "nbest_examples";
 
     private final UserDictionary userDictionary;
     private final Mode mode;
+    private final String nBestExamples;
+    private final int nBestCost;
 
     private boolean discartPunctuation;
 
@@ -46,7 +48,10 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
         super(indexSettings, name, settings);
         mode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
-        discartPunctuation = settings.getAsBoolean("discard_punctuation", true);
+        discartPunctuation = settings
+            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "discard_punctuation", true, deprecationLogger);
+        nBestCost = settings.getAsInt(NBEST_COST, -1);
+        nBestExamples = settings.get(NBEST_EXAMPLES);
     }
 
     public static UserDictionary getUserDictionary(Environment env, Settings settings) {
@@ -83,7 +88,13 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
 
     @Override
     public Tokenizer create() {
-        return new JapaneseTokenizer(userDictionary, discartPunctuation, mode);
+        JapaneseTokenizer t = new JapaneseTokenizer(userDictionary, discartPunctuation, mode);
+        int nBestCost = this.nBestCost;
+        if (nBestExamples != null) {
+            nBestCost = Math.max(nBestCost, t.calcNBestCost(nBestExamples));
+        }
+        t.setNBestCost(nBestCost);
+        return t;
     }
 
 }

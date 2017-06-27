@@ -1,0 +1,6 @@
+[[breaking_60_ingest_changes]]
+=== Ingest changes
+
+==== Timestamp meta-data field type has changed
+
+The type of the "timestamp" meta-data field has changed from `java.lang.String` to `java.util.Date`.

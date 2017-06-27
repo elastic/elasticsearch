@@ -20,14 +20,14 @@
 package org.elasticsearch.action.termvectors;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.miscellaneous.PerFieldAnalyzerWrapper;
 import org.apache.lucene.analysis.payloads.TypeAsPayloadTokenFilter;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -66,12 +66,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
-
     protected static class TestFieldSetting {
-        final public String name;
-        final public boolean storedOffset;
-        final public boolean storedPayloads;
-        final public boolean storedPositions;
+        public final String name;
+        public final boolean storedOffset;
+        public final boolean storedPayloads;
+        public final boolean storedPositions;
 
         public TestFieldSetting(String name, boolean storedOffset, boolean storedPayloads, boolean storedPositions) {
             this.name = name;
@@ -82,7 +81,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
 
         public void addToMappings(XContentBuilder mappingsBuilder) throws IOException {
             mappingsBuilder.startObject(name);
-            mappingsBuilder.field("type", "string");
+            mappingsBuilder.field("type", "text");
             String tv_settings;
             if (storedPositions && storedOffset && storedPayloads) {
                 tv_settings = "with_positions_offsets_payloads";
@@ -124,9 +123,9 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     }
 
     protected static class TestDoc {
-        final public String id;
-        final public TestFieldSetting[] fieldSettings;
-        final public String[] fieldContent;
+        public final String id;
+        public final TestFieldSetting[] fieldSettings;
+        public final String[] fieldContent;
         public String index = "test";
         public String alias = "alias";
         public String type = "type1";
@@ -163,11 +162,11 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
     }
 
     protected static class TestConfig {
-        final public TestDoc doc;
-        final public String[] selectedFields;
-        final public boolean requestPositions;
-        final public boolean requestOffsets;
-        final public boolean requestPayloads;
+        public final TestDoc doc;
+        public final String[] selectedFields;
+        public final boolean requestPositions;
+        public final boolean requestOffsets;
+        public final boolean requestPayloads;
         public Class expectedException = null;
 
         public TestConfig(TestDoc doc, String[] selectedFields, boolean requestPositions, boolean requestOffsets, boolean requestPayloads) {
@@ -208,13 +207,11 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
             field.addToMappings(mappingBuilder);
         }
         mappingBuilder.endObject().endObject().endObject();
-        Settings.Builder settings = Settings.settingsBuilder()
+        Settings.Builder settings = Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.tv_test.tokenizer", "standard")
-                .putArray("index.analysis.analyzer.tv_test.filter", "type_as_payload", "lowercase");
+                .putArray("index.analysis.analyzer.tv_test.filter", "lowercase");
         assertAcked(prepareCreate(index).addMapping("type1", mappingBuilder).setSettings(settings).addAlias(new Alias(alias)));
-
-        ensureYellow();
     }
 
     /**
@@ -238,7 +235,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                 contentArray[j] = fieldContentOptions[randomInt(fieldContentOptions.length - 1)];
                 docSource.put(fieldSettings[j].name, contentArray[j]);
             }
-            final String id = routingKeyForShard(index, "type", i);
+            final String id = routingKeyForShard(index, i);
             TestDoc doc = new TestDoc(id, fieldSettings, contentArray.clone());
             index(doc.index, doc.type, doc.id, docSource);
             testDocs[i] = doc;
@@ -397,11 +394,7 @@ public abstract class AbstractTermVectorsTestCase extends ESIntegTestCase {
                         assertThat("Missing offset test failed" + failDesc, esDocsPosEnum.startOffset(), equalTo(-1));
                         assertThat("Missing offset test failed" + failDesc, esDocsPosEnum.endOffset(), equalTo(-1));
                     }
-                    if (field.storedPayloads && testConfig.requestPayloads) {
-                        assertThat("Payload test failed" + failDesc, luceneDocsPosEnum.getPayload(), equalTo(esDocsPosEnum.getPayload()));
-                    } else {
-                        assertThat("Missing payload test failed" + failDesc, esDocsPosEnum.getPayload(), equalTo(null));
-                    }
+                    assertNull("Missing payload test failed" + failDesc, esDocsPosEnum.getPayload());
                 }
             }
             assertNull("Es returned terms are done but lucene isn't", luceneTermEnum.next());

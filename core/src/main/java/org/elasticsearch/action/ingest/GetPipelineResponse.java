@@ -22,7 +22,7 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GetPipelineResponse extends ActionResponse implements StatusToXContent {
+public class GetPipelineResponse extends ActionResponse implements StatusToXContentObject {
 
     private List<PipelineConfiguration> pipelines;
 
@@ -52,7 +52,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         int size = in.readVInt();
         pipelines = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            pipelines.add(PipelineConfiguration.readPipelineConfiguration(in));
+            pipelines.add(PipelineConfiguration.readFrom(in));
         }
     }
 
@@ -76,11 +76,11 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("pipelines");
+        builder.startObject();
         for (PipelineConfiguration pipeline : pipelines) {
-            pipeline.toXContent(builder, params);
+            builder.field(pipeline.getId(), pipeline.getConfigAsMap());
         }
-        builder.endArray();
+        builder.endObject();
         return builder;
     }
 }

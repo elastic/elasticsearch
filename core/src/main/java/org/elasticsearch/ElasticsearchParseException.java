@@ -25,7 +25,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 
 /**
- *
+ * Unchecked exception that is translated into a {@code 400 BAD REQUEST} error when it bubbles out over HTTP.
  */
 public class ElasticsearchParseException extends ElasticsearchException {
 

@@ -30,8 +30,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-/**
- */
 public class RefCountedTests extends ESTestCase {
     public void testRefCount() throws IOException {
         MyRefCounted counted = new MyRefCounted();
@@ -88,7 +86,7 @@ public class RefCountedTests extends ESTestCase {
         final MyRefCounted counted = new MyRefCounted();
         Thread[] threads = new Thread[randomIntBetween(2, 5)];
         final CountDownLatch latch = new CountDownLatch(1);
-        final CopyOnWriteArrayList<Throwable> exceptions = new CopyOnWriteArrayList<>();
+        final CopyOnWriteArrayList<Exception> exceptions = new CopyOnWriteArrayList<>();
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread() {
                 @Override
@@ -103,7 +101,7 @@ public class RefCountedTests extends ESTestCase {
                                 counted.decRef();
                             }
                         }
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         exceptions.add(e);
                     }
                 }
@@ -130,7 +128,7 @@ public class RefCountedTests extends ESTestCase {
 
         private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        public MyRefCounted() {
+        MyRefCounted() {
             super("test");
         }
 

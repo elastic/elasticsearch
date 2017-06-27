@@ -42,19 +42,11 @@ can be customised when a mapping type is created.
 
 <<mapping-all-field,`_all`>>::
 
-    A _catch-all_  field that indexes the values of all other fields.
+    A _catch-all_  field that indexes the values of all other fields. Disabled by default.
 
 <<mapping-field-names-field,`_field_names`>>::
 
     All fields in the document which contain non-null values.
-
-<<mapping-timestamp-field,`_timestamp`>>::
-
-    A timestamp associated with the document, either specified manually or auto-generated.
-
-<<mapping-ttl-field,`_ttl`>>::
-
-    How long a document should live before it is automatically deleted.
 
 [float]
 === Routing meta-fields
@@ -91,10 +83,6 @@ include::fields/parent-field.asciidoc[]
 include::fields/routing-field.asciidoc[]
 
 include::fields/source-field.asciidoc[]
-
-include::fields/timestamp-field.asciidoc[]
-
-include::fields/ttl-field.asciidoc[]
 
 include::fields/type-field.asciidoc[]
 

@@ -21,34 +21,26 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-/**
- */
-public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadPoolStats.Stats> {
+public class ThreadPoolStats implements Writeable, ToXContent, Iterable<ThreadPoolStats.Stats> {
 
-    public static class Stats implements Streamable, ToXContent, Comparable<Stats> {
+    public static class Stats implements Writeable, ToXContent, Comparable<Stats> {
 
-        private String name;
-        private int threads;
-        private int queue;
-        private int active;
-        private long rejected;
-        private int largest;
-        private long completed;
-
-        Stats() {
-
-        }
+        private final String name;
+        private final int threads;
+        private final int queue;
+        private final int active;
+        private final long rejected;
+        private final int largest;
+        private final long completed;
 
         public Stats(String name, int threads, int queue, int active, long rejected, int largest, long completed) {
             this.name = name;
@@ -58,6 +50,27 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
             this.rejected = rejected;
             this.largest = largest;
             this.completed = completed;
+        }
+
+        public Stats(StreamInput in) throws IOException {
+            name = in.readString();
+            threads = in.readInt();
+            queue = in.readInt();
+            active = in.readInt();
+            rejected = in.readLong();
+            largest = in.readInt();
+            completed = in.readLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            out.writeInt(threads);
+            out.writeInt(queue);
+            out.writeInt(active);
+            out.writeLong(rejected);
+            out.writeInt(largest);
+            out.writeLong(completed);
         }
 
         public String getName() {
@@ -89,30 +102,8 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            name = in.readString();
-            threads = in.readInt();
-            queue = in.readInt();
-            active = in.readInt();
-            rejected = in.readLong();
-            largest = in.readInt();
-            completed = in.readLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(name);
-            out.writeInt(threads);
-            out.writeInt(queue);
-            out.writeInt(active);
-            out.writeLong(rejected);
-            out.writeInt(largest);
-            out.writeLong(completed);
-        }
-
-        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(name, XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(name);
             if (threads != -1) {
                 builder.field(Fields.THREADS, threads);
             }
@@ -155,13 +146,18 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
 
     private List<Stats> stats;
 
-    ThreadPoolStats() {
-
-    }
-
     public ThreadPoolStats(List<Stats> stats) {
         Collections.sort(stats);
         this.stats = stats;
+    }
+
+    public ThreadPoolStats(StreamInput in) throws IOException {
+        stats = in.readList(Stats::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeList(stats);
     }
 
     @Override
@@ -169,39 +165,14 @@ public class ThreadPoolStats implements Streamable, ToXContent, Iterable<ThreadP
         return stats.iterator();
     }
 
-    public static ThreadPoolStats readThreadPoolStats(StreamInput in) throws IOException {
-        ThreadPoolStats stats = new ThreadPoolStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        stats = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            Stats stats1 = new Stats();
-            stats1.readFrom(in);
-            stats.add(stats1);
-        }
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(stats.size());
-        for (Stats stat : stats) {
-            stat.writeTo(out);
-        }
-    }
-
     static final class Fields {
-        static final XContentBuilderString THREAD_POOL = new XContentBuilderString("thread_pool");
-        static final XContentBuilderString THREADS = new XContentBuilderString("threads");
-        static final XContentBuilderString QUEUE = new XContentBuilderString("queue");
-        static final XContentBuilderString ACTIVE = new XContentBuilderString("active");
-        static final XContentBuilderString REJECTED = new XContentBuilderString("rejected");
-        static final XContentBuilderString LARGEST = new XContentBuilderString("largest");
-        static final XContentBuilderString COMPLETED = new XContentBuilderString("completed");
+        static final String THREAD_POOL = "thread_pool";
+        static final String THREADS = "threads";
+        static final String QUEUE = "queue";
+        static final String ACTIVE = "active";
+        static final String REJECTED = "rejected";
+        static final String LARGEST = "largest";
+        static final String COMPLETED = "completed";
     }
 
     @Override

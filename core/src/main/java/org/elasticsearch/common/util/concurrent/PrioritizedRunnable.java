@@ -23,9 +23,6 @@ import org.elasticsearch.common.Priority;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 
-/**
- *
- */
 public abstract class PrioritizedRunnable implements Runnable, Comparable<PrioritizedRunnable> {
 
     private final Priority priority;

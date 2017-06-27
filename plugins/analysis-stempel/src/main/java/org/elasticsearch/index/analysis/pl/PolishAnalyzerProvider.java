@@ -25,8 +25,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 
-/**
- */
 public class PolishAnalyzerProvider extends AbstractIndexAnalyzerProvider<PolishAnalyzer> {
 
     private final PolishAnalyzer analyzer;

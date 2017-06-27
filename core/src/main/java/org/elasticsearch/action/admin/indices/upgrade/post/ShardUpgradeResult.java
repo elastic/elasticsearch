@@ -28,9 +28,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 import java.text.ParseException;
 
-/**
- *
- */
 class ShardUpgradeResult implements Streamable {
 
     private ShardId shardId;

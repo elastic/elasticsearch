@@ -21,60 +21,83 @@ package org.elasticsearch.search.aggregations.support.values;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
-import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.joda.time.ReadableInstant;
 
+import java.io.IOException;
 import java.lang.reflect.Array;
 import java.util.Collection;
-import java.util.Iterator;
 
 /**
  * {@link SortingNumericDoubleValues} implementation which is based on a script
  */
 public class ScriptDoubleValues extends SortingNumericDoubleValues implements ScorerAware {
 
-    final LeafSearchScript script;
+    final SearchScript script;
 
-    public ScriptDoubleValues(LeafSearchScript script) {
+    public ScriptDoubleValues(SearchScript script) {
         super();
         this.script = script;
     }
 
     @Override
-    public void setDocument(int docId) {
-        script.setDocument(docId);
+    public boolean advanceExact(int target) throws IOException {
+        script.setDocument(target);
         final Object value = script.run();
 
         if (value == null) {
-            resize(0);
-        }
-
-        else if (value instanceof Number) {
+            return false;
+        } else if (value instanceof Number) {
             resize(1);
             values[0] = ((Number) value).doubleValue();
-        }
-
-        else if (value.getClass().isArray()) {
-            resize(Array.getLength(value));
-            for (int i = 0; i < count(); ++i) {
-                values[i] = ((Number) Array.get(value, i)).doubleValue();
+        } else if (value instanceof ReadableInstant) {
+            resize(1);
+            values[0] = ((ReadableInstant) value).getMillis();
+        } else if (value.getClass().isArray()) {
+            int length = Array.getLength(value);
+            if (length == 0) {
+                return false;
             }
-        }
-
-        else if (value instanceof Collection) {
-            resize(((Collection<?>) value).size());
+            resize(length);
+            for (int i = 0; i < length; ++i) {
+                values[i] = toDoubleValue(Array.get(value, i));
+            }
+        } else if (value instanceof Collection) {
+            Collection<?> coll = (Collection<?>) value;
+            if (coll.isEmpty()) {
+                return false;
+            }
+            resize(coll.size());
             int i = 0;
-            for (Iterator<?> it = ((Collection<?>) value).iterator(); it.hasNext(); ++i) {
-                values[i] = ((Number) it.next()).doubleValue();
+            for (Object v : coll) {
+                values[i++] = toDoubleValue(v);
             }
-            assert i == count();
-        }
-
-        else {
-            throw new AggregationExecutionException("Unsupported script value [" + value + "]");
+            assert i == docValueCount();
+        } else {
+            resize(1);
+            values[0] = toDoubleValue(value);
         }
 
         sort();
+        return true;
+    }
+
+    private static double toDoubleValue(Object o) {
+        if (o instanceof Number) {
+            return ((Number) o).doubleValue();
+        } else if (o instanceof ReadableInstant) {
+            // Dates are exposed in scripts as ReadableDateTimes but aggregations want them to be numeric
+            return ((ReadableInstant) o).getMillis();
+        } else if (o instanceof Boolean) {
+            // We do expose boolean fields as boolean in scripts, however aggregations still expect
+            // that scripts return the same internal representation as regular fields, so boolean
+            // values in scripts need to be converted to a number, and the value formatter will
+            // make sure of using true/false in the key_as_string field
+            return ((Boolean) o).booleanValue() ? 1.0 : 0.0;
+        } else {
+            throw new AggregationExecutionException("Unsupported script value [" + o + "], expected a number, date, or boolean");
+        }
     }
 
     @Override

@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ga.IrishAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -34,8 +34,10 @@ public class IrishAnalyzerProvider extends AbstractIndexAnalyzerProvider<IrishAn
 
     public IrishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new IrishAnalyzer(Analysis.parseStopWords(env, settings, IrishAnalyzer.getDefaultStopSet()),
-                                     Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new IrishAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, IrishAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

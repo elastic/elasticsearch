@@ -20,13 +20,15 @@
 package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.DocumentRequest;
-import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -43,7 +45,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  * @see org.elasticsearch.client.Requests#deleteRequest(String)
  */
-public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements DocumentRequest<DeleteRequest> {
+public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest> implements DocWriteRequest<DeleteRequest>, CompositeIndicesRequest {
 
     private String type;
     private String id;
@@ -51,7 +53,6 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
     private String routing;
     @Nullable
     private String parent;
-    private boolean refresh;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
 
@@ -90,6 +91,9 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         }
         if (!versionType.validateVersionForWrites(version)) {
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+        }
+        if (versionType == VersionType.FORCE) {
+            validationException = addValidationError("version type [force] may no longer be used", validationException);
         }
         return validationException;
     }
@@ -165,40 +169,31 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         return this.routing;
     }
 
-    /**
-     * Should a refresh be executed post this index operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
-     */
-    public DeleteRequest refresh(boolean refresh) {
-        this.refresh = refresh;
-        return this;
-    }
-
-    public boolean refresh() {
-        return this.refresh;
-    }
-
-    /**
-     * Sets the version, which will cause the delete operation to only be performed if a matching
-     * version exists and no changes happened on the doc since then.
-     */
+    @Override
     public DeleteRequest version(long version) {
         this.version = version;
         return this;
     }
 
+    @Override
     public long version() {
         return this.version;
     }
 
+    @Override
     public DeleteRequest versionType(VersionType versionType) {
         this.versionType = versionType;
         return this;
     }
 
+    @Override
     public VersionType versionType() {
         return this.versionType;
+    }
+
+    @Override
+    public OpType opType() {
+        return OpType.DELETE;
     }
 
     @Override
@@ -208,7 +203,6 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         id = in.readString();
         routing = in.readOptionalString();
         parent = in.readOptionalString();
-        refresh = in.readBoolean();
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
     }
@@ -220,7 +214,6 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
         out.writeString(id);
         out.writeOptionalString(routing());
         out.writeOptionalString(parent());
-        out.writeBoolean(refresh);
         out.writeLong(version);
         out.writeByte(versionType.getValue());
     }
@@ -228,5 +221,35 @@ public class DeleteRequest extends ReplicationRequest<DeleteRequest> implements 
     @Override
     public String toString() {
         return "delete {[" + index + "][" + type + "][" + id + "]}";
+    }
+
+    /**
+     * Override this method from ReplicationAction, this is where we are storing our state in the request object (which we really shouldn't
+     * do). Once the transport client goes away we can move away from making this available, but in the meantime this is dangerous to set or
+     * use because the DeleteRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
+     */
+    @Override
+    public long primaryTerm() {
+        throw new UnsupportedOperationException("primary term should never be set on DeleteRequest");
+    }
+
+    /**
+     * Override this method from ReplicationAction, this is where we are storing our state in the request object (which we really shouldn't
+     * do). Once the transport client goes away we can move away from making this available, but in the meantime this is dangerous to set or
+     * use because the DeleteRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
+     */
+    @Override
+    public void primaryTerm(long term) {
+        throw new UnsupportedOperationException("primary term should never be set on DeleteRequest");
+    }
+
+    /**
+     * Override this method from ReplicationAction, this is where we are storing our state in the request object (which we really shouldn't
+     * do). Once the transport client goes away we can move away from making this available, but in the meantime this is dangerous to set or
+     * use because the DeleteRequest object will always be wrapped in a bulk request envelope, which is where this *should* be set.
+     */
+    @Override
+    public DeleteRequest setShardId(ShardId shardId) {
+        throw new UnsupportedOperationException("shard id should never be set on DeleteRequest");
     }
 }

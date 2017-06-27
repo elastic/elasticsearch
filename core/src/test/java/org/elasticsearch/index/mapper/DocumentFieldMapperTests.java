@@ -24,10 +24,12 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.io.IOException;
@@ -40,8 +42,8 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
     private static class FakeAnalyzer extends Analyzer {
 
         private final String output;
-        
-        public FakeAnalyzer(String output) {
+
+        FakeAnalyzer(String output) {
             this.output = output;
         }
 
@@ -63,19 +65,19 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
             };
             return new TokenStreamComponents(tokenizer);
         }
-        
+
     }
 
-    static class FakeFieldType extends MappedFieldType {
+    static class FakeFieldType extends TermBasedFieldType {
 
-        public FakeFieldType() {
+        FakeFieldType() {
             super();
         }
-        
+
         FakeFieldType(FakeFieldType other) {
             super(other);
         }
-        
+
         @Override
         public MappedFieldType clone() {
             return new FakeFieldType(this);
@@ -85,34 +87,34 @@ public class DocumentFieldMapperTests extends LuceneTestCase {
         public String typeName() {
             return "fake";
         }
-        
+
     }
 
     static class FakeFieldMapper extends FieldMapper {
 
         private static final Settings SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
-        public FakeFieldMapper(String simpleName, MappedFieldType fieldType) {
+        FakeFieldMapper(String simpleName, MappedFieldType fieldType) {
             super(simpleName, fieldType.clone(), fieldType.clone(), SETTINGS, null, null);
         }
 
         @Override
-        protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+        protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         }
 
         @Override
         protected String contentType() {
             return null;
         }
-        
+
     }
 
     public void testAnalyzers() throws IOException {
         FakeFieldType fieldType1 = new FakeFieldType();
         fieldType1.setName("field1");
-        fieldType1.setIndexAnalyzer(new NamedAnalyzer("foo", new FakeAnalyzer("index")));
-        fieldType1.setSearchAnalyzer(new NamedAnalyzer("bar", new FakeAnalyzer("search")));
-        fieldType1.setSearchQuoteAnalyzer(new NamedAnalyzer("baz", new FakeAnalyzer("search_quote")));
+        fieldType1.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new FakeAnalyzer("index")));
+        fieldType1.setSearchAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new FakeAnalyzer("search")));
+        fieldType1.setSearchQuoteAnalyzer(new NamedAnalyzer("baz", AnalyzerScope.INDEX, new FakeAnalyzer("search_quote")));
         FieldMapper fieldMapper1 = new FakeFieldMapper("field1", fieldType1);
 
         FakeFieldType fieldType2 = new FakeFieldType();

@@ -22,9 +22,8 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,7 +33,7 @@ import java.util.List;
 /**
  * Snapshot status response
  */
-public class SnapshotsStatusResponse extends ActionResponse implements ToXContent {
+public class SnapshotsStatusResponse extends ActionResponse implements ToXContentObject {
 
     private List<SnapshotStatus> snapshots = Collections.emptyList();
 
@@ -74,17 +73,15 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
         }
     }
 
-    static final class Fields {
-        static final XContentBuilderString SNAPSHOTS = new XContentBuilderString("snapshots");
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(Fields.SNAPSHOTS);
+        builder.startObject();
+        builder.startArray("snapshots");
         for (SnapshotStatus snapshot : snapshots) {
             snapshot.toXContent(builder, params);
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 

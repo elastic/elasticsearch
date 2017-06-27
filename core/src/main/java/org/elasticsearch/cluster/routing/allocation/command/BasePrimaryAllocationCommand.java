@@ -23,9 +23,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -34,11 +32,11 @@ import java.io.IOException;
  */
 public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAllocationCommand {
 
-    private static final String ACCEPT_DATA_LOSS_KEY = "accept_data_loss";
+    private static final String ACCEPT_DATA_LOSS_FIELD = "accept_data_loss";
 
-    protected static <T extends Builder> ObjectParser<T, Void> createAllocatePrimaryParser(String command) {
+    protected static <T extends Builder<?>> ObjectParser<T, Void> createAllocatePrimaryParser(String command) {
         ObjectParser<T, Void> parser = AbstractAllocateAllocationCommand.createAllocateParser(command);
-        parser.declareBoolean(Builder::setAcceptDataLoss, new ParseField(ACCEPT_DATA_LOSS_KEY));
+        parser.declareBoolean(Builder::setAcceptDataLoss, new ParseField(ACCEPT_DATA_LOSS_FIELD));
         return parser;
     }
 
@@ -50,6 +48,20 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
     }
 
     /**
+     * Read from a stream.
+     */
+    protected BasePrimaryAllocationCommand(StreamInput in) throws IOException {
+        super(in);
+        acceptDataLoss = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeBoolean(acceptDataLoss);
+    }
+
+    /**
      * The operation only executes if the user explicitly agrees to possible data loss
      *
      * @return whether data loss is acceptable
@@ -58,31 +70,30 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
         return acceptDataLoss;
     }
 
-    protected static abstract class Builder<T extends BasePrimaryAllocationCommand> extends AbstractAllocateAllocationCommand.Builder<T> {
+    protected abstract static class Builder<T extends BasePrimaryAllocationCommand> extends AbstractAllocateAllocationCommand.Builder<T> {
         protected boolean acceptDataLoss;
 
         public void setAcceptDataLoss(boolean acceptDataLoss) {
             this.acceptDataLoss = acceptDataLoss;
         }
+    }
 
-        @Override
-        public Builder readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            acceptDataLoss = in.readBoolean();
-            return this;
+    @Override
+    protected void extraXContent(XContentBuilder builder) throws IOException {
+        builder.field(ACCEPT_DATA_LOSS_FIELD, acceptDataLoss);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (false == super.equals(obj)) {
+            return false;
         }
+        BasePrimaryAllocationCommand other = (BasePrimaryAllocationCommand) obj;
+        return acceptDataLoss == other.acceptDataLoss;
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        super.toXContent(builder, params);
-        builder.field(ACCEPT_DATA_LOSS_KEY, acceptDataLoss);
-        return builder;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(acceptDataLoss);
+    public int hashCode() {
+        return 31 * super.hashCode() + Boolean.hashCode(acceptDataLoss);
     }
 }

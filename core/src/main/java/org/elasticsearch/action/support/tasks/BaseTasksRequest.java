@@ -27,53 +27,49 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A base class for task requests
  */
-public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest<Request> {
+public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest {
 
     public static final String[] ALL_ACTIONS = Strings.EMPTY_ARRAY;
 
     public static final String[] ALL_NODES = Strings.EMPTY_ARRAY;
 
-    public static final long ALL_TASKS = -1L;
-
-    private String[] nodesIds = ALL_NODES;
+    private String[] nodes = ALL_NODES;
 
     private TimeValue timeout;
 
     private String[] actions = ALL_ACTIONS;
 
-    private String parentNode;
+    private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
 
-    private long parentTaskId = ALL_TASKS;
-
-    private long taskId = ALL_TASKS;
+    private TaskId taskId = TaskId.EMPTY_TASK_ID;
 
     public BaseTasksRequest() {
     }
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
-    }
-
-    /**
-     * Get information about tasks from nodes based on the nodes ids specified.
-     * If none are passed, information for all nodes will be returned.
-     */
-    public BaseTasksRequest(String... nodesIds) {
-        this.nodesIds = nodesIds;
+        ActionRequestValidationException validationException = null;
+        if (taskId.isSet() && nodes.length > 0) {
+            validationException = addValidationError("task id cannot be used together with node ids",
+                validationException);
+        }
+        return validationException;
     }
 
     /**
      * Sets the list of action masks for the actions that should be returned
      */
     @SuppressWarnings("unchecked")
-    public final Request actions(String... actions) {
+    public final Request setActions(String... actions) {
         this.actions = actions;
         return (Request) this;
     }
@@ -81,17 +77,17 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     /**
      * Return the list of action masks for the actions that should be returned
      */
-    public String[] actions() {
+    public String[] getActions() {
         return actions;
     }
 
-    public final String[] nodesIds() {
-        return nodesIds;
+    public final String[] getNodes() {
+        return nodes;
     }
 
     @SuppressWarnings("unchecked")
-    public final Request nodesIds(String... nodesIds) {
-        this.nodesIds = nodesIds;
+    public final Request setNodes(String... nodes) {
+        this.nodes = nodes;
         return (Request) this;
     }
 
@@ -100,56 +96,43 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
      *
      * By default tasks with any ids are returned.
      */
-    public long taskId() {
+    public TaskId getTaskId() {
         return taskId;
     }
 
     @SuppressWarnings("unchecked")
-    public final Request taskId(long taskId) {
+    public final Request setTaskId(TaskId taskId) {
         this.taskId = taskId;
         return (Request) this;
     }
 
 
     /**
-     * Returns the parent node id that tasks should be filtered by
-     */
-    public String parentNode() {
-        return parentNode;
-    }
-
-    @SuppressWarnings("unchecked")
-    public Request parentNode(String parentNode) {
-        this.parentNode = parentNode;
-        return (Request) this;
-    }
-
-    /**
      * Returns the parent task id that tasks should be filtered by
      */
-    public long parentTaskId() {
+    public TaskId getParentTaskId() {
         return parentTaskId;
     }
 
     @SuppressWarnings("unchecked")
-    public Request parentTaskId(long parentTaskId) {
+    public Request setParentTaskId(TaskId parentTaskId) {
         this.parentTaskId = parentTaskId;
         return (Request) this;
     }
 
 
-    public TimeValue timeout() {
+    public TimeValue getTimeout() {
         return this.timeout;
     }
 
     @SuppressWarnings("unchecked")
-    public final Request timeout(TimeValue timeout) {
+    public final Request setTimeout(TimeValue timeout) {
         this.timeout = timeout;
         return (Request) this;
     }
 
     @SuppressWarnings("unchecked")
-    public final Request timeout(String timeout) {
+    public final Request setTimeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return (Request) this;
     }
@@ -157,43 +140,34 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        nodesIds = in.readStringArray();
-        taskId = in.readLong();
+        taskId = TaskId.readFromStream(in);
+        parentTaskId = TaskId.readFromStream(in);
+        nodes = in.readStringArray();
         actions = in.readStringArray();
-        parentNode = in.readOptionalString();
-        parentTaskId = in.readLong();
-        if (in.readBoolean()) {
-            timeout = TimeValue.readTimeValue(in);
-        }
+        timeout = in.readOptionalWriteable(TimeValue::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeStringArrayNullable(nodesIds);
-        out.writeLong(taskId);
+        taskId.writeTo(out);
+        parentTaskId.writeTo(out);
+        out.writeStringArrayNullable(nodes);
         out.writeStringArrayNullable(actions);
-        out.writeOptionalString(parentNode);
-        out.writeLong(parentTaskId);
-        out.writeOptionalStreamable(timeout);
+        out.writeOptionalWriteable(timeout);
     }
 
     public boolean match(Task task) {
-        if (actions() != null && actions().length > 0 && Regex.simpleMatch(actions(), task.getAction()) == false) {
+        if (getActions() != null && getActions().length > 0 && Regex.simpleMatch(getActions(), task.getAction()) == false) {
             return false;
         }
-        if (taskId() != ALL_TASKS) {
-            if(taskId() != task.getId()) {
+        if (getTaskId().isSet()) {
+            if(getTaskId().getId() != task.getId()) {
                 return false;
             }
         }
-        if (parentNode() != null) {
-            if (parentNode().equals(task.getParentNode()) == false) {
-                return false;
-            }
-        }
-        if (parentTaskId() != ALL_TASKS) {
-            if (parentTaskId() != task.getParentId()) {
+        if (parentTaskId.isSet()) {
+            if (parentTaskId.equals(task.getParentTaskId()) == false) {
                 return false;
             }
         }

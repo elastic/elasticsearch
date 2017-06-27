@@ -18,55 +18,96 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
+
+import java.util.function.LongSupplier;
 
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
 public class QueryRewriteContext {
+    protected final MapperService mapperService;
     protected final ScriptService scriptService;
     protected final IndexSettings indexSettings;
-    protected final IndicesQueriesRegistry indicesQueriesRegistry;
-    protected final QueryParseContext parseContext;
+    private final NamedXContentRegistry xContentRegistry;
+    protected final Client client;
+    protected final IndexReader reader;
+    protected final LongSupplier nowInMillis;
 
-    public QueryRewriteContext(IndexSettings indexSettings, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry, Client client, IndexReader reader,
+            LongSupplier nowInMillis) {
+        this.mapperService = mapperService;
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
-        this.parseContext = new QueryParseContext(indicesQueriesRegistry);
+        this.xContentRegistry = xContentRegistry;
+        this.client = client;
+        this.reader = reader;
+        this.nowInMillis = nowInMillis;
     }
 
     /**
      * Returns a clients to fetch resources from local or remove nodes.
      */
-    public final Client getClient() {
-        return scriptService.getClient();
+    public Client getClient() {
+        return client;
     }
 
     /**
      * Returns the index settings for this context. This might return null if the
      * context has not index scope.
      */
-    public final IndexSettings getIndexSettings() {
+    public IndexSettings getIndexSettings() {
         return indexSettings;
     }
 
     /**
-     * Returns a script service to fetch scripts.
+     * Return the MapperService.
      */
-    public final ScriptService getScriptService() {
+    public MapperService getMapperService() {
+        return mapperService;
+    }
+
+    /** Return the script service to allow compiling scripts within queries. */
+    public ScriptService getScriptService() {
         return scriptService;
     }
 
+    /** Return the current {@link IndexReader}, or {@code null} if no index reader is available, for
+     *  instance if we are on the coordinating node or if this rewrite context is used to index
+     *  queries (percolation). */
+    public IndexReader getIndexReader() {
+        return reader;
+    }
+
     /**
-     * Returns a new {@link QueryParseContext} to parse template or wrapped queries.
+     * The registry used to build new {@link XContentParser}s. Contains registered named parsers needed to parse the query.
      */
-    public QueryParseContext newParseContext() {
-        QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
-        queryParseContext.parseFieldMatcher(parseContext.parseFieldMatcher());
-        return queryParseContext;
+    public NamedXContentRegistry getXContentRegistry() {
+        return xContentRegistry;
+    }
+
+    /**
+     * Returns a new {@link QueryParseContext} that wraps the provided parser.
+     */
+    public QueryParseContext newParseContext(XContentParser parser) {
+        return new QueryParseContext(parser);
+    }
+
+    public long nowInMillis() {
+        return nowInMillis.getAsLong();
+    }
+
+    public String getTemplateBytes(Script template) {
+        TemplateScript compiledTemplate = scriptService.compile(template, TemplateScript.CONTEXT).newInstance(template.getParams());
+        return compiledTemplate.execute();
     }
 }

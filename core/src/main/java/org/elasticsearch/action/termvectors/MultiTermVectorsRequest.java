@@ -23,14 +23,11 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -41,7 +38,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsRequest> implements Iterable<TermVectorsRequest>, CompositeIndicesRequest, RealtimeRequest {
+public class MultiTermVectorsRequest extends ActionRequest implements Iterable<TermVectorsRequest>, CompositeIndicesRequest, RealtimeRequest {
 
     String preference;
     List<TermVectorsRequest> requests = new ArrayList<>();
@@ -77,11 +74,6 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
     }
 
     @Override
-    public List<? extends IndicesRequest> subRequests() {
-        return requests;
-    }
-
-    @Override
     public Iterator<TermVectorsRequest> iterator() {
         return Collections.unmodifiableCollection(requests).iterator();
     }
@@ -94,43 +86,41 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
         return requests;
     }
 
-    public void add(TermVectorsRequest template, BytesReference data) throws Exception {
+    public void add(TermVectorsRequest template, @Nullable XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
-        if (data.length() > 0) {
-            try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.START_ARRAY) {
-                        if ("docs".equals(currentFieldName)) {
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                if (token != XContentParser.Token.START_OBJECT) {
-                                    throw new IllegalArgumentException("docs array element should include an object");
-                                }
-                                TermVectorsRequest termVectorsRequest = new TermVectorsRequest(template);
-                                TermVectorsRequest.parseRequest(termVectorsRequest, parser);
-                                add(termVectorsRequest);
+        if (parser != null) {
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if ("docs".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token != XContentParser.Token.START_OBJECT) {
+                                throw new IllegalArgumentException("docs array element should include an object");
                             }
-                        } else if ("ids".equals(currentFieldName)) {
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                if (!token.isValue()) {
-                                    throw new IllegalArgumentException("ids array element should only contain ids");
-                                }
-                                ids.add(parser.text());
+                            TermVectorsRequest termVectorsRequest = new TermVectorsRequest(template);
+                            TermVectorsRequest.parseRequest(termVectorsRequest, parser);
+                            add(termVectorsRequest);
+                        }
+                    } else if ("ids".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (!token.isValue()) {
+                                throw new IllegalArgumentException("ids array element should only contain ids");
                             }
-                        } else {
-                            throw new ElasticsearchParseException("no parameter named [{}] and type ARRAY", currentFieldName);
+                            ids.add(parser.text());
                         }
-                    } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
-                        if ("parameters".equals(currentFieldName)) {
-                            TermVectorsRequest.parseRequest(template, parser);
-                        } else {
-                            throw new ElasticsearchParseException("no parameter named [{}] and type OBJECT", currentFieldName);
-                        }
-                    } else if (currentFieldName != null) {
-                        throw new ElasticsearchParseException("_mtermvectors: Parameter [{}] not supported", currentFieldName);
+                    } else {
+                        throw new ElasticsearchParseException("no parameter named [{}] and type ARRAY", currentFieldName);
                     }
+                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
+                    if ("parameters".equals(currentFieldName)) {
+                        TermVectorsRequest.parseRequest(template, parser);
+                    } else {
+                        throw new ElasticsearchParseException("no parameter named [{}] and type OBJECT", currentFieldName);
+                    }
+                } else if (currentFieldName != null) {
+                    throw new ElasticsearchParseException("_mtermvectors: Parameter [{}] not supported", currentFieldName);
                 }
             }
         }
@@ -173,7 +163,7 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
     }
 
     @Override
-    public MultiTermVectorsRequest realtime(Boolean realtime) {
+    public MultiTermVectorsRequest realtime(boolean realtime) {
         for (TermVectorsRequest request : requests) {
             request.realtime(realtime);
         }

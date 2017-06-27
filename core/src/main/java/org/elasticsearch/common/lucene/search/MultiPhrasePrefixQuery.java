@@ -25,12 +25,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
-import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,7 +52,7 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Sets the phrase slop for this query.
      *
-     * @see org.apache.lucene.search.PhraseQuery#setSlop(int)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#setSlop(int)
      */
     public void setSlop(int s) {
         slop = s;
@@ -64,7 +65,7 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Sets the phrase slop for this query.
      *
-     * @see org.apache.lucene.search.PhraseQuery#getSlop()
+     * @see org.apache.lucene.search.PhraseQuery.Builder#getSlop()
      */
     public int getSlop() {
         return slop;
@@ -73,7 +74,7 @@ public class MultiPhrasePrefixQuery extends Query {
     /**
      * Add a single term at the next position in the phrase.
      *
-     * @see org.apache.lucene.search.PhraseQuery#add(Term)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term)
      */
     public void add(Term term) {
         add(new Term[]{term});
@@ -83,7 +84,7 @@ public class MultiPhrasePrefixQuery extends Query {
      * Add multiple terms at the next position in the phrase.  Any of the terms
      * may match.
      *
-     * @see org.apache.lucene.search.PhraseQuery#add(Term)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term)
      */
     public void add(Term[] terms) {
         int position = 0;
@@ -98,7 +99,7 @@ public class MultiPhrasePrefixQuery extends Query {
      *
      * @param terms the terms
      * @param position the position of the terms provided as argument
-     * @see org.apache.lucene.search.PhraseQuery#add(Term, int)
+     * @see org.apache.lucene.search.PhraseQuery.Builder#add(Term, int)
      */
     public void add(Term[] terms, int position) {
         if (termArrays.size() == 0)
@@ -114,6 +115,18 @@ public class MultiPhrasePrefixQuery extends Query {
 
         termArrays.add(terms);
         positions.add(position);
+    }
+
+    /**
+     * Returns the terms for each position in this phrase
+     */
+    public Term[][] getTerms() {
+        Term[][] terms = new Term[termArrays.size()][];
+        for (int i = 0; i < termArrays.size(); i++) {
+            terms[i] = new Term[termArrays.get(i).length];
+            System.arraycopy(termArrays.get(i), 0, terms[i], 0, termArrays.get(i).length);
+        }
+        return terms;
     }
 
     /**
@@ -135,7 +148,7 @@ public class MultiPhrasePrefixQuery extends Query {
         if (termArrays.isEmpty()) {
             return new MatchNoDocsQuery();
         }
-        MultiPhraseQuery query = new MultiPhraseQuery();
+        MultiPhraseQuery.Builder query = new MultiPhraseQuery.Builder();
         query.setSlop(slop);
         int sizeMinus1 = termArrays.size() - 1;
         for (int i = 0; i < sizeMinus1; i++) {
@@ -151,10 +164,20 @@ public class MultiPhrasePrefixQuery extends Query {
             }
         }
         if (terms.isEmpty()) {
-            return Queries.newMatchNoDocsQuery();
+            if (sizeMinus1 == 0) {
+                // no prefix and the phrase query is empty
+                return Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName());
+            }
+
+            // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
+            // which rewrites query with an empty reader.
+            return new BooleanQuery.Builder()
+                .add(query.build(), BooleanClause.Occur.MUST)
+                .add(Queries.newMatchNoDocsQuery("No terms supplied for " + MultiPhrasePrefixQuery.class.getName()),
+                    BooleanClause.Occur.MUST).build();
         }
         query.add(terms.toArray(Term.class), position);
-        return query.rewrite(reader);
+        return query.build();
     }
 
     private void getPrefixTerms(ObjectHashSet<Term> terms, final Term prefix, final IndexReader reader) throws IOException {
@@ -231,8 +254,6 @@ public class MultiPhrasePrefixQuery extends Query {
             buffer.append(slop);
         }
 
-        buffer.append(ToStringUtils.boost(getBoost()));
-
         return buffer.toString();
     }
 
@@ -241,7 +262,7 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     @Override
     public boolean equals(Object o) {
-        if (super.equals(o) == false) {
+        if (sameClassAs(o) == false) {
             return false;
         }
         MultiPhrasePrefixQuery other = (MultiPhrasePrefixQuery) o;
@@ -255,7 +276,7 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     @Override
     public int hashCode() {
-        return super.hashCode()
+        return classHash()
                 ^ slop
                 ^ termArraysHashCode()
                 ^ positions.hashCode();

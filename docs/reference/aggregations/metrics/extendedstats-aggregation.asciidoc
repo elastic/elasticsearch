@@ -86,12 +86,19 @@ Computing the grades stats based on a script:
     ...,
 
     "aggs" : {
-        "grades_stats" : { "extended_stats" : { "script" : "doc['grade'].value" } }
+        "grades_stats" : { 
+            "extended_stats" : { 
+                "script" : { 
+                    "source" : "doc['grade'].value",
+                    "lang" : "painless"
+                 }
+             }
+         }
     }
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the `painless` script language and no script parameters. To use a file script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -102,7 +109,7 @@ This will interpret the `script` parameter as an `inline` script with the defaul
         "grades_stats" : { 
             "extended_stats" : { 
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "grade"
                     }
@@ -112,8 +119,6 @@ This will interpret the `script` parameter as an `inline` script with the defaul
     }
 }
 --------------------------------------------------
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
 
 ===== Value Script
 
@@ -130,7 +135,8 @@ It turned out that the exam was way above the level of the students and a grade 
                 "extended_stats" : {
                     "field" : "grade",
                     "script" : {
-                        "inline": "_value * correction",
+                        "lang" : "painless",
+                        "source": "_value * params.correction",
                         "params" : {
                             "correction" : 1.2
                         }

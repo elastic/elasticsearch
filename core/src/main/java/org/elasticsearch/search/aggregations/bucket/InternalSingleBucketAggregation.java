@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A base class for all the single bucket aggregations.
@@ -39,8 +40,6 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     private long docCount;
     private InternalAggregations aggregations;
 
-    protected InternalSingleBucketAggregation() {} // for serialization
-
     /**
      * Creates a single bucket aggregation.
      *
@@ -48,10 +47,26 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      * @param docCount      The document count in the single bucket.
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
-    protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations,
+            List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.docCount = docCount;
         this.aggregations = aggregations;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected InternalSingleBucketAggregation(StreamInput in) throws IOException {
+        super(in);
+        docCount = in.readVLong();
+        aggregations = InternalAggregations.readAggregations(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeVLong(docCount);
+        aggregations.writeTo(out);
     }
 
     @Override
@@ -67,7 +82,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     /**
      * Create a new copy of this {@link Aggregation} with the same settings as
      * this {@link Aggregation} and contains the provided sub-aggregations.
-     * 
+     *
      * @param subAggregations
      *            the buckets to use in the new {@link Aggregation}
      * @return the new {@link Aggregation}
@@ -115,21 +130,21 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     }
 
     @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        docCount = in.readVLong();
-        aggregations = InternalAggregations.readAggregations(in);
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVLong(docCount);
-        aggregations.writeTo(out);
-    }
-
-    @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        builder.field(CommonFields.DOC_COUNT, docCount);
+        builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
         aggregations.toXContentInternal(builder, params);
         return builder;
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalSingleBucketAggregation other = (InternalSingleBucketAggregation) obj;
+        return Objects.equals(docCount, other.docCount) &&
+                Objects.equals(aggregations, other.aggregations);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(docCount, aggregations);
     }
 }

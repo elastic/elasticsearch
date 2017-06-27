@@ -22,7 +22,9 @@ package org.elasticsearch.common.lease;
 import org.apache.lucene.util.IOUtils;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Utility methods to work with {@link Releasable}s. */
 public enum Releasables {
@@ -32,9 +34,9 @@ public enum Releasables {
         try {
             // this does the right thing with respect to add suppressed and not wrapping errors etc.
             IOUtils.close(releasables);
-        } catch (Throwable t) {
+        } catch (IOException e) {
             if (ignoreException == false) {
-                IOUtils.reThrowUnchecked(t);
+                throw new UncheckedIOException(e);
             }
         }
     }
@@ -91,5 +93,17 @@ public enum Releasables {
     /** @see #wrap(Iterable) */
     public static Releasable wrap(final Releasable... releasables) {
         return () -> close(releasables);
+    }
+
+    /**
+     * Equivalent to {@link #wrap(Releasable...)} but can be called multiple times without double releasing.
+     */
+    public static Releasable releaseOnce(final Releasable... releasables) {
+        final AtomicBoolean released = new AtomicBoolean(false);
+        return () -> {
+            if (released.compareAndSet(false, true)) {
+                close(releasables);
+            }
+        };
     }
 }

@@ -20,15 +20,17 @@ package org.elasticsearch.watcher;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool.Cancellable;
+import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.ScheduledFuture;
 
 /**
  * Generic resource watcher service
@@ -38,7 +40,7 @@ import java.util.concurrent.ScheduledFuture;
  * registered watcher periodically. The frequency of checks can be specified using {@code resource.reload.interval} setting, which
  * defaults to {@code 60s}. The service can be disabled by setting {@code resource.reload.enabled} setting to {@code false}.
  */
-public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceWatcherService> {
+public class ResourceWatcherService extends AbstractLifecycleComponent {
 
     public enum Frequency {
 
@@ -64,6 +66,14 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         }
     }
 
+    public static final Setting<Boolean> ENABLED = Setting.boolSetting("resource.reload.enabled", true, Property.NodeScope);
+    public static final Setting<TimeValue> RELOAD_INTERVAL_HIGH =
+        Setting.timeSetting("resource.reload.interval.high", Frequency.HIGH.interval, Property.NodeScope);
+    public static final Setting<TimeValue> RELOAD_INTERVAL_MEDIUM = Setting.timeSetting("resource.reload.interval.medium",
+        Setting.timeSetting("resource.reload.interval", Frequency.MEDIUM.interval), Property.NodeScope);
+    public static final Setting<TimeValue> RELOAD_INTERVAL_LOW =
+        Setting.timeSetting("resource.reload.interval.low", Frequency.LOW.interval, Property.NodeScope);
+
     private final boolean enabled;
     private final ThreadPool threadPool;
 
@@ -71,22 +81,21 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     final ResourceMonitor mediumMonitor;
     final ResourceMonitor highMonitor;
 
-    private volatile ScheduledFuture lowFuture;
-    private volatile ScheduledFuture mediumFuture;
-    private volatile ScheduledFuture highFuture;
+    private volatile Cancellable lowFuture;
+    private volatile Cancellable mediumFuture;
+    private volatile Cancellable highFuture;
 
     @Inject
     public ResourceWatcherService(Settings settings, ThreadPool threadPool) {
         super(settings);
-        this.enabled = settings.getAsBoolean("resource.reload.enabled", true);
+        this.enabled = ENABLED.get(settings);
         this.threadPool = threadPool;
 
-        TimeValue interval = settings.getAsTime("resource.reload.interval.low", Frequency.LOW.interval);
+        TimeValue interval = RELOAD_INTERVAL_LOW.get(settings);
         lowMonitor = new ResourceMonitor(interval, Frequency.LOW);
-        interval = settings.getAsTime("resource.reload.interval.medium",
-                settings.getAsTime("resource.reload.interval", Frequency.MEDIUM.interval));
+        interval = RELOAD_INTERVAL_MEDIUM.get(settings);
         mediumMonitor = new ResourceMonitor(interval, Frequency.MEDIUM);
-        interval = settings.getAsTime("resource.reload.interval.high", Frequency.HIGH.interval);
+        interval = RELOAD_INTERVAL_HIGH.get(settings);
         highMonitor = new ResourceMonitor(interval, Frequency.HIGH);
 
         logRemovedSetting("watcher.enabled", "resource.reload.enabled");
@@ -101,9 +110,9 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         if (!enabled) {
             return;
         }
-        lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval);
-        mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval);
-        highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval);
+        lowFuture = threadPool.scheduleWithFixedDelay(lowMonitor, lowMonitor.interval, Names.SAME);
+        mediumFuture = threadPool.scheduleWithFixedDelay(mediumMonitor, mediumMonitor.interval, Names.SAME);
+        highFuture = threadPool.scheduleWithFixedDelay(highMonitor, highMonitor.interval, Names.SAME);
     }
 
     @Override
@@ -111,9 +120,9 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
         if (!enabled) {
             return;
         }
-        FutureUtils.cancel(lowFuture);
-        FutureUtils.cancel(mediumFuture);
-        FutureUtils.cancel(highFuture);
+        lowFuture.cancel();
+        mediumFuture.cancel();
+        highFuture.cancel();
     }
 
     @Override

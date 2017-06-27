@@ -19,128 +19,24 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBuilder;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 
 public class ScoreFunctionBuilderTests extends ESTestCase {
 
     public void testIllegalArguments() {
-        try {
-            new RandomScoreFunctionBuilder().seed(null);
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new ScriptScoreFunctionBuilder(null);
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FieldValueFactorFunctionBuilder(null);
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new FieldValueFactorFunctionBuilder("").modifier(null);
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new GaussDecayFunctionBuilder(null, "", "", "");
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new GaussDecayFunctionBuilder("", "", null, "");
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new GaussDecayFunctionBuilder("", "", null, "", randomIntBetween(1, 100));
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new GaussDecayFunctionBuilder("", "", null, "", randomIntBetween(-100, -1));
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new LinearDecayFunctionBuilder(null, "", "", "");
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new LinearDecayFunctionBuilder("", "", null, "");
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new LinearDecayFunctionBuilder("", "", null, "", randomIntBetween(1, 100));
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new LinearDecayFunctionBuilder("", "", null, "", randomIntBetween(-100, -1));
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new ExponentialDecayFunctionBuilder(null, "", "", "");
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new ExponentialDecayFunctionBuilder("", "", null, "");
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new ExponentialDecayFunctionBuilder("", "", null, "", randomIntBetween(1, 100));
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
-        try {
-            new ExponentialDecayFunctionBuilder("", "", null, "", randomIntBetween(-100, -1));
-            fail("must not be null");
-        } catch(IllegalArgumentException e) {
-            //all good
-        }
-
+        expectThrows(IllegalArgumentException.class, () -> new RandomScoreFunctionBuilder().seed(null));
+        expectThrows(IllegalArgumentException.class, () -> new ScriptScoreFunctionBuilder((Script) null));
+        expectThrows(IllegalArgumentException.class, () -> new FieldValueFactorFunctionBuilder((String) null));
+        expectThrows(IllegalArgumentException.class, () -> new FieldValueFactorFunctionBuilder("").modifier(null));
+        expectThrows(IllegalArgumentException.class, () -> new GaussDecayFunctionBuilder(null, "", "", ""));
+        expectThrows(IllegalArgumentException.class, () -> new GaussDecayFunctionBuilder("", "", null, ""));
+        expectThrows(IllegalArgumentException.class, () -> new GaussDecayFunctionBuilder("", "", null, "", randomDouble()));
+        expectThrows(IllegalArgumentException.class, () -> new LinearDecayFunctionBuilder(null, "", "", ""));
+        expectThrows(IllegalArgumentException.class, () -> new LinearDecayFunctionBuilder("", "", null, ""));
+        expectThrows(IllegalArgumentException.class, () -> new LinearDecayFunctionBuilder("", "", null, "", randomDouble()));
+        expectThrows(IllegalArgumentException.class, () -> new ExponentialDecayFunctionBuilder(null, "", "", ""));
+        expectThrows(IllegalArgumentException.class, () -> new ExponentialDecayFunctionBuilder("", "", null, ""));
+        expectThrows(IllegalArgumentException.class, () -> new ExponentialDecayFunctionBuilder("", "", null, "", randomDouble()));
     }
 }

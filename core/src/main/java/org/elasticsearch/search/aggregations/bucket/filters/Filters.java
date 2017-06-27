@@ -32,7 +32,7 @@ public interface Filters extends MultiBucketsAggregation {
     /**
      * A bucket associated with a specific filter (identified by its key)
      */
-    public static interface Bucket extends MultiBucketsAggregation.Bucket {
+    interface Bucket extends MultiBucketsAggregation.Bucket {
     }
 
     /**

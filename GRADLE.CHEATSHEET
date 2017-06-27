@@ -4,4 +4,4 @@ test -> test
 verify -> check
 verify -Dskip.unit.tests -> integTest
 package -DskipTests -> assemble
-install -DskipTests -> install
+install -DskipTests -> publishToMavenLocal

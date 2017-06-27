@@ -19,13 +19,17 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregatorBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregationBuilder;
 
-public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<PercentilesBucketPipelineAggregatorBuilder> {
+import static org.hamcrest.Matchers.equalTo;
+
+public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<PercentilesBucketPipelineAggregationBuilder> {
 
     @Override
-    protected PercentilesBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
-        PercentilesBucketPipelineAggregatorBuilder factory = new PercentilesBucketPipelineAggregatorBuilder(name, bucketsPath);
+    protected PercentilesBucketPipelineAggregationBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
+        PercentilesBucketPipelineAggregationBuilder factory = new PercentilesBucketPipelineAggregationBuilder(name, bucketsPath);
         if (randomBoolean()) {
             int numPercents = randomIntBetween(1, 20);
             double[] percents = new double[numPercents];
@@ -37,5 +41,19 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
         return factory;
     }
 
+    public void testPercentsFromMixedArray() throws Exception {
+        XContentBuilder content = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("name")
+                    .startObject("percentiles_bucket")
+                        .field("buckets_path", "test")
+                        .array("percents", 0, 20.0, 50, 75.99)
+                    .endObject()
+                .endObject()
+            .endObject();
 
+        PercentilesBucketPipelineAggregationBuilder builder = (PercentilesBucketPipelineAggregationBuilder) parse(createParser(content));
+
+        assertThat(builder.percents(), equalTo(new double[]{0.0, 20.0, 50.0, 75.99}));
+    }
 }

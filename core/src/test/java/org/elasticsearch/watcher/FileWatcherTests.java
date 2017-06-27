@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class FileWatcherTests extends ESTestCase {
-    private class RecordingChangeListener extends FileChangesListener {
+    private class RecordingChangeListener implements FileChangesListener {
         private Path rootDir;
 
         private RecordingChangeListener(Path rootDir) {

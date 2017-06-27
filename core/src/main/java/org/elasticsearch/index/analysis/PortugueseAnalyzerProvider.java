@@ -19,23 +19,22 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.pt.PortugueseAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class PortugueseAnalyzerProvider extends AbstractIndexAnalyzerProvider<PortugueseAnalyzer> {
 
     private final PortugueseAnalyzer analyzer;
 
     public PortugueseAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new PortugueseAnalyzer(Analysis.parseStopWords(env, settings, PortugueseAnalyzer.getDefaultStopSet()),
-                                          Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new PortugueseAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, PortugueseAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

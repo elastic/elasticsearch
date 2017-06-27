@@ -19,23 +19,22 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class ArabicAnalyzerProvider extends AbstractIndexAnalyzerProvider<ArabicAnalyzer> {
 
     private final ArabicAnalyzer arabicAnalyzer;
 
     public ArabicAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        arabicAnalyzer = new ArabicAnalyzer(Analysis.parseStopWords(env, settings, ArabicAnalyzer.getDefaultStopSet()),
-                                            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        arabicAnalyzer = new ArabicAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, ArabicAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         arabicAnalyzer.setVersion(version);
     }
 

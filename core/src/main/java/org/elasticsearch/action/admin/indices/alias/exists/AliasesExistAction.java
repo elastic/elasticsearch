@@ -23,8 +23,6 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class AliasesExistAction extends Action<GetAliasesRequest, AliasesExistResponse, AliasesExistRequestBuilder> {
 
     public static final AliasesExistAction INSTANCE = new AliasesExistAction();

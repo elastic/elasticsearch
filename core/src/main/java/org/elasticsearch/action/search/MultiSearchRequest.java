@@ -22,7 +22,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,8 +35,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A multi search API request.
  */
-public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implements CompositeIndicesRequest {
+public class MultiSearchRequest extends ActionRequest implements CompositeIndicesRequest {
 
+    private int maxConcurrentSearchRequests = 0;
     private List<SearchRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -60,12 +60,26 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
         return this;
     }
 
-    public List<SearchRequest> requests() {
-        return this.requests;
+    /**
+     * Returns the amount of search requests specified in this multi search requests are allowed to be ran concurrently.
+     */
+    public int maxConcurrentSearchRequests() {
+        return maxConcurrentSearchRequests;
     }
 
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
+    /**
+     * Sets how many search requests specified in this multi search requests are allowed to be ran concurrently.
+     */
+    public MultiSearchRequest maxConcurrentSearchRequests(int maxConcurrentSearchRequests) {
+        if (maxConcurrentSearchRequests < 1) {
+            throw new IllegalArgumentException("maxConcurrentSearchRequests must be positive");
+        }
+
+        this.maxConcurrentSearchRequests = maxConcurrentSearchRequests;
+        return this;
+    }
+
+    public List<SearchRequest> requests() {
         return this.requests;
     }
 
@@ -100,6 +114,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        maxConcurrentSearchRequests = in.readVInt();
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             SearchRequest request = new SearchRequest();
@@ -111,6 +126,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeVInt(maxConcurrentSearchRequests);
         out.writeVInt(requests.size());
         for (SearchRequest request : requests) {
             request.writeTo(out);

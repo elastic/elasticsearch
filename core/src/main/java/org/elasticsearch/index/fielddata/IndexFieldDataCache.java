@@ -31,7 +31,7 @@ public interface IndexFieldDataCache {
 
     <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData) throws Exception;
 
-    <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader, final IFD indexFieldData) throws Exception;
+    <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData) throws Exception;
 
     /**
      * Clears all the field data stored cached in on this index.
@@ -48,12 +48,12 @@ public interface IndexFieldDataCache {
         /**
          * Called after the fielddata is loaded during the cache phase
          */
-        default void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage){}
+        default void onCache(ShardId shardId, String fieldName, Accountable ramUsage){}
 
         /**
          * Called after the fielddata is unloaded
          */
-        default void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes){}
+        default void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes){}
     }
 
     class None implements IndexFieldDataCache {

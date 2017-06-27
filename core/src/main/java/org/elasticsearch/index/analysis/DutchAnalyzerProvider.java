@@ -19,23 +19,22 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.nl.DutchAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class DutchAnalyzerProvider extends AbstractIndexAnalyzerProvider<DutchAnalyzer> {
 
     private final DutchAnalyzer analyzer;
 
     public DutchAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new DutchAnalyzer(Analysis.parseStopWords(env, settings, DutchAnalyzer.getDefaultStopSet()),
-                                     Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new DutchAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, DutchAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

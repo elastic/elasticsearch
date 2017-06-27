@@ -19,48 +19,12 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.RoutingService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.discovery.InitialStateDiscoveryListener;
-import org.elasticsearch.node.service.NodeService;
 
 public class NoopDiscovery implements Discovery {
-
-
-    @Override
-    public DiscoveryNode localNode() {
-        return null;
-    }
-
-    @Override
-    public void addListener(InitialStateDiscoveryListener listener) {
-
-    }
-
-    @Override
-    public void removeListener(InitialStateDiscoveryListener listener) {
-
-    }
-
-    @Override
-    public String nodeDescription() {
-        return null;
-    }
-
-    @Override
-    public void setNodeService(@Nullable NodeService nodeService) {
-
-    }
-
-    @Override
-    public void setRoutingService(RoutingService routingService) {
-
-    }
 
     @Override
     public void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener) {
@@ -73,8 +37,8 @@ public class NoopDiscovery implements Discovery {
     }
 
     @Override
-    public int getMinimumMasterNodes() {
-        return -1;
+    public void startInitialJoin() {
+
     }
 
     @Override
@@ -93,17 +57,11 @@ public class NoopDiscovery implements Discovery {
     }
 
     @Override
-    public Discovery start() {
-        return null;
-    }
+    public void start() {}
 
     @Override
-    public Discovery stop() {
-        return null;
-    }
+    public void stop() {}
 
     @Override
-    public void close() {
-
-    }
+    public void close() {}
 }

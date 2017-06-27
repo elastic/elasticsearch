@@ -29,9 +29,8 @@ import java.nio.file.FileSystem;
 public class PathUtilsForTesting {
 
     /** Sets a new default filesystem for testing */
-    @SuppressWarnings("deprecation") // https://github.com/elastic/elasticsearch/issues/15845
     public static void setup() {
-        installMock(LuceneTestCase.getBaseTempDirForTestClass().getFileSystem());
+        installMock(LuceneTestCase.createTempDir().getFileSystem());
     }
 
     /** Installs a mock filesystem for testing */

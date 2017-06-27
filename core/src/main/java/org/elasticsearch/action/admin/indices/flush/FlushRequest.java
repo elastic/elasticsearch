@@ -40,7 +40,7 @@ import java.io.IOException;
 public class FlushRequest extends BroadcastRequest<FlushRequest> {
 
     private boolean force = false;
-    private boolean waitIfOngoing = false;
+    private boolean waitIfOngoing = true;
 
     /**
      * Constructs a new flush request against one or more indices. If nothing is provided, all indices will
@@ -61,6 +61,7 @@ public class FlushRequest extends BroadcastRequest<FlushRequest> {
     /**
      * if set to <tt>true</tt> the flush will block
      * if a another flush operation is already running until the flush can be performed.
+     * The default is <code>true</code>
      */
     public FlushRequest waitIfOngoing(boolean waitIfOngoing) {
         this.waitIfOngoing = waitIfOngoing;

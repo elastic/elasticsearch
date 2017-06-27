@@ -19,8 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -34,11 +32,8 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
-import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.tribe.TribeIT;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -47,28 +42,17 @@ import java.lang.management.ThreadMXBean;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.sameInstance;
 
-/**
- */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SimpleThreadPoolIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder().build();
+        return Settings.builder().build();
     }
 
     public void testThreadNames() throws Exception {
@@ -89,11 +73,11 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             builders[i] = client().prepareIndex("idx", "type").setSource(jsonBuilder()
                     .startObject()
                     .field("str_value", "s" + i)
-                    .field("str_values", new String[]{"s" + (i * 2), "s" + (i * 2 + 1)})
+                    .array("str_values", new String[]{"s" + (i * 2), "s" + (i * 2 + 1)})
                     .field("l_value", i)
-                    .field("l_values", new int[]{i * 2, i * 2 + 1})
+                    .array("l_values", new int[]{i * 2, i * 2 + 1})
                     .field("d_value", i)
-                    .field("d_values", new double[]{i * 2, i * 2 + 1})
+                    .array("d_values", new double[]{i * 2, i * 2 + 1})
                     .endObject());
         }
         indexRandom(true, builders);
@@ -122,65 +106,8 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
             String nodePrefix = "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?(" +
                     Pattern.quote(ESIntegTestCase.SUITE_CLUSTER_NODE_PREFIX) + "|" +
                     Pattern.quote(ESIntegTestCase.TEST_CLUSTER_NODE_PREFIX) + "|" +
-                    Pattern.quote(TribeIT.SECOND_CLUSTER_NODE_PREFIX) + ")";
+                    Pattern.quote("node_tribe2") + ")";
             assertThat(threadName, RegexMatcher.matches("\\[" + nodePrefix + "\\d+\\]"));
-        }
-    }
-
-    public void testUpdatingThreadPoolSettings() throws Exception {
-        internalCluster().startNodesAsync(2).get();
-        ThreadPool threadPool = internalCluster().getDataNodeInstance(ThreadPool.class);
-        // Check that settings are changed
-        assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getQueue().remainingCapacity(), equalTo(1000));
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.queue_size", 2000).build()).execute().actionGet();
-        assertThat(((ThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getQueue().remainingCapacity(), equalTo(2000));
-
-        // Make sure that threads continue executing when executor is replaced
-        final CyclicBarrier barrier = new CyclicBarrier(2);
-        Executor oldExecutor = threadPool.executor(Names.SEARCH);
-        threadPool.executor(Names.SEARCH).execute(() -> {
-                    try {
-                        barrier.await();
-                    } catch (InterruptedException ex) {
-                        Thread.currentThread().interrupt();
-                    } catch (BrokenBarrierException ex) {
-                        //
-                    }
-                });
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.queue_size", 1000).build()).execute().actionGet();
-        assertThat(threadPool.executor(Names.SEARCH), not(sameInstance(oldExecutor)));
-        assertThat(((ThreadPoolExecutor) oldExecutor).isShutdown(), equalTo(true));
-        assertThat(((ThreadPoolExecutor) oldExecutor).isTerminating(), equalTo(true));
-        assertThat(((ThreadPoolExecutor) oldExecutor).isTerminated(), equalTo(false));
-        barrier.await(10, TimeUnit.SECONDS);
-
-        // Make sure that new thread executor is functional
-        threadPool.executor(Names.SEARCH).execute(() -> {
-                    try {
-                        barrier.await();
-                    } catch (InterruptedException ex) {
-                        Thread.currentThread().interrupt();
-                    } catch (BrokenBarrierException ex) {
-                        //
-                    }
-                }
-        );
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put("threadpool.search.queue_size", 500)).execute().actionGet();
-        barrier.await(10, TimeUnit.SECONDS);
-
-        // Check that node info is correct
-        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().all().execute().actionGet();
-        for (int i = 0; i < 2; i++) {
-            NodeInfo nodeInfo = nodesInfoResponse.getNodes()[i];
-            boolean found = false;
-            for (ThreadPool.Info info : nodeInfo.getThreadPool()) {
-                if (info.getName().equals(Names.SEARCH)) {
-                    assertEquals(info.getThreadPoolType(), ThreadPool.ThreadPoolType.FIXED);
-                    found = true;
-                    break;
-                }
-            }
-            assertThat(found, equalTo(true));
         }
     }
 
@@ -195,9 +122,9 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         try {
             new Node(settings);
             fail("The node startup is supposed to fail");
-        } catch(Throwable t) {
+        } catch(Exception e) {
             //all good
-            assertThat(t.getMessage(), containsString("mandatory plugins [non_existing]"));
+            assertThat(e.getMessage(), containsString("mandatory plugins [non_existing]"));
         }
     }
 
@@ -208,7 +135,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         builder.endObject();
         builder.close();
         Map<String, Object> poolsMap;
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             poolsMap = parser.map();
         }
         return (Map<String, Object>) ((Map<String, Object>) poolsMap.get("thread_pool")).get(poolName);

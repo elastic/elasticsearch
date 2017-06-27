@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -50,7 +51,8 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
 
     public CJKBigramFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        outputUnigrams = settings.getAsBoolean("output_unigrams", false);
+        outputUnigrams = settings.getAsBooleanLenientForPreEs6Indices(
+            indexSettings.getIndexVersionCreated(), "output_unigrams", false, deprecationLogger);
         final String[] asArray = settings.getAsArray("ignored_scripts");
         Set<String> scripts = new HashSet<>(Arrays.asList("han", "hiragana", "katakana", "hangul"));
         if (asArray != null) {
@@ -73,7 +75,17 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new CJKBigramFilter(tokenStream, flags, outputUnigrams);
+        CJKBigramFilter filter = new CJKBigramFilter(tokenStream, flags, outputUnigrams);
+        if (outputUnigrams) {
+            /**
+             * We disable the graph analysis on this token stream
+             * because it produces bigrams AND unigrams.
+             * Graph analysis on such token stream is useless and dangerous as it may create too many paths
+             * since shingles of different size are not aligned in terms of positions.
+             */
+            filter.addAttribute(DisableGraphAttribute.class);
+        }
+        return filter;
     }
 
 }

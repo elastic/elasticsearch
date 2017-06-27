@@ -24,9 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class IndexShardRecoveryException extends ElasticsearchException {
     public IndexShardRecoveryException(ShardId shardId, String msg, Throwable cause) {
         super(msg, cause);

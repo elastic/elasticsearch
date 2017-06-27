@@ -28,9 +28,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- */
 public class RecoveryFilesInfoRequest extends TransportRequest {
 
     private long recoveryId;

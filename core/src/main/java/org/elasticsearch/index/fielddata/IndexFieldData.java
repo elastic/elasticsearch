@@ -20,10 +20,14 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparatorSource;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.Weight;
@@ -48,7 +52,7 @@ import java.io.IOException;
  */
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
-    public static class CommonSettings {
+    class CommonSettings {
         public static final String SETTING_MEMORY_STORAGE_HINT = "memory_storage_hint";
 
         public enum MemoryStorageFormat {
@@ -63,29 +67,12 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
                 return null;
             }
         }
-
-        /**
-         * Gets a memory storage hint that should be honored if possible but is not mandatory
-         */
-        public static MemoryStorageFormat getMemoryStorageHint(FieldDataType fieldDataType) {
-            // backwards compatibility
-            String s = fieldDataType.getSettings().get("ordinals");
-            if (s != null) {
-                return "always".equals(s) ? MemoryStorageFormat.ORDINALS : null;
-            }
-            return MemoryStorageFormat.fromString(fieldDataType.getSettings().get(SETTING_MEMORY_STORAGE_HINT));
-        }
     }
 
     /**
      * The field name.
      */
     String getFieldName();
-
-    /**
-     * The field data type.
-     */
-    FieldDataType getFieldDataType();
 
     /**
      * Loads the atomic field data for the reader, possibly cached.
@@ -98,9 +85,9 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     FD loadDirect(LeafReaderContext context) throws Exception;
 
     /**
-     * Comparator used for sorting.
+     * Returns the {@link SortField} to used for sorting.
      */
-    XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested);
+    SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse);
 
     /**
      * Clears any resources associated with this field data.
@@ -122,11 +109,11 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
         public static class Nested {
 
             private final BitSetProducer rootFilter;
-            private final Weight innerFilter;
+            private final Query innerQuery;
 
-            public Nested(BitSetProducer rootFilter, Weight innerFilter) {
+            public Nested(BitSetProducer rootFilter, Query innerQuery) {
                 this.rootFilter = rootFilter;
-                this.innerFilter = innerFilter;
+                this.innerQuery = innerQuery;
             }
 
             /**
@@ -140,23 +127,26 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
              * Get a {@link DocIdSet} that matches the inner documents.
              */
             public DocIdSetIterator innerDocs(LeafReaderContext ctx) throws IOException {
-                Scorer s = innerFilter.scorer(ctx);
+                final IndexReaderContext topLevelCtx = ReaderUtil.getTopLevelContext(ctx);
+                IndexSearcher indexSearcher = new IndexSearcher(topLevelCtx);
+                Weight weight = indexSearcher.createNormalizedWeight(innerQuery, false);
+                Scorer s = weight.scorer(ctx);
                 return s == null ? null : s.iterator();
             }
         }
 
         /** Whether missing values should be sorted first. */
-        protected final boolean sortMissingFirst(Object missingValue) {
+        public final boolean sortMissingFirst(Object missingValue) {
             return "_first".equals(missingValue);
         }
 
         /** Whether missing values should be sorted last, this is the default. */
-        protected final boolean sortMissingLast(Object missingValue) {
+        public final boolean sortMissingLast(Object missingValue) {
             return missingValue == null || "_last".equals(missingValue);
         }
 
         /** Return the missing object value according to the reduced type of the comparator. */
-        protected final Object missingObject(Object missingValue, boolean reversed) {
+        public final Object missingObject(Object missingValue, boolean reversed) {
             if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                 final boolean min = sortMissingFirst(missingValue) ^ reversed;
                 switch (reducedType()) {

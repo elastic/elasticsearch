@@ -19,12 +19,12 @@
 
 package org.elasticsearch.test.hamcrest;
 
-import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.ShapeCollection;
-import com.spatial4j.core.shape.impl.GeoCircle;
-import com.spatial4j.core.shape.impl.RectangleImpl;
-import com.spatial4j.core.shape.jts.JtsGeometry;
-import com.spatial4j.core.shape.jts.JtsPoint;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.ShapeCollection;
+import org.locationtech.spatial4j.shape.impl.GeoCircle;
+import org.locationtech.spatial4j.shape.impl.RectangleImpl;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
+import org.locationtech.spatial4j.shape.jts.JtsPoint;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.LineString;

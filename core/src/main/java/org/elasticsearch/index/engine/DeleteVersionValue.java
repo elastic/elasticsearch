@@ -20,30 +20,37 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.index.translog.Translog;
 
 /** Holds a deleted version, which just adds a timestamp to {@link VersionValue} so we know when we can expire the deletion. */
 
 class DeleteVersionValue extends VersionValue {
-    private final long time;
 
-    public DeleteVersionValue(long version, long time, Translog.Location translogLocation) {
-        super(version, translogLocation);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DeleteVersionValue.class);
+
+    final long time;
+
+    DeleteVersionValue(long version,long seqNo, long term, long time) {
+        super(version, seqNo, term);
         this.time = time;
     }
 
     @Override
-    public long time() {
-        return this.time;
-    }
-
-    @Override
-    public boolean delete() {
+    public boolean isDelete() {
         return true;
     }
 
     @Override
     public long ramBytesUsed() {
-        return super.ramBytesUsed() + RamUsageEstimator.NUM_BYTES_LONG;
+        return BASE_RAM_BYTES_USED;
+    }
+
+    @Override
+    public String toString() {
+        return "DeleteVersionValue{" +
+            "version=" + version +
+            ", seqNo=" + seqNo +
+            ", term=" + term +
+            ",time=" + time +
+            '}';
     }
 }

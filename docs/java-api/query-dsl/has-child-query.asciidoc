@@ -3,13 +3,10 @@
 
 See {ref}/query-dsl-has-child-query.html[Has Child Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = hasChildQuery(
-    "blog_tag",                     <1>
-    termQuery("tag","something")    <2>
-);
+include-tagged::{query-dsl-test}[has_child]
 --------------------------------------------------
 <1> child type to query against
 <2> query
-
+<3> score mode can be `ScoreMode.Avg`, `ScoreMode.Max`, `ScoreMode.Min`, `ScoreMode.None` or `ScoreMode.Total`

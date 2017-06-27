@@ -88,8 +88,8 @@ public class EsExecutorsTests extends ESTestCase {
             }
 
             @Override
-            public void onFailure(Throwable t) {
-                throw new AssertionError(t);
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
             }
         });
 
@@ -178,7 +178,7 @@ public class EsExecutorsTests extends ESTestCase {
                     try {
                         barrier.await();
                         barrier.await();
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         barrier.reset(e);
                     }
                 }
@@ -214,7 +214,7 @@ public class EsExecutorsTests extends ESTestCase {
                     try {
                         barrier.await();
                         barrier.await();
-                    } catch (Throwable e) {
+                    } catch (Exception e) {
                         barrier.reset(e);
                     }
                 }
@@ -229,12 +229,9 @@ public class EsExecutorsTests extends ESTestCase {
         assertThat("wrong pool size", pool.getPoolSize(), equalTo(max));
         assertThat("wrong active size", pool.getActiveCount(), equalTo(max));
         barrier.await();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
-                assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
-            }
+        assertBusy(() -> {
+            assertThat("wrong active count", pool.getActiveCount(), equalTo(0));
+            assertThat("idle threads didn't shrink below max. (" + pool.getPoolSize() + ")", pool.getPoolSize(), lessThan(max));
         });
         terminate(pool);
     }

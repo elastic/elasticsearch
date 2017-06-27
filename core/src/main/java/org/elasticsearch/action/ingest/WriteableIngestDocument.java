@@ -24,15 +24,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-final class WriteableIngestDocument implements Writeable<WriteableIngestDocument>, ToXContent {
+final class WriteableIngestDocument implements Writeable, ToXContent {
 
     private final IngestDocument ingestDocument;
 
@@ -43,25 +41,18 @@ final class WriteableIngestDocument implements Writeable<WriteableIngestDocument
 
     WriteableIngestDocument(StreamInput in) throws IOException {
         Map<String, Object> sourceAndMetadata = in.readMap();
-        @SuppressWarnings("unchecked")
-        Map<String, String> ingestMetadata = (Map<String, String>) in.readGenericValue();
+        Map<String, Object> ingestMetadata = in.readMap();
         this.ingestDocument = new IngestDocument(sourceAndMetadata, ingestMetadata);
-    }
-
-    IngestDocument getIngestDocument() {
-        return ingestDocument;
-    }
-
-
-    @Override
-    public WriteableIngestDocument readFrom(StreamInput in) throws IOException {
-       return new WriteableIngestDocument(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(ingestDocument.getSourceAndMetadata());
-        out.writeGenericValue(ingestDocument.getIngestMetadata());
+        out.writeMap(ingestDocument.getIngestMetadata());
+    }
+
+    IngestDocument getIngestDocument() {
+        return ingestDocument;
     }
 
     @Override
@@ -74,11 +65,7 @@ final class WriteableIngestDocument implements Writeable<WriteableIngestDocument
             }
         }
         builder.field("_source", ingestDocument.getSourceAndMetadata());
-        builder.startObject("_ingest");
-        for (Map.Entry<String, String> ingestMetadata : ingestDocument.getIngestMetadata().entrySet()) {
-            builder.field(ingestMetadata.getKey(), ingestMetadata.getValue());
-        }
-        builder.endObject();
+        builder.field("_ingest", ingestDocument.getIngestMetadata());
         builder.endObject();
         return builder;
     }

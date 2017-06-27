@@ -19,13 +19,13 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ import static org.junit.Assert.assertTrue;
 
 
 public final class CorruptionUtils {
-    private static ESLogger logger = ESLoggerFactory.getLogger("test");
+    private static Logger logger = ESLoggerFactory.getLogger("test");
     private CorruptionUtils() {}
 
     /**
@@ -88,11 +88,11 @@ public final class CorruptionUtils {
             // we need to add assumptions here that the checksums actually really don't match there is a small chance to get collisions
             // in the checksum which is ok though....
             StringBuilder msg = new StringBuilder();
-            msg.append("Checksum before: [").append(checksumBeforeCorruption).append("]");
-            msg.append(" after: [").append(checksumAfterCorruption).append("]");
-            msg.append(" checksum value after corruption: ").append(actualChecksumAfterCorruption).append("]");
-            msg.append(" file: ").append(fileToCorrupt.getFileName()).append(" length: ").append(dir.fileLength(fileToCorrupt.getFileName().toString()));
-            logger.info(msg.toString());
+            msg.append("before: [").append(checksumBeforeCorruption).append("] ");
+            msg.append("after: [").append(checksumAfterCorruption).append("] ");
+            msg.append("checksum value after corruption: ").append(actualChecksumAfterCorruption).append("] ");
+            msg.append("file: ").append(fileToCorrupt.getFileName()).append(" length: ").append(dir.fileLength(fileToCorrupt.getFileName().toString()));
+            logger.info("Checksum {}", msg);
             assumeTrue("Checksum collision - " + msg.toString(),
                     checksumAfterCorruption != checksumBeforeCorruption // collision
                             || actualChecksumAfterCorruption != checksumBeforeCorruption); // checksum corrupted

@@ -20,15 +20,13 @@
 esplugin {
   description 'Mustache scripting integration for Elasticsearch'
   classname 'org.elasticsearch.script.mustache.MustachePlugin'
+  hasClientJar = true // For the template apis and query
 }
 
 dependencies {
-  compile "com.github.spullara.mustache.java:compiler:0.9.1"
+  compile "com.github.spullara.mustache.java:compiler:0.9.3"
 }
 
-integTest {
-  cluster {
-    systemProperty 'es.script.inline', 'true'
-    systemProperty 'es.script.indexed', 'true'
-  }
+integTestCluster {
+  setting 'script.max_compilations_per_minute', '1000'
 }

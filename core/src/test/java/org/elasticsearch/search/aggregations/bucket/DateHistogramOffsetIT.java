@@ -18,24 +18,18 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
@@ -57,19 +51,7 @@ public class DateHistogramOffsetIT extends ESIntegTestCase {
     private static final String DATE_FORMAT = "yyyy-MM-dd:hh-mm-ss";
 
     private DateTime date(String date) {
-        return DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date);
-    }
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(AssertingLocalTransport.TestPlugin.class);
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(AssertingLocalTransport.ASSERTING_TRANSPORT_MIN_VERSION_KEY.getKey(), Version.V_1_4_0_Beta1).build();
+        return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parser().parseDateTime(date);
     }
 
     @Before

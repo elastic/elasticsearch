@@ -22,16 +22,16 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-public abstract class AbstractBucketMetricsTestCase<PAF extends BucketMetricsPipelineAggregatorBuilder>
+public abstract class AbstractBucketMetricsTestCase<PAF extends BucketMetricsPipelineAggregationBuilder<PAF>>
         extends BasePipelineAggregationTestCase<PAF> {
 
     @Override
     protected final PAF createTestAggregatorFactory() {
-        String name = randomAsciiOfLengthBetween(3, 20);
-        String bucketsPath = randomAsciiOfLengthBetween(3, 20);
+        String name = randomAlphaOfLengthBetween(3, 20);
+        String bucketsPath = randomAlphaOfLengthBetween(3, 20);
         PAF factory = doCreateTestAggregatorFactory(name, bucketsPath);
         if (randomBoolean()) {
-            factory.format(randomAsciiOfLengthBetween(1, 10));
+            factory.format(randomAlphaOfLengthBetween(1, 10));
         }
         if (randomBoolean()) {
             factory.gapPolicy(randomFrom(GapPolicy.values()));

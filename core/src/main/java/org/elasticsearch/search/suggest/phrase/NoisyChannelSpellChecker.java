@@ -28,7 +28,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.io.FastCharArrayReader;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.Candidate;
 import org.elasticsearch.search.suggest.phrase.DirectCandidateGenerator.CandidateSet;
 
@@ -51,19 +50,19 @@ public final class NoisyChannelSpellChecker {
     public NoisyChannelSpellChecker(double nonErrorLikelihood) {
         this(nonErrorLikelihood, true, DEFAULT_TOKEN_LIMIT);
     }
-    
+
     public NoisyChannelSpellChecker(double nonErrorLikelihood, boolean requireUnigram, int tokenLimit) {
         this.realWordLikelihood = nonErrorLikelihood;
         this.requireUnigram = requireUnigram;
         this.tokenLimit = tokenLimit;
-                
+
     }
 
     public Result getCorrections(TokenStream stream, final CandidateGenerator generator,
             float maxErrors, int numCorrections, WordScorer wordScorer, float confidence, int gramSize) throws IOException {
-        
+
         final List<CandidateSet> candidateSetsList = new ArrayList<>();
-        SuggestUtils.analyze(stream, new SuggestUtils.TokenConsumer() {
+        DirectCandidateGenerator.analyze(stream, new DirectCandidateGenerator.TokenConsumer() {
             CandidateSet currentSet = null;
             private TypeAttribute typeAttribute;
             private final BytesRefBuilder termsRef = new BytesRefBuilder();
@@ -74,7 +73,7 @@ public final class NoisyChannelSpellChecker {
                 super.reset(stream);
                 typeAttribute = stream.addAttribute(TypeAttribute.class);
             }
-            
+
             @Override
             public void nextToken() throws IOException {
                 anyTokens = true;
@@ -96,7 +95,7 @@ public final class NoisyChannelSpellChecker {
                     currentSet = new CandidateSet(Candidate.EMPTY, generator.createCandidate(BytesRef.deepCopyOf(term), true));
                 }
             }
-            
+
             @Override
             public void end() {
                 if (currentSet != null) {
@@ -107,11 +106,11 @@ public final class NoisyChannelSpellChecker {
                 }
             }
         });
-        
+
         if (candidateSetsList.isEmpty() || candidateSetsList.size() >= tokenLimit) {
             return Result.EMPTY;
         }
-        
+
         for (CandidateSet candidateSet : candidateSetsList) {
             generator.drawCandidates(candidateSet);
         }
@@ -127,13 +126,13 @@ public final class NoisyChannelSpellChecker {
             cutoffScore = inputPhraseScore * confidence;
         }
         Correction[] bestCandidates = scorer.findBestCandiates(candidateSets, maxErrors, cutoffScore);
-        
+
         return new Result(bestCandidates, cutoffScore);
     }
 
     public Result getCorrections(Analyzer analyzer, BytesRef query, CandidateGenerator generator,
             float maxErrors, int numCorrections, IndexReader reader, String analysisField, WordScorer scorer, float confidence, int gramSize) throws IOException {
-       
+
         return getCorrections(tokenStream(analyzer, query, new CharsRefBuilder(), analysisField), generator, maxErrors, numCorrections, scorer, confidence, gramSize);
 
     }

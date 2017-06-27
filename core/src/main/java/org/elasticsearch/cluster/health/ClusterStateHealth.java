@@ -18,17 +18,13 @@
  */
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.RoutingTableValidation;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -38,48 +34,26 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.health.ClusterIndexHealth.readClusterIndexHealth;
+public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, Writeable {
 
-public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, Streamable {
-    private int numberOfNodes = 0;
-    private int numberOfDataNodes = 0;
-    private int activeShards = 0;
-    private int relocatingShards = 0;
-    private int activePrimaryShards = 0;
-    private int initializingShards = 0;
-    private int unassignedShards = 0;
-    private double activeShardsPercent = 100;
-    private ClusterHealthStatus status = ClusterHealthStatus.RED;
-    private List<String> validationFailures;
-    private Map<String, ClusterIndexHealth> indices = new HashMap<>();
-
-    public static ClusterStateHealth readClusterHealth(StreamInput in) throws IOException {
-        ClusterStateHealth clusterStateHealth = new ClusterStateHealth();
-        clusterStateHealth.readFrom(in);
-        return clusterStateHealth;
-    }
-
-    ClusterStateHealth() {
-        // only intended for serialization
-    }
-
-    /**
-     * Creates a new <code>ClusterStateHealth</code> instance based on cluster meta data and its routing table as a convenience.
-     *
-     * @param clusterMetaData Current cluster meta data. Must not be null.
-     * @param routingTables   Current routing table. Must not be null.
-     */
-    public ClusterStateHealth(MetaData clusterMetaData, RoutingTable routingTables) {
-        this(ClusterState.builder(ClusterName.DEFAULT).metaData(clusterMetaData).routingTable(routingTables).build());
-    }
+    private final int numberOfNodes;
+    private final int numberOfDataNodes;
+    private final int activeShards;
+    private final int relocatingShards;
+    private final int activePrimaryShards;
+    private final int initializingShards;
+    private final int unassignedShards;
+    private final double activeShardsPercent;
+    private final ClusterHealthStatus status;
+    private final Map<String, ClusterIndexHealth> indices = new HashMap<>();
 
     /**
      * Creates a new <code>ClusterStateHealth</code> instance considering the current cluster state and all indices in the cluster.
      *
      * @param clusterState The current cluster state. Must not be null.
      */
-    public ClusterStateHealth(ClusterState clusterState) {
-        this(clusterState, clusterState.metaData().concreteAllIndices());
+    public ClusterStateHealth(final ClusterState clusterState) {
+        this(clusterState, clusterState.metaData().getConcreteAllIndices());
     }
 
     /**
@@ -88,11 +62,9 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, S
      * @param clusterState    The current cluster state. Must not be null.
      * @param concreteIndices An array of index names to consider. Must not be null but may be empty.
      */
-    public ClusterStateHealth(ClusterState clusterState, String[] concreteIndices) {
-        RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
-        validationFailures = validation.failures();
-        numberOfNodes = clusterState.nodes().size();
-        numberOfDataNodes = clusterState.nodes().dataNodes().size();
+    public ClusterStateHealth(final ClusterState clusterState, final String[] concreteIndices) {
+        numberOfNodes = clusterState.nodes().getSize();
+        numberOfDataNodes = clusterState.nodes().getDataNodes().size();
 
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
@@ -106,29 +78,39 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, S
             indices.put(indexHealth.getIndex(), indexHealth);
         }
 
-        status = ClusterHealthStatus.GREEN;
+        ClusterHealthStatus computeStatus = ClusterHealthStatus.GREEN;
+        int computeActivePrimaryShards = 0;
+        int computeActiveShards = 0;
+        int computeRelocatingShards = 0;
+        int computeInitializingShards = 0;
+        int computeUnassignedShards = 0;
 
         for (ClusterIndexHealth indexHealth : indices.values()) {
-            activePrimaryShards += indexHealth.getActivePrimaryShards();
-            activeShards += indexHealth.getActiveShards();
-            relocatingShards += indexHealth.getRelocatingShards();
-            initializingShards += indexHealth.getInitializingShards();
-            unassignedShards += indexHealth.getUnassignedShards();
+            computeActivePrimaryShards += indexHealth.getActivePrimaryShards();
+            computeActiveShards += indexHealth.getActiveShards();
+            computeRelocatingShards += indexHealth.getRelocatingShards();
+            computeInitializingShards += indexHealth.getInitializingShards();
+            computeUnassignedShards += indexHealth.getUnassignedShards();
             if (indexHealth.getStatus() == ClusterHealthStatus.RED) {
-                status = ClusterHealthStatus.RED;
-            } else if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW && status != ClusterHealthStatus.RED) {
-                status = ClusterHealthStatus.YELLOW;
+                computeStatus = ClusterHealthStatus.RED;
+            } else if (indexHealth.getStatus() == ClusterHealthStatus.YELLOW && computeStatus != ClusterHealthStatus.RED) {
+                computeStatus = ClusterHealthStatus.YELLOW;
             }
         }
 
-        if (!validationFailures.isEmpty()) {
-            status = ClusterHealthStatus.RED;
-        } else if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
-            status = ClusterHealthStatus.RED;
+        if (clusterState.blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+            computeStatus = ClusterHealthStatus.RED;
         }
 
+        this.status = computeStatus;
+        this.activePrimaryShards = computeActivePrimaryShards;
+        this.activeShards = computeActiveShards;
+        this.relocatingShards = computeRelocatingShards;
+        this.initializingShards = computeInitializingShards;
+        this.unassignedShards = computeUnassignedShards;
+
         // shortcut on green
-        if (status.equals(ClusterHealthStatus.GREEN)) {
+        if (computeStatus.equals(ClusterHealthStatus.GREEN)) {
             this.activeShardsPercent = 100;
         } else {
             List<ShardRouting> shardRoutings = clusterState.getRoutingTable().allShards();
@@ -142,8 +124,21 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, S
         }
     }
 
-    public List<String> getValidationFailures() {
-        return Collections.unmodifiableList(validationFailures);
+    public ClusterStateHealth(final StreamInput in) throws IOException {
+        activePrimaryShards = in.readVInt();
+        activeShards = in.readVInt();
+        relocatingShards = in.readVInt();
+        initializingShards = in.readVInt();
+        unassignedShards = in.readVInt();
+        numberOfNodes = in.readVInt();
+        numberOfDataNodes = in.readVInt();
+        status = ClusterHealthStatus.fromValue(in.readByte());
+        int size = in.readVInt();
+        for (int i = 0; i < size; i++) {
+            ClusterIndexHealth indexHealth = new ClusterIndexHealth(in);
+            indices.put(indexHealth.getIndex(), indexHealth);
+        }
+        activeShardsPercent = in.readDouble();
     }
 
     public int getActiveShards() {
@@ -192,33 +187,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, S
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        activePrimaryShards = in.readVInt();
-        activeShards = in.readVInt();
-        relocatingShards = in.readVInt();
-        initializingShards = in.readVInt();
-        unassignedShards = in.readVInt();
-        numberOfNodes = in.readVInt();
-        numberOfDataNodes = in.readVInt();
-        status = ClusterHealthStatus.fromValue(in.readByte());
-        int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            ClusterIndexHealth indexHealth = readClusterIndexHealth(in);
-            indices.put(indexHealth.getIndex(), indexHealth);
-        }
-        size = in.readVInt();
-        if (size == 0) {
-            validationFailures = Collections.emptyList();
-        } else {
-            for (int i = 0; i < size; i++) {
-                validationFailures.add(in.readString());
-            }
-        }
-        activeShardsPercent = in.readDouble();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void writeTo(final StreamOutput out) throws IOException {
         out.writeVInt(activePrimaryShards);
         out.writeVInt(activeShards);
         out.writeVInt(relocatingShards);
@@ -230,10 +199,6 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, S
         out.writeVInt(indices.size());
         for (ClusterIndexHealth indexHealth : this) {
             indexHealth.writeTo(out);
-        }
-        out.writeVInt(validationFailures.size());
-        for (String failure : validationFailures) {
-            out.writeString(failure);
         }
         out.writeDouble(activeShardsPercent);
     }

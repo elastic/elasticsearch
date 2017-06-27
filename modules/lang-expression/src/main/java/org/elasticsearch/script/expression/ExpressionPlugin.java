@@ -19,23 +19,18 @@
 
 package org.elasticsearch.script.expression;
 
+import java.util.Collection;
+
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.ScriptEngineRegistry;
-import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.plugins.ScriptPlugin;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptEngine;
 
-public class ExpressionPlugin extends Plugin {
-
-    @Override
-    public String name() {
-        return "lang-expression";
-    }
+public class ExpressionPlugin extends Plugin implements ScriptPlugin {
 
     @Override
-    public String description() {
-        return "Lucene expressions integration for Elasticsearch";
-    }
-
-    public void onModule(ScriptModule module) {
-        module.addScriptEngine(new ScriptEngineRegistry.ScriptEngineRegistration(ExpressionScriptEngineService.class, ExpressionScriptEngineService.TYPES));
+    public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
+        return new ExpressionScriptEngine(settings);
     }
 }

@@ -19,7 +19,9 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,17 +41,16 @@ import java.util.Map;
 /**
  * Holds the ingest pipelines that are available in the cluster
  */
-public final class IngestMetadata extends AbstractDiffable<MetaData.Custom> implements MetaData.Custom {
+public final class IngestMetadata implements MetaData.Custom {
 
-    public final static String TYPE = "ingest";
-    public final static IngestMetadata PROTO = new IngestMetadata();
+    public static final String TYPE = "ingest";
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
-    private static final ObjectParser<List<PipelineConfiguration>, Void> INGEST_METADATA_PARSER = new ObjectParser<>("ingest_metadata", ArrayList::new);
+    private static final ObjectParser<List<PipelineConfiguration>, Void> INGEST_METADATA_PARSER = new ObjectParser<>(
+            "ingest_metadata", ArrayList::new);
 
     static {
         INGEST_METADATA_PARSER.declareObjectArray(List::addAll , PipelineConfiguration.getParser(), PIPELINES_FIELD);
     }
-
 
     // We can't use Pipeline class directly in cluster state, because we don't have the processor factories around when
     // IngestMetadata is registered as custom metadata.
@@ -64,7 +65,7 @@ public final class IngestMetadata extends AbstractDiffable<MetaData.Custom> impl
     }
 
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 
@@ -72,15 +73,14 @@ public final class IngestMetadata extends AbstractDiffable<MetaData.Custom> impl
         return pipelines;
     }
 
-    @Override
-    public MetaData.Custom readFrom(StreamInput in) throws IOException {
+    public IngestMetadata(StreamInput in) throws IOException {
         int size = in.readVInt();
         Map<String, PipelineConfiguration> pipelines = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            PipelineConfiguration pipeline = PipelineConfiguration.readPipelineConfiguration(in);
+            PipelineConfiguration pipeline = PipelineConfiguration.readFrom(in);
             pipelines.put(pipeline.getId(), pipeline);
         }
-        return new IngestMetadata(pipelines);
+        this.pipelines = Collections.unmodifiableMap(pipelines);
     }
 
     @Override
@@ -91,10 +91,9 @@ public final class IngestMetadata extends AbstractDiffable<MetaData.Custom> impl
         }
     }
 
-    @Override
-    public MetaData.Custom fromXContent(XContentParser parser) throws IOException {
+    public static IngestMetadata fromXContent(XContentParser parser) throws IOException {
         Map<String, PipelineConfiguration> pipelines = new HashMap<>();
-        List<PipelineConfiguration> configs = INGEST_METADATA_PARSER.parse(parser);
+        List<PipelineConfiguration> configs = INGEST_METADATA_PARSER.parse(parser, null);
         for (PipelineConfiguration pipeline : configs) {
             pipelines.put(pipeline.getId(), pipeline);
         }
@@ -113,7 +112,60 @@ public final class IngestMetadata extends AbstractDiffable<MetaData.Custom> impl
 
     @Override
     public EnumSet<MetaData.XContentContext> context() {
-        return MetaData.API_AND_GATEWAY;
+        return MetaData.ALL_CONTEXTS;
     }
 
+    @Override
+    public Diff<MetaData.Custom> diff(MetaData.Custom before) {
+        return new IngestMetadataDiff((IngestMetadata) before, this);
+    }
+
+    public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+        return new IngestMetadataDiff(in);
+    }
+
+    static class IngestMetadataDiff implements NamedDiff<MetaData.Custom> {
+
+        final Diff<Map<String, PipelineConfiguration>> pipelines;
+
+        IngestMetadataDiff(IngestMetadata before, IngestMetadata after) {
+            this.pipelines = DiffableUtils.diff(before.pipelines, after.pipelines, DiffableUtils.getStringKeySerializer());
+        }
+
+        IngestMetadataDiff(StreamInput in) throws IOException {
+            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), PipelineConfiguration::readFrom,
+                PipelineConfiguration::readDiffFrom);
+        }
+
+        @Override
+        public MetaData.Custom apply(MetaData.Custom part) {
+            return new IngestMetadata(pipelines.apply(((IngestMetadata) part).pipelines));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            pipelines.writeTo(out);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        IngestMetadata that = (IngestMetadata) o;
+
+        return pipelines.equals(that.pipelines);
+
+    }
+
+    @Override
+    public int hashCode() {
+        return pipelines.hashCode();
+    }
 }

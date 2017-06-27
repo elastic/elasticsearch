@@ -22,13 +22,13 @@ package org.elasticsearch.action.admin.indices.cache.clear;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -54,7 +54,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
                                             TransportService transportService, IndicesService indicesService, ActionFilters actionFilters,
                                             IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClearIndicesCacheAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ClearIndicesCacheRequest::new, ThreadPool.Names.MANAGEMENT);
+                ClearIndicesCacheRequest::new, ThreadPool.Names.MANAGEMENT, false);
         this.indicesService = indicesService;
     }
 
@@ -77,7 +77,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
 
     @Override
     protected EmptyResult shardOperation(ClearIndicesCacheRequest request, ShardRouting shardRouting) {
-        IndexService service = indicesService.indexService(shardRouting.getIndexName());
+        IndexService service = indicesService.indexService(shardRouting.index());
         if (service != null) {
             IndexShard shard = service.getShardOrNull(shardRouting.id());
             boolean clearedAtLeastOne = false;

@@ -25,7 +25,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
  * Transport level private response for the transport handler registered under
  * {@value org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction#NAME}
  */
-public final class LivenessRequest extends ActionRequest<LivenessRequest> {
+public final class LivenessRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         return null;

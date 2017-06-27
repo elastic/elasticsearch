@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -38,13 +37,16 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     /**
      * Name used in error reporting.
      */
-    private final String name;
+    protected final String name;
 
-    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, ThreadContext contextHolder) {
+    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
+            BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, ThreadContext contextHolder) {
         this(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, new EsAbortPolicy(), contextHolder);
     }
 
-    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler, ThreadContext contextHolder) {
+    EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
+            BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, XRejectedExecutionHandler handler,
+            ThreadContext contextHolder) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;
@@ -106,6 +108,27 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         }
     }
 
+    @Override
+    protected void afterExecute(Runnable r, Throwable t) {
+        super.afterExecute(r, t);
+        assert assertDefaultContext(r);
+    }
+
+    private boolean assertDefaultContext(Runnable r) {
+        try {
+            assert contextHolder.isDefaultContext() : "the thread context is not the default context and the thread [" +
+                Thread.currentThread().getName() + "] is being returned to the pool after executing [" + r + "]";
+        } catch (IllegalStateException ex) {
+            // sometimes we execute on a closed context and isDefaultContext doen't bypass the ensureOpen checks
+            // this must not trigger an exception here since we only assert if the default is restored and
+            // we don't really care if we are closed
+            if (contextHolder.isClosed() == false) {
+                throw ex;
+            }
+        }
+        return true;
+    }
+
     /**
      * Returns a stream of all pending tasks. This is similar to {@link #getQueue()} but will expose the originally submitted
      * {@link Runnable} instances rather than potentially wrapped ones.
@@ -133,112 +156,10 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     protected Runnable wrapRunnable(Runnable command) {
-        final Runnable wrappedCommand;
-        if (command instanceof AbstractRunnable) {
-            wrappedCommand = new FilterAbstractRunnable(contextHolder, (AbstractRunnable) command);
-        } else {
-            wrappedCommand = new FilterRunnable(contextHolder, command);
-        }
-        return wrappedCommand;
+        return contextHolder.preserveContext(command);
     }
 
     protected Runnable unwrap(Runnable runnable) {
-        if (runnable instanceof FilterAbstractRunnable) {
-            return ((FilterAbstractRunnable) runnable).in;
-        } else if (runnable instanceof FilterRunnable) {
-            return ((FilterRunnable) runnable).in;
-        }
-        return runnable;
+        return contextHolder.unwrap(runnable);
     }
-
-    private  class FilterAbstractRunnable extends AbstractRunnable {
-        private final ThreadContext contextHolder;
-        private final AbstractRunnable in;
-        private final ThreadContext.StoredContext ctx;
-
-        FilterAbstractRunnable(ThreadContext contextHolder, AbstractRunnable in) {
-            this.contextHolder = contextHolder;
-            ctx = contextHolder.newStoredContext();
-            this.in = in;
-        }
-
-        @Override
-        public boolean isForceExecution() {
-            return in.isForceExecution();
-        }
-
-        @Override
-        public void onAfter() {
-            in.onAfter();
-        }
-
-        @Override
-        public void onFailure(Throwable t) {
-            in.onFailure(t);
-        }
-
-        @Override
-        public void onRejection(Throwable t) {
-            in.onRejection(t);
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            boolean whileRunning = false;
-            try (ThreadContext.StoredContext ingore = contextHolder.stashContext()){
-                ctx.restore();
-                whileRunning = true;
-                in.doRun();
-                whileRunning = false;
-            } catch (IllegalStateException ex) {
-                if (whileRunning || isShutdown() == false) {
-                    throw ex;
-                }
-                // if we hit an ISE here we have been shutting down
-                // this comes from the threadcontext and barfs if
-                // our threadpool has been shutting down
-            }
-        }
-
-        @Override
-        public String toString() {
-            return in.toString();
-        }
-
-    }
-
-    private  class FilterRunnable implements Runnable {
-        private final ThreadContext contextHolder;
-        private final Runnable in;
-        private final ThreadContext.StoredContext ctx;
-
-        FilterRunnable(ThreadContext contextHolder, Runnable in) {
-            this.contextHolder = contextHolder;
-            ctx = contextHolder.newStoredContext();
-            this.in = in;
-        }
-
-        @Override
-        public void run() {
-            boolean whileRunning = false;
-            try (ThreadContext.StoredContext ingore = contextHolder.stashContext()){
-                ctx.restore();
-                whileRunning = true;
-                in.run();
-                whileRunning = false;
-            } catch (IllegalStateException ex) {
-                if (whileRunning || isShutdown() == false) {
-                    throw ex;
-                }
-                // if we hit an ISE here we have been shutting down
-                // this comes from the threadcontext and barfs if
-                // our threadpool has been shutting down
-            }
-        }
-        @Override
-        public String toString() {
-            return in.toString();
-        }
-    }
-
 }

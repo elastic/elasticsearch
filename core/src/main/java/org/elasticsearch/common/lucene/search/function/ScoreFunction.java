@@ -24,9 +24,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
 public abstract class ScoreFunction {
 
     private final CombineFunction scoreCombiner;

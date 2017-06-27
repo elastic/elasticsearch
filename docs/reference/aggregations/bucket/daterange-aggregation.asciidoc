@@ -8,6 +8,7 @@ Example:
 
 [source,js]
 --------------------------------------------------
+POST /sales/_search?size=0
 {
     "aggs": {
         "range": {
@@ -23,6 +24,9 @@ Example:
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:sales s/now-10M\/M/10-2015/]
+
 <1> < now minus 10 months, rounded down to the start of the month.
 <2> >= now minus 10 months, rounded down to the start of the month.
 
@@ -35,25 +39,27 @@ Response:
 --------------------------------------------------
 {
     ...
-
     "aggregations": {
         "range": {
             "buckets": [
                 {
-                    "to": 1.3437792E+12,
-                    "to_as_string": "08-2012",
-                    "doc_count": 7
+                    "to": 1.4436576E12,
+                    "to_as_string": "10-2015",
+                    "doc_count": 7,
+                    "key": "*-10-2015"
                 },
                 {
-                    "from": 1.3437792E+12,
-                    "from_as_string": "08-2012",
-                    "doc_count": 2
+                    "from": 1.4436576E12,
+                    "from_as_string": "10-2015",
+                    "doc_count": 0,
+                    "key": "10-2015-*"
                 }
             ]
         }
     }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 [[date-format-pattern]]
 ==== Date Format/Pattern
@@ -111,3 +117,145 @@ Zone:: 'Z' outputs offset without a colon, 'ZZ' outputs the offset with a colon,
 Zone names:: Time zone names ('z') cannot be parsed.
 
 Any characters in the pattern that are not in the ranges of ['a'..'z'] and ['A'..'Z'] will be treated as quoted text. For instance, characters like ':', '.', ' ', '#' and '?' will appear in the resulting time text even they are not embraced within single quotes.
+
+[[time-zones]]
+==== Time zone in date range aggregations
+
+Dates can be converted from another time zone to UTC by specifying the `time_zone` parameter.
+
+Time zones may either be specified as an ISO 8601 UTC offset (e.g. +01:00 or -08:00) or as one of
+the http://www.joda.org/joda-time/timezones.html[time zone ids] from the TZ database.
+
+The `time_zone` parameter is also applied to rounding in date math expressions. As an example,
+to round to the beginning of the day in the CET time zone, you can do the following:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+   "aggs": {
+       "range": {
+           "date_range": {
+               "field": "date",
+               "time_zone": "CET",
+               "ranges": [
+                  { "to": "2016/02/01" }, <1>
+                  { "from": "2016/02/01", "to" : "now/d" <2>},
+                  { "from": "now/d" }
+              ]
+          }
+      }
+   }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+<1> This date will be converted to `2016-02-15T00:00:00.000+01:00`.
+<2> `now/d` will be rounded to the beginning of the day in the CET time zone.
+
+==== Keyed Response
+
+Setting the `keyed` flag to `true` will associate a unique string key with each bucket and return the ranges as a hash rather than an array:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+    "aggs": {
+        "range": {
+            "date_range": {
+                "field": "date",
+                "format": "MM-yyy",
+                "ranges": [
+                    { "to": "now-10M/M" },
+                    { "from": "now-10M/M" }
+                ],
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales s/now-10M\/M/10-2015/]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "range": {
+            "buckets": {
+                "*-10-2015": {
+                    "to": 1.4436576E12,
+                    "to_as_string": "10-2015",
+                    "doc_count": 7
+                },
+                "10-2015-*": {
+                    "from": 1.4436576E12,
+                    "from_as_string": "10-2015",
+                    "doc_count": 0
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+It is also possible to customize the key for each range:
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+    "aggs": {
+        "range": {
+            "date_range": {
+                "field": "date",
+                "format": "MM-yyy",
+                "ranges": [
+                    { "from": "01-2015",  "to": "03-2015", "key": "quarter_01" },
+                    { "from": "03-2015", "to": "06-2015", "key": "quarter_02" }
+                ],
+                "keyed": true
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "aggregations": {
+        "range": {
+            "buckets": {
+                "quarter_01": {
+                    "from": 1.4200704E12,
+                    "from_as_string": "01-2015",
+                    "to": 1.425168E12,
+                    "to_as_string": "03-2015",
+                    "doc_count": 5
+                },
+                "quarter_02": {
+                    "from": 1.425168E12,
+                    "from_as_string": "03-2015",
+                    "to": 1.4331168E12,
+                    "to_as_string": "06-2015",
+                    "doc_count": 2
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]

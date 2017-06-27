@@ -29,12 +29,10 @@ import java.io.IOException;
 
 final class MockInternalEngine extends InternalEngine {
     private MockEngineSupport support;
-    private final boolean randomizeFlushOnClose;
     private Class<? extends FilterDirectoryReader> wrapperClass;
 
-    MockInternalEngine(EngineConfig config, boolean skipInitialTranslogRecovery, Class<? extends FilterDirectoryReader> wrapper) throws EngineException {
-        super(config, skipInitialTranslogRecovery);
-        randomizeFlushOnClose = config.getIndexSettings().isOnSharedFilesystem() == false;
+    MockInternalEngine(EngineConfig config,  Class<? extends FilterDirectoryReader> wrapper) throws EngineException {
+        super(config);
         wrapperClass = wrapper;
 
     }
@@ -61,17 +59,13 @@ final class MockInternalEngine extends InternalEngine {
 
     @Override
     public void flushAndClose() throws IOException {
-        if (randomizeFlushOnClose) {
-            switch (support().flushOrClose(MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
-                case FLUSH_AND_CLOSE:
-                    flushAndCloseInternal();
-                    break;
-                case CLOSE:
-                    super.close();
-                    break;
-            }
-        } else {
-            flushAndCloseInternal();
+        switch (support().flushOrClose(MockEngineSupport.CloseAction.FLUSH_AND_CLOSE)) {
+            case FLUSH_AND_CLOSE:
+                flushAndCloseInternal();
+                break;
+            case CLOSE:
+                super.close();
+                break;
         }
     }
 

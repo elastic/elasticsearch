@@ -26,9 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class SearchContextMissingException extends ElasticsearchException {
 
     private final long id;

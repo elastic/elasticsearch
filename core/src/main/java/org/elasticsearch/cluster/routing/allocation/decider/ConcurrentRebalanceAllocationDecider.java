@@ -21,9 +21,9 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -42,15 +42,17 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "concurrent_rebalance";
 
-    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING = Setting.intSetting("cluster.routing.allocation.cluster_concurrent_rebalance", 2, -1, true, Setting.Scope.CLUSTER);
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING =
+        Setting.intSetting("cluster.routing.allocation.cluster_concurrent_rebalance", 2, -1,
+            Property.Dynamic, Property.NodeScope);
     private volatile int clusterConcurrentRebalance;
 
-    @Inject
     public ConcurrentRebalanceAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
         super(settings);
         this.clusterConcurrentRebalance = CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.get(settings);
         logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING, this::setClusterConcurrentRebalance);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING,
+                this::setClusterConcurrentRebalance);
     }
 
     private void setClusterConcurrentRebalance(int concurrentRebalance) {
@@ -60,12 +62,18 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (clusterConcurrentRebalance == -1) {
-            return allocation.decision(Decision.YES, NAME, "all concurrent rebalances are allowed");
+            return allocation.decision(Decision.YES, NAME, "unlimited concurrent rebalances are allowed");
         }
-        if (allocation.routingNodes().getRelocatingShardCount() >= clusterConcurrentRebalance) {
-            return allocation.decision(Decision.NO, NAME, "too many concurrent rebalances [%d], limit: [%d]",
-                    allocation.routingNodes().getRelocatingShardCount(), clusterConcurrentRebalance);
+        int relocatingShards = allocation.routingNodes().getRelocatingShardCount();
+        if (relocatingShards >= clusterConcurrentRebalance) {
+            return allocation.decision(Decision.THROTTLE, NAME,
+                    "reached the limit of concurrently rebalancing shards [%d], cluster setting [%s=%d]",
+                    relocatingShards,
+                    CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.getKey(),
+                    clusterConcurrentRebalance);
         }
-        return allocation.decision(Decision.YES, NAME, "below threshold [%d] for concurrent rebalances", clusterConcurrentRebalance);
+        return allocation.decision(Decision.YES, NAME,
+                "below threshold [%d] for concurrent rebalances, current rebalance shard count [%d]",
+                clusterConcurrentRebalance, relocatingShards);
     }
 }

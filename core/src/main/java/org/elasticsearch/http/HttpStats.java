@@ -21,43 +21,23 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-public class HttpStats implements Streamable, ToXContent {
+public class HttpStats implements Writeable, ToXContent {
 
-    private long serverOpen;
-    private long totalOpen;
-
-    HttpStats() {
-
-    }
+    private final long serverOpen;
+    private final long totalOpen;
 
     public HttpStats(long serverOpen, long totalOpen) {
         this.serverOpen = serverOpen;
         this.totalOpen = totalOpen;
     }
 
-    public long getServerOpen() {
-        return this.serverOpen;
-    }
-
-    public long getTotalOpen() {
-        return this.totalOpen;
-    }
-
-    public static HttpStats readHttpStats(StreamInput in) throws IOException {
-        HttpStats stats = new HttpStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public HttpStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
         totalOpen = in.readVLong();
     }
@@ -68,10 +48,18 @@ public class HttpStats implements Streamable, ToXContent {
         out.writeVLong(totalOpen);
     }
 
+    public long getServerOpen() {
+        return this.serverOpen;
+    }
+
+    public long getTotalOpen() {
+        return this.totalOpen;
+    }
+
     static final class Fields {
-        static final XContentBuilderString HTTP = new XContentBuilderString("http");
-        static final XContentBuilderString CURRENT_OPEN = new XContentBuilderString("current_open");
-        static final XContentBuilderString TOTAL_OPENED = new XContentBuilderString("total_opened");
+        static final String HTTP = "http";
+        static final String CURRENT_OPEN = "current_open";
+        static final String TOTAL_OPENED = "total_opened";
     }
 
     @Override

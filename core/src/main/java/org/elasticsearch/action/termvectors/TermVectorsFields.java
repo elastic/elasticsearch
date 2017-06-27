@@ -82,7 +82,7 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * If the field statistics were requested ({@code hasFieldStatistics} is true,
  * see {@code headerRef}), the following numbers are stored:
  * <ul>
- * <li>vlong: sum of total term freqencies of the field (sumTotalTermFreq)</li>
+ * <li>vlong: sum of total term frequencies of the field (sumTotalTermFreq)</li>
  * <li>vlong: sum of document frequencies for each term (sumDocFreq)</li>
  * <li>vint: number of documents in the shard that has an entry for this field
  * (docCount)</li>
@@ -105,13 +105,13 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * <li>vint: frequency (always returned)</li>
  * <li>
  * <ul>
- * <li>vint: position_1 (if positions == true)</li>
- * <li>vint: startOffset_1 (if offset == true)</li>
- * <li>vint: endOffset_1 (if offset == true)</li>
- * <li>BytesRef: payload_1 (if payloads == true)</li>
+ * <li>vint: position_1 (if positions)</li>
+ * <li>vint: startOffset_1 (if offset)</li>
+ * <li>vint: endOffset_1 (if offset)</li>
+ * <li>BytesRef: payload_1 (if payloads)</li>
  * <li>...</li>
- * <li>vint: endOffset_freqency (if offset == true)</li>
- * <li>BytesRef: payload_freqency (if payloads == true)</li>
+ * <li>vint: endOffset_freqency (if offset)</li>
+ * <li>BytesRef: payload_freqency (if payloads)</li>
  * </ul></li>
  * </ul>
  */
@@ -130,7 +130,7 @@ public final class TermVectorsFields extends Fields {
      * @param termVectors Stores the actual term vectors as a {@link BytesRef}.
      */
     public TermVectorsFields(BytesReference headerRef, BytesReference termVectors) throws IOException {
-        StreamInput header = StreamInput.wrap(headerRef.toBytesArray());
+        StreamInput header = headerRef.streamInput();
         fieldMap = new ObjectLongHashMap<>();
         // here we read the header to fill the field offset map
         String headerString = header.readString();
@@ -200,8 +200,8 @@ public final class TermVectorsFields extends Fields {
         private long sumDocFreq;
         private int docCount;
 
-        public TermVector(BytesReference termVectors, long readOffset) throws IOException {
-            this.perFieldTermVectorInput = StreamInput.wrap(termVectors.toBytesArray());
+        TermVector(BytesReference termVectors, long readOffset) throws IOException {
+            this.perFieldTermVectorInput = termVectors.streamInput();
             this.readOffset = readOffset;
             reset();
         }

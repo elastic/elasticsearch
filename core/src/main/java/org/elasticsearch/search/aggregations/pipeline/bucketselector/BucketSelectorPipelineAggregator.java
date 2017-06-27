@@ -22,22 +22,16 @@ package org.elasticsearch.search.aggregations.pipeline.bucketselector;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,30 +39,11 @@ import java.util.Map;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class BucketSelectorPipelineAggregator extends PipelineAggregator {
-
-    public final static Type TYPE = new Type("bucket_selector");
-
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public BucketSelectorPipelineAggregator readResult(StreamInput in) throws IOException {
-            BucketSelectorPipelineAggregator result = new BucketSelectorPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private GapPolicy gapPolicy;
 
     private Script script;
 
     private Map<String, String> bucketsPathsMap;
-
-    public BucketSelectorPipelineAggregator() {
-    }
 
     public BucketSelectorPipelineAggregator(String name, Map<String, String> bucketsPathsMap, Script script, GapPolicy gapPolicy,
             Map<String, Object> metadata) {
@@ -78,20 +53,38 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
         this.gapPolicy = gapPolicy;
     }
 
+    /**
+     * Read from a stream.
+     */
+    @SuppressWarnings("unchecked")
+    public BucketSelectorPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        script = new Script(in);
+        gapPolicy = GapPolicy.readFrom(in);
+        bucketsPathsMap = (Map<String, String>) in.readGenericValue();
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        script.writeTo(out);
+        gapPolicy.writeTo(out);
+        out.writeGenericValue(bucketsPathsMap);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return BucketSelectorPipelineAggregationBuilder.NAME;
     }
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg = 
+        InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
-        List<? extends Bucket> buckets = originalAgg.getBuckets();
+        List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.Standard.AGGS, Collections.emptyMap());
-        List newBuckets = new ArrayList<>();
-        for (Bucket bucket : buckets) {
+        ExecutableScript.Factory factory = reduceContext.scriptService().compile(script, ExecutableScript.AGGS_CONTEXT);
+        List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
+        for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
             if (script.getParams() != null) {
                 vars.putAll(script.getParams());
@@ -102,7 +95,8 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
                 vars.put(varName, value);
             }
-            ExecutableScript executableScript = reduceContext.scriptService().executable(compiledScript, vars);
+            // TODO: can we use one instance of the script for all buckets? it should be stateless?
+            ExecutableScript executableScript = factory.newInstance(vars);
             Object scriptReturnValue = executableScript.run();
             final boolean keepBucket;
             // TODO: WTF!!!!!
@@ -118,20 +112,4 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
         }
         return originalAgg.create(newBuckets);
     }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        script.writeTo(out);
-        gapPolicy.writeTo(out);
-        out.writeGenericValue(bucketsPathsMap);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        script = Script.readScript(in);
-        gapPolicy = GapPolicy.readFrom(in);
-        bucketsPathsMap = (Map<String, String>) in.readGenericValue();
-    }
-
 }

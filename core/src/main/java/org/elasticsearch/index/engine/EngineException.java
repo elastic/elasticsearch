@@ -25,9 +25,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class EngineException extends ElasticsearchException {
 
     public EngineException(ShardId shardId, String msg, Object... params) {

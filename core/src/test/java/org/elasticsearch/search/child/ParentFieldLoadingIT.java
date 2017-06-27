@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.child;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -26,18 +27,20 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.MergePolicyConfig;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -49,7 +52,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class); // uses index.merge.enabled
+        return Arrays.asList(InternalSettingsPlugin.class); // uses index.merge.enabled
     }
 
     private final Settings indexSettings = Settings.builder()
@@ -58,6 +61,7 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1)
                     // We never want merges in this test to ensure we have two segments for the last validation
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
+            .put("index.version.created", Version.V_5_6_0)
             .build();
 
     public void testEagerParentFieldLoading() throws Exception {
@@ -65,11 +69,11 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.LAZY)));
+                .addMapping("child", childMapping(false)));
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "1").setSource("{}").get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
+        client().prepareIndex("test", "parent", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON).get();
         refresh();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
@@ -83,23 +87,8 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "1").setSource("{}").get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
-        refresh();
-
-        response = client().admin().cluster().prepareClusterStats().get();
-        assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
-
-        logger.info("testing eager loading...");
-        assertAcked(client().admin().indices().prepareDelete("test").get());
-        assertAcked(prepareCreate("test")
-                .setSettings(indexSettings)
-                .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER)));
-        ensureGreen();
-
-        client().prepareIndex("test", "parent", "1").setSource("{}").get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
+        client().prepareIndex("test", "parent", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON).get();
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
@@ -110,14 +99,14 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .setSettings(indexSettings)
                 .addMapping("parent")
-                .addMapping("child", childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS)));
+                .addMapping("child", childMapping(true)));
         ensureGreen();
 
         // Need to do 2 separate refreshes, otherwise we have 1 segment and then we can't measure if global ordinals
         // is loaded by the size of the field data cache, because global ordinals on 1 segment shards takes no extra memory.
-        client().prepareIndex("test", "parent", "1").setSource("{}").get();
+        client().prepareIndex("test", "parent", "1").setSource("{}", XContentType.JSON).get();
         refresh();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON).get();
         refresh();
 
         response = client().admin().cluster().prepareClusterStats().get();
@@ -131,51 +120,49 @@ public class ParentFieldLoadingIT extends ESIntegTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
 
-        client().prepareIndex("test", "parent", "1").setSource("{}").get();
-        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}").get();
+        client().prepareIndex("test", "parent", "1").setSource("{}", XContentType.JSON).get();
+        client().prepareIndex("test", "child", "1").setParent("1").setSource("{}", XContentType.JSON).get();
         refresh();
 
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), equalTo(0L));
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("child")
-                .setSource(childMapping(MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS))
+                .setSource(childMapping(true))
                 .setUpdateAllTypes(true)
                 .get();
         assertAcked(putMappingResponse);
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterState clusterState = internalCluster().clusterService().state();
-                ShardRouting shardRouting = clusterState.routingTable().index("test").shard(0).getShards().get(0);
-                String nodeName = clusterState.getNodes().get(shardRouting.currentNodeId()).getName();
+        Index test = resolveIndex("test");
+        assertBusy(() -> {
+            ClusterState clusterState = internalCluster().clusterService().state();
+            ShardRouting shardRouting = clusterState.routingTable().index("test").shard(0).getShards().get(0);
+            String nodeName = clusterState.getNodes().get(shardRouting.currentNodeId()).getName();
 
-                boolean verified = false;
-                IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-                IndexService indexService = indicesService.indexService("test");
-                if (indexService != null) {
-                    MapperService mapperService = indexService.mapperService();
-                    DocumentMapper documentMapper = mapperService.documentMapper("child");
-                    if (documentMapper != null) {
-                        verified = documentMapper.parentFieldMapper().fieldType().fieldDataType().getLoading() == MappedFieldType.Loading.EAGER_GLOBAL_ORDINALS;
-                    }
+            boolean verified = false;
+            IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+            IndexService indexService = indicesService.indexService(test);
+            if (indexService != null) {
+                MapperService mapperService = indexService.mapperService();
+                DocumentMapper documentMapper = mapperService.documentMapper("child");
+                if (documentMapper != null) {
+                    verified = documentMapper.parentFieldMapper().fieldType().eagerGlobalOrdinals();
                 }
-                assertTrue(verified);
             }
+            assertTrue(verified);
         });
 
         // Need to add a new doc otherwise the refresh doesn't trigger a new searcher
         // Because it ends up in its own segment, but isn't of type parent or child, this doc doesn't contribute to the size of the fielddata cache
-        client().prepareIndex("test", "dummy", "dummy").setSource("{}").get();
+        client().prepareIndex("test", "dummy", "dummy").setSource("{}", XContentType.JSON).get();
         refresh();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0L));
     }
 
-    private XContentBuilder childMapping(MappedFieldType.Loading loading) throws IOException {
+    private XContentBuilder childMapping(boolean eagerGlobalOrds) throws IOException {
         return jsonBuilder().startObject().startObject("child").startObject("_parent")
                 .field("type", "parent")
-                .startObject("fielddata").field(MappedFieldType.Loading.KEY, loading).endObject()
+                .startObject("fielddata").field("eager_global_ordinals", eagerGlobalOrds).endObject()
                 .endObject().endObject().endObject();
     }
 

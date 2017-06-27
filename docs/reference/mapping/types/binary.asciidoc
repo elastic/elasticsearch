@@ -13,7 +13,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "name": {
-          "type": "string"
+          "type": "text"
         },
         "blob": {
           "type": "binary"
@@ -29,6 +29,7 @@ PUT my_index/my_type/1
   "blob": "U29tZSBiaW5hcnkgYmxvYg==" <1>
 }
 --------------------------------------------------
+// CONSOLE
 <1> The Base64 encoded binary value must not have embedded newlines `\n`.
 
 [[binary-params]]
@@ -49,5 +50,3 @@ The following parameters are accepted by `binary` fields:
     Whether the field value should be stored and retrievable separately from
     the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
     (default).
-
-

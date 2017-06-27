@@ -6,6 +6,7 @@ in `min_score`:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
     "min_score": 0.5,
     "query" : {
@@ -13,6 +14,7 @@ in `min_score`:
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 Note, most times, this does not make much sense, but is provided for
 advanced use cases.

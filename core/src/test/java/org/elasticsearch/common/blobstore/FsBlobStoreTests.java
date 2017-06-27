@@ -23,7 +23,7 @@ import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.test.ESBlobStoreTestCase;
+import org.elasticsearch.repositories.ESBlobStoreTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;

@@ -21,10 +21,7 @@ package org.elasticsearch.common.component;
 
 import org.elasticsearch.common.lease.Releasable;
 
-/**
- *
- */
-public interface LifecycleComponent<T> extends Releasable {
+public interface LifecycleComponent extends Releasable {
 
     Lifecycle.State lifecycleState();
 
@@ -32,7 +29,7 @@ public interface LifecycleComponent<T> extends Releasable {
 
     void removeLifecycleListener(LifecycleListener listener);
 
-    T start();
+    void start();
 
-    T stop();
+    void stop();
 }

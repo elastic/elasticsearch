@@ -19,18 +19,12 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-
-import java.util.Collection;
-import java.util.Collections;
-
 
 /**
  * Specialization of {@link AtomicNumericFieldData} for integers.
@@ -38,9 +32,14 @@ import java.util.Collections;
 abstract class AtomicLongFieldData implements AtomicNumericFieldData {
 
     private final long ramBytesUsed;
+    /**
+     * Type of this field. Used to expose appropriate types in {@link #getScriptValues()}.
+     */
+    private final NumericType numericType;
 
-    AtomicLongFieldData(long ramBytesUsed) {
+    AtomicLongFieldData(long ramBytesUsed, NumericType numericType) {
         this.ramBytesUsed = ramBytesUsed;
+        this.numericType = numericType;
     }
 
     @Override
@@ -49,8 +48,15 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
     }
 
     @Override
-    public final ScriptDocValues getScriptValues() {
-        return new ScriptDocValues.Longs(getLongValues());
+    public final ScriptDocValues<?> getScriptValues() {
+        switch (numericType) {
+        case DATE:
+            return new ScriptDocValues.Dates(getLongValues());
+        case BOOLEAN:
+            return new ScriptDocValues.Booleans(getLongValues());
+        default:
+            return new ScriptDocValues.Longs(getLongValues());
+        }
     }
 
     @Override
@@ -63,24 +69,6 @@ abstract class AtomicLongFieldData implements AtomicNumericFieldData {
         return FieldData.castToDouble(getLongValues());
     }
 
-    public static AtomicNumericFieldData empty(final int maxDoc) {
-        return new AtomicLongFieldData(0) {
-
-            @Override
-            public SortedNumericDocValues getLongValues() {
-                return DocValues.emptySortedNumeric(maxDoc);
-            }
-
-            @Override
-            public Collection<Accountable> getChildResources() {
-                return Collections.emptyList();
-            }
-
-        };
-    }
-
     @Override
-    public void close() {
-    }
-
+    public void close() {}
 }

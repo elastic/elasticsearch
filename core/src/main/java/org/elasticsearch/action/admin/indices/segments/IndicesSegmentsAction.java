@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.segments;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class IndicesSegmentsAction extends Action<IndicesSegmentsRequest, IndicesSegmentResponse, IndicesSegmentsRequestBuilder> {
 
     public static final IndicesSegmentsAction INSTANCE = new IndicesSegmentsAction();

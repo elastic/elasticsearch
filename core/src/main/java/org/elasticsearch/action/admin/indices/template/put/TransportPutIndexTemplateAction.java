@@ -18,16 +18,18 @@
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -73,18 +75,19 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
         if (cause.length() == 0) {
             cause = "api";
         }
-        final Settings.Builder templateSettingsBuilder = Settings.settingsBuilder();
+        final Settings.Builder templateSettingsBuilder = Settings.builder();
         templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(templateSettingsBuilder);
         indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())
-                .template(request.template())
+                .patterns(request.patterns())
                 .order(request.order())
                 .settings(templateSettingsBuilder.build())
                 .mappings(request.mappings())
                 .aliases(request.aliases())
                 .customs(request.customs())
                 .create(request.create())
-                .masterTimeout(request.masterNodeTimeout()),
+                .masterTimeout(request.masterNodeTimeout())
+                .version(request.version()),
 
                 new MetaDataIndexTemplateService.PutListener() {
                     @Override
@@ -93,9 +96,9 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
                     }
 
                     @Override
-                    public void onFailure(Throwable t) {
-                        logger.debug("failed to put template [{}]", t, request.name());
-                        listener.onFailure(t);
+                    public void onFailure(Exception e) {
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to put template [{}]", request.name()), e);
+                        listener.onFailure(e);
                     }
                 });
     }

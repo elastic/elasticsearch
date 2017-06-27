@@ -26,18 +26,20 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -48,19 +50,16 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         // Use the mock internal cluster info service, which has fake-able disk usages
-        return pluginList(MockInternalClusterInfoService.TestPlugin.class);
+        return Arrays.asList(MockInternalClusterInfoService.TestPlugin.class);
     }
 
     public void testRerouteOccursOnDiskPassingHighWatermark() throws Exception {
-        List<String> nodes = internalCluster().startNodesAsync(3).get();
+        List<String> nodes = internalCluster().startNodes(3);
 
         // Wait for all 3 nodes to be up
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().get();
-                assertThat(resp.getNodes().length, equalTo(3));
-            }
+        assertBusy(() -> {
+            NodesStatsResponse resp = client().admin().cluster().prepareNodesStats().get();
+            assertThat(resp.getNodes().size(), equalTo(3));
         });
 
         // Start with all nodes at 50% usage
@@ -72,25 +71,22 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         cis.setN2Usage(nodes.get(1), new DiskUsage(nodes.get(1), "n2", "/dev/null", 100, 50));
         cis.setN3Usage(nodes.get(2), new DiskUsage(nodes.get(2), "n3", "/dev/null", 100, 50));
 
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder()
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), randomFrom("20b", "80%"))
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), randomFrom("10b", "90%"))
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1ms")).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), randomFrom("20b", "80%"))
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), randomFrom("10b", "90%"))
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1ms")).get();
         // Create an index with 10 shards so we can check allocation for it
-        prepareCreate("test").setSettings(settingsBuilder()
+        prepareCreate("test").setSettings(Settings.builder()
                 .put("number_of_shards", 10)
                 .put("number_of_replicas", 0)
                 .put("index.routing.allocation.exclude._name", "")).get();
         ensureGreen("test");
 
         // Block until the "fake" cluster info is retrieved at least once
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterInfo info = cis.getClusterInfo();
-                logger.info("--> got: {} nodes", info.getNodeLeastAvailableDiskUsages().size());
-                assertThat(info.getNodeLeastAvailableDiskUsages().size(), greaterThan(0));
-            }
+        assertBusy(() -> {
+            ClusterInfo info = cis.getClusterInfo();
+            logger.info("--> got: {} nodes", info.getNodeLeastAvailableDiskUsages().size());
+            assertThat(info.getNodeLeastAvailableDiskUsages().size(), greaterThan(0));
         });
 
         final List<String> realNodeNames = new ArrayList<>();
@@ -111,21 +107,18 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // Retrieve the count of shards on each node
         final Map<String, Integer> nodesToShardCount = new HashMap<>();
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-                Iterator<RoutingNode> iter = resp.getState().getRoutingNodes().iterator();
-                while (iter.hasNext()) {
-                    RoutingNode node = iter.next();
-                    logger.info("--> node {} has {} shards",
-                            node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-                    nodesToShardCount.put(node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-                }
-                assertThat("node1 has 5 shards", nodesToShardCount.get(realNodeNames.get(0)), equalTo(5));
-                assertThat("node2 has 5 shards", nodesToShardCount.get(realNodeNames.get(1)), equalTo(5));
-                assertThat("node3 has 0 shards", nodesToShardCount.get(realNodeNames.get(2)), equalTo(0));
+        assertBusy(() -> {
+            ClusterStateResponse resp12 = client().admin().cluster().prepareState().get();
+            Iterator<RoutingNode> iter12 = resp12.getState().getRoutingNodes().iterator();
+            while (iter12.hasNext()) {
+                RoutingNode node = iter12.next();
+                logger.info("--> node {} has {} shards",
+                        node.nodeId(), resp12.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
+                nodesToShardCount.put(node.nodeId(), resp12.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
             }
+            assertThat("node1 has 5 shards", nodesToShardCount.get(realNodeNames.get(0)), equalTo(5));
+            assertThat("node2 has 5 shards", nodesToShardCount.get(realNodeNames.get(1)), equalTo(5));
+            assertThat("node3 has 0 shards", nodesToShardCount.get(realNodeNames.get(2)), equalTo(0));
         });
 
         // Update the disk usages so one node is now back under the high watermark
@@ -136,21 +129,18 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         // Retrieve the count of shards on each node
         nodesToShardCount.clear();
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-                Iterator<RoutingNode> iter = resp.getState().getRoutingNodes().iterator();
-                while (iter.hasNext()) {
-                    RoutingNode node = iter.next();
-                    logger.info("--> node {} has {} shards",
-                            node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-                    nodesToShardCount.put(node.nodeId(), resp.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
-                }
-                assertThat("node1 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(0)), greaterThanOrEqualTo(3));
-                assertThat("node2 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(1)), greaterThanOrEqualTo(3));
-                assertThat("node3 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(2)), greaterThanOrEqualTo(3));
+        assertBusy(() -> {
+            ClusterStateResponse resp1 = client().admin().cluster().prepareState().get();
+            Iterator<RoutingNode> iter1 = resp1.getState().getRoutingNodes().iterator();
+            while (iter1.hasNext()) {
+                RoutingNode node = iter1.next();
+                logger.info("--> node {} has {} shards",
+                        node.nodeId(), resp1.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
+                nodesToShardCount.put(node.nodeId(), resp1.getState().getRoutingNodes().node(node.nodeId()).numberOfOwningShards());
             }
+            assertThat("node1 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(0)), greaterThanOrEqualTo(3));
+            assertThat("node2 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(1)), greaterThanOrEqualTo(3));
+            assertThat("node3 has at least 3 shards", nodesToShardCount.get(realNodeNames.get(2)), greaterThanOrEqualTo(3));
         });
     }
 }

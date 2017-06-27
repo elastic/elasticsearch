@@ -19,20 +19,19 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import com.vividsolutions.jts.geom.LinearRing;
 import com.vividsolutions.jts.geom.MultiPolygon;
 import com.vividsolutions.jts.geom.Polygon;
-
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,8 +52,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class PolygonBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
-    public static final PolygonBuilder PROTOTYPE = new PolygonBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).coordinate(0.0, 1.0)
-            .coordinate(1.0, 0.0).coordinate(0.0, 0.0));
 
     private static final Coordinate[][] EMPTY = new Coordinate[0][];
 
@@ -64,7 +61,7 @@ public class PolygonBuilder extends ShapeBuilder {
     private LineStringBuilder shell;
 
     // List of line strings defining the holes of the polygon
-    private final ArrayList<LineStringBuilder> holes = new ArrayList<>();
+    private final List<LineStringBuilder> holes = new ArrayList<>();
 
     public PolygonBuilder(LineStringBuilder lineString, Orientation orientation, boolean coerce) {
         this.orientation = orientation;
@@ -85,6 +82,28 @@ public class PolygonBuilder extends ShapeBuilder {
 
     public PolygonBuilder(CoordinatesBuilder coordinates) {
         this(coordinates, Orientation.RIGHT);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public PolygonBuilder(StreamInput in) throws IOException {
+        shell = new LineStringBuilder(in);
+        orientation = Orientation.readFrom(in);
+        int holes = in.readVInt();
+        for (int i = 0; i < holes; i++) {
+            hole(new LineStringBuilder(in));
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        shell.writeTo(out);
+        orientation.writeTo(out);
+        out.writeVInt(holes.size());
+        for (LineStringBuilder hole : holes) {
+            hole.writeTo(out);
+        }
     }
 
     public Orientation orientation() {
@@ -314,7 +333,7 @@ public class PolygonBuilder extends ShapeBuilder {
 
         double shiftOffset = any.coordinate.x > DATELINE ? DATELINE : (any.coordinate.x < -DATELINE ? -DATELINE : 0);
         if (debugEnabled()) {
-            LOGGER.debug("shift: {[]}", shiftOffset);
+            LOGGER.debug("shift: [{}]", shiftOffset);
         }
 
         // run along the border of the component, collect the
@@ -383,18 +402,18 @@ public class PolygonBuilder extends ShapeBuilder {
         return coordinates;
     }
 
-    private static Coordinate[][][] buildCoordinates(ArrayList<ArrayList<Coordinate[]>> components) {
+    private static Coordinate[][][] buildCoordinates(List<List<Coordinate[]>> components) {
         Coordinate[][][] result = new Coordinate[components.size()][][];
         for (int i = 0; i < result.length; i++) {
-            ArrayList<Coordinate[]> component = components.get(i);
+            List<Coordinate[]> component = components.get(i);
             result[i] = component.toArray(new Coordinate[component.size()][]);
         }
 
         if(debugEnabled()) {
             for (int i = 0; i < result.length; i++) {
-                LOGGER.debug("Component {[]}:", i);
+                LOGGER.debug("Component [{}]:", i);
                 for (int j = 0; j < result[i].length; j++) {
-                    LOGGER.debug("\t" + Arrays.toString(result[i][j]));
+                    LOGGER.debug("\t{}", Arrays.toString(result[i][j]));
                 }
             }
         }
@@ -416,13 +435,13 @@ public class PolygonBuilder extends ShapeBuilder {
         return points;
     }
 
-    private static Edge[] edges(Edge[] edges, int numHoles, ArrayList<ArrayList<Coordinate[]>> components) {
+    private static Edge[] edges(Edge[] edges, int numHoles, List<List<Coordinate[]>> components) {
         ArrayList<Edge> mainEdges = new ArrayList<>(edges.length);
 
         for (int i = 0; i < edges.length; i++) {
             if (edges[i].component >= 0) {
                 int length = component(edges[i], -(components.size()+numHoles+1), mainEdges);
-                ArrayList<Coordinate[]> component = new ArrayList<>();
+                List<Coordinate[]> component = new ArrayList<>();
                 component.add(coordinates(edges[i], new Coordinate[length+1]));
                 components.add(component);
             }
@@ -432,19 +451,19 @@ public class PolygonBuilder extends ShapeBuilder {
     }
 
     private static Coordinate[][][] compose(Edge[] edges, Edge[] holes, int numHoles) {
-        final ArrayList<ArrayList<Coordinate[]>> components = new ArrayList<>();
+        final List<List<Coordinate[]>> components = new ArrayList<>();
         assign(holes, holes(holes, numHoles), numHoles, edges(edges, numHoles, components), components);
         return buildCoordinates(components);
     }
 
-    private static void assign(Edge[] holes, Coordinate[][] points, int numHoles, Edge[] edges, ArrayList<ArrayList<Coordinate[]>> components) {
+    private static void assign(Edge[] holes, Coordinate[][] points, int numHoles, Edge[] edges, List<List<Coordinate[]>> components) {
         // Assign Hole to related components
         // To find the new component the hole belongs to all intersections of the
         // polygon edges with a vertical line are calculated. This vertical line
         // is an arbitrary point of the hole. The polygon edge next to this point
         // is part of the polygon the hole belongs to.
         if (debugEnabled()) {
-            LOGGER.debug("Holes: " + Arrays.toString(holes));
+            LOGGER.debug("Holes: {}", Arrays.toString(holes));
         }
         for (int i = 0; i < numHoles; i++) {
             final Edge current = new Edge(holes[i].coordinate, holes[i].next);
@@ -464,9 +483,9 @@ public class PolygonBuilder extends ShapeBuilder {
             final int component = -edges[index].component - numHoles - 1;
 
             if(debugEnabled()) {
-                LOGGER.debug("\tposition ("+index+") of edge "+current+": " + edges[index]);
-                LOGGER.debug("\tComponent: " + component);
-                LOGGER.debug("\tHole intersections ("+current.coordinate.x+"): " + Arrays.toString(edges));
+                LOGGER.debug("\tposition ({}) of edge {}: {}", index, current, edges[index]);
+                LOGGER.debug("\tComponent: {}", component);
+                LOGGER.debug("\tHole intersections ({}): {}", current.coordinate.x, Arrays.toString(edges));
             }
 
             components.get(component).add(points[i]);
@@ -559,7 +578,7 @@ public class PolygonBuilder extends ShapeBuilder {
         boolean direction = (component == 0 ^ orientation == Orientation.RIGHT);
         // set the points array accordingly (shell or hole)
         Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
-        ring(component, direction, orientation == Orientation.LEFT, shell, points, 0, edges, offset, points.length-1, translated);
+        ring(component, direction, orientation == Orientation.LEFT, points, 0, edges, offset, points.length-1, translated);
         return points.length-1;
     }
 
@@ -574,7 +593,7 @@ public class PolygonBuilder extends ShapeBuilder {
      *            number of points
      * @return Array of edges
      */
-    private static Edge[] ring(int component, boolean direction, boolean handedness, LineStringBuilder shell,
+    private static Edge[] ring(int component, boolean direction, boolean handedness,
                                  Coordinate[] points, int offset, Edge[] edges, int toffset, int length, final AtomicBoolean translated) {
         // calculate the direction of the points:
         // find the point a the top of the set and check its
@@ -612,7 +631,7 @@ public class PolygonBuilder extends ShapeBuilder {
         return concat(component, direction ^ orientation, points, offset, edges, toffset, length);
     }
 
-    private static final int top(Coordinate[] points, int offset, int length) {
+    private static int top(Coordinate[] points, int offset, int length) {
         int top = 0; // we start at 1 here since top points to 0
         for (int i = 1; i < length; i++) {
             if (points[offset + i].y < points[offset + top].y) {
@@ -626,7 +645,7 @@ public class PolygonBuilder extends ShapeBuilder {
         return top;
     }
 
-    private static final double[] range(Coordinate[] points, int offset, int length) {
+    private static double[] range(Coordinate[] points, int offset, int length) {
         double minX = points[0].x;
         double maxX = points[0].x;
         double minY = points[0].y;
@@ -668,8 +687,8 @@ public class PolygonBuilder extends ShapeBuilder {
      *            number of points to use
      * @return the edges creates
      */
-    private static Edge[] concat(int component, boolean direction, Coordinate[] points, final int pointOffset, Edge[] edges, final int edgeOffset,
-            int length) {
+    private static Edge[] concat(int component, boolean direction, Coordinate[] points, final int pointOffset, Edge[] edges,
+            final int edgeOffset, int length) {
         assert edges.length >= length+edgeOffset;
         assert points.length >= length+pointOffset;
         edges[edgeOffset] = new Edge(points[pointOffset], null);
@@ -724,27 +743,5 @@ public class PolygonBuilder extends ShapeBuilder {
         return Objects.equals(shell, other.shell) &&
                 Objects.equals(holes, other.holes) &&
                 Objects.equals(orientation,  other.orientation);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        shell.writeTo(out);
-        orientation.writeTo(out);
-        out.writeVInt(holes.size());
-        for (LineStringBuilder hole : holes) {
-            hole.writeTo(out);
-        }
-    }
-
-    @Override
-    public PolygonBuilder readFrom(StreamInput in) throws IOException {
-        LineStringBuilder shell = LineStringBuilder.PROTOTYPE.readFrom(in);
-        Orientation orientation = Orientation.readFrom(in);
-        PolygonBuilder polyBuilder = new PolygonBuilder(shell, orientation);
-        int holes = in.readVInt();
-        for (int i = 0; i < holes; i++) {
-            polyBuilder.hole(LineStringBuilder.PROTOTYPE.readFrom(in));
-        }
-        return polyBuilder;
     }
 }

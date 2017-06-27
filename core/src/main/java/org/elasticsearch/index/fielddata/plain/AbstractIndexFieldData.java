@@ -27,36 +27,26 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.RamAccountingTermsEnum;
 
 import java.io.IOException;
 
-/**
- */
 public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends AbstractIndexComponent implements IndexFieldData<FD> {
 
     private final String fieldName;
-    protected final FieldDataType fieldDataType;
     protected final IndexFieldDataCache cache;
 
-    public AbstractIndexFieldData(IndexSettings indexSettings, String fieldName, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public AbstractIndexFieldData(IndexSettings indexSettings, String fieldName, IndexFieldDataCache cache) {
         super(indexSettings);
         this.fieldName = fieldName;
-        this.fieldDataType = fieldDataType;
         this.cache = cache;
     }
 
     @Override
     public String getFieldName() {
         return this.fieldName;
-    }
-
-    @Override
-    public FieldDataType getFieldDataType() {
-        return fieldDataType;
     }
 
     @Override
@@ -77,7 +67,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
         try {
             FD fd = cache.load(context, this);
             return fd;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
@@ -106,7 +96,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
         /**
          * @return the number of bytes for the given term
          */
-        public long bytesPerValue(BytesRef term);
+        long bytesPerValue(BytesRef term);
 
         /**
          * Execute any pre-loading estimations for the terms. May also
@@ -117,7 +107,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
          * @param terms terms to be estimated
          * @return A TermsEnum for the given terms
          */
-        public TermsEnum beforeLoad(Terms terms) throws IOException;
+        TermsEnum beforeLoad(Terms terms) throws IOException;
 
         /**
          * Possibly adjust a circuit breaker after field data has been loaded,
@@ -126,6 +116,6 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
          * @param termsEnum  terms that were loaded
          * @param actualUsed actual field data memory usage
          */
-        public void afterLoad(TermsEnum termsEnum, long actualUsed);
+        void afterLoad(TermsEnum termsEnum, long actualUsed);
     }
 }

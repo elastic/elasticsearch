@@ -19,6 +19,7 @@
 
 package org.elasticsearch.routing;
 
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -30,16 +31,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class AliasResolveRoutingIT extends ESIntegTestCase {
 
 
@@ -54,7 +52,7 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
             client().prepareIndex("test-0", "type1", "2").setSource("field1", "quick brown"),
             client().prepareIndex("test-0", "type1", "3").setSource("field1", "quick"));
         refresh("test-*");
-        assertHitCount(client().prepareSearch().setIndices("alias-*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(matchQuery("_all", "quick")).get(), 3L);
+        assertHitCount(client().prepareSearch().setIndices("alias-*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).setQuery(queryStringQuery("quick")).get(), 3L);
     }
 
     public void testResolveIndexRouting() throws Exception {
@@ -62,14 +60,15 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         createIndex("test2");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias10").routing("0")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias110").searchRouting("1,0")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias12").routing("2")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias20").routing("0")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias21").routing("1")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias0").routing("0")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias0").routing("0")).execute().actionGet();
+        client().admin().indices().prepareAliases()
+                .addAliasAction(AliasActions.add().index("test1").alias("alias"))
+                .addAliasAction(AliasActions.add().index("test1").alias("alias10").routing("0"))
+                .addAliasAction(AliasActions.add().index("test1").alias("alias110").searchRouting("1,0"))
+                .addAliasAction(AliasActions.add().index("test1").alias("alias12").routing("2"))
+                .addAliasAction(AliasActions.add().index("test2").alias("alias20").routing("0"))
+                .addAliasAction(AliasActions.add().index("test2").alias("alias21").routing("1"))
+                .addAliasAction(AliasActions.add().index("test1").alias("alias0").routing("0"))
+                .addAliasAction(AliasActions.add().index("test2").alias("alias0").routing("0")).get();
 
         assertThat(clusterService().state().metaData().resolveIndexRouting(null, null, "test1"), nullValue());
         assertThat(clusterService().state().metaData().resolveIndexRouting(null, null, "alias"), nullValue());
@@ -103,12 +102,13 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         createIndex("test2");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias10").routing("0")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias20").routing("0")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias21").routing("1")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test1", "alias0").routing("0")).execute().actionGet();
-        client().admin().indices().prepareAliases().addAliasAction(newAddAliasAction("test2", "alias0").routing("0")).execute().actionGet();
+        client().admin().indices().prepareAliases()
+                .addAliasAction(AliasActions.add().index("test1").alias("alias"))
+                .addAliasAction(AliasActions.add().index("test1").alias("alias10").routing("0"))
+                .addAliasAction(AliasActions.add().index("test2").alias("alias20").routing("0"))
+                .addAliasAction(AliasActions.add().index("test2").alias("alias21").routing("1"))
+                .addAliasAction(AliasActions.add().index("test1").alias("alias0").routing("0"))
+                .addAliasAction(AliasActions.add().index("test2").alias("alias0").routing("0")).get();
 
         ClusterState state = clusterService().state();
         IndexNameExpressionResolver indexNameExpressionResolver = internalCluster().getInstance(IndexNameExpressionResolver.class);

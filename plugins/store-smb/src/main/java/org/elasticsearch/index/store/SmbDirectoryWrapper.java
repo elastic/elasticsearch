@@ -59,8 +59,8 @@ public final class SmbDirectoryWrapper extends FilterDirectory {
          */
         static final int CHUNK_SIZE = 8192;
 
-        public SmbFSIndexOutput(String name) throws IOException {
-            super("SmbFSIndexOutput(path=\"" + fsDirectory.getDirectory().resolve(name) + "\")", new FilterOutputStream(Channels.newOutputStream(Files.newByteChannel(fsDirectory.getDirectory().resolve(name), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.READ, StandardOpenOption.WRITE))) {
+        SmbFSIndexOutput(String name) throws IOException {
+            super("SmbFSIndexOutput(path=\"" + fsDirectory.getDirectory().resolve(name) + "\")", name, new FilterOutputStream(Channels.newOutputStream(Files.newByteChannel(fsDirectory.getDirectory().resolve(name), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.READ, StandardOpenOption.WRITE))) {
                 // This implementation ensures, that we never write more than CHUNK_SIZE bytes:
                 @Override
                 public void write(byte[] b, int offset, int length) throws IOException {

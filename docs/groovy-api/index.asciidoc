@@ -1,6 +1,6 @@
 = Groovy API
-:ref:  http://www.elastic.co/guide/en/elasticsearch/reference/current
-:java: http://www.elastic.co/guide/en/elasticsearch/client/java-api/current
+
+include::../Versions.asciidoc[]
 
 [preface]
 == Preface
@@ -12,7 +12,7 @@ asynchronous in nature (they either accept a listener, or return a
 future).
 
 The Groovy API is a wrapper on top of the
-{java}[Java API] exposing it in a groovier
+{javaclient}[Java API] exposing it in a groovier
 manner. The execution options for each API follow a similar manner and
 covered in <<anatomy>>.
 
@@ -26,12 +26,12 @@ Central].
 
 For example, you can define the latest version in your `pom.xml` file:
 
-[source,xml]
+["source","xml",subs="attributes"]
 --------------------------------------------------
 <dependency>
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-groovy</artifactId>
-    <version>${es.version}</version>
+    <version>{version}</version>
 </dependency>
 --------------------------------------------------
 

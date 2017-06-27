@@ -32,9 +32,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- *
- */
 public class SearchPhaseExecutionException extends ElasticsearchException {
     private final String phaseName;
     private final ShardSearchFailure[] shardFailures;
@@ -69,7 +66,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         }
     }
 
-    private static final Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {
+    private static Throwable deduplicateCause(Throwable cause, ShardSearchFailure[] shardFailures) {
         if (shardFailures == null) {
             throw new IllegalArgumentException("shardSearchFailures must not be null");
         }
@@ -106,6 +103,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
         return shardFailures;
     }
 
+    @Override
     public Throwable getCause() {
         Throwable cause = super.getCause();
         if (cause == null) {
@@ -134,28 +132,34 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     }
 
     @Override
-    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("phase", phaseName);
         final boolean group = params.paramAsBoolean("group_shard_failures", true); // we group by default
         builder.field("grouped", group); // notify that it's grouped
         builder.field("failed_shards");
         builder.startArray();
-        ShardOperationFailedException[] failures = params.paramAsBoolean("group_shard_failures", true) ? ExceptionsHelper.groupBy(shardFailures) : shardFailures;
+        ShardOperationFailedException[] failures = params.paramAsBoolean("group_shard_failures", true) ?
+                ExceptionsHelper.groupBy(shardFailures) : shardFailures;
         for (ShardOperationFailedException failure : failures) {
             builder.startObject();
             failure.toXContent(builder, params);
             builder.endObject();
         }
         builder.endArray();
-        super.innerToXContent(builder, params);
     }
 
     @Override
-    protected void causeToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (super.getCause() != null) {
-            // if the cause is null we inject a guessed root cause that will then be rendered twice so wi disable it manually
-            super.causeToXContent(builder, params);
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Throwable ex = ExceptionsHelper.unwrapCause(this);
+        if (ex != this) {
+            generateThrowableXContent(builder, params, this);
+        } else {
+            // We don't have a cause when all shards failed, but we do have shards failures so we can "guess" a cause
+            // (see {@link #getCause()}). Here, we use super.getCause() because we don't want the guessed exception to
+            // be rendered twice (one in the "cause" field, one in "failed_shards")
+            innerToXContent(builder, params, this, getExceptionName(), getMessage(), getHeaders(), getMetadata(), super.getCause());
         }
+        return builder;
     }
 
     @Override

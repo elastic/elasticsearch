@@ -22,9 +22,12 @@ package org.elasticsearch.bootstrap;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.SecureSM;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.plugins.PluginInfo;
 import org.junit.Assert;
 
@@ -89,24 +92,15 @@ public class BootstrapForTesting {
             throw new RuntimeException("found jar hell in test classpath", e);
         }
 
+        // Log ifconfig output before SecurityManager is installed
+        IfConfig.logIfNecessary();
+
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
             try {
                 // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();
                 Security.addClasspathPermissions(perms);
-                // crazy jython
-                for (URL url : JarHell.parseClassPath()) {
-                    Path path = PathUtils.get(url.toURI());
-
-                    // crazy jython...
-                    String filename = path.getFileName().toString();
-                    if (filename.contains("jython") && filename.endsWith(".jar")) {
-                        // just enough so it won't fail when it does not exist
-                        perms.add(new FilePermission(path.getParent().toString(), "read,readlink"));
-                        perms.add(new FilePermission(path.getParent().resolve("Lib").toString(), "read,readlink"));
-                    }
-                }
                 // java.io.tmpdir
                 Security.addPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete");
                 // custom test config file
@@ -114,7 +108,9 @@ public class BootstrapForTesting {
                     perms.add(new FilePermission(System.getProperty("tests.config"), "read,readlink"));
                 }
                 // jacoco coverage output file
-                if (Boolean.getBoolean("tests.coverage")) {
+                final boolean testsCoverage =
+                        Booleans.parseBoolean(System.getProperty("tests.coverage", "false"));
+                if (testsCoverage) {
                     Path coverageDir = PathUtils.get(System.getProperty("tests.coverage.dir"));
                     perms.add(new FilePermission(coverageDir.resolve("jacoco.exec").toString(), "read,write"));
                     // in case we get fancy and use the -integration goals later:
@@ -122,7 +118,7 @@ public class BootstrapForTesting {
                 }
                 // intellij hack: intellij test runner wants setIO and will
                 // screw up all test logging without it!
-                if (System.getProperty("tests.maven") == null) {
+                if (System.getProperty("tests.gradle") == null) {
                     perms.add(new RuntimePermission("setIO"));
                 }
 
@@ -144,14 +140,14 @@ public class BootstrapForTesting {
                         return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
                     }
                 });
-                System.setSecurityManager(new SecureSM(true));
+                System.setSecurityManager(SecureSM.createTestSecureSM());
                 Security.selfTest();
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.
                 // this just makes unit testing more realistic
                 for (URL url : Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_PROPERTIES))) {
                     Properties properties = new Properties();
-                    try (InputStream stream = url.openStream()) {
+                    try (InputStream stream = FileSystemUtils.openFileURLStream(url)) {
                         properties.load(stream);
                     }
                     String clazz = properties.getProperty("classname");
@@ -166,7 +162,7 @@ public class BootstrapForTesting {
     }
 
     /**
-     * we dont know which codesources belong to which plugin, so just remove the permission from key codebases
+     * we don't know which codesources belong to which plugin, so just remove the permission from key codebases
      * like core, test-framework, etc. this way tests fail if accesscontroller blocks are missing.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
@@ -177,7 +173,7 @@ public class BootstrapForTesting {
         }
 
         // compute classpath minus obvious places, all other jars will get the permission.
-        Set<URL> codebases = new HashSet<>(Arrays.asList(parseClassPathWithSymlinks()));
+        Set<URL> codebases = new HashSet<>(parseClassPathWithSymlinks());
         Set<URL> excluded = new HashSet<>(Arrays.asList(
                 // es core
                 Bootstrap.class.getProtectionDomain().getCodeSource().getLocation(),
@@ -193,9 +189,9 @@ public class BootstrapForTesting {
         codebases.removeAll(excluded);
 
         // parse each policy file, with codebase substitution from the classpath
-        final List<Policy> policies = new ArrayList<>();
+        final List<Policy> policies = new ArrayList<>(pluginPolicies.size());
         for (URL policyFile : pluginPolicies) {
-            policies.add(Security.readPolicy(policyFile, codebases.toArray(new URL[codebases.size()])));
+            policies.add(Security.readPolicy(policyFile, codebases));
         }
 
         // consult each policy file for those codebases
@@ -222,10 +218,14 @@ public class BootstrapForTesting {
      * this is for matching the toRealPath() in the code where we have a proper plugin structure
      */
     @SuppressForbidden(reason = "does evil stuff with paths and urls because devs and jenkins do evil stuff with paths and urls")
-    static URL[] parseClassPathWithSymlinks() throws Exception {
-        URL raw[] = JarHell.parseClassPath();
-        for (int i = 0; i < raw.length; i++) {
-            raw[i] = PathUtils.get(raw[i].toURI()).toRealPath().toUri().toURL();
+    static Set<URL> parseClassPathWithSymlinks() throws Exception {
+        Set<URL> raw = JarHell.parseClassPath();
+        Set<URL> cooked = new HashSet<>(raw.size());
+        for (URL url : raw) {
+            boolean added = cooked.add(PathUtils.get(url.toURI()).toRealPath().toUri().toURL());
+            if (added == false) {
+                throw new IllegalStateException("Duplicate in classpath after resolving symlinks: " + url);
+            }
         }
         return raw;
     }

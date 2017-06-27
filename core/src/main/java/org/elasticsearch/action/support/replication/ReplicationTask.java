@@ -19,11 +19,12 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 
@@ -35,8 +36,8 @@ import static java.util.Objects.requireNonNull;
 public class ReplicationTask extends Task {
     private volatile String phase = "starting";
 
-    public ReplicationTask(long id, String type, String action, String description, String parentNode, long parentId) {
-        super(id, type, action, description, parentNode, parentId);
+    public ReplicationTask(long id, String type, String action, String description, TaskId parentTaskId) {
+        super(id, type, action, description, parentTaskId);
     }
 
     /**
@@ -59,7 +60,7 @@ public class ReplicationTask extends Task {
     }
 
     public static class Status implements Task.Status {
-        public static final Status PROTOTYPE = new Status("prototype");
+        public static final String NAME = "replication";
 
         private final String phase;
 
@@ -73,7 +74,7 @@ public class ReplicationTask extends Task {
 
         @Override
         public String getWriteableName() {
-            return "replication";
+            return NAME;
         }
 
         @Override
@@ -90,8 +91,23 @@ public class ReplicationTask extends Task {
         }
 
         @Override
-        public Status readFrom(StreamInput in) throws IOException {
-            return new Status(in);
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        // Implements equals and hashcode for testing
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null || obj.getClass() != ReplicationTask.Status.class) {
+                return false;
+            }
+            ReplicationTask.Status other = (Status) obj;
+            return phase.equals(other.phase);
+        }
+
+        @Override
+        public int hashCode() {
+            return phase.hashCode();
         }
     }
 }

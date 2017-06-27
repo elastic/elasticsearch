@@ -23,15 +23,17 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.index.memory.MemoryIndex;
+import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.termvectors.MultiTermVectorsItemResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.MoreLikeThisQuery;
@@ -39,23 +41,33 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLikeThisQueryBuilder> {
+
+    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[]{Item.Field.DOC.getPreferredName()};
 
     private static String[] randomFields;
     private static Item[] randomLikeItems;
@@ -85,11 +97,11 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
     private Item generateRandomItem() {
         String index = randomBoolean() ? getIndex().getName() : null;
-        String type = getRandomType();  // set to one type to avoid ambiguous types
+        String type = "doc";
         // indexed item or artificial document
         Item item;
         if (randomBoolean()) {
-            item = new Item(index, type, randomAsciiOfLength(10));
+            item = new Item(index, type, randomAlphaOfLength(10));
         } else {
             item = new Item(index, type, randomArtificialDoc());
         }
@@ -102,7 +114,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
             item.perFieldAnalyzer(randomPerFieldAnalyzer());
         }
         if (randomBoolean()) {
-            item.routing(randomAsciiOfLength(10));
+            item.routing(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             item.version(randomInt(5));
@@ -118,8 +130,9 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         try {
             doc = XContentFactory.jsonBuilder().startObject();
             for (String field : randomFields) {
-                doc.field(field, randomAsciiOfLength(10));
+                doc.field(field, randomAlphaOfLength(10));
             }
+            doc.endObject();
         } catch (IOException e) {
             throw new ElasticsearchException("Unable to generate random artificial doc!");
         }
@@ -196,6 +209,22 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         return queryBuilder;
     }
 
+    /**
+     * we don't want to shuffle the "doc" field internally in {@link #testFromXContent()} because even though the
+     * documents would be functionally the same, their {@link BytesReference} representation isn't and thats what we
+     * compare when check for equality of the original and the shuffled builder
+     */
+    @Override
+    protected String[] shuffleProtectedFields() {
+        return SHUFFLE_PROTECTED_FIELDS;
+    }
+
+    @Override
+    protected Set<String> getObjectsHoldingArbitraryContent() {
+        //doc contains arbitrary content, anything can be added to it and no exception will be thrown
+        return Collections.singleton(MoreLikeThisQueryBuilder.Item.Field.DOC.getPreferredName());
+    }
+
     @Override
     protected MultiTermVectorsResponse executeMultiTermVectors(MultiTermVectorsRequest mtvRequest) {
         try {
@@ -206,7 +235,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 response.setExists(true);
                 Fields generatedFields;
                 if (request.doc() != null) {
-                    generatedFields = generateFields(randomFields, request.doc().toUtf8());
+                    generatedFields = generateFields(randomFields, request.doc().utf8ToString());
                 } else {
                     generatedFields = generateFields(request.selectedFields().toArray(new String[request.selectedFields().size()]), request.id());
                 }
@@ -234,9 +263,16 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     @Override
-    protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.likeItems() != null && queryBuilder.likeItems().length > 0) {
             assertThat(query, instanceOf(BooleanQuery.class));
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+            for (BooleanClause booleanClause : booleanQuery) {
+                if (booleanClause.getQuery() instanceof MoreLikeThisQuery) {
+                    MoreLikeThisQuery moreLikeThisQuery = (MoreLikeThisQuery) booleanClause.getQuery();
+                    assertThat(moreLikeThisQuery.getLikeFields().length, greaterThan(0));
+                }
+            }
         } else {
             // we rely on integration tests for a deeper check here
             assertThat(query, instanceOf(MoreLikeThisQuery.class));
@@ -244,23 +280,16 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     public void testValidateEmptyFields() {
-        try {
-            new MoreLikeThisQueryBuilder(new String[0], new String[]{"likeText"}, null);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("requires 'fields' to be specified"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new MoreLikeThisQueryBuilder(new String[0], new String[]{"likeText"}, null));
+        assertThat(e.getMessage(), containsString("requires 'fields' to be specified"));
     }
 
     public void testValidateEmptyLike() {
         String[] likeTexts = randomBoolean() ? null : new String[0];
         Item[] likeItems = randomBoolean() ? null : new Item[0];
-        try {
-            new MoreLikeThisQueryBuilder(likeTexts, likeItems);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("requires either 'like' texts or items to be specified"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new MoreLikeThisQueryBuilder(likeTexts, likeItems));
+        assertThat(e.getMessage(), containsString("requires either 'like' texts or items to be specified"));
     }
 
     public void testUnsupportedFields() throws IOException {
@@ -268,16 +297,12 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         String unsupportedField = randomFrom(INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
         MoreLikeThisQueryBuilder queryBuilder = new MoreLikeThisQueryBuilder(new String[] {unsupportedField}, new String[]{"some text"}, null)
                 .failOnUnsupportedField(true);
-        try {
-            queryBuilder.toQuery(createShardContext());
-            fail("should have failed with IllegalArgumentException for field: " + unsupportedField);
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("more_like_this doesn't support binary/numeric fields"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> queryBuilder.toQuery(createShardContext()));
+        assertThat(e.getMessage(), containsString("more_like_this only supports text/keyword fields"));
     }
 
     public void testMoreLikeThisBuilder() throws Exception {
-        Query parsedQuery = parseQuery(moreLikeThisQuery(new String[]{"name.first", "name.last"}, new String[]{"something"}, null).minTermFreq(1).maxQueryTerms(12).buildAsBytes()).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(moreLikeThisQuery(new String[]{"name.first", "name.last"}, new String[]{"something"}, null).minTermFreq(1).maxQueryTerms(12)).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
         MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
         assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
@@ -290,44 +315,75 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         Item expectedItem = generateRandomItem();
         BytesStreamOutput output = new BytesStreamOutput();
         expectedItem.writeTo(output);
-        Item newItem = Item.readItemFrom(StreamInput.wrap(output.bytes()));
+        Item newItem = new Item(output.bytes().streamInput());
+        assertEquals(expectedItem, newItem);
+    }
+
+    public void testItemCopy() throws IOException {
+        Item expectedItem = generateRandomItem();
+        Item newItem = new Item(expectedItem);
         assertEquals(expectedItem, newItem);
     }
 
     public void testItemFromXContent() throws IOException {
         Item expectedItem = generateRandomItem();
         String json = expectedItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).string();
-        XContentParser parser = XContentFactory.xContent(json).createParser(json);
-        Item newItem = Item.parse(parser, ParseFieldMatcher.STRICT, new Item());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+        Item newItem = Item.parse(parser, new Item());
         assertEquals(expectedItem, newItem);
+    }
+
+    public void testItemSerializationBwc() throws IOException {
+        final byte[] data = Base64.getDecoder().decode("AQVpbmRleAEEdHlwZQEODXsiZm9vIjoiYmFyIn0A/wD//////////QAAAAAAAAAA");
+        final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
+            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
+        try (StreamInput in = StreamInput.wrap(data)) {
+            in.setVersion(version);
+            Item item = new Item(in);
+            assertEquals(XContentType.JSON, item.xContentType());
+            assertEquals("{\"foo\":\"bar\"}", item.doc().utf8ToString());
+            assertEquals("index", item.index());
+            assertEquals("type", item.type());
+
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                item.writeTo(out);
+                assertArrayEquals(data, out.bytes().toBytesRef().bytes);
+            }
+        }
+    }
+
+    @Override
+    protected boolean isCachable(MoreLikeThisQueryBuilder queryBuilder) {
+        return queryBuilder.likeItems().length == 0; // items are always fetched
     }
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"mlt\" : {\n" + 
-                "    \"fields\" : [ \"title\", \"description\" ],\n" + 
-                "    \"like\" : [ \"and potentially some more text here as well\", {\n" + 
-                "      \"_index\" : \"imdb\",\n" + 
-                "      \"_type\" : \"movies\",\n" + 
-                "      \"_id\" : \"1\"\n" + 
-                "    }, {\n" + 
-                "      \"_index\" : \"imdb\",\n" + 
-                "      \"_type\" : \"movies\",\n" + 
-                "      \"_id\" : \"2\"\n" + 
-                "    } ],\n" + 
-                "    \"max_query_terms\" : 12,\n" + 
-                "    \"min_term_freq\" : 1,\n" + 
-                "    \"min_doc_freq\" : 5,\n" + 
-                "    \"max_doc_freq\" : 2147483647,\n" + 
-                "    \"min_word_length\" : 0,\n" + 
-                "    \"max_word_length\" : 0,\n" + 
-                "    \"minimum_should_match\" : \"30%\",\n" + 
-                "    \"boost_terms\" : 0.0,\n" + 
-                "    \"include\" : false,\n" + 
-                "    \"fail_on_unsupported_field\" : true,\n" + 
-                "    \"boost\" : 1.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"more_like_this\" : {\n" +
+                "    \"fields\" : [ \"title\", \"description\" ],\n" +
+                "    \"like\" : [ \"and potentially some more text here as well\", {\n" +
+                "      \"_index\" : \"imdb\",\n" +
+                "      \"_type\" : \"movies\",\n" +
+                "      \"_id\" : \"1\"\n" +
+                "    }, {\n" +
+                "      \"_index\" : \"imdb\",\n" +
+                "      \"_type\" : \"movies\",\n" +
+                "      \"_id\" : \"2\"\n" +
+                "    } ],\n" +
+                "    \"max_query_terms\" : 12,\n" +
+                "    \"min_term_freq\" : 1,\n" +
+                "    \"min_doc_freq\" : 5,\n" +
+                "    \"max_doc_freq\" : 2147483647,\n" +
+                "    \"min_word_length\" : 0,\n" +
+                "    \"max_word_length\" : 0,\n" +
+                "    \"minimum_should_match\" : \"30%\",\n" +
+                "    \"boost_terms\" : 0.0,\n" +
+                "    \"include\" : false,\n" +
+                "    \"fail_on_unsupported_field\" : true,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
                 "}";
 
         MoreLikeThisQueryBuilder parsed = (MoreLikeThisQueryBuilder) parseQuery(json);

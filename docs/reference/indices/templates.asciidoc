@@ -2,38 +2,58 @@
 == Index Templates
 
 Index templates allow you to define templates that will automatically be
-applied to new indices created. The templates include both settings and
-mappings, and a simple pattern template that controls if the template
-will be applied to the index created. For example:
+applied when new indices are created. The templates include both settings and
+mappings, and a list of patterns that control whether the template should be
+applied to the new index.
+
+NOTE: Templates are only applied at index creation time.  Changing a template
+will have no impact on existing indices.
+
+For example:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_template/template_1 -d '
+PUT _template/template_1
 {
-    "template" : "te*",
-    "settings" : {
-        "number_of_shards" : 1
-    },
-    "mappings" : {
-        "type1" : {
-            "_source" : { "enabled" : false }
+  "index_patterns": ["te*", "bar*"],
+  "settings": {
+    "number_of_shards": 1
+  },
+  "mappings": {
+    "type1": {
+      "_source": {
+        "enabled": false
+      },
+      "properties": {
+        "host_name": {
+          "type": "keyword"
+        },
+        "created_at": {
+          "type": "date",
+          "format": "EEE MMM dd HH:mm:ss Z YYYY"
         }
+      }
     }
+  }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TESTSETUP
 
-Defines a template named template_1, with a template pattern of `te*`.
+NOTE: Index templates provide C-style /* */ block comments. Comments are allowed
+everywhere in the JSON document except before the initial opening curly bracket. 
+
+Defines a template named `template_1`, with a template pattern of `te*`.
 The settings and mappings will be applied to any index name that matches
-the `te*` template.
+the `te*` pattern.
 
 It is also possible to include aliases in an index template as follows:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_template/template_1 -d '
+PUT _template/template_1
 {
-    "template" : "te*",
+    "index_patterns" : ["te*"],
     "settings" : {
         "number_of_shards" : 1
     },
@@ -48,11 +68,12 @@ curl -XPUT localhost:9200/_template/template_1 -d '
         "{index}-alias" : {} <1>
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/DELETE _template\/template_1\n/]
 
-<1> the `{index}` placeholder within the alias name will be replaced with the
-actual index name that the template gets applied to during index creation.
+<1> the `{index}` placeholder in the alias name will be replaced with the
+actual index name that the template gets applied to, during index creation.
 
 [float]
 [[delete]]
@@ -63,8 +84,9 @@ Index templates are identified by a name (in the above case
 
 [source,js]
 --------------------------------------------------
-curl -XDELETE localhost:9200/_template/template_1
+DELETE /_template/template_1
 --------------------------------------------------
+// CONSOLE
 
 [float]
 [[getting]]
@@ -75,43 +97,46 @@ Index templates are identified by a name (in the above case
 
 [source,js]
 --------------------------------------------------
-curl -XGET localhost:9200/_template/template_1
+GET /_template/template_1
 --------------------------------------------------
+// CONSOLE
 
 You can also match several templates by using wildcards like:
 
 [source,js]
 --------------------------------------------------
-curl -XGET localhost:9200/_template/temp*
-curl -XGET localhost:9200/_template/template_1,template_2
+GET /_template/temp*
+GET /_template/template_1,template_2
 --------------------------------------------------
+// CONSOLE
 
 To get list of all index templates you can run:
 
 [source,js]
 --------------------------------------------------
-curl -XGET localhost:9200/_template/
+GET /_template
 --------------------------------------------------
-
+// CONSOLE
 
 [float]
 [[indices-templates-exists]]
-=== Templates exists
+=== Template exists
 
 Used to check if the template exists or not. For example:
 
 [source,js]
 -----------------------------------------------
-curl -XHEAD -i localhost:9200/_template/template_1
+HEAD _template/template_1
 -----------------------------------------------
+// CONSOLE
 
 The HTTP status code indicates if the template with the given name
-exists or not. A status code `200` means it exists, a `404` it does not.
-
+exists or not. Status code `200` means it exists and `404` means
+it does not.
 
 [float]
 [[multiple-templates]]
-=== Multiple Template Matching
+=== Multiple Templates Matching
 
 Multiple index templates can potentially match an index, in this case,
 both the settings and mappings are merged into the final configuration
@@ -121,9 +146,9 @@ orders overriding them. For example:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT localhost:9200/_template/template_1 -d '
+PUT /_template/template_1
 {
-    "template" : "*",
+    "index_patterns" : ["*"],
     "order" : 0,
     "settings" : {
         "number_of_shards" : 1
@@ -134,11 +159,10 @@ curl -XPUT localhost:9200/_template/template_1 -d '
         }
     }
 }
-'
 
-curl -XPUT localhost:9200/_template/template_2 -d '
+PUT /_template/template_2
 {
-    "template" : "te*",
+    "index_patterns" : ["te*"],
     "order" : 1,
     "settings" : {
         "number_of_shards" : 1
@@ -149,11 +173,59 @@ curl -XPUT localhost:9200/_template/template_2 -d '
         }
     }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[s/^/DELETE _template\/template_1\n/]
 
 The above will disable storing the `_source` on all `type1` types, but
-for indices of that start with `te*`, source will still be enabled.
+for indices that start with `te*`, `_source` will still be enabled.
 Note, for mappings, the merging is "deep", meaning that specific
 object/property based mappings can easily be added/overridden on higher
 order templates, with lower order templates providing the basis.
+
+[float]
+[[versioning-templates]]
+=== Template Versioning
+
+Templates can optionally add a `version` number, which can be any integer value,
+in order to simplify template management by external systems. The `version`
+field is completely optional and it is meant solely for external management of
+templates. To unset a `version`, simply replace the template without specifying
+one.
+
+[source,js]
+--------------------------------------------------
+PUT /_template/template_1
+{
+    "index_patterns" : ["*"],
+    "order" : 0,
+    "settings" : {
+        "number_of_shards" : 1
+    },
+    "version": 123
+}
+--------------------------------------------------
+// CONSOLE
+
+To check the `version`, you can
+<<common-options-response-filtering, filter responses>>
+using `filter_path` to limit the response to just the `version`:
+
+[source,js]
+--------------------------------------------------
+GET /_template/template_1?filter_path=*.version
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+This should give a small response that makes it both easy and inexpensive to parse:
+
+[source,js]
+--------------------------------------------------
+{
+  "template_1" : {
+    "version" : 123
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

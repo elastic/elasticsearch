@@ -26,83 +26,94 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.uid.Versions.DocIdAndVersion;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
+import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
-/** 
- * test per-segment lookup of version-related datastructures
+/**
+ * test per-segment lookup of version-related data structures
  */
 public class VersionLookupTests extends ESTestCase {
 
-    /** 
+    /**
      * test version lookup actually works
      */
     public void testSimple() throws Exception {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                // to have deleted docs
+                .setMergePolicy(NoMergePolicy.INSTANCE));
         Document doc = new Document();
-        doc.add(new Field(UidFieldMapper.NAME, "6", UidFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         writer.addDocument(doc);
-        DirectoryReader reader = DirectoryReader.open(writer, false);
+        writer.addDocument(new Document());
+        DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
-        PerThreadIDAndVersionLookup lookup = new PerThreadIDAndVersionLookup(segment.reader());
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
         // found doc
-        DocIdAndVersion result = lookup.lookup(new BytesRef("6"), null, segment);
+        DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), segment);
         assertNotNull(result);
         assertEquals(87, result.version);
         assertEquals(0, result.docId);
         // not found doc
-        assertNull(lookup.lookup(new BytesRef("7"), null, segment));
+        assertNull(lookup.lookupVersion(new BytesRef("7"), segment));
         // deleted doc
-        assertNull(lookup.lookup(new BytesRef("6"), new Bits.MatchNoBits(1), segment));
+        writer.deleteDocuments(new Term(IdFieldMapper.NAME, "6"));
+        reader.close();
+        reader = DirectoryReader.open(writer);
+        segment = reader.leaves().get(0);
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
+        assertNull(lookup.lookupVersion(new BytesRef("6"), segment));
         reader.close();
         writer.close();
         dir.close();
     }
-    
-    /** 
+
+    /**
      * test version lookup with two documents matching the ID
      */
     public void testTwoDocuments() throws Exception {
         Directory dir = newDirectory();
-        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+        IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                .setMergePolicy(NoMergePolicy.INSTANCE));
         Document doc = new Document();
-        doc.add(new Field(UidFieldMapper.NAME, "6", UidFieldMapper.Defaults.FIELD_TYPE));
+        doc.add(new Field(IdFieldMapper.NAME, "6", IdFieldMapper.Defaults.FIELD_TYPE));
         doc.add(new NumericDocValuesField(VersionFieldMapper.NAME, 87));
         writer.addDocument(doc);
         writer.addDocument(doc);
-        DirectoryReader reader = DirectoryReader.open(writer, false);
+        writer.addDocument(new Document());
+        DirectoryReader reader = DirectoryReader.open(writer);
         LeafReaderContext segment = reader.leaves().get(0);
-        PerThreadIDAndVersionLookup lookup = new PerThreadIDAndVersionLookup(segment.reader());
+        PerThreadIDVersionAndSeqNoLookup lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
         // return the last doc when there are duplicates
-        DocIdAndVersion result = lookup.lookup(new BytesRef("6"), null, segment);
+        DocIdAndVersion result = lookup.lookupVersion(new BytesRef("6"), segment);
         assertNotNull(result);
         assertEquals(87, result.version);
         assertEquals(1, result.docId);
         // delete the first doc only
-        FixedBitSet live = new FixedBitSet(2);
-        live.set(1);
-        result = lookup.lookup(new BytesRef("6"), live, segment);
+        assertTrue(writer.tryDeleteDocument(reader, 0) >= 0);
+        reader.close();
+        reader = DirectoryReader.open(writer);
+        segment = reader.leaves().get(0);
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
+        result = lookup.lookupVersion(new BytesRef("6"), segment);
         assertNotNull(result);
         assertEquals(87, result.version);
         assertEquals(1, result.docId);
-        // delete the second doc only
-        live.clear(1);
-        live.set(0);
-        result = lookup.lookup(new BytesRef("6"), live, segment);
-        assertNotNull(result);
-        assertEquals(87, result.version);
-        assertEquals(0, result.docId);
         // delete both docs
-        assertNull(lookup.lookup(new BytesRef("6"), new Bits.MatchNoBits(2), segment));
+        assertTrue(writer.tryDeleteDocument(reader, 1) >= 0);
+        reader.close();
+        reader = DirectoryReader.open(writer);
+        segment = reader.leaves().get(0);
+        lookup = new PerThreadIDVersionAndSeqNoLookup(segment.reader(), IdFieldMapper.NAME);
+        assertNull(lookup.lookupVersion(new BytesRef("6"), segment));
         reader.close();
         writer.close();
         dir.close();

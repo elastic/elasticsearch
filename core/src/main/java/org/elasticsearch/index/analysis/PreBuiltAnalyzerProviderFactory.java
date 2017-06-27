@@ -29,10 +29,7 @@ import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class PreBuiltAnalyzerProviderFactory implements AnalysisModule.AnalysisProvider<AnalyzerProvider> {
+public class PreBuiltAnalyzerProviderFactory implements AnalysisModule.AnalysisProvider<AnalyzerProvider<?>> {
 
     private final PreBuiltAnalyzerProvider analyzerProvider;
 
@@ -40,7 +37,7 @@ public class PreBuiltAnalyzerProviderFactory implements AnalysisModule.AnalysisP
         analyzerProvider = new PreBuiltAnalyzerProvider(name, scope, analyzer);
     }
 
-    public AnalyzerProvider create(String name, Settings settings) {
+    public AnalyzerProvider<?> create(String name, Settings settings) {
         Version indexVersion = Version.indexCreated(settings);
         if (!Version.CURRENT.equals(indexVersion)) {
             PreBuiltAnalyzers preBuiltAnalyzers = PreBuiltAnalyzers.getOrDefault(name, null);
@@ -54,7 +51,8 @@ public class PreBuiltAnalyzerProviderFactory implements AnalysisModule.AnalysisP
     }
 
     @Override
-    public AnalyzerProvider get(IndexSettings indexSettings, Environment environment, String name, Settings settings) throws IOException {
+    public AnalyzerProvider<?> get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
+            throws IOException {
         return create(name, settings);
     }
 

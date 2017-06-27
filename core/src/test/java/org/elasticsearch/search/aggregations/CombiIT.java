@@ -30,7 +30,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
-import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -41,9 +41,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 public class CombiIT extends ESIntegTestCase {
 
     /**
@@ -98,7 +95,7 @@ public class CombiIT extends ESIntegTestCase {
 
         Terms terms = aggs.get("values");
         assertNotNull(terms);
-        Collection<Terms.Bucket> buckets = terms.getBuckets();
+        List<? extends Terms.Bucket> buckets = terms.getBuckets();
         assertThat(buckets.size(), equalTo(values.size()));
         for (Terms.Bucket bucket : buckets) {
             values.remove(((Number) bucket.getKey()).intValue());
@@ -117,7 +114,7 @@ public class CombiIT extends ESIntegTestCase {
         prepareCreate("idx").addMapping("type", jsonBuilder()
                 .startObject()
                 .startObject("type").startObject("properties")
-                    .startObject("name").field("type", "text").endObject()
+                    .startObject("name").field("type", "keyword").endObject()
                     .startObject("value").field("type", "integer").endObject()
                 .endObject().endObject()
                 .endObject()).execute().actionGet();

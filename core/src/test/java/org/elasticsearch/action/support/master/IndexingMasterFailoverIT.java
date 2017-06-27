@@ -19,15 +19,19 @@ package org.elasticsearch.action.support.master;
  * under the License.
  */
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.discovery.zen.fd.FaultDetection;
+import org.elasticsearch.discovery.zen.ElectMasterService;
+import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
-import org.elasticsearch.test.disruption.NetworkPartition;
+import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.test.disruption.NetworkDisruption;
+import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
+import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
 import java.util.Arrays;
@@ -40,8 +44,7 @@ import java.util.concurrent.CyclicBarrier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 public class IndexingMasterFailoverIT extends ESIntegTestCase {
 
     @Override
@@ -51,11 +54,18 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
         return classes;
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false).build();
+    }
+
     /**
      * Indexing operations which entail mapping changes require a blocking request to the master node to update the mapping.
      * If the master node is being disrupted or if it cannot commit cluster state changes, it needs to retry within timeout limits.
      * This retry logic is implemented in TransportMasterNodeAction and tested by the following master failover scenario.
      */
+    @TestLogging("_root:DEBUG")
     public void testMasterFailoverDuringIndexingWithMappingChanges() throws Throwable {
         logger.info("--> start 4 nodes, 3 master, 1 data");
 
@@ -67,7 +77,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
                 .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
                 .build();
 
-        internalCluster().startMasterOnlyNodesAsync(3, sharedSettings).get();
+        internalCluster().startMasterOnlyNodes(3, sharedSettings);
 
         String dataNode = internalCluster().startDataOnlyNode(sharedSettings);
 
@@ -97,7 +107,7 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
                 for (int i = 0; i < 10; i++) {
                     // index data with mapping changes
                     IndexResponse response = client(dataNode).prepareIndex("myindex", "mytype").setSource("field_" + i, "val").get();
-                    assertThat(response.isCreated(), equalTo(true));
+                    assertEquals(DocWriteResponse.Result.CREATED, response.getResult());
                 }
             }
         });
@@ -111,7 +121,9 @@ public class IndexingMasterFailoverIT extends ESIntegTestCase {
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         otherNodes.remove(master);
 
-        NetworkPartition partition = new NetworkDisconnectPartition(Collections.singleton(master), otherNodes, random());
+        NetworkDisruption partition = new NetworkDisruption(
+            new TwoPartitions(Collections.singleton(master), otherNodes),
+            new NetworkDisconnect());
         internalCluster().setDisruptionScheme(partition);
 
         logger.info("--> disrupting network");

@@ -5,32 +5,9 @@ The Phonetic Analysis plugin provides token filters which convert tokens to
 their phonetic representation using Soundex, Metaphone, and a variety of other
 algorithms.
 
-[[analysis-phonetic-install]]
-[float]
-==== Installation
+:plugin_name: analysis-phonetic
+include::install_remove.asciidoc[]
 
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install analysis-phonetic
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-[[analysis-phonetic-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove analysis-phonetic
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
 
 [[analysis-phonetic-token-filter]]
 ==== `phonetic` token filter
@@ -50,7 +27,7 @@ The `phonetic` token filter takes the following settings:
     token. Accepts `true` (default) and `false`.  Not supported by
     `beidermorse` encoding.
 
-[source,json]
+[source,js]
 --------------------------------------------------
 PUT phonetic_sample
 {
@@ -79,9 +56,13 @@ PUT phonetic_sample
   }
 }
 
-POST phonetic_sample/_analyze?analyzer=my_analyzer&text=Joe Bloggs <1>
+GET phonetic_sample/_analyze
+{
+  "analyzer": "my_analyzer",
+  "text": "Joe Bloggs" <1>
+}
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Returns: `J`, `joe`, `BLKS`, `bloggs`
 
@@ -116,5 +97,3 @@ supported:
     be guessed. Accepts: `any`, `comomon`, `cyrillic`, `english`, `french`,
     `german`, `hebrew`, `hungarian`, `polish`, `romanian`, `russian`,
     `spanish`.
-
-

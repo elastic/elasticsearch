@@ -19,14 +19,13 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.shape.Point;
-import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.Coordinate;
 
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.locationtech.spatial4j.shape.Point;
+import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,14 +36,19 @@ public class MultiPointBuilder extends CoordinateCollection<MultiPointBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOINT;
 
-    public static final MultiPointBuilder PROTOTYPE = new MultiPointBuilder(new CoordinatesBuilder().coordinate(0.0, 0.0).build());
-
     /**
      * Create a new {@link MultiPointBuilder}.
      * @param coordinates needs at least two coordinates to be valid, otherwise will throw an exception
      */
     public MultiPointBuilder(List<Coordinate> coordinates) {
         super(coordinates);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MultiPointBuilder(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override
@@ -90,25 +94,5 @@ public class MultiPointBuilder extends CoordinateCollection<MultiPointBuilder> {
         }
         MultiPointBuilder other = (MultiPointBuilder) obj;
         return Objects.equals(coordinates, other.coordinates);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(coordinates.size());
-        for (Coordinate point : coordinates) {
-            writeCoordinateTo(point, out);
-        }
-    }
-
-    @Override
-    public MultiPointBuilder readFrom(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        List<Coordinate> points = new ArrayList<Coordinate>(size);
-        for (int i=0; i < size; i++) {
-            points.add(readCoordinateFrom(in));
-        }
-        MultiPointBuilder multiPointBuilder = new MultiPointBuilder(points);
-
-        return multiPointBuilder;
     }
 }

@@ -37,8 +37,8 @@ public class SortOrderTests extends ESTestCase {
         for (SortOrder unit : SortOrder.values()) {
           try (BytesStreamOutput out = new BytesStreamOutput()) {
               unit.writeTo(out);
-              try (StreamInput in = StreamInput.wrap(out.bytes())) {
-                  assertThat("Roundtrip serialisation failed.", SortOrder.readOrderFrom(in), equalTo(unit));
+              try (StreamInput in = out.bytes().streamInput()) {
+                  assertThat("Roundtrip serialisation failed.", SortOrder.readFromStream(in), equalTo(unit));
               }
           }
         }

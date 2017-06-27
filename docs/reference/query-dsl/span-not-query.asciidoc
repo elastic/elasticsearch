@@ -6,24 +6,28 @@ query maps to Lucene `SpanNotQuery`. Here is an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "span_not" : {
-        "include" : {
-            "span_term" : { "field1" : "hoya" }
-        },
-        "exclude" : {
-            "span_near" : { 
-                "clauses" : [
-                    { "span_term" : { "field1" : "la" } },
-                    { "span_term" : { "field1" : "hoya" } }
-                ],
-                "slop" : 0,
-                "in_order" : true
+    "query": {
+        "span_not" : {
+            "include" : {
+                "span_term" : { "field1" : "hoya" }
+            },
+            "exclude" : {
+                "span_near" : { 
+                    "clauses" : [
+                        { "span_term" : { "field1" : "la" } },
+                        { "span_term" : { "field1" : "hoya" } }
+                    ],
+                    "slop" : 0,
+                    "in_order" : true
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The `include` and `exclude` clauses can be any span type query. The
 `include` clause is the span query whose matches are filtered, and the

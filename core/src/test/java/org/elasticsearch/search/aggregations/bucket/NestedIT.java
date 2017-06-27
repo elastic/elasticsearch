@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
@@ -44,6 +47,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.nestedQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -62,15 +66,12 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class NestedIT extends ESIntegTestCase {
 
-    static int numParents;
-    static int[] numChildren;
-    static SubAggCollectionMode aggCollectionMode;
+    private static int numParents;
+    private static int[] numChildren;
+    private static SubAggCollectionMode aggCollectionMode;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -84,7 +85,7 @@ public class NestedIT extends ESIntegTestCase {
         numParents = randomIntBetween(3, 10);
         numChildren = new int[numParents];
         aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-        logger.info("AGG COLLECTION MODE: " + aggCollectionMode);
+        logger.info("AGG COLLECTION MODE: {}", aggCollectionMode);
         int totalChildren = 0;
         for (int i = 0; i < numParents; ++i) {
             if (i == numParents - 1 && totalChildren == 0) {
@@ -245,7 +246,7 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(nested, notNullValue());
         assertThat(nested.getName(), equalTo("nested"));
         assertThat(nested.getDocCount(), equalTo(docCount));
-        assertThat((long) nested.getProperty("_count"), equalTo(docCount));
+        assertThat(((InternalAggregation)nested).getProperty("_count"), equalTo(docCount));
         assertThat(nested.getAggregations().asList().isEmpty(), is(false));
 
         LongTerms values = nested.getAggregations().get("values");
@@ -263,7 +264,7 @@ public class NestedIT extends ESIntegTestCase {
                 assertEquals(counts[i], bucket.getDocCount());
             }
         }
-        assertThat((LongTerms) nested.getProperty("values"), sameInstance(values));
+        assertThat(((InternalAggregation)nested).getProperty("values"), sameInstance(values));
     }
 
     public void testNestedAsSubAggregation() throws Exception {
@@ -297,7 +298,7 @@ public class NestedIT extends ESIntegTestCase {
     public void testNestNestedAggs() throws Exception {
         SearchResponse response = client().prepareSearch("idx_nested_nested_aggs")
                 .addAggregation(nested("level1", "nested1")
-                        .subAggregation(terms("a").field("nested1.a")
+                        .subAggregation(terms("a").field("nested1.a.keyword")
                                 .collectMode(aggCollectionMode)
                         .subAggregation(nested("level2", "nested1.nested2")
                                         .subAggregation(sum("sum").field("nested1.nested2.b")))))
@@ -360,7 +361,7 @@ public class NestedIT extends ESIntegTestCase {
         }
     }
 
-    // Test based on: https://github.com/elasticsearch/elasticsearch/issues/9280
+    // Test based on: https://github.com/elastic/elasticsearch/issues/9280
     public void testParentFilterResolvedCorrectly() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("provider").startObject("properties")
                     .startObject("comments")
@@ -398,8 +399,8 @@ public class NestedIT extends ESIntegTestCase {
         ensureGreen("idx2");
 
         List<IndexRequestBuilder> indexRequests = new ArrayList<>(2);
-        indexRequests.add(client().prepareIndex("idx2", "provider", "1").setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, \"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}"));
-        indexRequests.add(client().prepareIndex("idx2", "provider", "2").setSource("{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, \"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": [{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}"));
+        indexRequests.add(client().prepareIndex("idx2", "provider", "1").setSource("{\"dates\": {\"month\": {\"label\": \"2014-11\", \"end\": \"2014-11-30\", \"start\": \"2014-11-01\"}, \"day\": \"2014-11-30\"}, \"comments\": [{\"cid\": 3,\"identifier\": \"29111\"}, {\"cid\": 4,\"tags\": [{\"tid\" :44,\"name\": \"Roles\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
+        indexRequests.add(client().prepareIndex("idx2", "provider", "2").setSource("{\"dates\": {\"month\": {\"label\": \"2014-12\", \"end\": \"2014-12-31\", \"start\": \"2014-12-01\"}, \"day\": \"2014-12-03\"}, \"comments\": [{\"cid\": 1, \"identifier\": \"29111\"}, {\"cid\": 2,\"tags\": [{\"tid\" : 22, \"name\": \"DataChannels\"}], \"identifier\": \"29101\"}]}", XContentType.JSON));
         indexRandom(true, indexRequests);
 
         SearchResponse response = client().prepareSearch("idx2").setTypes("provider")
@@ -463,13 +464,13 @@ public class NestedIT extends ESIntegTestCase {
         assertAcked(
                 prepareCreate("idx4")
                         .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                        .addMapping("product", "categories", "type=text", "name", "type=text", "property", "type=nested")
+                        .addMapping("product", "categories", "type=keyword", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idx4");
 
         client().prepareIndex("idx4", "product", "1").setSource(jsonBuilder().startObject()
                     .field("name", "product1")
-                    .field("categories", "1", "2", "3", "4")
+                    .array("categories", "1", "2", "3", "4")
                     .startArray("property")
                         .startObject().field("id", 1).endObject()
                         .startObject().field("id", 2).endObject()
@@ -478,7 +479,7 @@ public class NestedIT extends ESIntegTestCase {
                 .endObject()).get();
         client().prepareIndex("idx4", "product", "2").setSource(jsonBuilder().startObject()
                 .field("name", "product2")
-                .field("categories", "1", "2")
+                .array("categories", "1", "2")
                 .startArray("property")
                 .startObject().field("id", 1).endObject()
                 .startObject().field("id", 5).endObject()
@@ -543,5 +544,127 @@ public class NestedIT extends ESIntegTestCase {
         assertThat(propertyId.getBucketByKey("1").getDocCount(), equalTo(1L));
         assertThat(propertyId.getBucketByKey("2").getDocCount(), equalTo(1L));
         assertThat(propertyId.getBucketByKey("3").getDocCount(), equalTo(1L));
+    }
+
+    public void testFilterAggInsideNestedAgg() throws Exception {
+        assertAcked(prepareCreate("classes")
+                .addMapping("class", jsonBuilder().startObject().startObject("class").startObject("properties")
+                        .startObject("name").field("type", "text").endObject()
+                        .startObject("methods")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("name").field("type", "text").endObject()
+                                .startObject("return_type").field("type", "keyword").endObject()
+                                .startObject("parameters")
+                                    .field("type", "nested")
+                                    .startObject("properties")
+                                        .startObject("name").field("type", "text").endObject()
+                                        .startObject("type").field("type", "keyword").endObject()
+                                    .endObject()
+                                .endObject()
+                            .endObject()
+                        .endObject().endObject().endObject().endObject()));
+
+        client().prepareIndex("classes", "class", "1").setSource(jsonBuilder().startObject()
+                    .field("name", "QueryBuilder")
+                    .startArray("methods")
+                        .startObject()
+                            .field("name", "toQuery")
+                            .field("return_type", "Query")
+                            .startArray("parameters")
+                                .startObject()
+                                    .field("name", "context")
+                                    .field("type", "QueryShardContext")
+                                .endObject()
+                            .endArray()
+                        .endObject()
+                        .startObject()
+                            .field("name", "queryName")
+                            .field("return_type", "QueryBuilder")
+                            .startArray("parameters")
+                                .startObject()
+                                    .field("name", "queryName")
+                                    .field("type", "String")
+                                .endObject()
+                            .endArray()
+                        .endObject()
+                        .startObject()
+                            .field("name", "boost")
+                            .field("return_type", "QueryBuilder")
+                            .startArray("parameters")
+                                .startObject()
+                                    .field("name", "boost")
+                                    .field("type", "float")
+                                .endObject()
+                            .endArray()
+                        .endObject()
+                    .endArray()
+                .endObject()).get();
+        client().prepareIndex("classes", "class", "2").setSource(jsonBuilder().startObject()
+                    .field("name", "Document")
+                    .startArray("methods")
+                        .startObject()
+                            .field("name", "add")
+                            .field("return_type", "void")
+                            .startArray("parameters")
+                                .startObject()
+                                    .field("name", "field")
+                                    .field("type", "IndexableField")
+                                .endObject()
+                            .endArray()
+                        .endObject()
+                        .startObject()
+                            .field("name", "removeField")
+                            .field("return_type", "void")
+                            .startArray("parameters")
+                                .startObject()
+                                    .field("name", "name")
+                                    .field("type", "String")
+                                .endObject()
+                            .endArray()
+                        .endObject()
+                        .startObject()
+                            .field("name", "removeFields")
+                            .field("return_type", "void")
+                            .startArray("parameters")
+                                .startObject()
+                                    .field("name", "name")
+                                    .field("type", "String")
+                                .endObject()
+                            .endArray()
+                        .endObject()
+                    .endArray()
+                .endObject()).get();
+        refresh();
+
+        SearchResponse response = client().prepareSearch("classes").addAggregation(nested("to_method", "methods")
+                .subAggregation(filter("num_string_params",
+                        nestedQuery("methods.parameters", termQuery("methods.parameters.type", "String"), ScoreMode.None)))
+        ).get();
+        Nested toMethods = response.getAggregations().get("to_method");
+        Filter numStringParams = toMethods.getAggregations().get("num_string_params");
+        assertThat(numStringParams.getDocCount(), equalTo(3L));
+
+        response = client().prepareSearch("classes").addAggregation(nested("to_method", "methods")
+                .subAggregation(terms("return_type").field("methods.return_type").subAggregation(
+                                filter("num_string_params", nestedQuery("methods.parameters", termQuery("methods.parameters.type", "String"), ScoreMode.None))
+                        )
+                )).get();
+        toMethods = response.getAggregations().get("to_method");
+        Terms terms = toMethods.getAggregations().get("return_type");
+        Bucket bucket = terms.getBucketByKey("void");
+        assertThat(bucket.getDocCount(), equalTo(3L));
+        numStringParams = bucket.getAggregations().get("num_string_params");
+        assertThat(numStringParams.getDocCount(), equalTo(2L));
+
+        bucket = terms.getBucketByKey("QueryBuilder");
+        assertThat(bucket.getDocCount(), equalTo(2L));
+        numStringParams = bucket.getAggregations().get("num_string_params");
+        assertThat(numStringParams.getDocCount(), equalTo(1L));
+
+        bucket = terms.getBucketByKey("Query");
+        assertThat(bucket.getDocCount(), equalTo(1L));
+        numStringParams = bucket.getAggregations().get("num_string_params");
+        assertThat(numStringParams.getDocCount(), equalTo(0L));
     }
 }

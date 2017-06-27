@@ -42,7 +42,7 @@ public class PointBuilderTests extends AbstractShapeBuilderTestCase<PointBuilder
     }
 
     static PointBuilder createRandomShape() {
-        return (PointBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POINT);
+        return (PointBuilder) RandomShapeGenerator.createShape(random(), ShapeType.POINT);
     }
 
 

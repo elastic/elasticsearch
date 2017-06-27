@@ -19,19 +19,23 @@
 
 package org.elasticsearch.cluster.settings;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.junit.After;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
@@ -40,8 +44,15 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = TEST)
 public class ClusterSettingsIT extends ESIntegTestCase {
+
+    @After
+    public void cleanup() throws Exception {
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("*"))
+            .setTransientSettings(Settings.builder().putNull("*")));
+    }
+
     public void testClusterNonExistingSettingsUpdate() {
         String key1 = "no_idea_what_you_are_talking_about";
         int value1 = 10;
@@ -57,7 +68,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testDeleteIsAppliedFirst() {
-        DiscoverySettings discoverySettings = internalCluster().getInstance(DiscoverySettings.class);
+        DiscoverySettings discoverySettings = getDiscoverySettings();
 
         assertEquals(discoverySettings.getPublishTimeout(), DiscoverySettings.PUBLISH_TIMEOUT_SETTING.get(Settings.EMPTY));
         assertTrue(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY));
@@ -83,7 +94,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testResetClusterSetting() {
-        DiscoverySettings discoverySettings = internalCluster().getInstance(DiscoverySettings.class);
+        DiscoverySettings discoverySettings = getDiscoverySettings();
 
         assertThat(discoverySettings.getPublishTimeout(), equalTo(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.get(Settings.EMPTY)));
         assertThat(discoverySettings.getPublishDiff(), equalTo(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY)));
@@ -176,7 +187,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testClusterSettingsUpdateResponse() {
-        String key1 = IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey();
+        String key1 = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
         int value1 = 10;
 
         String key2 = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
@@ -243,7 +254,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
     public void testUpdateDiscoveryPublishTimeout() {
 
-        DiscoverySettings discoverySettings = internalCluster().getInstance(DiscoverySettings.class);
+        DiscoverySettings discoverySettings = getDiscoverySettings();
 
         assertThat(discoverySettings.getPublishTimeout(), equalTo(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.get(Settings.EMPTY)));
 
@@ -263,7 +274,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                     .get();
             fail("bogus value");
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse setting [discovery.zen.publish_timeout] with value [whatever] as a time value: unit is missing or unrecognized");
+            assertEquals(ex.getMessage(), "failed to parse setting [discovery.zen.publish_timeout] with value [whatever] as a time value: unit is missing or unrecognized");
         }
 
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
@@ -280,6 +291,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1L));
     }
+
+    private DiscoverySettings getDiscoverySettings() {return ((ZenDiscovery) internalCluster().getInstance(Discovery.class)).getDiscoverySettings();}
 
     public void testClusterUpdateSettingsWithBlocks() {
         String key1 = "cluster.routing.allocation.enable";
@@ -298,11 +311,23 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             assertBlocked(request, MetaData.CLUSTER_READ_ONLY_BLOCK);
 
             // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
-            Settings settings = settingsBuilder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), false).build();
+            Settings settings = Settings.builder().putNull(MetaData.SETTING_READ_ONLY_SETTING.getKey()).build();
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
 
         } finally {
             setClusterReadOnly(false);
+        }
+
+        // Cluster settings updates are blocked when the cluster is read only
+        try {
+            // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
+            Settings settings = Settings.builder().put(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
+            assertBlocked(request, MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+        } finally {
+            // But it's possible to update the settings to update the "cluster.blocks.read_only" setting
+            Settings s = Settings.builder().putNull(MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build();
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(s).get());
         }
 
         // It should work now
@@ -329,27 +354,30 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
     public void testLoggerLevelUpdate() {
         assertAcked(prepareCreate("test"));
-        final String rootLevel = ESLoggerFactory.getRootLogger().getLevel();
-        final String testLevel = ESLoggerFactory.getLogger("test").getLevel();
-        try {
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("logger._root", "BOOM")).execute().actionGet();
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertEquals("No enum constant org.elasticsearch.common.logging.ESLoggerFactory.LogLevel.BOOM", e.getMessage());
-        }
+
+        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+
+        final IllegalArgumentException e =
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("logger._root", "BOOM")).execute().actionGet());
+        assertEquals("Unknown level constant [BOOM].", e.getMessage());
 
         try {
-            client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put("logger.test", "TRACE").put("logger._root", "trace")).execute().actionGet();
-            assertEquals("TRACE", ESLoggerFactory.getLogger("test").getLevel());
-            assertEquals("TRACE", ESLoggerFactory.getRootLogger().getLevel());
+            final Settings.Builder testSettings = Settings.builder().put("logger.test", "TRACE").put("logger._root", "trace");
+            client().admin().cluster().prepareUpdateSettings().setTransientSettings(testSettings).execute().actionGet();
+            assertEquals(Level.TRACE, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(Level.TRACE, ESLoggerFactory.getRootLogger().getLevel());
         } finally {
             if (randomBoolean()) {
-                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("logger.test").putNull("logger._root")).execute().actionGet();
+                final Settings.Builder defaultSettings = Settings.builder().putNull("logger.test").putNull("logger._root");
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(defaultSettings).execute().actionGet();
             } else {
-                client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().putNull("logger.*")).execute().actionGet();
+                final Settings.Builder defaultSettings = Settings.builder().putNull("logger.*");
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(defaultSettings).execute().actionGet();
             }
-            assertEquals(testLevel, ESLoggerFactory.getLogger("test").getLevel());
-            assertEquals(rootLevel, ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(level, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
         }
     }
 

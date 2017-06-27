@@ -43,11 +43,7 @@ import org.joda.time.format.StrictISODateTimeFormat;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.Locale;
-import java.util.regex.Pattern;
 
-/**
- *
- */
 public class Joda {
 
     public static FormatDateTimeFormatter forPattern(String input) {
@@ -321,20 +317,15 @@ public class Joda {
 
     public static class EpochTimeParser implements DateTimeParser {
 
-        private static final Pattern MILLI_SECOND_PRECISION_PATTERN = Pattern.compile("^-?\\d{1,13}$");
-        private static final Pattern SECOND_PRECISION_PATTERN = Pattern.compile("^-?\\d{1,10}$");
-
         private final boolean hasMilliSecondPrecision;
-        private final Pattern pattern;
 
         public EpochTimeParser(boolean hasMilliSecondPrecision) {
             this.hasMilliSecondPrecision = hasMilliSecondPrecision;
-            this.pattern = hasMilliSecondPrecision ? MILLI_SECOND_PRECISION_PATTERN : SECOND_PRECISION_PATTERN;
         }
 
         @Override
         public int estimateParsedLength() {
-            return hasMilliSecondPrecision ? 13 : 10;
+            return hasMilliSecondPrecision ? 19 : 16;
         }
 
         @Override
@@ -342,10 +333,10 @@ public class Joda {
             boolean isPositive = text.startsWith("-") == false;
             boolean isTooLong = text.length() > estimateParsedLength();
 
-            if ((isPositive && isTooLong) ||
-                // timestamps have to have UTC timezone
-                bucket.getZone() != DateTimeZone.UTC ||
-                pattern.matcher(text).matches() == false) {
+            if (bucket.getZone() != DateTimeZone.UTC) {
+                String format = hasMilliSecondPrecision ? "epoch_millis" : "epoch_second";
+                throw new IllegalArgumentException("time_zone must be UTC for format [" + format + "]");
+            } else if (isPositive && isTooLong) {
                 return -1;
             }
 
@@ -378,24 +369,33 @@ public class Joda {
 
         @Override
         public int estimatePrintedLength() {
-            return hasMilliSecondPrecision ? 13 : 10;
+            return hasMilliSecondPrecision ? 19 : 16;
         }
 
+
+        /**
+         * We adjust the instant by displayOffset to adjust for the offset that might have been added in
+         * {@link DateTimeFormatter#printTo(Appendable, long, Chronology)} when using a time zone.
+         */
         @Override
         public void printTo(StringBuffer buf, long instant, Chronology chrono, int displayOffset, DateTimeZone displayZone, Locale locale) {
             if (hasMilliSecondPrecision) {
-                buf.append(instant);
+                buf.append(instant - displayOffset);
             } else {
-                buf.append(instant / 1000);
+                buf.append((instant  - displayOffset) / 1000);
             }
         }
 
+        /**
+         * We adjust the instant by displayOffset to adjust for the offset that might have been added in
+         * {@link DateTimeFormatter#printTo(Appendable, long, Chronology)} when using a time zone.
+         */
         @Override
         public void printTo(Writer out, long instant, Chronology chrono, int displayOffset, DateTimeZone displayZone, Locale locale) throws IOException {
             if (hasMilliSecondPrecision) {
-                out.write(String.valueOf(instant));
+                out.write(String.valueOf(instant - displayOffset));
             } else {
-                out.append(String.valueOf(instant / 1000));
+                out.append(String.valueOf((instant - displayOffset) / 1000));
             }
         }
 

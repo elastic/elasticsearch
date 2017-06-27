@@ -20,10 +20,8 @@
 package org.elasticsearch.action.support.replication;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -32,11 +30,11 @@ import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.shard.ShardId;
@@ -95,9 +93,9 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                 }
 
                 @Override
-                public void onFailure(Throwable e) {
+                public void onFailure(Exception e) {
                     logger.trace("{}: got failure from {}", actionName, shardId);
-                    int totalNumCopies = clusterState.getMetaData().index(shardId.getIndexName()).getNumberOfReplicas() + 1;
+                    int totalNumCopies = clusterState.getMetaData().getIndexSafe(shardId.getIndex()).getNumberOfReplicas() + 1;
                     ShardResponse shardResponse = newShardResponse();
                     ReplicationResponse.ShardInfo.Failure[] failures;
                     if (TransportActions.isShardNotAvailableException(e)) {
@@ -121,7 +119,6 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
     protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
         ShardRequest shardRequest = newShardRequest(request, shardId);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        taskManager.registerChildTask(task, clusterService.localNode().getId());
         replicatedBroadcastShardAction.execute(shardRequest, shardActionListener);
     }
 
@@ -130,7 +127,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
      */
     protected List<ShardId> shards(Request request, ClusterState clusterState) {
         List<ShardId> shardIds = new ArrayList<>();
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, request);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         for (String index : concreteIndices) {
             IndexMetaData indexMetaData = clusterState.metaData().getIndices().get(index);
             if (indexMetaData != null) {

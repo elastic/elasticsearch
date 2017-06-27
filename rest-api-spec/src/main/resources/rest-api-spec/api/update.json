@@ -23,26 +23,38 @@
         }
       },
       "params": {
-        "consistency": {
-          "type": "enum",
-          "options": ["one", "quorum", "all"],
-          "description": "Explicit write consistency setting for the operation"
+        "wait_for_active_shards": {
+          "type": "string",
+          "description": "Sets the number of shard copies that must be active before proceeding with the update operation. Defaults to 1, meaning the primary shard only. Set to `all` for all shard copies, otherwise set to any non-negative value less than or equal to the total number of copies for the shard (number of replicas + 1)"
         },
         "fields": {
           "type": "list",
           "description": "A comma-separated list of fields to return in the response"
         },
+        "_source": {
+          "type" : "list",
+          "description" : "True or false to return the _source field or not, or a list of fields to return"
+        },
+        "_source_exclude": {
+          "type" : "list",
+          "description" : "A list of fields to exclude from the returned _source field"
+        },
+        "_source_include": {
+          "type" : "list",
+          "description" : "A list of fields to extract and return from the _source field"
+        },
         "lang": {
           "type": "string",
-          "description": "The script language (default: groovy)"
+          "description": "The script language (default: painless)"
         },
         "parent": {
           "type": "string",
           "description": "ID of the parent document. Is is only used for routing and when for the upsert request"
         },
         "refresh": {
-          "type": "boolean",
-          "description": "Refresh the index after performing the operation"
+          "type" : "enum",
+          "options": ["true", "false", "wait_for"],
+          "description" : "If `true` then refresh the effected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` (the default) then do nothing with refreshes."
         },
         "retry_on_conflict": {
           "type": "number",
@@ -51,16 +63,6 @@
         "routing": {
           "type": "string",
           "description": "Specific routing value"
-        },
-        "script": {
-          "description": "The URL-encoded script definition (instead of using request body)"
-        },
-        "script_id": {
-          "description": "The id of a stored script"
-        },
-        "scripted_upsert": {
-          "type": "boolean",
-          "description": "True if the script referenced in script or script_id should be called to perform inserts - defaults to false"
         },
         "timeout": {
           "type": "time",
@@ -71,7 +73,7 @@
           "description": "Explicit timestamp for the document"
         },
         "ttl": {
-          "type": "duration",
+          "type": "time",
           "description": "Expiration time for the document"
         },
         "version": {

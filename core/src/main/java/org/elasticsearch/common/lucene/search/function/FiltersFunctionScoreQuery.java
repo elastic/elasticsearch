@@ -27,9 +27,9 @@ import org.apache.lucene.search.FilterScorer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -38,6 +38,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -76,25 +77,16 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
-    public enum ScoreMode implements Writeable<ScoreMode> {
+    public enum ScoreMode implements Writeable {
         FIRST, AVG, MAX, SUM, MIN, MULTIPLY;
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.ordinal());
+            out.writeEnum(this);
         }
 
-        @Override
-        public ScoreMode readFrom(StreamInput in) throws IOException {
-            int ordinal = in.readVInt();
-            if (ordinal < 0 || ordinal >= values().length) {
-                throw new IOException("Unknown ScoreMode ordinal [" + ordinal + "]");
-            }
-            return values()[ordinal];
-        }
-
-        public static ScoreMode readScoreModeFrom(StreamInput in) throws IOException {
-            return ScoreMode.MULTIPLY.readFrom(in);
+        public static ScoreMode readFromStream(StreamInput in) throws IOException {
+            return in.readEnum(ScoreMode.class);
         }
 
         public static ScoreMode fromString(String scoreMode) {
@@ -102,13 +94,13 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
-    Query subQuery;
+    final Query subQuery;
     final FilterFunction[] filterFunctions;
     final ScoreMode scoreMode;
     final float maxBoost;
     private final Float minScore;
 
-    final protected CombineFunction combineFunction;
+    protected final CombineFunction combineFunction;
 
     public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, Float minScore, CombineFunction combineFunction) {
         this.subQuery = subQuery;
@@ -136,15 +128,13 @@ public class FiltersFunctionScoreQuery extends Query {
         Query newQ = subQuery.rewrite(reader);
         if (newQ == subQuery)
             return this;
-        FiltersFunctionScoreQuery bq = (FiltersFunctionScoreQuery) this.clone();
-        bq.subQuery = newQ;
-        return bq;
+        return new FiltersFunctionScoreQuery(newQ, scoreMode, filterFunctions, maxBoost, minScore, combineFunction);
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
         if (needsScores == false && minScore == null) {
-            return subQuery.createWeight(searcher, needsScores);
+            return subQuery.createWeight(searcher, needsScores, boost);
         }
 
         boolean subQueryNeedsScores = combineFunction != CombineFunction.REPLACE;
@@ -153,7 +143,7 @@ public class FiltersFunctionScoreQuery extends Query {
             subQueryNeedsScores |= filterFunctions[i].function.needsScores();
             filterWeights[i] = searcher.createNormalizedWeight(filterFunctions[i].filter, false);
         }
-        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores);
+        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores, boost);
         return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights, subQueryNeedsScores);
     }
 
@@ -163,7 +153,7 @@ public class FiltersFunctionScoreQuery extends Query {
         final Weight[] filterWeights;
         final boolean needsScores;
 
-        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, Weight[] filterWeights, boolean needsScores) throws IOException {
+        CustomBoostFactorWeight(Query parent, Weight subQueryWeight, Weight[] filterWeights, boolean needsScores) throws IOException {
             super(parent);
             this.subQueryWeight = subQueryWeight;
             this.filterWeights = filterWeights;
@@ -173,16 +163,6 @@ public class FiltersFunctionScoreQuery extends Query {
         @Override
         public void extractTerms(Set<Term> terms) {
             subQueryWeight.extractTerms(terms);
-        }
-
-        @Override
-        public float getValueForNormalization() throws IOException {
-            return subQueryWeight.getValueForNormalization();
-        }
-
-        @Override
-        public void normalize(float norm, float boost) {
-            subQueryWeight.normalize(norm, boost);
         }
 
         private FiltersFunctionFactorScorer functionScorer(LeafReaderContext context) throws IOException {
@@ -195,8 +175,8 @@ public class FiltersFunctionScoreQuery extends Query {
             for (int i = 0; i < filterFunctions.length; i++) {
                 FilterFunction filterFunction = filterFunctions[i];
                 functions[i] = filterFunction.function.getLeafScoreFunction(context);
-                Scorer filterScorer = filterWeights[i].scorer(context);
-                docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
+                ScorerSupplier filterScorerSupplier = filterWeights[i].scorerSupplier(context);
+                docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorerSupplier);
             }
             return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, needsScores);
         }
@@ -221,7 +201,7 @@ public class FiltersFunctionScoreQuery extends Query {
             List<Explanation> filterExplanations = new ArrayList<>();
             for (int i = 0; i < filterFunctions.length; ++i) {
                 Bits docSet = Lucene.asSequentialAccessBits(context.reader().maxDoc(),
-                        filterWeights[i].scorer(context));
+                        filterWeights[i].scorerSupplier(context));
                 if (docSet.get(doc)) {
                     FilterFunction filterFunction = filterFunctions[i];
                     Explanation functionExplanation = filterFunction.function.getLeafScoreFunction(context).explainScore(doc, expl);
@@ -232,17 +212,23 @@ public class FiltersFunctionScoreQuery extends Query {
                     filterExplanations.add(filterExplanation);
                 }
             }
+            FiltersFunctionFactorScorer scorer = functionScorer(context);
+            int actualDoc = scorer.iterator().advance(doc);
+            assert (actualDoc == doc);
+            double score = scorer.computeScore(doc, expl.getValue());
+            Explanation factorExplanation;
             if (filterExplanations.size() > 0) {
-                FiltersFunctionFactorScorer scorer = functionScorer(context);
-                int actualDoc = scorer.iterator().advance(doc);
-                assert (actualDoc == doc);
-                double score = scorer.computeScore(doc, expl.getValue());
-                Explanation factorExplanation = Explanation.match(
+                factorExplanation = Explanation.match(
                         CombineFunction.toFloat(score),
                         "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
                         filterExplanations);
-                expl = combineFunction.explain(expl, factorExplanation, maxBoost);
+
+            } else {
+                // it is a little weird to add a match although no function matches but that is the way function_score behaves right now
+                factorExplanation = Explanation.match(1.0f,
+                    "No function matched", Collections.emptyList());
             }
+            expl = combineFunction.explain(expl, factorExplanation, maxBoost);
             if (minScore != null && minScore > expl.getValue()) {
                 expl = Explanation.noMatch("Score value is too low, expected at least " + minScore + " but got " + expl.getValue(), expl);
             }
@@ -282,7 +268,7 @@ public class FiltersFunctionScoreQuery extends Query {
             return scoreCombiner.combine(subQueryScore, factor, maxBoost);
         }
 
-        protected double computeScore(int docId, float subQueryScore) {
+        protected double computeScore(int docId, float subQueryScore) throws IOException {
             double factor = 1d;
             switch(scoreMode) {
                 case FIRST:
@@ -355,7 +341,6 @@ public class FiltersFunctionScoreQuery extends Query {
             sb.append("{filter(").append(filterFunction.filter).append("), function [").append(filterFunction.function).append("]}");
         }
         sb.append("])");
-        sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
 
@@ -364,7 +349,7 @@ public class FiltersFunctionScoreQuery extends Query {
         if (this == o) {
             return true;
         }
-        if (super.equals(o) == false) {
+        if (sameClassAs(o) == false) {
             return false;
         }
         FiltersFunctionScoreQuery other = (FiltersFunctionScoreQuery) o;
@@ -376,6 +361,6 @@ public class FiltersFunctionScoreQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subQuery, maxBoost, combineFunction, minScore, scoreMode, Arrays.hashCode(filterFunctions));
+        return Objects.hash(classHash(), subQuery, maxBoost, combineFunction, minScore, scoreMode, Arrays.hashCode(filterFunctions));
     }
 }

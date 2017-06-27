@@ -19,10 +19,12 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 
@@ -32,6 +34,8 @@ import java.io.IOException;
  * Suggestion entry returned from the {@link PhraseSuggester}.
  */
 public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry> {
+
+    public static final String NAME = "phrase";
     public static final int TYPE = 3;
 
     public PhraseSuggestion() {
@@ -42,8 +46,13 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
     }
 
     @Override
-    public int getType() {
+    public int getWriteableType() {
         return TYPE;
+    }
+
+    @Override
+    protected String getType() {
+        return NAME;
     }
 
     @Override
@@ -51,10 +60,13 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
         return new Entry();
     }
 
+    public static PhraseSuggestion fromXContent(XContentParser parser, String name) throws IOException {
+        PhraseSuggestion suggestion = new PhraseSuggestion(name, -1);
+        parseEntries(parser, suggestion, PhraseSuggestion.Entry::fromXContent);
+        return suggestion;
+    }
+
     public static class Entry extends Suggestion.Entry<Suggestion.Entry.Option> {
-        static class Fields {
-            static final XContentBuilderString CUTOFF_SCORE = new XContentBuilderString("cutoff_score");
-        }
 
         protected double cutoffScore = Double.MIN_VALUE;
 
@@ -63,7 +75,7 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
             this.cutoffScore = cutoffScore;
         }
 
-        public Entry() {
+        Entry() {
         }
 
         /**
@@ -92,6 +104,17 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
             if (option.getScore() > this.cutoffScore) {
                 this.options.add(option);
             }
+        }
+
+        private static ObjectParser<Entry, Void> PARSER = new ObjectParser<>("PhraseSuggestionEntryParser", true, Entry::new);
+
+        static {
+            declareCommonFields(PARSER);
+            PARSER.declareObjectArray(Entry::addOptions, (p,c) -> Option.fromXContent(p), new ParseField(OPTIONS));
+        }
+
+        public static Entry fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, null);
         }
 
         @Override

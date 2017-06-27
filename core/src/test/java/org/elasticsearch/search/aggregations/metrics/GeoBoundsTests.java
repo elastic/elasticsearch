@@ -20,14 +20,14 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsAggregationBuilder;
 
-public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregatorBuilder> {
+public class GeoBoundsTests extends BaseAggregationTestCase<GeoBoundsAggregationBuilder> {
 
     @Override
-    protected GeoBoundsAggregatorBuilder createTestAggregatorBuilder() {
-        GeoBoundsAggregatorBuilder factory = new GeoBoundsAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
-        String field = randomAsciiOfLengthBetween(3, 20);
+    protected GeoBoundsAggregationBuilder createTestAggregatorBuilder() {
+        GeoBoundsAggregationBuilder factory = new GeoBoundsAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
+        String field = randomAlphaOfLengthBetween(3, 20);
         factory.field(field);
         if (randomBoolean()) {
             factory.wrapLongitude(randomBoolean());

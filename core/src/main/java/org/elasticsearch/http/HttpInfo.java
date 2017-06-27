@@ -21,24 +21,28 @@ package org.elasticsearch.http;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class HttpInfo implements Streamable, ToXContent {
+public class HttpInfo implements Writeable, ToXContent {
 
-    private BoundTransportAddress address;
-    private long maxContentLength;
+    private final BoundTransportAddress address;
+    private final long maxContentLength;
 
-    HttpInfo() {
+    public HttpInfo(StreamInput in) throws IOException {
+        address = BoundTransportAddress.readBoundTransportAddress(in);
+        maxContentLength = in.readLong();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        address.writeTo(out);
+        out.writeLong(maxContentLength);
     }
 
     public HttpInfo(BoundTransportAddress address, long maxContentLength) {
@@ -47,11 +51,11 @@ public class HttpInfo implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString HTTP = new XContentBuilderString("http");
-        static final XContentBuilderString BOUND_ADDRESS = new XContentBuilderString("bound_address");
-        static final XContentBuilderString PUBLISH_ADDRESS = new XContentBuilderString("publish_address");
-        static final XContentBuilderString MAX_CONTENT_LENGTH = new XContentBuilderString("max_content_length");
-        static final XContentBuilderString MAX_CONTENT_LENGTH_IN_BYTES = new XContentBuilderString("max_content_length_in_bytes");
+        static final String HTTP = "http";
+        static final String BOUND_ADDRESS = "bound_address";
+        static final String PUBLISH_ADDRESS = "publish_address";
+        static final String MAX_CONTENT_LENGTH = "max_content_length";
+        static final String MAX_CONTENT_LENGTH_IN_BYTES = "max_content_length_in_bytes";
     }
 
     @Override
@@ -62,24 +66,6 @@ public class HttpInfo implements Streamable, ToXContent {
         builder.byteSizeField(Fields.MAX_CONTENT_LENGTH_IN_BYTES, Fields.MAX_CONTENT_LENGTH, maxContentLength);
         builder.endObject();
         return builder;
-    }
-
-    public static HttpInfo readHttpInfo(StreamInput in) throws IOException {
-        HttpInfo info = new HttpInfo();
-        info.readFrom(in);
-        return info;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        address = BoundTransportAddress.readBoundTransportAddress(in);
-        maxContentLength = in.readLong();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        address.writeTo(out);
-        out.writeLong(maxContentLength);
     }
 
     public BoundTransportAddress address() {

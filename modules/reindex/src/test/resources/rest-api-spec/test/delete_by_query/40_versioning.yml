@@ -1,0 +1,29 @@
+---
+"delete_by_query fails to delete documents with version number equal to zero":
+  - do:
+      index:
+        index:        index1
+        type:         type1
+        id:           1
+        version:      0 # Starting version is zero
+        version_type: external
+        body:    {"delete": 0}
+  - do:
+      indices.refresh: {}
+
+  # Delete by query uses internal versioning and will fail here
+  # because zero is not allowed as a valid version number
+  - do:
+      catch: /illegal version value \[0\] for version type \[INTERNAL\]./
+      delete_by_query:
+        index: index1
+        refresh: true
+        body:
+          query:
+            match_all: {}
+  - do:
+      get:
+        index: index1
+        type:  type1
+        id:    1
+  - match: {_version: 0}

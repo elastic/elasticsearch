@@ -16,7 +16,7 @@ price for the product. The mapping could look like:
             "resellers" : { <1>
                 "type" : "nested",
                 "properties" : {
-                    "name" : { "type" : "string" },
+                    "name" : { "type" : "text" },
                     "price" : { "type" : "double" }
                 }
             }

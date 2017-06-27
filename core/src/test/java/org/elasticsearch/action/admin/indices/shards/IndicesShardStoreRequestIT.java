@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -40,6 +41,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSIndexStore;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -58,12 +60,12 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-@TestLogging("_root:DEBUG,action.admin.indices.shards:TRACE,cluster.service:TRACE")
+@TestLogging("_root:DEBUG,org.elasticsearch.action.admin.indices.shards:TRACE,org.elasticsearch.cluster.service:TRACE")
 public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList( MockFSIndexStore.TestPlugin.class);
+        return Arrays.asList( MockFSIndexStore.TestPlugin.class);
     }
 
     public void testEmpty() {
@@ -157,6 +159,7 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "5")
                         .put(MockFSIndexStore.INDEX_CHECK_INDEX_ON_CLOSE_SETTING.getKey(), false)
         ));
+
         indexRandomData(index);
         ensureGreen(index);
 
@@ -165,9 +168,10 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
 
         logger.info("--> corrupt random shard copies");
         Map<Integer, Set<String>> corruptedShardIDMap = new HashMap<>();
+        Index idx = resolveIndex(index);
         for (String node : internalCluster().nodesInclude(index)) {
             IndicesService indexServices = internalCluster().getInstance(IndicesService.class, node);
-            IndexService indexShards = indexServices.indexServiceSafe(index);
+            IndexService indexShards = indexServices.indexServiceSafe(idx);
             for (Integer shardId : indexShards.shardIds()) {
                 IndexShard shard = indexShards.getShard(shardId);
                 if (randomBoolean()) {
@@ -189,11 +193,9 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
         for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStatus : shardStatuses) {
             for (IndicesShardStoresResponse.StoreStatus status : shardStatus.value) {
                 if (corruptedShardIDMap.containsKey(shardStatus.key)
-                        && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().name())) {
-                    assertThat(status.getLegacyVersion(), greaterThanOrEqualTo(0L));
+                        && corruptedShardIDMap.get(shardStatus.key).contains(status.getNode().getName())) {
                     assertThat(status.getStoreException(), notNullValue());
                 } else {
-                    assertThat(status.getLegacyVersion(), greaterThanOrEqualTo(0L));
                     assertNull(status.getStoreException());
                 }
             }
@@ -209,13 +211,13 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             builders[i] = client().prepareIndex(index, "type").setSource("field", "value");
         }
         indexRandom(true, builders);
-        client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet();
+        client().admin().indices().prepareFlush().setForce(true).execute().actionGet();
     }
 
-    private final static class IndexNodePredicate implements Predicate<Settings> {
+    private static final class IndexNodePredicate implements Predicate<Settings> {
         private final Set<String> nodesWithShard;
 
-        public IndexNodePredicate(String index) {
+        IndexNodePredicate(String index) {
             this.nodesWithShard = findNodesWithShard(index);
         }
 

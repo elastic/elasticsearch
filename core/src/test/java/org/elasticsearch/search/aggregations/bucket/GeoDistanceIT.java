@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
@@ -51,23 +53,22 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public class GeoDistanceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(InternalSettingsPlugin.class); // uses index.version.created
+        return Arrays.asList(InternalSettingsPlugin.class); // uses index.version.created
     }
 
-    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0,
+            Version.CURRENT);
 
     private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {
         XContentBuilder source = jsonBuilder().startObject().field("city", name);
@@ -82,7 +83,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         prepareCreate("idx").setSettings(settings)
                 .addMapping("type", "location", "type=geo_point", "city", "type=keyword")
                 .execute().actionGet();
@@ -349,9 +350,10 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(geoDist.getName(), equalTo("amsterdam_rings"));
         List<? extends Bucket> buckets = geoDist.getBuckets();
         assertThat(geoDist.getBuckets().size(), equalTo(3));
-        Object[] propertiesKeys = (Object[]) geoDist.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) geoDist.getProperty("_count");
-        Object[] propertiesCities = (Object[]) geoDist.getProperty("cities");
+        assertThat(((InternalAggregation)geoDist).getProperty("_bucket_count"), equalTo(3));
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)geoDist).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)geoDist).getProperty("_count");
+        Object[] propertiesCities = (Object[]) ((InternalAggregation)geoDist).getProperty("cities");
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
@@ -429,7 +431,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         Range geoDistance = bucket.getAggregations().get("geo_dist");
         // TODO: use diamond once JI-9019884 is fixed
-        List<Range.Bucket> buckets = new ArrayList<Range.Bucket>(geoDistance.getBuckets());
+        List<Range.Bucket> buckets = new ArrayList<>(geoDistance.getBuckets());
         assertThat(geoDistance, Matchers.notNullValue());
         assertThat(geoDistance.getName(), equalTo("geo_dist"));
         assertThat(buckets.size(), is(1));
@@ -439,6 +441,19 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(buckets.get(0).getFromAsString(), equalTo("0.0"));
         assertThat(buckets.get(0).getToAsString(), equalTo("100.0"));
         assertThat(buckets.get(0).getDocCount(), equalTo(0L));
+    }
+
+    public void testNoRangesInQuery()  {
+        try {
+            client().prepareSearch("idx")
+                .addAggregation(geoDistance("geo_dist", new GeoPoint(52.3760, 4.894)))
+                .execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException spee){
+            Throwable rootCause = spee.getCause().getCause();
+            assertThat(rootCause, instanceOf(IllegalArgumentException.class));
+            assertEquals(rootCause.getMessage(), "No [ranges] specified for the [geo_dist] aggregation");
+        }
     }
 
     public void testMultiValues() throws Exception {

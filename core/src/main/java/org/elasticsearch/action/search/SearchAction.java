@@ -22,8 +22,6 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class SearchAction extends Action<SearchRequest, SearchResponse, SearchRequestBuilder> {
 
     public static final SearchAction INSTANCE = new SearchAction();

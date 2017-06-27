@@ -22,6 +22,7 @@ package org.elasticsearch.common.network;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -32,35 +33,35 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
-/**
- *
- */
 public class NetworkService extends AbstractComponent {
 
     /** By default, we bind to loopback interfaces */
     public static final String DEFAULT_NETWORK_HOST = "_local_";
 
-    public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING = Setting.listSetting("network.host", Arrays.asList(DEFAULT_NETWORK_HOST),
-            s -> s, false, Setting.Scope.CLUSTER);
-    public static final Setting<List<String>> GLOBAL_NETWORK_BINDHOST_SETTING = Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING,
-            s -> s, false, Setting.Scope.CLUSTER);
-    public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISHHOST_SETTING = Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING,
-            s -> s, false, Setting.Scope.CLUSTER);
-    public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, false, Setting.Scope.CLUSTER);
+    public static final Setting<List<String>> GLOBAL_NETWORK_HOST_SETTING =
+        Setting.listSetting("network.host", Arrays.asList(DEFAULT_NETWORK_HOST), Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> GLOBAL_NETWORK_BINDHOST_SETTING =
+        Setting.listSetting("network.bind_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
+    public static final Setting<List<String>> GLOBAL_NETWORK_PUBLISHHOST_SETTING =
+        Setting.listSetting("network.publish_host", GLOBAL_NETWORK_HOST_SETTING, Function.identity(), Property.NodeScope);
+    public static final Setting<Boolean> NETWORK_SERVER = Setting.boolSetting("network.server", true, Property.NodeScope);
 
     public static final class TcpSettings {
-        public static final Setting<Boolean> TCP_NO_DELAY = Setting.boolSetting("network.tcp.no_delay", true, false, Setting.Scope.CLUSTER);
-        public static final Setting<Boolean> TCP_KEEP_ALIVE = Setting.boolSetting("network.tcp.keep_alive", true, false, Setting.Scope.CLUSTER);
-        public static final Setting<Boolean> TCP_REUSE_ADDRESS = Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), false, Setting.Scope.CLUSTER);
-        public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE = Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), false, Setting.Scope.CLUSTER);
-        public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE = Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), false, Setting.Scope.CLUSTER);
-        public static final Setting<Boolean> TCP_BLOCKING = Setting.boolSetting("network.tcp.blocking", false, false, Setting.Scope.CLUSTER);
-        public static final Setting<Boolean> TCP_BLOCKING_SERVER = Setting.boolSetting("network.tcp.blocking_server", TCP_BLOCKING, false, Setting.Scope.CLUSTER);
-        public static final Setting<Boolean> TCP_BLOCKING_CLIENT = Setting.boolSetting("network.tcp.blocking_client", TCP_BLOCKING, false, Setting.Scope.CLUSTER);
-        public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT = Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), false, Setting.Scope.CLUSTER);
+        public static final Setting<Boolean> TCP_NO_DELAY =
+            Setting.boolSetting("network.tcp.no_delay", true, Property.NodeScope);
+        public static final Setting<Boolean> TCP_KEEP_ALIVE =
+            Setting.boolSetting("network.tcp.keep_alive", true, Property.NodeScope);
+        public static final Setting<Boolean> TCP_REUSE_ADDRESS =
+            Setting.boolSetting("network.tcp.reuse_address", NetworkUtils.defaultReuseAddress(), Property.NodeScope);
+        public static final Setting<ByteSizeValue> TCP_SEND_BUFFER_SIZE =
+            Setting.byteSizeSetting("network.tcp.send_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
+        public static final Setting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE =
+            Setting.byteSizeSetting("network.tcp.receive_buffer_size", new ByteSizeValue(-1), Property.NodeScope);
+        public static final Setting<TimeValue> TCP_CONNECT_TIMEOUT =
+            Setting.timeSetting("network.tcp.connect_timeout", new TimeValue(30, TimeUnit.SECONDS), Property.NodeScope);
     }
 
     /**
@@ -79,18 +80,11 @@ public class NetworkService extends AbstractComponent {
         InetAddress[] resolveIfPossible(String value) throws IOException;
     }
 
-    private final List<CustomNameResolver> customNameResolvers = new CopyOnWriteArrayList<>();
+    private final List<CustomNameResolver> customNameResolvers;
 
-    public NetworkService(Settings settings) {
+    public NetworkService(Settings settings, List<CustomNameResolver> customNameResolvers) {
         super(settings);
-        IfConfig.logIfNecessary();
-    }
-
-    /**
-     * Add a custom name resolver.
-     */
-    public void addCustomNameResolver(CustomNameResolver customNameResolver) {
-        customNameResolvers.add(customNameResolver);
+        this.customNameResolvers = customNameResolvers;
     }
 
     /**
@@ -109,11 +103,13 @@ public class NetworkService extends AbstractComponent {
                 // if we have settings use them (we have a fallback to GLOBAL_NETWORK_HOST_SETTING inline
                 bindHosts = GLOBAL_NETWORK_BINDHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
             } else {
-                // next check any registered custom resolvers
-                for (CustomNameResolver customNameResolver : customNameResolvers) {
-                    InetAddress addresses[] = customNameResolver.resolveDefault();
-                    if (addresses != null) {
-                        return addresses;
+                // next check any registered custom resolvers if any
+                if (customNameResolvers != null) {
+                    for (CustomNameResolver customNameResolver : customNameResolvers) {
+                        InetAddress addresses[] = customNameResolver.resolveDefault();
+                        if (addresses != null) {
+                            return addresses;
+                        }
                     }
                 }
                 // we know it's not here. get the defaults
@@ -155,11 +151,13 @@ public class NetworkService extends AbstractComponent {
                 // if we have settings use them (we have a fallback to GLOBAL_NETWORK_HOST_SETTING inline
                 publishHosts = GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
             } else {
-                // next check any registered custom resolvers
-                for (CustomNameResolver customNameResolver : customNameResolvers) {
-                    InetAddress addresses[] = customNameResolver.resolveDefault();
-                    if (addresses != null) {
-                        return addresses[0];
+                // next check any registered custom resolvers if any
+                if (customNameResolvers != null) {
+                    for (CustomNameResolver customNameResolver : customNameResolvers) {
+                        InetAddress addresses[] = customNameResolver.resolveDefault();
+                        if (addresses != null) {
+                            return addresses[0];
+                        }
                     }
                 }
                 // we know it's not here. get the defaults
@@ -218,11 +216,13 @@ public class NetworkService extends AbstractComponent {
     private InetAddress[] resolveInternal(String host) throws IOException {
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);
-            // allow custom resolvers to have special names
-            for (CustomNameResolver customNameResolver : customNameResolvers) {
-                InetAddress addresses[] = customNameResolver.resolveIfPossible(host);
-                if (addresses != null) {
-                    return addresses;
+            // next check any registered custom resolvers if any
+            if (customNameResolvers != null) {
+                for (CustomNameResolver customNameResolver : customNameResolvers) {
+                    InetAddress addresses[] = customNameResolver.resolveIfPossible(host);
+                    if (addresses != null) {
+                        return addresses;
+                    }
                 }
             }
             switch (host) {

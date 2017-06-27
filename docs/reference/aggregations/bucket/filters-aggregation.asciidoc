@@ -1,7 +1,7 @@
 [[search-aggregations-bucket-filters-aggregation]]
 === Filters Aggregation
 
-Defines a multi bucket aggregations where each bucket is associated with a
+Defines a multi bucket aggregation where each bucket is associated with a
 filter. Each bucket will collect all documents that match its associated
 filter.
 
@@ -9,62 +9,61 @@ Example:
 
 [source,js]
 --------------------------------------------------
+PUT /logs/message/_bulk?refresh
+{ "index" : { "_id" : 1 } }
+{ "body" : "warning: page could not be rendered" }
+{ "index" : { "_id" : 2 } }
+{ "body" : "authentication error" }
+{ "index" : { "_id" : 3 } }
+{ "body" : "warning: connection timed out" }
+
+GET logs/_search
 {
+  "size": 0,
   "aggs" : {
     "messages" : {
       "filters" : {
         "filters" : {
-          "errors" :   { "term" : { "body" : "error"   }},
-          "warnings" : { "term" : { "body" : "warning" }}
-        }
-      },
-      "aggs" : {
-        "monthly" : {
-          "histogram" : {
-            "field" : "timestamp",
-            "interval" : "1M"
-          }
+          "errors" :   { "match" : { "body" : "error"   }},
+          "warnings" : { "match" : { "body" : "warning" }}
         }
       }
     }
   }
 }
 --------------------------------------------------
+// CONSOLE
 
 In the above example, we analyze log messages. The aggregation will build two
 collection (buckets) of log messages - one for all those containing an error,
-and another for all those containing a warning. And for each of these buckets
-it will break them down by month.
+and another for all those containing a warning.
 
 Response:
 
 [source,js]
 --------------------------------------------------
-...
-  "aggs" : {
-    "messages" : {
-      "buckets" : {
-        "errors" : {
-          "doc_count" : 34,
-          "monthly" : {
-            "buckets" : [
-              ... // the histogram monthly breakdown
-            ]
-          }
+{
+  "took": 9,
+  "timed_out": false,
+  "_shards": ...,
+  "hits": ...,
+  "aggregations": {
+    "messages": {
+      "buckets": {
+        "errors": {
+          "doc_count": 1
         },
-        "warnings" : {
-          "doc_count" : 439,
-          "monthly" : {
-            "buckets" : [
-               ... // the histogram monthly breakdown
-            ]
-          }
+        "warnings": {
+          "doc_count": 2
         }
       }
     }
   }
-...
+}
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 9/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 ==== Anonymous filters
 
@@ -73,58 +72,51 @@ following request:
 
 [source,js]
 --------------------------------------------------
+GET logs/_search
 {
+  "size": 0,
   "aggs" : {
     "messages" : {
       "filters" : {
         "filters" : [
-          { "term" : { "body" : "error"   }},
-          { "term" : { "body" : "warning" }}
+          { "match" : { "body" : "error"   }},
+          { "match" : { "body" : "warning" }}
         ]
-      },
-      "aggs" : {
-        "monthly" : {
-          "histogram" : {
-            "field" : "timestamp",
-            "interval" : "1M"
-          }
-        }
       }
     }
   }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The filtered buckets are returned in the same order as provided in the
 request.  The response for this example would be:
 
 [source,js]
 --------------------------------------------------
-...
-  "aggs" : {
-    "messages" : {
-      "buckets" : [
+{
+  "took": 4,
+  "timed_out": false,
+  "_shards": ...,
+  "hits": ...,
+  "aggregations": {
+    "messages": {
+      "buckets": [
         {
-          "doc_count" : 34,
-          "monthly" : {
-            "buckets : [
-              ... // the histogram monthly breakdown
-            ]
-          }
+          "doc_count": 1
         },
         {
-          "doc_count" : 439,
-          "monthly" : {
-            "buckets : [
-              ... // the histogram monthly breakdown
-            ]
-          }
+          "doc_count": 2
         }
       ]
     }
   }
-...
+}
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 4/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
 ==== `Other` Bucket
 
@@ -142,64 +134,56 @@ The following snippet shows a response where the `other` bucket is requested to 
 
 [source,js]
 --------------------------------------------------
+PUT logs/message/4?refresh
 {
+  "body": "info: user Bob logged out"
+}
+
+GET logs/_search
+{
+  "size": 0,
   "aggs" : {
     "messages" : {
       "filters" : {
         "other_bucket_key": "other_messages",
         "filters" : {
-          "errors" :   { "term" : { "body" : "error"   }},
-          "warnings" : { "term" : { "body" : "warning" }}
-        }
-      },
-      "aggs" : {
-        "monthly" : {
-          "histogram" : {
-            "field" : "timestamp",
-            "interval" : "1M"
-          }
+          "errors" :   { "match" : { "body" : "error"   }},
+          "warnings" : { "match" : { "body" : "warning" }}
         }
       }
     }
   }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The response would be something like the following:
 
 [source,js]
 --------------------------------------------------
-...
-  "aggs" : {
-    "messages" : {
-      "buckets" : {
-        "errors" : {
-          "doc_count" : 34,
-            "monthly" : {
-              "buckets" : [
-                ... // the histogram monthly breakdown
-              ]
-            }
-          },
-          "warnings" : {
-            "doc_count" : 439,
-            "monthly" : {
-              "buckets" : [
-                 ... // the histogram monthly breakdown
-              ]
-            }
-          },
-          "other_messages" : {
-            "doc_count" : 237,
-            "monthly" : {
-              "buckets" : [
-                 ... // the histogram monthly breakdown
-              ]
-            }
-          }
+{
+  "took": 3,
+  "timed_out": false,
+  "_shards": ...,
+  "hits": ...,
+  "aggregations": {
+    "messages": {
+      "buckets": {
+        "errors": {
+          "doc_count": 1
+        },
+        "warnings": {
+          "doc_count": 2
+        },
+        "other_messages": {
+          "doc_count": 1
         }
       }
     }
   }
-...
+}
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 3/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]

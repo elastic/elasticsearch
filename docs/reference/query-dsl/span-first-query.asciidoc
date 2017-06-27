@@ -6,15 +6,19 @@ to Lucene `SpanFirstQuery`. Here is an example:
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "span_first" : {
-        "match" : {
-            "span_term" : { "user" : "kimchy" }
-        },
-        "end" : 3
+    "query": {
+        "span_first" : {
+            "match" : {
+                "span_term" : { "user" : "kimchy" }
+            },
+            "end" : 3
+        }
     }
 }    
 --------------------------------------------------
+// CONSOLE
 
 The `match` clause can be any other span type query. The `end` controls
 the maximum end position permitted in a match.

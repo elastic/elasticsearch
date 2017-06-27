@@ -10,6 +10,13 @@
     <property name="file" value="${suppressions}" />
   </module>
 
+  <!-- Checks Java files and forbids empty Javadoc comments -->
+  <module name="RegexpMultiline">
+    <property name="format" value="\/\*[\s\*]*\*\/"/>
+    <property name="fileExtensions" value="java"/>
+    <property name="message" value="Empty javadoc comments are forbidden"/>
+  </module>
+
   <module name="TreeWalker">
     <!-- Its our official line length! See checkstyle_suppressions.xml for the files that don't pass this. For now we
       suppress the check there but enforce it everywhere else. This prevents the list from getting longer even if it is
@@ -38,6 +45,27 @@
     <module name="UpperEll"/>
 
     <module name="EqualsHashCode" />
+
+    <!-- Checks that the order of modifiers conforms to the suggestions in the
+    Java Language specification, sections 8.1.1, 8.3.1 and 8.4.3. It is not that
+    the standard is perfect, but having a consistent order makes the code more
+    readable and no other order is compellingly better than the standard.
+    The correct order is:
+            public
+            protected
+            private
+            abstract
+            static
+            final
+            transient
+            volatile
+            synchronized
+            native
+            strictfp
+    -->
+    <module name="ModifierOrder" />
+
+    <module name="RedundantModifier" />
 
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use

@@ -19,10 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.Processor;
-
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -68,9 +64,10 @@ public class TestProcessor implements Processor {
         return invokedCounter.get();
     }
 
-    public static final class Factory extends AbstractProcessorFactory<TestProcessor> {
+    public static final class Factory implements Processor.Factory {
         @Override
-        public TestProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
+        public TestProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                    Map<String, Object> config) throws Exception {
             return new TestProcessor(processorTag, "test-processor", ingestDocument -> {});
         }
     }

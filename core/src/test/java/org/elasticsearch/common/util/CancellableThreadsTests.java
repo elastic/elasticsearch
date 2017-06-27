@@ -132,7 +132,7 @@ public class CancellableThreadsTests extends ESTestCase {
     public void testCancellableThreads() throws InterruptedException {
         Thread[] threads = new Thread[randomIntBetween(3, 10)];
         final TestPlan[] plans = new TestPlan[threads.length];
-        final Throwable[] throwables = new Throwable[threads.length];
+        final Exception[] exceptions = new Exception[threads.length];
         final boolean[] interrupted = new boolean[threads.length];
         final CancellableThreads cancellableThreads = new CancellableThreads();
         final CountDownLatch readyForCancel = new CountDownLatch(threads.length);
@@ -153,8 +153,8 @@ public class CancellableThreadsTests extends ESTestCase {
                     } else {
                         cancellableThreads.execute(new TestRunnable(plan, readyForCancel));
                     }
-                } catch (Throwable t) {
-                    throwables[plan.id] = t;
+                } catch (Exception e) {
+                    exceptions[plan.id] = e;
                 }
                 if (plan.exceptBeforeCancel || plan.exitBeforeCancel) {
                     // we have to mark we're ready now (actually done).
@@ -176,19 +176,19 @@ public class CancellableThreadsTests extends ESTestCase {
             TestPlan plan = plans[i];
             final Class<?> exceptionClass = plan.ioException ? IOCustomException.class : CustomException.class;
             if (plan.exceptBeforeCancel) {
-                assertThat(throwables[i], Matchers.instanceOf(exceptionClass));
+                assertThat(exceptions[i], Matchers.instanceOf(exceptionClass));
             } else if (plan.exitBeforeCancel) {
-                assertNull(throwables[i]);
+                assertNull(exceptions[i]);
             } else {
                 // in all other cases, we expect a cancellation exception.
-                assertThat(throwables[i], Matchers.instanceOf(CancellableThreads.ExecutionCancelledException.class));
+                assertThat(exceptions[i], Matchers.instanceOf(CancellableThreads.ExecutionCancelledException.class));
                 if (plan.exceptAfterCancel) {
-                    assertThat(throwables[i].getSuppressed(),
+                    assertThat(exceptions[i].getSuppressed(),
                             Matchers.arrayContaining(
                                     Matchers.instanceOf(exceptionClass)
                             ));
                 } else {
-                    assertThat(throwables[i].getSuppressed(), Matchers.emptyArray());
+                    assertThat(exceptions[i].getSuppressed(), Matchers.emptyArray());
                 }
             }
             assertThat(interrupted[plan.id], Matchers.equalTo(plan.presetInterrupt));

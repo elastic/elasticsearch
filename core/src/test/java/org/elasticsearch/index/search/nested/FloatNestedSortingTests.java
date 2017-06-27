@@ -32,7 +32,6 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -44,13 +43,11 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class FloatNestedSortingTests extends DoubleNestedSortingTests {
 
     @Override
-    protected FieldDataType getFieldDataType() {
-        return new FieldDataType("float");
+    protected String getFieldDataType() {
+        return "float";
     }
 
     @Override
@@ -71,7 +68,7 @@ public class FloatNestedSortingTests extends DoubleNestedSortingTests {
         Query query = new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter), new QueryBitSetProducer(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopDocs topDocs = searcher.search(query, 5, sort);
-        assertThat(topDocs.totalHits, equalTo(7));
+        assertThat(topDocs.totalHits, equalTo(7L));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(11));
         assertThat(((Number) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).intValue(), equalTo(2));

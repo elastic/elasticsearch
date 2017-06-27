@@ -23,9 +23,9 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
-import org.apache.lucene.spatial.util.GeoHashUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -46,9 +46,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 @ESIntegTestCase.SuiteScopeTestCase
 public abstract class AbstractGeoTestCase extends ESIntegTestCase {
 
@@ -74,7 +71,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(UNMAPPED_IDX_NAME);
         assertAcked(prepareCreate(IDX_NAME)
-                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point,geohash_prefix=true,geohash_precision=12",
+                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point",
                         MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=keyword"));
 
         singleTopLeft = new GeoPoint(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
@@ -181,13 +178,12 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
         // Added to debug a test failure where the terms aggregation seems to be reporting two documents with the same value for NUMBER_FIELD_NAME.  This will check that after
         // random indexing each document only has 1 value for NUMBER_FIELD_NAME and it is the correct value. Following this initial change its seems that this call was getting
         // more that 2000 hits (actual value was 2059) so now it will also check to ensure all hits have the correct index and type
-        SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME).addField(NUMBER_FIELD_NAME).addSort(SortBuilders.fieldSort(NUMBER_FIELD_NAME)
+        SearchResponse response = client().prepareSearch(HIGH_CARD_IDX_NAME).addStoredField(NUMBER_FIELD_NAME).addSort(SortBuilders.fieldSort(NUMBER_FIELD_NAME)
                 .order(SortOrder.ASC)).setSize(5000).get();
         assertSearchResponse(response);
-        long totalHits = response.getHits().totalHits();
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        long totalHits = response.getHits().getTotalHits();
+        XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
         logger.info("Full high_card_idx Response Content:\n{ {} }", builder.string());
         for (int i = 0; i < totalHits; i++) {
             SearchHit searchHit = response.getHits().getAt(i);

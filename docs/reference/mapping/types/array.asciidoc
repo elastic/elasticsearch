@@ -75,7 +75,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `tags` field is dynamically added as a `string` field.
 <2> The `lists` field is dynamically added as an `object` field.
 <3> The second document contains no arrays, but can be indexed into the same fields.

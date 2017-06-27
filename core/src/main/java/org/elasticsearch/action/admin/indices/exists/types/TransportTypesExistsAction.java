@@ -21,12 +21,12 @@ package org.elasticsearch.action.admin.indices.exists.types;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -57,12 +57,12 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
 
     @Override
     protected ClusterBlockException checkBlock(TypesExistsRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndices(state, request));
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
     protected void masterOperation(final TypesExistsRequest request, final ClusterState state, final ActionListener<TypesExistsResponse> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request.indicesOptions(), request.indices());
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), request.indices());
         if (concreteIndices.length == 0) {
             listener.onResponse(new TypesExistsResponse(false));
             return;

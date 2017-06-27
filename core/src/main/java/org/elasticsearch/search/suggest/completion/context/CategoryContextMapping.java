@@ -25,8 +25,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A {@link ContextMapping} that uses a simple string as a criteria
@@ -44,7 +47,7 @@ import java.util.Set;
  * {@link CategoryQueryContext} defines options for constructing
  * a unit of query context for this context type
  */
-public class CategoryContextMapping extends ContextMapping {
+public class CategoryContextMapping extends ContextMapping<CategoryQueryContext> {
 
     private static final String FIELD_FIELDNAME = "path";
 
@@ -105,21 +108,24 @@ public class CategoryContextMapping extends ContextMapping {
      *  </ul>
      */
     @Override
-    public Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException {
+    public Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser)
+            throws IOException, ElasticsearchParseException {
         final Set<CharSequence> contexts = new HashSet<>();
         Token token = parser.currentToken();
-        if (token == Token.VALUE_STRING) {
+        if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
             contexts.add(parser.text());
         } else if (token == Token.START_ARRAY) {
             while ((token = parser.nextToken()) != Token.END_ARRAY) {
-                if (token == Token.VALUE_STRING) {
+                if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER || token == Token.VALUE_BOOLEAN) {
                     contexts.add(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("context array must have string values");
+                    throw new ElasticsearchParseException(
+                            "context array must have string, number or boolean values, but was [" + token + "]");
                 }
             }
         } else {
-            throw new ElasticsearchParseException("contexts must be a string or a list of strings");
+            throw new ElasticsearchParseException(
+                    "contexts must be a string, number or boolean or a list of string, number or boolean, but was [" + token + "]");
         }
         return contexts;
     }
@@ -131,10 +137,19 @@ public class CategoryContextMapping extends ContextMapping {
             IndexableField[] fields = document.getFields(fieldName);
             values = new HashSet<>(fields.length);
             for (IndexableField field : fields) {
-                values.add(field.stringValue());
+                if (field.fieldType() instanceof KeywordFieldMapper.KeywordFieldType) {
+                    values.add(field.binaryValue().utf8ToString());
+                } else {
+                    values.add(field.stringValue());
+                }
             }
         }
-        return (values == null) ? Collections.<CharSequence>emptySet() : values;
+        return (values == null) ? Collections.emptySet() : values;
+    }
+
+    @Override
+    protected CategoryQueryContext fromXContent(QueryParseContext context) throws IOException {
+        return CategoryQueryContext.fromXContent(context);
     }
 
     /**
@@ -154,19 +169,13 @@ public class CategoryContextMapping extends ContextMapping {
      *  </ul>
      */
     @Override
-    public List<QueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
-        List<QueryContext> queryContexts = new ArrayList<>();
-        Token token = parser.nextToken();
-        if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            CategoryQueryContext parse = CategoryQueryContext.parse(parser);
-            queryContexts.add(new QueryContext(parse.getCategory().toString(), parse.getBoost(), parse.isPrefix()));
-        } else if (token == Token.START_ARRAY) {
-            while (parser.nextToken() != Token.END_ARRAY) {
-                CategoryQueryContext parse = CategoryQueryContext.parse(parser);
-                queryContexts.add(new QueryContext(parse.getCategory().toString(), parse.getBoost(), parse.isPrefix()));
-            }
-        }
-        return queryContexts;
+    public List<InternalQueryContext> toInternalQueryContexts(List<CategoryQueryContext> queryContexts) {
+        List<InternalQueryContext> internalInternalQueryContexts = new ArrayList<>(queryContexts.size());
+        internalInternalQueryContexts.addAll(
+            queryContexts.stream()
+                .map(queryContext -> new InternalQueryContext(queryContext.getCategory(), queryContext.getBoost(), queryContext.isPrefix()))
+                .collect(Collectors.toList()));
+        return internalInternalQueryContexts;
     }
 
     @Override

@@ -21,10 +21,10 @@ package org.elasticsearch.cluster.health;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.empty;
 
 public class ClusterIndexHealthTests extends ESTestCase {
     public void testClusterIndexHealth() {
@@ -50,7 +50,6 @@ public class ClusterIndexHealthTests extends ESTestCase {
         assertThat(indexHealth.getInitializingShards(), equalTo(counter.initializing));
         assertThat(indexHealth.getUnassignedShards(), equalTo(counter.unassigned));
         assertThat(indexHealth.getShards().size(), equalTo(indexMetaData.getNumberOfShards()));
-        assertThat(indexHealth.getValidationFailures(), empty());
         int totalShards = 0;
         for (ClusterShardHealth shardHealth : indexHealth.getShards().values()) {
             totalShards += shardHealth.getActiveShards() + shardHealth.getInitializingShards() + shardHealth.getUnassignedShards();

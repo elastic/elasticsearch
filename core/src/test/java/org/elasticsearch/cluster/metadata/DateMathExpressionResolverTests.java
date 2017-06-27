@@ -51,7 +51,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         int numIndexExpressions = randomIntBetween(1, 9);
         List<String> indexExpressions = new ArrayList<>(numIndexExpressions);
         for (int i = 0; i < numIndexExpressions; i++) {
-            indexExpressions.add(randomAsciiOfLength(10));
+            indexExpressions.add(randomAlphaOfLength(10));
         }
         List<String> result = expressionResolver.resolve(context, indexExpressions);
         assertThat(result.size(), equalTo(indexExpressions.size()));
@@ -177,43 +177,31 @@ public class DateMathExpressionResolverTests extends ESTestCase {
     }
 
     public void testExpressionInvalidUnescaped() throws Exception {
-        try {
-            expressionResolver.resolve(context, Arrays.asList("<.mar}vel-{now/d}>"));
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
-            assertThat(e.getMessage(), containsString("invalid character at position ["));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class,
+                () -> expressionResolver.resolve(context, Arrays.asList("<.mar}vel-{now/d}>")));
+        assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
+        assertThat(e.getMessage(), containsString("invalid character at position ["));
     }
 
     public void testExpressionInvalidDateMathFormat() throws Exception {
-        try {
-            expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{}>"));
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
-            assertThat(e.getMessage(), containsString("date math placeholder is open ended"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class,
+                () -> expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{}>")));
+        assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
+        assertThat(e.getMessage(), containsString("date math placeholder is open ended"));
     }
 
     public void testExpressionInvalidEmptyDateMathFormat() throws Exception {
-        try {
-            expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{}}>"));
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
-            assertThat(e.getMessage(), containsString("missing date format"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class,
+                () -> expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{}}>")));
+        assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
+        assertThat(e.getMessage(), containsString("missing date format"));
     }
 
     public void testExpressionInvalidOpenEnded() throws Exception {
-        try {
-            expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d>"));
-            fail("Expected ElasticsearchParseException");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
-            assertThat(e.getMessage(), containsString("date math placeholder is open ended"));
-        }
+        Exception e = expectThrows(ElasticsearchParseException.class,
+                () -> expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d>")));
+        assertThat(e.getMessage(), containsString("invalid dynamic name expression"));
+        assertThat(e.getMessage(), containsString("date math placeholder is open ended"));
     }
 
 }

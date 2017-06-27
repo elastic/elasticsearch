@@ -18,6 +18,6 @@
  */
 package org.elasticsearch.index.query;
 
-public interface MultiTermQueryBuilder<QB extends MultiTermQueryBuilder<QB>> extends QueryBuilder<QB> {
+public interface MultiTermQueryBuilder extends QueryBuilder {
 
 }

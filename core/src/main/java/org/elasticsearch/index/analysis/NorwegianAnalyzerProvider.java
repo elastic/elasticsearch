@@ -19,23 +19,22 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.no.NorwegianAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class NorwegianAnalyzerProvider extends AbstractIndexAnalyzerProvider<NorwegianAnalyzer> {
 
     private final NorwegianAnalyzer analyzer;
 
     public NorwegianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new NorwegianAnalyzer(Analysis.parseStopWords(env, settings, NorwegianAnalyzer.getDefaultStopSet()),
-                                         Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new NorwegianAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, NorwegianAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

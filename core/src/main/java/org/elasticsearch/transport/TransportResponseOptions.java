@@ -19,9 +19,6 @@
 
 package org.elasticsearch.transport;
 
-/**
- *
- */
 public class TransportResponseOptions {
 
     private final boolean compress;

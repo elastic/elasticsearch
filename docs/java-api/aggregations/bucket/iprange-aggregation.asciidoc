@@ -12,7 +12,7 @@ Here is an example on how to create the aggregation request:
 
 [source,java]
 --------------------------------------------------
-AggregationBuilder aggregation =
+AggregatorBuilder<?> aggregation =
         AggregationBuilders
                 .ipRange("agg")
                 .field("ip")
@@ -25,7 +25,7 @@ Note that you could also use ip masks as ranges:
 
 [source,java]
 --------------------------------------------------
-AggregationBuilder aggregation =
+AggregatorBuilder<?> aggregation =
         AggregationBuilders
                 .ipRange("agg")
                 .field("ip")

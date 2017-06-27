@@ -22,8 +22,6 @@ package org.elasticsearch.action.fieldstats;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class FieldStatsAction extends Action<FieldStatsRequest, FieldStatsResponse, FieldStatsRequestBuilder> {
 
     public static final FieldStatsAction INSTANCE = new FieldStatsAction();

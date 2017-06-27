@@ -19,34 +19,9 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-
-import java.io.IOException;
-
-/*
- * The ordinal values for this class are tested in ValuesSourceTypeTests to
- * ensure that the ordinal for each value does not change and break bwc
- */
-public enum ValuesSourceType implements Writeable<ValuesSourceType> {
-
+public enum ValuesSourceType  {
     ANY,
     NUMERIC,
     BYTES,
     GEOPOINT;
-
-    @Override
-    public ValuesSourceType readFrom(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown ValuesSourceType ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(ordinal());
-    }
 }

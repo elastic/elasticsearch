@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -29,8 +30,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
-/**
- */
 public class ShardFieldData implements IndexFieldDataCache.Listener {
 
     final CounterMetric evictionsMetric = new CounterMetric();
@@ -47,11 +46,12 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
                 }
             }
         }
-        return new FieldDataStats(totalMetric.count(), evictionsMetric.count(), fieldTotals);
+        return new FieldDataStats(totalMetric.count(), evictionsMetric.count(), fieldTotals == null ? null :
+            new FieldMemoryStats(fieldTotals));
     }
 
     @Override
-    public void onCache(ShardId shardId, String fieldName, FieldDataType fieldDataType, Accountable ramUsage) {
+    public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
         totalMetric.inc(ramUsage.ramBytesUsed());
         CounterMetric total = perFieldTotals.get(fieldName);
         if (total != null) {
@@ -67,7 +67,7 @@ public class ShardFieldData implements IndexFieldDataCache.Listener {
     }
 
     @Override
-    public void onRemoval(ShardId shardId, String fieldName, FieldDataType fieldDataType, boolean wasEvicted, long sizeInBytes) {
+    public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
         if (wasEvicted) {
             evictionsMetric.inc();
         }

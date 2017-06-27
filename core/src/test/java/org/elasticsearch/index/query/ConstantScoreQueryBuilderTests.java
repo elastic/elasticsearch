@@ -22,6 +22,10 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -39,8 +43,8 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     @Override
-    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Query innerQuery = queryBuilder.innerQuery().toQuery(context);
+    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        Query innerQuery = queryBuilder.innerQuery().toQuery(context.getQueryShardContext());
         if (innerQuery == null) {
             assertThat(query, nullValue());
         } else {
@@ -54,22 +58,39 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
      * test that missing "filter" element causes {@link ParsingException}
      */
     public void testFilterElement() throws IOException {
-        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {}";
-        try {
-            parseQuery(queryString);
-            fail("Expected ParsingException");
-        } catch (ParsingException e) {
-            assertThat(e.getMessage(), containsString("requires a 'filter' element"));
-        }
+        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {} }";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryString));
+        assertThat(e.getMessage(), containsString("requires a 'filter' element"));
+    }
+
+    /**
+     * test that multiple "filter" elements causes {@link ParsingException}
+     */
+    public void testMultipleFilterElements() throws IOException {
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
+        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {\n" +
+                                    "\"filter\" : { \"term\": { \"foo\": \"a\" } },\n" +
+                                    "\"filter\" : { \"term\": { \"foo\": \"x\" } },\n" +
+                            "} }";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryString));
+        assertThat(e.getMessage(), containsString("accepts only one 'filter' element"));
+    }
+
+    /**
+     * test that "filter" does not accept an array of queries, throws {@link ParsingException}
+     */
+    public void testNoArrayAsFilterElements() throws IOException {
+        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {\n" +
+                                    "\"filter\" : [ { \"term\": { \"foo\": \"a\" } },\n" +
+                                                   "{ \"term\": { \"foo\": \"x\" } } ]\n" +
+                            "} }";
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryString));
+        assertThat(e.getMessage(), containsString("unexpected token [START_ARRAY]"));
     }
 
     public void testIllegalArguments() {
-        try {
-            new ConstantScoreQueryBuilder(null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> new ConstantScoreQueryBuilder((QueryBuilder) null));
     }
 
     @Override
@@ -79,16 +100,16 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"constant_score\" : {\n" + 
-                "    \"filter\" : {\n" + 
-                "      \"terms\" : {\n" + 
-                "        \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" + 
-                "        \"boost\" : 42.0\n" + 
-                "      }\n" + 
-                "    },\n" + 
-                "    \"boost\" : 23.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"constant_score\" : {\n" +
+                "    \"filter\" : {\n" +
+                "      \"terms\" : {\n" +
+                "        \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" +
+                "        \"boost\" : 42.0\n" +
+                "      }\n" +
+                "    },\n" +
+                "    \"boost\" : 23.0\n" +
+                "  }\n" +
                 "}";
 
         ConstantScoreQueryBuilder parsed = (ConstantScoreQueryBuilder) parseQuery(json);
@@ -97,5 +118,4 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         assertEquals(json, 23.0, parsed.boost(), 0.0001);
         assertEquals(json, 42.0, parsed.innerQuery().boost(), 0.0001);
     }
-
 }

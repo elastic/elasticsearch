@@ -24,16 +24,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class GreekAnalyzerProvider extends AbstractIndexAnalyzerProvider<GreekAnalyzer> {
 
     private final GreekAnalyzer analyzer;
 
     public GreekAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new GreekAnalyzer(Analysis.parseStopWords(env, settings, GreekAnalyzer.getDefaultStopSet()));
+        analyzer = new GreekAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, GreekAnalyzer.getDefaultStopSet()));
         analyzer.setVersion(version);
     }
 

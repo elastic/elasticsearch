@@ -25,7 +25,6 @@ import org.elasticsearch.action.PrimaryMissingActionException;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -35,6 +34,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -190,13 +190,13 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
                     } else {
                         updateSettings(upgradeResponse, listener);
                     }
-                } catch (Throwable t) {
-                    listener.onFailure(t);
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         };
@@ -212,7 +212,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
             }
 
             @Override
-            public void onFailure(Throwable e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
         });

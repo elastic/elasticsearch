@@ -29,8 +29,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
-/**
- */
 
 public class TruncateTokenFilterTests extends ESTestCase {
     public void testSimple() throws IOException {

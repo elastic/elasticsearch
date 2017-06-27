@@ -26,9 +26,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class NoShardAvailableActionException extends ElasticsearchException {
 
     public NoShardAvailableActionException(ShardId shardId) {

@@ -22,17 +22,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Supplier;
 
-/**
- */
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse>
         extends TransportMasterNodeReadAction<Request, Response> {
 
@@ -50,9 +48,9 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
 
     @Override
     protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
         doMasterOperation(request, concreteIndices, state, listener);
     }
 
-    protected abstract void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, final ActionListener<Response> listener);
+    protected abstract void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, ActionListener<Response> listener);
 }

@@ -19,6 +19,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -30,25 +31,40 @@ import java.util.List;
 public interface RecoveryTargetHandler {
 
     /**
-     * Prepares the tranget to receive translog operations, after all file have been copied
+     * Prepares the target to receive translog operations, after all file have been copied
      *
      * @param totalTranslogOps total translog operations expected to be sent
      */
     void prepareForTranslogOperations(int totalTranslogOps) throws IOException;
 
     /**
-     * The finalize request clears unreferenced translog files, refreshes the engine now that
-     * new segments are available, and enables garbage collection of
-     * tombstone files. The shard is also moved to the POST_RECOVERY phase during this time
-     **/
-    void finalizeRecovery();
+     * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
+     * updates the global checkpoint.
+     *
+     * @param globalCheckpoint the global checkpoint on the recovery source
+     */
+    void finalizeRecovery(long globalCheckpoint);
+
+    /**
+     * Blockingly waits for cluster state with at least clusterStateVersion to be available
+     */
+    void ensureClusterStateVersion(long clusterStateVersion);
+
+    /**
+     * Handoff the primary context between the relocation source and the relocation target.
+     *
+     * @param primaryContext the primary context from the relocation source
+     */
+    void handoffPrimaryContext(PrimaryContext primaryContext);
 
     /**
      * Index a set of translog operations on the target
      * @param operations operations to index
      * @param totalTranslogOps current number of total operations expected to be indexed
+     *
+     * @return the local checkpoint on the target shard
      */
-    void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps);
+    long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException;
 
     /**
      * Notifies the target of the files it is going to receive

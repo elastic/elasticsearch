@@ -140,7 +140,7 @@ public class StrictISODateTimeFormat {
      * -20-.040      -20-.040    minute/milli *
      *   plus datetime formats like {date}T{time}
      * </pre>
-     * * indiates that this is not an official ISO format and can be excluded
+     * * indicates that this is not an official ISO format and can be excluded
      * by passing in <code>strictISO</code> as <code>true</code>.
      * <p>
      * This method can side effect the input collection of fields.
@@ -177,7 +177,7 @@ public class StrictISODateTimeFormat {
         if (workingFields.contains(DateTimeFieldType.monthOfYear())) {
             reducedPrec = dateByMonth(bld, workingFields, extended, strictISO);
         } else if (workingFields.contains(DateTimeFieldType.dayOfYear())) {
-            reducedPrec = dateByOrdinal(bld, workingFields, extended, strictISO);
+            reducedPrec = dateByOrdinal(bld, workingFields, extended);
         } else if (workingFields.contains(DateTimeFieldType.weekOfWeekyear())) {
             reducedPrec = dateByWeek(bld, workingFields, extended, strictISO);
         } else if (workingFields.contains(DateTimeFieldType.dayOfMonth())) {
@@ -288,14 +288,12 @@ public class StrictISODateTimeFormat {
      * @param bld  the builder
      * @param fields  the fields
      * @param extended  true to use extended format
-     * @param strictISO  true to only allow ISO formats
      * @since 1.1
      */
     private static boolean dateByOrdinal(
             DateTimeFormatterBuilder bld,
             Collection<DateTimeFieldType> fields,
-            boolean extended,
-            boolean strictISO) {
+            boolean extended) {
 
         boolean reducedPrec = false;
         if (fields.remove(DateTimeFieldType.year())) {

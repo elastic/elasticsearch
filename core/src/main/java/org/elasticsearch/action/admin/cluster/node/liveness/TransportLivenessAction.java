@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.liveness;
 
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -30,19 +29,17 @@ import org.elasticsearch.transport.TransportService;
 public final class TransportLivenessAction implements TransportRequestHandler<LivenessRequest> {
 
     private final ClusterService clusterService;
-    private final ClusterName clusterName;
     public static final String NAME = "cluster:monitor/nodes/liveness";
 
     @Inject
-    public TransportLivenessAction(ClusterName clusterName,
-                                   ClusterService clusterService, TransportService transportService) {
+    public TransportLivenessAction(ClusterService clusterService, TransportService transportService) {
         this.clusterService = clusterService;
-        this.clusterName = clusterName;
-        transportService.registerRequestHandler(NAME, LivenessRequest::new, ThreadPool.Names.SAME, this);
+        transportService.registerRequestHandler(NAME, LivenessRequest::new, ThreadPool.Names.SAME,
+            false, false /*can not trip circuit breaker*/, this);
     }
 
     @Override
     public void messageReceived(LivenessRequest request, TransportChannel channel) throws Exception {
-        channel.sendResponse(new LivenessResponse(clusterName, clusterService.localNode()));
+        channel.sendResponse(new LivenessResponse(clusterService.getClusterName(), clusterService.localNode()));
     }
 }

@@ -37,6 +37,12 @@ one of the active allocation ids in the cluster state.
      How many concurrent outgoing shard recoveries are allowed to happen on a node. Outgoing recoveries are the recoveries
      where the source shard (most likely the primary unless a shard is relocating) is allocated on the node. Defaults to `2`.
 
+`cluster.routing.allocation.node_concurrent_recoveries`::
+
+     A shortcut to set both `cluster.routing.allocation.node_concurrent_incoming_recoveries` and
+     `cluster.routing.allocation.node_concurrent_outgoing_recoveries`.
+
+
 `cluster.routing.allocation.node_initial_primaries_recoveries`::
 
     While the recovery of replicas happens over the network, the recovery of
@@ -85,7 +91,11 @@ Specify when shard rebalancing is allowed:
 `cluster.routing.allocation.cluster_concurrent_rebalance`::
 
       Allow to control how many concurrent shard rebalances are
-      allowed cluster wide. Defaults to `2`.
+      allowed cluster wide. Defaults to `2`. Note that this setting
+      only controls the number of concurrent shard relocations due
+      to imbalances in the cluster. This setting does not limit shard
+      relocations due to <<allocation-filtering,allocation filtering>>
+      or <<forced-awareness,forced awareness>>.
 
 [float]
 === Shard Balancing Heuristics

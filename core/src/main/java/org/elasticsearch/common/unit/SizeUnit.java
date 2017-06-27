@@ -19,9 +19,6 @@
 
 package org.elasticsearch.common.unit;
 
-/**
- *
- */
 public enum SizeUnit {
     SINGLE {
         @Override

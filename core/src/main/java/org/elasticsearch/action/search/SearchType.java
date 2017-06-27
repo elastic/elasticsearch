@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.common.ParseFieldMatcher;
-
 /**
  * Search type represent the manner at which the search operation is executed.
  *
@@ -39,16 +37,12 @@ public enum SearchType {
      * are fetched. This is very handy when the index has a lot of shards (not replicas, shard id groups).
      */
     QUERY_THEN_FETCH((byte) 1),
+    // 2 used to be DFS_QUERY_AND_FETCH
+
     /**
-     * Same as {@link #QUERY_AND_FETCH}, except for an initial scatter phase which goes and computes the distributed
-     * term frequencies for more accurate scoring.
+     * Only used for pre 5.3 request where this type is still needed
      */
-    DFS_QUERY_AND_FETCH((byte) 2),
-    /**
-     * The most naive (and possibly fastest) implementation is to simply execute the query on all relevant shards
-     * and return the results. Each shard returns size results. Since each shard already returns size hits, this
-     * type actually returns size times number of shards results back to the caller.
-     */
+    @Deprecated
     QUERY_AND_FETCH((byte) 3);
 
     /**
@@ -75,12 +69,9 @@ public enum SearchType {
     public static SearchType fromId(byte id) {
         if (id == 0) {
             return DFS_QUERY_THEN_FETCH;
-        } else if (id == 1) {
+        } else if (id == 1
+            || id == 3) { // TODO this bwc layer can be removed once this is back-ported to 5.3 QUERY_AND_FETCH is removed now
             return QUERY_THEN_FETCH;
-        } else if (id == 2) {
-            return DFS_QUERY_AND_FETCH;
-        } else if (id == 3) {
-            return QUERY_AND_FETCH;
         } else {
             throw new IllegalArgumentException("No search type for [" + id + "]");
         }
@@ -91,18 +82,14 @@ public enum SearchType {
      * one of "dfs_query_then_fetch"/"dfsQueryThenFetch", "dfs_query_and_fetch"/"dfsQueryAndFetch",
      * "query_then_fetch"/"queryThenFetch" and "query_and_fetch"/"queryAndFetch".
      */
-    public static SearchType fromString(String searchType, ParseFieldMatcher parseFieldMatcher) {
+    public static SearchType fromString(String searchType) {
         if (searchType == null) {
             return SearchType.DEFAULT;
         }
         if ("dfs_query_then_fetch".equals(searchType)) {
             return SearchType.DFS_QUERY_THEN_FETCH;
-        } else if ("dfs_query_and_fetch".equals(searchType)) {
-            return SearchType.DFS_QUERY_AND_FETCH;
         } else if ("query_then_fetch".equals(searchType)) {
             return SearchType.QUERY_THEN_FETCH;
-        } else if ("query_and_fetch".equals(searchType)) {
-            return SearchType.QUERY_AND_FETCH;
         } else {
             throw new IllegalArgumentException("No search type for [" + searchType + "]");
         }

@@ -27,16 +27,6 @@ import org.elasticsearch.plugins.Plugin;
 public class SMBStorePlugin extends Plugin {
 
     @Override
-    public String name() {
-        return "store-smb";
-    }
-
-    @Override
-    public String description() {
-        return "SMB Store Plugin";
-    }
-
-    @Override
     public void onIndexModule(IndexModule indexModule) {
         indexModule.addIndexStore("smb_mmap_fs", SmbMmapFsIndexStore::new);
         indexModule.addIndexStore("smb_simple_fs", SmbSimpleFsIndexStore::new);

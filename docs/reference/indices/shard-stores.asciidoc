@@ -52,9 +52,8 @@ The shard stores information is grouped by indices and shard ids.
                     }
                 },
                 "allocation_id": "2iNySv_OQVePRX-yaRH_lQ", <4>
-                "legacy_version": 42, <5>
-                "allocation" : "primary" | "replica" | "unused", <6>
-                "store_exception": ... <7>
+                "allocation" : "primary" | "replica" | "unused", <5>
+                "store_exception": ... <6>
             },
             ...
         ]
@@ -67,9 +66,7 @@ The shard stores information is grouped by indices and shard ids.
 <3> The node information that hosts a copy of the store, the key
     is the unique node id.
 <4> The allocation id of the store copy
-<5> The version of the store copy (available only for legacy shard copies that have
-    not yet been active in a current version of Elasticsearch)
-<6> The status of the store copy, whether it is used as a
+<5> The status of the store copy, whether it is used as a
     primary, replica or not used at all
-<7> Any exception encountered while opening the shard index or
+<6> Any exception encountered while opening the shard index or
     from earlier engine failure

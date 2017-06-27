@@ -30,6 +30,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY_ALLOW_DELETE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,12 +39,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class GetSettingsBlocksIT extends ESIntegTestCase {
     public void testGetSettingsWithBlocks() throws Exception {
         assertAcked(prepareCreate("test")
-                .setSettings(Settings.settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("index.refresh_interval", -1)
                         .put("index.merge.policy.expunge_deletes_allowed", "30")
                         .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)));
 
-        for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
+        for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {
                 enableIndexBlock("test", block);
                 GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();

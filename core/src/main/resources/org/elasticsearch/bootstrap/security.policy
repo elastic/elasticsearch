@@ -24,19 +24,27 @@
 //// SecurityManager impl:
 //// Must have all permissions to properly perform access checks
 
-grant codeBase "${codebase.securesm-1.0.jar}" {
+grant codeBase "${codebase.securesm-1.1.jar}" {
   permission java.security.AllPermission;
 };
 
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 
-grant codeBase "${codebase.lucene-core-5.5.0-snapshot-850c6c2.jar}" {
+grant codeBase "${codebase.lucene-core-7.0.0-snapshot-ad2cb77.jar}" {
   // needed to allow MMapDirectory's "unmap hack" (die unmap hack, die)
+  // java 8 package
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  // java 9 "package"
+  permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.ref";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // NOTE: also needed for RAMUsageEstimator size calculations
   permission java.lang.RuntimePermission "accessDeclaredMembers";
+};
+
+grant codeBase "${codebase.lucene-misc-7.0.0-snapshot-ad2cb77.jar}" {
+  // needed to allow shard shrinking to use hard-links if possible via lucenes HardlinkCopyDirectoryWrapper
+  permission java.nio.file.LinkPermission "hard";
 };
 
 //// Everything else:
@@ -47,8 +55,8 @@ grant {
   // third party code, to safeguard these against unprivileged code like scripts.
   permission org.elasticsearch.SpecialPermission;
 
-  // Allow connecting to the internet anywhere
-  permission java.net.SocketPermission "*", "accept,connect,resolve";
+  // Allow host/ip name service lookups
+  permission java.net.SocketPermission "*", "resolve";
 
   // Allow read access to all system properties
   permission java.util.PropertyPermission "*", "read";
@@ -68,23 +76,12 @@ grant {
 
   // set by ESTestCase to improve test reproducibility
   // TODO: set this with gradle or some other way that repros with seed?
-  permission java.util.PropertyPermission "es.processors.override", "write";
-  // set by CLIToolTestCase
-  // TODO: do this differently? or test commandline tools differently?
-  permission java.util.PropertyPermission "es.default.path.home", "write";
+  permission java.util.PropertyPermission "processors.override", "write";
 
   // TODO: these simply trigger a noisy warning if its unable to clear the properties
   // fix that in randomizedtesting
   permission java.util.PropertyPermission "junit4.childvm.count", "write";
   permission java.util.PropertyPermission "junit4.childvm.id", "write";
-
-  // set by NettyTransport/NettyHttpServerTransport based on another parameter
-  // TODO: look into this and decide if users should simply set the actual sysprop?!
-  permission java.util.PropertyPermission "org.jboss.netty.epollBugWorkaround", "write";
-
-  // Netty SelectorUtil wants to change this, because of https://bugs.openjdk.java.net/browse/JDK-6427854
-  // the bug says it only happened rarely, and that its fixed, but apparently it still happens rarely!
-  permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
 
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";
@@ -95,10 +92,10 @@ grant {
   permission java.lang.RuntimePermission "modifyThreadGroup";
 
   // needed by ExceptionSerializationTests and RestTestCase for
-  // some hackish things they do. otherwise only needed by groovy 
+  // some hackish things they do. otherwise only needed by groovy
   // (TODO: clean this up?)
   permission java.lang.RuntimePermission "getProtectionDomain";
-  
+
   // needed by HotThreads and potentially more
   // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "getStackTrace";
@@ -119,6 +116,17 @@ grant {
   // load averages on Linux
   permission java.io.FilePermission "/proc/loadavg", "read";
 
-  // load averages on FreeBSD
-  permission java.io.FilePermission "/compat/linux/proc/loadavg", "read";
+  // read max virtual memory areas
+  permission java.io.FilePermission "/proc/sys/vm/max_map_count", "read";
+
+  // io stats on Linux
+  permission java.io.FilePermission "/proc/self/mountinfo", "read";
+  permission java.io.FilePermission "/proc/diskstats", "read";
+
+  // control group stats on Linux
+  permission java.io.FilePermission "/proc/self/cgroup", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpu/-", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpuacct", "read";
+  permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
 };

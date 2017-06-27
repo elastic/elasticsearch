@@ -106,7 +106,7 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
         Recycler<byte[]> r = newRecycler(limit);
         Recycler.V<byte[]> o = r.obtain();
         assertFresh(o.v());
-        getRandom().nextBytes(o.v());
+        random().nextBytes(o.v());
         o.close();
         o = r.obtain();
         assertRecycled(o.v());
@@ -166,7 +166,7 @@ public abstract class AbstractRecyclerTestCase extends ESTestCase {
         assertFresh(data);
 
         // randomize & return to pool
-        getRandom().nextBytes(data);
+        random().nextBytes(data);
         o.close();
 
         // verify that recycle() ran

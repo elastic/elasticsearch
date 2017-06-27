@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
-import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregationBuilder;
 
-public class SumBucketTests extends AbstractBucketMetricsTestCase<SumBucketPipelineAggregatorBuilder> {
+public class SumBucketTests extends AbstractBucketMetricsTestCase<SumBucketPipelineAggregationBuilder> {
 
     @Override
-    protected SumBucketPipelineAggregatorBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
-        return new SumBucketPipelineAggregatorBuilder(name, bucketsPath);
+    protected SumBucketPipelineAggregationBuilder doCreateTestAggregatorFactory(String name, String bucketsPath) {
+        return new SumBucketPipelineAggregationBuilder(name, bucketsPath);
     }
 
 

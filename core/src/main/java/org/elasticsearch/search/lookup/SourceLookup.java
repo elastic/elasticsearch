@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.util.Collection;
 import java.util.List;
@@ -35,9 +36,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 
-/**
- *
- */
 public class SourceLookup implements Map {
 
     private LeafReader reader;
@@ -130,8 +128,8 @@ public class SourceLookup implements Map {
         return XContentMapValues.extractRawValues(path, loadSourceIfNeeded());
     }
 
-    public Object filter(String[] includes, String[] excludes) {
-        return XContentMapValues.filter(loadSourceIfNeeded(), includes, excludes);
+    public Object filter(FetchSourceContext context) {
+        return context.getFilter().apply(loadSourceIfNeeded());
     }
 
     public Object extractValue(String path) {

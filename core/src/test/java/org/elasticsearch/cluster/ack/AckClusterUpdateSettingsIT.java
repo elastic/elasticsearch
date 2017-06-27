@@ -36,7 +36,6 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,7 +69,10 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
     private void removePublishTimeout() {
         //to test that the acknowledgement mechanism is working we better disable the wait for publish
         //otherwise the operation is most likely acknowledged even if it doesn't support ack
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")
+            .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "30s")
+        ));
     }
 
     public void testClusterUpdateSettingsAcknowledgement() {
@@ -82,27 +84,27 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
         String excludedNodeId = null;
-        for (NodeInfo nodeInfo : nodesInfo) {
+        for (NodeInfo nodeInfo : nodesInfo.getNodes()) {
             if (nodeInfo.getNode().isDataNode()) {
-                excludedNodeId = nodeInfo.getNode().id();
+                excludedNodeId = nodeInfo.getNode().getId();
                 break;
             }
         }
         assertNotNull(excludedNodeId);
 
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
+                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
         assertAcked(clusterUpdateSettingsResponse);
         assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
 
         for (Client client : clients()) {
             ClusterState clusterState = getLocalClusterState(client);
-            assertThat(clusterState.getRoutingNodes().metaData().transientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
+            assertThat(clusterState.metaData().transientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
             for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
                         assert clusterState.nodes() != null;
-                        if (shardRouting.unassigned() == false && clusterState.nodes().get(shardRouting.currentNodeId()).id().equals(excludedNodeId)) {
+                        if (shardRouting.unassigned() == false && clusterState.nodes().get(shardRouting.currentNodeId()).getId().equals(excludedNodeId)) {
                             //if the shard is still there it must be relocating and all nodes need to know, since the request was acknowledged
                             //reroute happens as part of the update settings and we made sure no throttling comes into the picture via settings
                             assertThat(shardRouting.relocating(), equalTo(true));
@@ -115,7 +117,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
 
     public void testClusterUpdateSettingsNoAcknowledgement() {
         client().admin().indices().prepareCreate("test")
-                .setSettings(settingsBuilder()
+                .setSettings(Settings.builder()
                         .put("number_of_shards", between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
@@ -125,16 +127,16 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
         String excludedNodeId = null;
-        for (NodeInfo nodeInfo : nodesInfo) {
+        for (NodeInfo nodeInfo : nodesInfo.getNodes()) {
             if (nodeInfo.getNode().isDataNode()) {
-                excludedNodeId = nodeInfo.getNode().id();
+                excludedNodeId = nodeInfo.getNode().getId();
                 break;
             }
         }
         assertNotNull(excludedNodeId);
 
         ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin().cluster().prepareUpdateSettings().setTimeout("0s")
-                .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
+                .setTransientSettings(Settings.builder().put("cluster.routing.allocation.exclude._id", excludedNodeId)).get();
         assertThat(clusterUpdateSettingsResponse.isAcknowledged(), equalTo(false));
         assertThat(clusterUpdateSettingsResponse.getTransientSettings().get("cluster.routing.allocation.exclude._id"), equalTo(excludedNodeId));
     }

@@ -19,28 +19,15 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 
-public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggregatorBuilder> {
+public class CardinalityTests extends BaseAggregationTestCase<CardinalityAggregationBuilder> {
 
     @Override
-    protected final CardinalityAggregatorBuilder createTestAggregatorBuilder() {
-        CardinalityAggregatorBuilder factory = new CardinalityAggregatorBuilder("foo", null);
+    protected final CardinalityAggregationBuilder createTestAggregatorBuilder() {
+        CardinalityAggregationBuilder factory = new CardinalityAggregationBuilder("foo", null);
         String field = randomNumericField();
-        int randomFieldBranch = randomInt(3);
-        switch (randomFieldBranch) {
-        case 0:
-            factory.field(field);
-            break;
-        case 1:
-            factory.field(field);
-            factory.script(new Script("_value + 1"));
-            break;
-        case 2:
-            factory.script(new Script("doc[" + field + "] + 1"));
-            break;
-        }
+        randomFieldOrScript(factory, field);
         if (randomBoolean()) {
             factory.missing("MISSING");
         }

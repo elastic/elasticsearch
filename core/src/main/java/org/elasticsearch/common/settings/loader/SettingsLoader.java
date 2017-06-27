@@ -33,7 +33,7 @@ import java.util.Map;
  */
 public interface SettingsLoader {
 
-    static class Helper {
+    class Helper {
 
         public static Map<String, String> loadNestedFromMap(@Nullable Map map) {
             Map<String, String> settings = new HashMap<>();

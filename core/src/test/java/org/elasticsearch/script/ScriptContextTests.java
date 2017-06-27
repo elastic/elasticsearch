@@ -19,101 +19,87 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import static org.hamcrest.Matchers.containsString;
 
 public class ScriptContextTests extends ESTestCase {
 
-    private static final String PLUGIN_NAME = "testplugin";
+    public interface TwoNewInstance {
+        String newInstance(int foo, int bar);
+        String newInstance(int foo);
 
-    ScriptService makeScriptService() throws Exception {
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
-            // no file watching, so we don't need a ResourceWatcherService
-            .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), "off")
-            .put("script." + PLUGIN_NAME + "_custom_globally_disabled_op", "false")
-            .put("script.engine." + MockScriptEngine.NAME + ".inline." + PLUGIN_NAME + "_custom_exp_disabled_op", "false")
-            .build();
-        Set<ScriptEngineService> engines = new HashSet<>(Collections.singletonList(new MockScriptEngine()));
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new ScriptEngineRegistry.ScriptEngineRegistration(MockScriptEngine.class, MockScriptEngine.TYPES)));
-        List<ScriptContext.Plugin> customContexts = Arrays.asList(
-            new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"),
-            new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"),
-            new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(customContexts);
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-
-        return new ScriptService(settings, new Environment(settings), engines, null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
-    }
-
-    public void testCustomGlobalScriptContextSettings() throws Exception {
-        ScriptService scriptService = makeScriptService();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
-            try {
-                Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
-                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"), Collections.emptyMap());
-                fail("script compilation should have been rejected");
-            } catch (ScriptException e) {
-                assertThat(e.getMessage(), containsString("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
-            }
+        interface StatefulFactory {
+            TwoNewInstance newFactory();
         }
     }
 
-    public void testCustomScriptContextSettings() throws Exception {
-        ScriptService scriptService = makeScriptService();
-        Script script = new Script("1", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, null);
-        try {
-            scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), Collections.emptyMap());
-            fail("script compilation should have been rejected");
-        } catch (ScriptException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [inline], operation [" + PLUGIN_NAME + "_custom_exp_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
-        }
-
-        // still works for other script contexts
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.AGGS, Collections.emptyMap()));
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
-        assertNotNull(scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"), Collections.emptyMap()));
+    public interface TwoNewFactory {
+        String newFactory(int foo, int bar);
+        String newFactory(int foo);
     }
 
-    public void testUnknownPluginScriptContext() throws Exception {
-        ScriptService scriptService = makeScriptService();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
-            try {
-                Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
-                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"), Collections.emptyMap());
-                fail("script compilation should have been rejected");
-            } catch (IllegalArgumentException e) {
-                assertTrue(e.getMessage(), e.getMessage().contains("script context [" + PLUGIN_NAME + "_unknown] not supported"));
-            }
+    public interface MissingNewInstance {
+        String typoNewInstanceMethod(int foo);
+    }
+
+    public interface DummyScript {
+        int execute(int foo);
+
+        interface Factory {
+            DummyScript newInstance();
         }
     }
 
-    public void testUnknownCustomScriptContext() throws Exception {
-        ScriptContext context = new ScriptContext() {
-            @Override
-            public String getKey() {
-                return "test";
-            }
-        };
-        ScriptService scriptService = makeScriptService();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
-            try {
-                Script script = new Script("1", scriptType, MockScriptEngine.NAME, null);
-                scriptService.compile(script, context, Collections.emptyMap());
-                fail("script compilation should have been rejected");
-            } catch (IllegalArgumentException e) {
-                assertTrue(e.getMessage(), e.getMessage().contains("script context [test] not supported"));
-            }
+    public interface DummyStatefulScript {
+        int execute(int foo);
+        interface StatefulFactory {
+            DummyStatefulScript newInstance();
+        }
+        interface Factory {
+            StatefulFactory newFactory();
         }
     }
 
+    public void testTwoNewInstanceMethods() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new ScriptContext<>("test", TwoNewInstance.class));
+        assertEquals("Cannot have multiple newInstance methods on FactoryType class ["
+            + TwoNewInstance.class.getName() + "] for script context [test]", e.getMessage());
+    }
+
+    public void testTwoNewFactoryMethods() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new ScriptContext<>("test", TwoNewFactory.class));
+        assertEquals("Cannot have multiple newFactory methods on FactoryType class ["
+            + TwoNewFactory.class.getName() + "] for script context [test]", e.getMessage());
+    }
+
+    public void testTwoNewInstanceStatefulFactoryMethods() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new ScriptContext<>("test", TwoNewInstance.StatefulFactory.class));
+        assertEquals("Cannot have multiple newInstance methods on StatefulFactoryType class ["
+            + TwoNewInstance.class.getName() + "] for script context [test]", e.getMessage());
+    }
+
+    public void testMissingNewInstanceMethod() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            new ScriptContext<>("test", MissingNewInstance.class));
+        assertEquals("Could not find method newInstance or method newFactory on FactoryType class ["
+            + MissingNewInstance.class.getName() + "] for script context [test]", e.getMessage());
+    }
+
+    public void testInstanceTypeReflection() {
+        ScriptContext<?> context = new ScriptContext<>("test", DummyScript.Factory.class);
+        assertEquals("test", context.name);
+        assertEquals(DummyScript.class, context.instanceClazz);
+        assertNull(context.statefulFactoryClazz);
+        assertEquals(DummyScript.Factory.class, context.factoryClazz);
+    }
+
+    public void testStatefulFactoryReflection() {
+        ScriptContext<?> context = new ScriptContext<>("test", DummyStatefulScript.Factory.class);
+        assertEquals("test", context.name);
+        assertEquals(DummyStatefulScript.class, context.instanceClazz);
+        assertEquals(DummyStatefulScript.StatefulFactory.class, context.statefulFactoryClazz);
+        assertEquals(DummyStatefulScript.Factory.class, context.factoryClazz);
+    }
 }

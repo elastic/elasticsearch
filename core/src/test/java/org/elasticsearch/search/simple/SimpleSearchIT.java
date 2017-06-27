@@ -26,10 +26,13 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.internal.DefaultSearchContext;
+import org.elasticsearch.search.SearchContextException;
+import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
@@ -37,10 +40,12 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
+import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -49,22 +54,17 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class SimpleSearchIT extends ESIntegTestCase {
+
     public void testSearchNullIndex() {
-        try {
-            client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
-            fail();
-        } catch (IllegalArgumentException e) {
+        expectThrows(NullPointerException.class,
+                () -> client().prepareSearch((String) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).get());
 
-        }
+        expectThrows(NullPointerException.class,
+                () -> client().prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).get());
 
-        try {
-            client().prepareSearch((String[]) null).setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
-            fail();
-        } catch (IllegalArgumentException e) {
-
-        }
     }
 
     public void testSearchRandomPreference() throws InterruptedException, ExecutionException {
@@ -100,10 +100,11 @@ public class SimpleSearchIT extends ESIntegTestCase {
                         .endObject().endObject().endObject())
                 .execute().actionGet();
 
-        client().prepareIndex("test", "type1", "1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type1", "1").setSource("from", "192.168.0.5", "to", "192.168.0.10").setRefreshPolicy(IMMEDIATE)
+                .get();
 
         SearchResponse search = client().prepareSearch()
-                .setQuery(boolQuery().must(rangeQuery("from").lt("192.168.0.7")).must(rangeQuery("to").gt("192.168.0.7")))
+                .setQuery(boolQuery().must(rangeQuery("from").lte("192.168.0.7")).must(rangeQuery("to").gte("192.168.0.7")))
                 .execute().actionGet();
 
         assertHitCount(search, 1L);
@@ -123,6 +124,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "2").setSource("ip", "192.168.0.2").execute().actionGet();
         client().prepareIndex("test", "type1", "3").setSource("ip", "192.168.0.3").execute().actionGet();
         client().prepareIndex("test", "type1", "4").setSource("ip", "192.168.1.4").execute().actionGet();
+        client().prepareIndex("test", "type1", "5").setSource("ip", "2001:db8::ff00:42:8329").execute().actionGet();
         refresh();
 
         SearchResponse search = client().prepareSearch()
@@ -156,31 +158,39 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertHitCount(search, 4L);
 
         search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "2001:db8::ff00:42:8329/128")))
+                .execute().actionGet();
+        assertHitCount(search, 1L);
+
+        search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "2001:db8::/64")))
+                .execute().actionGet();
+        assertHitCount(search, 1L);
+
+        search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "::/0")))
+                .execute().actionGet();
+        assertHitCount(search, 5L);
+
+        search = client().prepareSearch()
                 .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.1.5/32")))
                 .execute().actionGet();
         assertHitCount(search, 0L);
 
         assertFailures(client().prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "0/0/0/0/0"))),
                 RestStatus.BAD_REQUEST,
-                containsString("invalid IPv4/CIDR; expected [a.b.c.d, e] but was [[0, 0, 0, 0, 0]]"));
+                containsString("Expected [ip/prefix] but was [0/0/0/0/0]"));
     }
 
     public void testSimpleId() {
         createIndex("test");
 
-        client().prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefresh(true).execute().actionGet();
+        client().prepareIndex("test", "type", "XXX1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         // id is not indexed, but lets see that we automatically convert to
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX1")).execute().actionGet();
-        assertHitCount(searchResponse, 1L);
-
-        // id is not index, but we can automatically support prefix as well
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.prefixQuery("_id", "XXX")).execute().actionGet();
-        assertHitCount(searchResponse, 1L);
-
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
         assertHitCount(searchResponse, 1L);
     }
 
@@ -270,7 +280,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
             searchResponse = client().prepareSearch("test")
                     .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max))
                     .setTerminateAfter(i).execute().actionGet();
-            assertHitCount(searchResponse, (long)i);
+            assertHitCount(searchResponse, i);
             assertTrue(searchResponse.isTerminatedEarly());
         }
 
@@ -279,12 +289,55 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .setTerminateAfter(2 * max).execute().actionGet();
 
         assertHitCount(searchResponse, max);
-        assertFalse(searchResponse.isTerminatedEarly());
+        assertNull(searchResponse.isTerminatedEarly());
+    }
+
+    public void testSimpleIndexSortEarlyTerminate() throws Exception {
+        prepareCreate("test")
+            .setSettings(Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("index.sort.field", "rank")
+            )
+            .addMapping("type1", "rank", "type=integer")
+            .get();
+        ensureGreen();
+        int max = randomIntBetween(3, 29);
+        List<IndexRequestBuilder> docbuilders = new ArrayList<>(max);
+
+        for (int i = max-1; i >= 0; i--) {
+            String id = String.valueOf(i);
+            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("rank", i));
+        }
+
+        indexRandom(true, docbuilders);
+        ensureGreen();
+        refresh();
+
+        SearchResponse searchResponse;
+        boolean hasEarlyTerminated = false;
+        for (int i = 1; i < max; i++) {
+            searchResponse = client().prepareSearch("test")
+                .addDocValueField("rank")
+                .setTrackTotalHits(false)
+                .addSort("rank", SortOrder.ASC)
+                .setSize(i).execute().actionGet();
+            assertThat(searchResponse.getHits().getTotalHits(), equalTo(-1L));
+            if (searchResponse.isTerminatedEarly() != null) {
+                assertTrue(searchResponse.isTerminatedEarly());
+                hasEarlyTerminated = true;
+            }
+            for (int j = 0; j < i; j++) {
+                assertThat(searchResponse.getHits().getAt(j).field("rank").getValue(),
+                    equalTo((long) j));
+            }
+        }
+        assertTrue(hasEarlyTerminated);
     }
 
     public void testInsaneFromAndSize() throws Exception {
         createIndex("idx");
-        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
 
         assertWindowFails(client().prepareSearch("idx").setFrom(Integer.MAX_VALUE));
         assertWindowFails(client().prepareSearch("idx").setSize(Integer.MAX_VALUE));
@@ -292,7 +345,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLargeFromAndSize() throws Exception {
         createIndex("idx");
-        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
 
         assertWindowFails(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)));
         assertWindowFails(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) + 1));
@@ -302,7 +355,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testLargeFromAndSizeSucceeds() throws Exception {
         createIndex("idx");
-        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
 
         assertHitCount(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) - 10).get(), 1);
         assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)).get(), 1);
@@ -311,8 +364,9 @@ public class SimpleSearchIT extends ESIntegTestCase {
     }
 
     public void testTooLargeFromAndSizeOkBySetting() throws Exception {
-        prepareCreate("idx").setSettings(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2).get();
-        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+        prepareCreate("idx").setSettings(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
+                IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2).get();
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
 
         assertHitCount(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)).get(), 1);
         assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) + 1).get(), 1);
@@ -324,9 +378,10 @@ public class SimpleSearchIT extends ESIntegTestCase {
         createIndex("idx");
         assertAcked(client().admin().indices().prepareUpdateSettings("idx")
                 .setSettings(
-                        Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2))
+                        Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(),
+                                IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 2))
                 .get());
-        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
 
         assertHitCount(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)).get(), 1);
         assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) + 1).get(), 1);
@@ -336,12 +391,71 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLargeFromAndSizeBackwardsCompatibilityRecommendation() throws Exception {
         prepareCreate("idx").setSettings(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE).get();
-        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}"));
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
 
         assertHitCount(client().prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10).get(), 1);
         assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10).get(), 1);
         assertHitCount(client().prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10)
                 .setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10).get(), 1);
+    }
+
+    public void testTooLargeRescoreWindow() throws Exception {
+        createIndex("idx");
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
+
+        assertRescoreWindowFails(Integer.MAX_VALUE);
+        assertRescoreWindowFails(IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY) + 1);
+    }
+
+    public void testTooLargeRescoreOkBySetting() throws Exception {
+        int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
+        prepareCreate("idx").setSettings(IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey(),
+                defaultMaxWindow * 2).get();
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
+
+        assertHitCount(
+                client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)).get(),
+                1);
+    }
+
+    public void testTooLargeRescoreOkByResultWindowSetting() throws Exception {
+        int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
+        prepareCreate("idx").setSettings(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), // Note that this is the RESULT window.
+                defaultMaxWindow * 2).get();
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
+
+        assertHitCount(
+                client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)).get(),
+                1);
+    }
+
+    public void testTooLargeRescoreOkByDynamicSetting() throws Exception {
+        int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
+        createIndex("idx");
+        assertAcked(client().admin().indices().prepareUpdateSettings("idx")
+                .setSettings(
+                        Settings.builder().put(IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey(), defaultMaxWindow * 2))
+                .get());
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
+
+        assertHitCount(
+                client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)).get(),
+                1);
+    }
+
+    public void testTooLargeRescoreOkByDynamicResultWindowSetting() throws Exception {
+        int defaultMaxWindow = IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY);
+        createIndex("idx");
+        assertAcked(client().admin().indices().prepareUpdateSettings("idx")
+                .setSettings(
+                        // Note that this is the RESULT window
+                        Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), defaultMaxWindow * 2))
+                .get());
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("{}", XContentType.JSON));
+
+        assertHitCount(
+                client().prepareSearch("idx").addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(defaultMaxWindow + 1)).get(),
+                1);
     }
 
     public void testQueryNumericFieldWithRegex() throws Exception {
@@ -352,18 +466,25 @@ public class SimpleSearchIT extends ESIntegTestCase {
             client().prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", "34")).get();
             fail("SearchPhaseExecutionException should have been thrown");
         } catch (SearchPhaseExecutionException ex) {
-            assertThat(ex.getCause().getCause().getMessage(), equalTo("Cannot use regular expression to filter numeric field [num]"));
+            assertThat(ex.getRootCause().getMessage(),
+                containsString("Can only use regexp queries on keyword and text fields"));
         }
     }
 
     private void assertWindowFails(SearchRequestBuilder search) {
-        try {
-            search.get();
-            fail();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.toString(), containsString("Result window is too large, from + size must be less than or equal to: ["
-                    + IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)));
-            assertThat(e.toString(), containsString("See the scroll api for a more efficient way to request large data sets"));
-        }
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> search.get());
+        assertThat(e.toString(), containsString("Result window is too large, from + size must be less than or equal to: ["
+                + IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)));
+        assertThat(e.toString(), containsString("See the scroll api for a more efficient way to request large data sets"));
+    }
+
+    private void assertRescoreWindowFails(int windowSize) {
+        SearchRequestBuilder search = client().prepareSearch("idx")
+                .addRescorer(new QueryRescorerBuilder(matchAllQuery()).windowSize(windowSize));
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> search.get());
+        assertThat(e.toString(), containsString("Rescore window [" + windowSize + "] is too large. It must "
+                + "be less than [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.get(Settings.EMPTY)));
+        assertThat(e.toString(), containsString(
+                "This limit can be set by changing the [" + IndexSettings.MAX_RESCORE_WINDOW_SETTING.getKey() + "] index level setting."));
     }
 }

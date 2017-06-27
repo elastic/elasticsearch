@@ -21,14 +21,14 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 
-public class FilterTests extends BaseAggregationTestCase<FilterAggregatorBuilder> {
+public class FilterTests extends BaseAggregationTestCase<FilterAggregationBuilder> {
 
     @Override
-    protected FilterAggregatorBuilder createTestAggregatorBuilder() {
-        FilterAggregatorBuilder factory = new FilterAggregatorBuilder(randomAsciiOfLengthBetween(1, 20),
-                QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
+    protected FilterAggregationBuilder createTestAggregatorBuilder() {
+        FilterAggregationBuilder factory = new FilterAggregationBuilder(randomAlphaOfLengthBetween(1, 20),
+                QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
         // NORELEASE make RandomQueryBuilder work outside of the
         // AbstractQueryTestCase
         // builder.query(RandomQueryBuilder.createQuery(getRandom()));

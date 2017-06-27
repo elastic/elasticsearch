@@ -19,31 +19,50 @@
 
 package org.elasticsearch.cloud.azure.storage;
 
+import com.microsoft.azure.storage.RetryPolicy;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.repositories.RepositorySettings;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-public class AzureStorageSettings {
-    private static ESLogger logger = ESLoggerFactory.getLogger(AzureStorageSettings.class.getName());
+public final class AzureStorageSettings {
+    private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "timeout",
+        (key) -> Setting.timeSetting(key, Storage.TIMEOUT_SETTING, Setting.Property.NodeScope));
+    private static final Setting<String> ACCOUNT_SETTING =
+        Setting.affixKeySetting(Storage.PREFIX, "account", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
+    private static final Setting<String> KEY_SETTING =
+        Setting.affixKeySetting(Storage.PREFIX, "key", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
+    private static final Setting<Boolean> DEFAULT_SETTING =
+        Setting.affixKeySetting(Storage.PREFIX, "default", (key) -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
+    /**
+     * max_retries: Number of retries in case of Azure errors. Defaults to 3 (RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT).
+     */
+    private static final Setting<Integer> MAX_RETRIES_SETTING =
+        Setting.affixKeySetting(Storage.PREFIX, "max_retries",
+            (key) -> Setting.intSetting(key, RetryPolicy.DEFAULT_CLIENT_RETRY_COUNT, Setting.Property.NodeScope));
 
     private final String name;
     private final String account;
     private final String key;
     private final TimeValue timeout;
+    private final boolean activeByDefault;
+    private final int maxRetries;
 
-    public AzureStorageSettings(String name, String account, String key, TimeValue timeout) {
+    public AzureStorageSettings(String name, String account, String key, TimeValue timeout, boolean activeByDefault, int maxRetries) {
         this.name = name;
         this.account = account;
         this.key = key;
         this.timeout = timeout;
+        this.activeByDefault = activeByDefault;
+        this.maxRetries = maxRetries;
     }
 
     public String getName() {
@@ -62,13 +81,23 @@ public class AzureStorageSettings {
         return timeout;
     }
 
+    public boolean isActiveByDefault() {
+        return activeByDefault;
+    }
+
+    public int getMaxRetries() {
+        return maxRetries;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("AzureStorageSettings{");
         sb.append("name='").append(name).append('\'');
         sb.append(", account='").append(account).append('\'');
         sb.append(", key='").append(key).append('\'');
+        sb.append(", activeByDefault='").append(activeByDefault).append('\'');
         sb.append(", timeout=").append(timeout);
+        sb.append(", maxRetries=").append(maxRetries);
         sb.append('}');
         return sb.toString();
     }
@@ -79,68 +108,70 @@ public class AzureStorageSettings {
      * @return A tuple with v1 = primary storage and v2 = secondary storage
      */
     public static Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> parse(Settings settings) {
-        AzureStorageSettings primaryStorage = null;
-        Map<String, AzureStorageSettings> secondaryStorage = new HashMap<>();
+        List<AzureStorageSettings> storageSettings = createStorageSettings(settings);
+        return Tuple.tuple(getPrimary(storageSettings), getSecondaries(storageSettings));
+    }
 
-        TimeValue globalTimeout = Storage.TIMEOUT_SETTING.get(settings);
+    private static List<AzureStorageSettings> createStorageSettings(Settings settings) {
+        // ignore global timeout which has the same prefix but does not belong to any group
+        Settings groups = Storage.STORAGE_ACCOUNTS.get(settings.filter((k) -> k.equals(Storage.TIMEOUT_SETTING.getKey()) == false));
+        List<AzureStorageSettings> storageSettings = new ArrayList<>();
+        for (String groupName : groups.getAsGroups().keySet()) {
+            storageSettings.add(
+                new AzureStorageSettings(
+                    groupName,
+                    getValue(settings, groupName, ACCOUNT_SETTING),
+                    getValue(settings, groupName, KEY_SETTING),
+                    getValue(settings, groupName, TIMEOUT_SETTING),
+                    getValue(settings, groupName, DEFAULT_SETTING),
+                    getValue(settings, groupName, MAX_RETRIES_SETTING))
+            );
+        }
+        return storageSettings;
+    }
 
-        Settings storageSettings = settings.getByPrefix(Storage.PREFIX);
-        if (storageSettings != null) {
-            Map<String, Object> asMap = storageSettings.getAsStructuredMap();
-            for (Map.Entry<String, Object> storage : asMap.entrySet()) {
-                if (storage.getValue() instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, String> map = (Map) storage.getValue();
-                    TimeValue timeout = TimeValue.parseTimeValue(map.get("timeout"), globalTimeout, Storage.PREFIX + storage.getKey() + ".timeout");
-                    AzureStorageSettings current = new AzureStorageSettings(storage.getKey(), map.get("account"), map.get("key"), timeout);
-                    boolean activeByDefault = Boolean.parseBoolean(map.getOrDefault("default", "false"));
-                    if (activeByDefault) {
-                        if (primaryStorage == null) {
-                            primaryStorage = current;
-                        } else {
-                            logger.warn("default storage settings has already been defined. You can not define it to [{}]", storage.getKey());
-                            secondaryStorage.put(storage.getKey(), current);
-                        }
+    private static <T> T getValue(Settings settings, String groupName, Setting<T> setting) {
+        Setting.AffixKey k = (Setting.AffixKey) setting.getRawKey();
+        String fullKey = k.toConcreteKey(groupName).toString();
+        return setting.getConcreteSetting(fullKey).get(settings);
+    }
+
+    private static AzureStorageSettings getPrimary(List<AzureStorageSettings> settings) {
+        if (settings.isEmpty()) {
+            return null;
+        } else if (settings.size() == 1) {
+            // the only storage settings belong (implicitly) to the default primary storage
+            AzureStorageSettings storage = settings.get(0);
+            return new AzureStorageSettings(storage.getName(), storage.getAccount(), storage.getKey(), storage.getTimeout(), true,
+                storage.getMaxRetries());
+        } else {
+            AzureStorageSettings primary = null;
+            for (AzureStorageSettings setting : settings) {
+                if (setting.isActiveByDefault()) {
+                    if (primary == null) {
+                        primary = setting;
                     } else {
-                        secondaryStorage.put(storage.getKey(), current);
+                        throw new SettingsException("Multiple default Azure data stores configured: [" + primary.getName() + "] and [" + setting.getName() + "]");
                     }
                 }
             }
-            // If we did not set any default storage, we should complain and define it
-            if (primaryStorage == null && secondaryStorage.isEmpty() == false) {
-                Map.Entry<String, AzureStorageSettings> fallback = secondaryStorage.entrySet().iterator().next();
-                // We only warn if the number of secondary storage if > to 1
-                // If the user defined only one storage account, that's fine. We know it's the default one.
-                if (secondaryStorage.size() > 1) {
-                    logger.warn("no default storage settings has been defined. " +
-                            "Add \"default\": true to the settings you want to activate by default. " +
-                            "Forcing default to [{}].", fallback.getKey());
+            if (primary == null) {
+                throw new SettingsException("No default Azure data store configured");
+            }
+            return primary;
+        }
+    }
+
+    private static Map<String, AzureStorageSettings> getSecondaries(List<AzureStorageSettings> settings) {
+        Map<String, AzureStorageSettings> secondaries = new HashMap<>();
+        // when only one setting is defined, we don't have secondaries
+        if (settings.size() > 1) {
+            for (AzureStorageSettings setting : settings) {
+                if (setting.isActiveByDefault() == false) {
+                    secondaries.put(setting.getName(), setting);
                 }
-                primaryStorage = fallback.getValue();
-                secondaryStorage.remove(fallback.getKey());
             }
         }
-
-        return Tuple.tuple(primaryStorage, secondaryStorage);
-    }
-
-    public static <T> T getValue(RepositorySettings repositorySettings,
-                                 Setting<T> repositorySetting,
-                                 Setting<T> repositoriesSetting) {
-        if (repositorySetting.exists(repositorySettings.settings())) {
-            return repositorySetting.get(repositorySettings.settings());
-        } else {
-            return repositoriesSetting.get(repositorySettings.globalSettings());
-        }
-    }
-
-    public static <T> Setting<T> getEffectiveSetting(RepositorySettings repositorySettings,
-                                              Setting<T> repositorySetting,
-                                              Setting<T> repositoriesSetting) {
-        if (repositorySetting.exists(repositorySettings.settings())) {
-            return repositorySetting;
-        } else {
-            return repositoriesSetting;
-        }
+        return Collections.unmodifiableMap(secondaries);
     }
 }

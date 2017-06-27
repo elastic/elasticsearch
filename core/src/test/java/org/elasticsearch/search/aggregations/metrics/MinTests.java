@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.search.aggregations.metrics.min.MinAggregatorBuilder;
+import org.elasticsearch.search.aggregations.metrics.min.MinAggregationBuilder;
 
-public class MinTests extends AbstractNumericMetricTestCase<MinAggregatorBuilder> {
+public class MinTests extends AbstractNumericMetricTestCase<MinAggregationBuilder> {
 
     @Override
-    protected MinAggregatorBuilder doCreateTestAggregatorFactory() {
-        return new MinAggregatorBuilder("foo");
+    protected MinAggregationBuilder doCreateTestAggregatorFactory() {
+        return new MinAggregationBuilder("foo");
     }
 
 }

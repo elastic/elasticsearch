@@ -19,128 +19,155 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.rounding.Rounding;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.support.format.ValueParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
 
-/**
- *
- */
-public class ExtendedBounds implements ToXContent {
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-    static final ParseField EXTENDED_BOUNDS_FIELD = new ParseField("extended_bounds");
+public class ExtendedBounds implements ToXContent, Writeable {
+    static final ParseField EXTENDED_BOUNDS_FIELD = Histogram.EXTENDED_BOUNDS_FIELD;
     static final ParseField MIN_FIELD = new ParseField("min");
     static final ParseField MAX_FIELD = new ParseField("max");
 
-    private static final ExtendedBounds PROTOTYPE = new ExtendedBounds();
-
-    Long min;
-    Long max;
-
-    String minAsStr;
-    String maxAsStr;
-
-    ExtendedBounds() {} //for serialization
-
-    public ExtendedBounds(Long min, Long max) {
-        this.min = min;
-        this.max = max;
+    public static final ConstructingObjectParser<ExtendedBounds, Void> PARSER = new ConstructingObjectParser<>(
+            "extended_bounds", a -> {
+        assert a.length == 2;
+        Long min = null;
+        Long max = null;
+        String minAsStr = null;
+        String maxAsStr = null;
+        if (a[0] == null) {
+            // nothing to do with it
+        } else if (a[0] instanceof Long) {
+            min = (Long) a[0];
+        } else if (a[0] instanceof String) {
+            minAsStr = (String) a[0];
+        } else {
+            throw new IllegalArgumentException("Unknown field type [" + a[0].getClass() + "]");
+        }
+        if (a[1] == null) {
+            // nothing to do with it
+        } else if (a[1] instanceof Long) {
+            max = (Long) a[1];
+        } else if (a[1] instanceof String) {
+            maxAsStr = (String) a[1];
+        } else {
+            throw new IllegalArgumentException("Unknown field type [" + a[1].getClass() + "]");
+        }
+        return new ExtendedBounds(min, max, minAsStr, maxAsStr);
+    });
+    static {
+        CheckedFunction<XContentParser, Object, IOException> longOrString = p -> {
+            if (p.currentToken() == Token.VALUE_NUMBER) {
+                return p.longValue(false);
+            }
+            if (p.currentToken() == Token.VALUE_STRING) {
+                return p.text();
+            }
+            if (p.currentToken() == Token.VALUE_NULL) {
+                return null;
+            }
+            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+        };
+        PARSER.declareField(optionalConstructorArg(), longOrString, MIN_FIELD, ValueType.LONG_OR_NULL);
+        PARSER.declareField(optionalConstructorArg(), longOrString, MAX_FIELD, ValueType.LONG_OR_NULL);
     }
 
+    /**
+     * Parsed min value. If this is null and {@linkplain #minAsStr} isn't then this must be parsed from {@linkplain #minAsStr}. If this is
+     * null and {@linkplain #minAsStr} is also null then there is no lower bound.
+     */
+    private final Long min;
+    /**
+     * Parsed min value. If this is null and {@linkplain #maxAsStr} isn't then this must be parsed from {@linkplain #maxAsStr}. If this is
+     * null and {@linkplain #maxAsStr} is also null then there is no lower bound.
+     */
+    private final Long max;
+
+    private final String minAsStr;
+    private final String maxAsStr;
+
+    /**
+     * Construct with parsed bounds.
+     */
+    public ExtendedBounds(Long min, Long max) {
+        this(min, max, null, null);
+    }
+
+    /**
+     * Construct with unparsed bounds.
+     */
     public ExtendedBounds(String minAsStr, String maxAsStr) {
+        this(null, null, minAsStr, maxAsStr);
+    }
+
+    /**
+     * Construct with all possible information.
+     */
+    private ExtendedBounds(Long min, Long max, String minAsStr, String maxAsStr) {
+        this.min = min;
+        this.max = max;
         this.minAsStr = minAsStr;
         this.maxAsStr = maxAsStr;
     }
 
-    void processAndValidate(String aggName, SearchContext context, ValueParser parser) {
-        assert parser != null;
+    /**
+     * Read from a stream.
+     */
+    public ExtendedBounds(StreamInput in) throws IOException {
+        min = in.readOptionalLong();
+        max = in.readOptionalLong();
+        minAsStr = in.readOptionalString();
+        maxAsStr = in.readOptionalString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeOptionalLong(min);
+        out.writeOptionalLong(max);
+        out.writeOptionalString(minAsStr);
+        out.writeOptionalString(maxAsStr);
+    }
+
+    /**
+     * Parse the bounds and perform any delayed validation. Returns the result of the parsing.
+     */
+    ExtendedBounds parseAndValidate(String aggName, SearchContext context, DocValueFormat format) {
+        Long min = this.min;
+        Long max = this.max;
+        assert format != null;
         if (minAsStr != null) {
-            min = parser.parseLong(minAsStr, context);
+            min = format.parseLong(minAsStr, false, context.getQueryShardContext()::nowInMillis);
         }
         if (maxAsStr != null) {
-            max = parser.parseLong(maxAsStr, context);
+            // TODO: Should we rather pass roundUp=true?
+            max = format.parseLong(maxAsStr, false, context.getQueryShardContext()::nowInMillis);
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
             throw new SearchParseException(context, "[extended_bounds.min][" + min + "] cannot be greater than " +
                     "[extended_bounds.max][" + max + "] for histogram aggregation [" + aggName + "]", null);
         }
+        return new ExtendedBounds(min, max, minAsStr, maxAsStr);
     }
 
     ExtendedBounds round(Rounding rounding) {
         return new ExtendedBounds(min != null ? rounding.round(min) : null, max != null ? rounding.round(max) : null);
-    }
-
-    void writeTo(StreamOutput out) throws IOException {
-        if (min != null) {
-            out.writeBoolean(true);
-            out.writeLong(min);
-        } else {
-            out.writeBoolean(false);
-        }
-        if (max != null) {
-            out.writeBoolean(true);
-            out.writeLong(max);
-        } else {
-            out.writeBoolean(false);
-        }
-        out.writeOptionalString(minAsStr);
-        out.writeOptionalString(maxAsStr);
-    }
-
-    static ExtendedBounds readFrom(StreamInput in) throws IOException {
-        ExtendedBounds bounds = new ExtendedBounds();
-        if (in.readBoolean()) {
-            bounds.min = in.readLong();
-        }
-        if (in.readBoolean()) {
-            bounds.max = in.readLong();
-        }
-        bounds.minAsStr = in.readOptionalString();
-        bounds.maxAsStr = in.readOptionalString();
-        return bounds;
-    }
-
-    public ExtendedBounds fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String aggregationName)
-            throws IOException {
-        XContentParser.Token token = null;
-        String currentFieldName = null;
-        ExtendedBounds extendedBounds = new ExtendedBounds();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("min".equals(currentFieldName)) {
-                    extendedBounds.minAsStr = parser.text();
-                } else if ("max".equals(currentFieldName)) {
-                    extendedBounds.maxAsStr = parser.text();
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown extended_bounds key for a " + token
-                            + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (parseFieldMatcher.match(currentFieldName, MIN_FIELD)) {
-                    extendedBounds.min = parser.longValue(true);
-                } else if (parseFieldMatcher.match(currentFieldName, MAX_FIELD)) {
-                    extendedBounds.max = parser.longValue(true);
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown extended_bounds key for a " + token
-                            + " in aggregation [" + aggregationName + "]: [" + currentFieldName + "].");
-                }
-            }
-        }
-        return extendedBounds;
     }
 
     @Override
@@ -162,7 +189,7 @@ public class ExtendedBounds implements ToXContent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(min, max);
+        return Objects.hash(min, max, minAsStr, maxAsStr);
     }
 
     @Override
@@ -175,11 +202,43 @@ public class ExtendedBounds implements ToXContent {
         }
         ExtendedBounds other = (ExtendedBounds) obj;
         return Objects.equals(min, other.min)
-                && Objects.equals(min, other.min);
+                && Objects.equals(max, other.max)
+                && Objects.equals(minAsStr, other.minAsStr)
+                && Objects.equals(maxAsStr, other.maxAsStr);
     }
 
-    public static ExtendedBounds parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, String aggregationName)
-            throws IOException {
-        return PROTOTYPE.fromXContent(parser, parseFieldMatcher, aggregationName);
+    public Long getMin() {
+        return min;
+    }
+
+    public Long getMax() {
+        return max;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder b = new StringBuilder();
+        if (min != null) {
+            b.append(min);
+            if (minAsStr != null) {
+                b.append('(').append(minAsStr).append(')');
+            }
+        } else {
+            if (minAsStr != null) {
+                b.append(minAsStr);
+            }
+        }
+        b.append("--");
+        if (max != null) {
+            b.append(min);
+            if (maxAsStr != null) {
+                b.append('(').append(maxAsStr).append(')');
+            }
+        } else {
+            if (maxAsStr != null) {
+                b.append(maxAsStr);
+            }
+        }
+        return b.toString();
     }
 }

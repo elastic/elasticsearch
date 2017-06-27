@@ -20,56 +20,39 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class QueryParseContext {
 
     private static final ParseField CACHE = new ParseField("_cache").withAllDeprecated("Elasticsearch makes its own caching decisions");
     private static final ParseField CACHE_KEY = new ParseField("_cache_key").withAllDeprecated("Filters are always used as cache keys");
 
-    private XContentParser parser;
-    private ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
+    private final XContentParser parser;
 
-    private IndicesQueriesRegistry indicesQueriesRegistry;
-
-    public QueryParseContext(IndicesQueriesRegistry registry) {
-        this.indicesQueriesRegistry = registry;
-    }
-
-    public void reset(XContentParser jp) {
-        this.parseFieldMatcher = ParseFieldMatcher.EMPTY;
-        this.parser = jp;
-        if (parser != null) {
-            this.parser.setParseFieldMatcher(parseFieldMatcher);
-        }
+    public QueryParseContext(XContentParser parser) {
+        this.parser = Objects.requireNonNull(parser, "parser cannot be null");
     }
 
     public XContentParser parser() {
         return this.parser;
     }
 
-    public void parseFieldMatcher(ParseFieldMatcher parseFieldMatcher) {
-        if (parseFieldMatcher == null) {
-            throw new IllegalArgumentException("parseFieldMatcher must not be null");
-        }
-        this.parseFieldMatcher = parseFieldMatcher;
-    }
-
     public boolean isDeprecatedSetting(String setting) {
-        return parseFieldMatcher.match(setting, CACHE) || parseFieldMatcher.match(setting, CACHE_KEY);
+        return CACHE.match(setting) || CACHE_KEY.match(setting);
     }
 
     /**
      * Parses a top level query including the query element that wraps it
      */
-    public QueryBuilder<?> parseTopLevelQueryBuilder() {
+    public QueryBuilder parseTopLevelQueryBuilder() {
         try {
-            QueryBuilder<?> queryBuilder = null;
+            QueryBuilder queryBuilder = null;
             for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
@@ -80,13 +63,10 @@ public class QueryParseContext {
                     }
                 }
             }
-            if (queryBuilder == null) {
-                throw new ParsingException(parser.getTokenLocation(), "Required query is missing");
-            }
             return queryBuilder;
         } catch (ParsingException e) {
             throw e;
-        } catch (Throwable e) {
+        } catch (Exception e) {
             throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse", e);
         }
     }
@@ -94,57 +74,43 @@ public class QueryParseContext {
     /**
      * Parses a query excluding the query element that wraps it
      */
-    public QueryBuilder<?> parseInnerQueryBuilder() throws IOException {
-        // move to START object
-        XContentParser.Token token;
+    public QueryBuilder parseInnerQueryBuilder() throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, must start with start_object");
             }
         }
-        token = parser.nextToken();
-        if (token == XContentParser.Token.END_OBJECT) {
-            // empty query
-            return new EmptyQueryBuilder();
+        if (parser.nextToken() == XContentParser.Token.END_OBJECT) {
+            // we encountered '{}' for a query clause, it used to be supported, deprecated in 5.0 and removed in 6.0
+            throw new IllegalArgumentException("query malformed, empty clause found at [" + parser.getTokenLocation() +"]");
         }
-        if (token != XContentParser.Token.FIELD_NAME) {
+        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
         String queryName = parser.currentName();
         // move to the next START_OBJECT
-        token = parser.nextToken();
-        if (token != XContentParser.Token.START_OBJECT && token != XContentParser.Token.START_ARRAY) {
-            throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "[" + queryName + "] query malformed, no start_object after query name");
         }
-
-        QueryParser queryParser = queryParser(queryName);
-        if (queryParser == null) {
-            throw new ParsingException(parser.getTokenLocation(), "No query registered for [" + queryName + "]");
+        QueryBuilder result;
+        try {
+            result = parser.namedObject(QueryBuilder.class, queryName, this);
+        } catch (UnknownNamedObjectException e) {
+            // Preserve the error message from 5.0 until we have a compellingly better message so we don't break BWC.
+            // This intentionally doesn't include the causing exception because that'd change the "root_cause" of any unknown query errors
+            throw new ParsingException(new XContentLocation(e.getLineNumber(), e.getColumnNumber()),
+                    "no [query] registered for [" + e.getName() + "]");
         }
-
-        QueryBuilder result = queryParser.fromXContent(this);
-        if (parser.currentToken() == XContentParser.Token.END_OBJECT || parser.currentToken() == XContentParser.Token.END_ARRAY) {
-            // if we are at END_OBJECT, move to the next one...
-            parser.nextToken();
+        //end_object of the specific query (e.g. match, multi_match etc.) element
+        if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]");
+        }
+        //end_object of the query object
+        if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]");
         }
         return result;
-    }
-
-    public ParseFieldMatcher parseFieldMatcher() {
-        return parseFieldMatcher;
-    }
-
-    public void parser(XContentParser innerParser) {
-        this.parser = innerParser;
-    }
-
-    /**
-     * Get the query parser for a specific type of query registered under its name
-     * @param name the name of the parser to retrieve
-     * @return the query parser
-     */
-    private QueryParser queryParser(String name) {
-        return indicesQueriesRegistry.queryParsers().get(name);
     }
 }

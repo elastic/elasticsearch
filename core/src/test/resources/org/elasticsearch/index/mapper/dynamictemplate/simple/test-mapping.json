@@ -6,12 +6,12 @@
                     "match":"multi*",
                     "mapping":{
                         "type":"{dynamic_type}",
-                        "index":"analyzed",
+                        "index":true,
                         "store":true,
                         "fields":{
                             "org":{
-                                "type":"{dynamic_type}",
-                                "index":"not_analyzed",
+                                "type":"keyword",
+                                "index":true,
                                 "store":true
                             }
                         }

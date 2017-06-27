@@ -23,8 +23,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRequestBuilder<ClusterSearchShardsRequest, ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder> {
 
     public ClusterSearchShardsRequestBuilder(ElasticsearchClient client, ClusterSearchShardsAction action) {
@@ -36,15 +34,6 @@ public class ClusterSearchShardsRequestBuilder extends MasterNodeReadOperationRe
      */
     public ClusterSearchShardsRequestBuilder setIndices(String... indices) {
         request.indices(indices);
-        return this;
-    }
-
-    /**
-     * The document types to execute the search against. Defaults to be executed against
-     * all types.
-     */
-    public ClusterSearchShardsRequestBuilder setTypes(String... types) {
-        request.types(types);
         return this;
     }
 

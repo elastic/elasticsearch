@@ -115,7 +115,7 @@ class Initializer {
         private final Object source;
         private MembersInjectorImpl<T> membersInjector;
 
-        public InjectableReference(InjectorImpl injector, T instance, Object source) {
+        InjectableReference(InjectorImpl injector, T instance, Object source) {
             this.injector = injector;
             this.instance = Objects.requireNonNull(instance, "instance");
             this.source = Objects.requireNonNull(source, "source");

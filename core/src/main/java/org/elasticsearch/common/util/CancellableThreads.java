@@ -30,11 +30,14 @@ import java.util.Set;
 /**
  * A utility class for multi threaded operation that needs to be cancellable via interrupts. Every cancellable operation should be
  * executed via {@link #execute(Interruptable)}, which will capture the executing thread and make sure it is interrupted in the case
- * cancellation.
+ * of cancellation.
+ *
+ * Cancellation policy: This class does not support external interruption via <code>Thread#interrupt()</code>. Always use #cancel() instead.
  */
 public class CancellableThreads {
     private final Set<Thread> threads = new HashSet<>();
-    private boolean cancelled = false;
+    // needs to be volatile as it is also read outside of synchronized blocks.
+    private volatile boolean cancelled = false;
     private String reason;
 
     public synchronized boolean isCancelled() {
@@ -42,7 +45,7 @@ public class CancellableThreads {
     }
 
 
-    /** call this will throw an exception if operation was cancelled. Override {@link #onCancel(String, java.lang.Throwable)} for custom failure logic */
+    /** call this will throw an exception if operation was cancelled. Override {@link #onCancel(String, Exception)} for custom failure logic */
     public synchronized void checkForCancel() {
         if (isCancelled()) {
             onCancel(reason, null);
@@ -53,11 +56,10 @@ public class CancellableThreads {
      * called if {@link #checkForCancel()} was invoked after the operation was cancelled.
      * the default implementation always throws an {@link ExecutionCancelledException}, suppressing
      * any other exception that occurred before cancellation
-     *
-     * @param reason              reason for failure supplied by the caller of {@link #cancel}
+     *  @param reason              reason for failure supplied by the caller of {@link #cancel}
      * @param suppressedException any error that was encountered during the execution before the operation was cancelled.
      */
-    protected void onCancel(String reason, @Nullable Throwable suppressedException) {
+    protected void onCancel(String reason, @Nullable Exception suppressedException) {
         RuntimeException e = new ExecutionCancelledException("operation was cancelled reason [" + reason + "]");
         if (suppressedException != null) {
             e.addSuppressed(suppressedException);
@@ -95,13 +97,18 @@ public class CancellableThreads {
      */
     public void executeIO(IOInterruptable interruptable) throws IOException {
         boolean wasInterrupted = add();
+        boolean cancelledByExternalInterrupt = false;
         RuntimeException runtimeException = null;
         IOException ioException = null;
 
         try {
             interruptable.run();
         } catch (InterruptedException | ThreadInterruptedException e) {
-            // assume this is us and ignore
+            // ignore, this interrupt has been triggered by us in #cancel()...
+            assert cancelled : "Interruption via Thread#interrupt() is unsupported. Use CancellableThreads#cancel() instead";
+            // we can only reach here if assertions are disabled. If we reach this code and cancelled is false, this means that we've
+            // been interrupted externally (which we don't support).
+            cancelledByExternalInterrupt = !cancelled;
         } catch (RuntimeException t) {
             runtimeException = t;
         } catch (IOException e) {
@@ -129,6 +136,12 @@ public class CancellableThreads {
                 throw runtimeException;
             }
         }
+        if (cancelledByExternalInterrupt) {
+            // restore interrupt flag to at least adhere to expected behavior
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Interruption via Thread#interrupt() is unsupported. Use CancellableThreads#cancel() instead");
+        }
+
     }
 
 

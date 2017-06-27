@@ -51,9 +51,9 @@ public class UpdateNoopIT extends ESIntegTestCase {
 
     public void testTwoFields() throws Exception {
         // Use random keys so we get random iteration order.
-        String key1 = 1 + randomAsciiOfLength(3);
-        String key2 = 2 + randomAsciiOfLength(3);
-        String key3 = 3 + randomAsciiOfLength(3);
+        String key1 = 1 + randomAlphaOfLength(3);
+        String key2 = 2 + randomAlphaOfLength(3);
+        String key3 = 3 + randomAlphaOfLength(3);
         updateAndCheckSource(1, fields(key1, "foo", key2, "baz"));
         updateAndCheckSource(1, fields(key1, "foo", key2, "baz"));
         updateAndCheckSource(2, fields(key1, "foo", key2, "bir"));
@@ -90,9 +90,9 @@ public class UpdateNoopIT extends ESIntegTestCase {
 
     public void testMap() throws Exception {
         // Use random keys so we get variable iteration order.
-        String key1 = 1 + randomAsciiOfLength(3);
-        String key2 = 2 + randomAsciiOfLength(3);
-        String key3 = 3 + randomAsciiOfLength(3);
+        String key1 = 1 + randomAlphaOfLength(3);
+        String key2 = 2 + randomAlphaOfLength(3);
+        String key3 = 3 + randomAlphaOfLength(3);
         updateAndCheckSource(1, XContentFactory.jsonBuilder().startObject()
                 .startObject("test")
                     .field(key1, "foo")
@@ -240,12 +240,12 @@ public class UpdateNoopIT extends ESIntegTestCase {
 
     private void updateAndCheckSource(long expectedVersion, Boolean detectNoop, XContentBuilder xContentBuilder) {
         UpdateResponse updateResponse = update(detectNoop, expectedVersion, xContentBuilder);
-        assertEquals(updateResponse.getGetResult().sourceRef().toUtf8(), xContentBuilder.bytes().toUtf8());
+        assertEquals(updateResponse.getGetResult().sourceRef().utf8ToString(), xContentBuilder.bytes().utf8ToString());
     }
 
     private UpdateResponse update(Boolean detectNoop, long expectedVersion, XContentBuilder xContentBuilder) {
         UpdateRequestBuilder updateRequest = client().prepareUpdate("test", "type1", "1")
-                .setDoc(xContentBuilder.bytes().toUtf8())
+                .setDoc(xContentBuilder)
                 .setDocAsUpsert(true)
                 .setFields("_source");
         if (detectNoop != null) {

@@ -19,39 +19,28 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.search.suggest.document.CompletionQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-/**
- *
- */
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
-    private CompletionFieldMapper.CompletionFieldType fieldType;
-    private CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder;
-    private CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder;
-    private Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.emptyMap();
-    private final MapperService mapperService;
-    private final IndexFieldDataService indexFieldDataService;
-    private Set<String> payloadFields = Collections.emptySet();
-
-    CompletionSuggestionContext(Suggester suggester, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
-        super(suggester);
-        this.indexFieldDataService = indexFieldDataService;
-        this.mapperService = mapperService;
+    protected CompletionSuggestionContext(QueryShardContext shardContext) {
+        super(CompletionSuggester.INSTANCE, shardContext);
     }
+
+    private CompletionFieldMapper.CompletionFieldType fieldType;
+    private FuzzyOptions fuzzyOptions;
+    private RegexOptions regexOptions;
+    private Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = Collections.emptyMap();
 
     CompletionFieldMapper.CompletionFieldType getFieldType() {
         return this.fieldType;
@@ -61,63 +50,48 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         this.fieldType = fieldType;
     }
 
-    void setRegexOptionsBuilder(CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder) {
-        this.regexOptionsBuilder = regexOptionsBuilder;
+    void setRegexOptions(RegexOptions regexOptions) {
+        this.regexOptions = regexOptions;
     }
 
-    void setFuzzyOptionsBuilder(CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder) {
-        this.fuzzyOptionsBuilder = fuzzyOptionsBuilder;
+    void setFuzzyOptions(FuzzyOptions fuzzyOptions) {
+        this.fuzzyOptions = fuzzyOptions;
     }
 
-    void setQueryContexts(Map<String, List<ContextMapping.QueryContext>> queryContexts) {
+    void setQueryContexts(Map<String, List<ContextMapping.InternalQueryContext>> queryContexts) {
         this.queryContexts = queryContexts;
     }
 
-
-    MapperService getMapperService() {
-        return mapperService;
+    public FuzzyOptions getFuzzyOptions() {
+        return fuzzyOptions;
     }
 
-    IndexFieldDataService getIndexFieldDataService() {
-        return indexFieldDataService;
+    public RegexOptions getRegexOptions() {
+        return regexOptions;
     }
 
-    void setPayloadFields(Set<String> fields) {
-        this.payloadFields = fields;
-    }
-
-    void setPayloadFields(List<String> fields) {
-        setPayloadFields(new HashSet<String>(fields));
-    }
-
-    Set<String> getPayloadFields() {
-        return payloadFields;
+    public Map<String, List<ContextMapping.InternalQueryContext>> getQueryContexts() {
+        return queryContexts;
     }
 
     CompletionQuery toQuery() {
         CompletionFieldMapper.CompletionFieldType fieldType = getFieldType();
         final CompletionQuery query;
         if (getPrefix() != null) {
-            if (fuzzyOptionsBuilder != null) {
-                query = fieldType.fuzzyQuery(getPrefix().utf8ToString(),
-                        Fuzziness.fromEdits(fuzzyOptionsBuilder.getEditDistance()),
-                        fuzzyOptionsBuilder.getFuzzyPrefixLength(), fuzzyOptionsBuilder.getFuzzyMinLength(),
-                        fuzzyOptionsBuilder.getMaxDeterminizedStates(), fuzzyOptionsBuilder.isTranspositions(),
-                        fuzzyOptionsBuilder.isUnicodeAware());
-            } else {
-                query = fieldType.prefixQuery(getPrefix());
-            }
+            query = createCompletionQuery(getPrefix(), fieldType);
         } else if (getRegex() != null) {
-            if (fuzzyOptionsBuilder != null) {
+            if (fuzzyOptions != null) {
                 throw new IllegalArgumentException("can not use 'fuzzy' options with 'regex");
             }
-            if (regexOptionsBuilder == null) {
-                regexOptionsBuilder = new CompletionSuggestionBuilder.RegexOptionsBuilder();
+            if (regexOptions == null) {
+                regexOptions = RegexOptions.builder().build();
             }
-            query = fieldType.regexpQuery(getRegex(), regexOptionsBuilder.getFlagsValue(),
-                    regexOptionsBuilder.getMaxDeterminizedStates());
+            query = fieldType.regexpQuery(getRegex(), regexOptions.getFlagsValue(),
+                    regexOptions.getMaxDeterminizedStates());
+        } else if (getText() != null) {
+            query = createCompletionQuery(getText(), fieldType);
         } else {
-            throw new IllegalArgumentException("'prefix' or 'regex' must be defined");
+            throw new IllegalArgumentException("'prefix/text' or 'regex' must be defined");
         }
         if (fieldType.hasContextMappings()) {
             ContextMappings contextMappings = fieldType.getContextMappings();
@@ -125,4 +99,19 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         }
         return query;
     }
+
+    private CompletionQuery createCompletionQuery(BytesRef prefix, CompletionFieldMapper.CompletionFieldType fieldType) {
+        final CompletionQuery query;
+        if (fuzzyOptions != null) {
+            query = fieldType.fuzzyQuery(prefix.utf8ToString(),
+                    Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
+                    fuzzyOptions.getFuzzyPrefixLength(), fuzzyOptions.getFuzzyMinLength(),
+                    fuzzyOptions.getMaxDeterminizedStates(), fuzzyOptions.isTranspositions(),
+                    fuzzyOptions.isUnicodeAware());
+        } else {
+            query = fieldType.prefixQuery(prefix);
+        }
+        return query;
+    }
+
 }

@@ -27,30 +27,23 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 
-/**
- */
 public class TransportActions {
 
-    public static boolean isShardNotAvailableException(Throwable t) {
-        Throwable actual = ExceptionsHelper.unwrapCause(t);
-        if (actual instanceof ShardNotFoundException ||
+    public static boolean isShardNotAvailableException(final Throwable e) {
+        final Throwable actual = ExceptionsHelper.unwrapCause(e);
+        return (actual instanceof ShardNotFoundException ||
                 actual instanceof IndexNotFoundException ||
                 actual instanceof IllegalIndexShardStateException ||
                 actual instanceof NoShardAvailableActionException ||
                 actual instanceof UnavailableShardsException ||
-                actual instanceof AlreadyClosedException) {
-            return true;
-        }
-        return false;
+                actual instanceof AlreadyClosedException);
     }
 
     /**
      * If a failure is already present, should this failure override it or not for read operations.
      */
-    public static boolean isReadOverrideException(Throwable t) {
-        if (isShardNotAvailableException(t)) {
-            return false;
-        }
-        return true;
+    public static boolean isReadOverrideException(Exception e) {
+        return !isShardNotAvailableException(e);
     }
+
 }

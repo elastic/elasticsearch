@@ -19,6 +19,7 @@
 package org.elasticsearch.action.support;
 
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestRequest;
@@ -26,7 +27,7 @@ import org.elasticsearch.rest.RestRequest;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringArrayValue;
 
 /**
@@ -43,6 +44,7 @@ public class IndicesOptions {
     private static final byte EXPAND_WILDCARDS_CLOSED = 8;
     private static final byte FORBID_ALIASES_TO_MULTIPLE_INDICES = 16;
     private static final byte FORBID_CLOSED_INDICES = 32;
+    private static final byte IGNORE_ALIASES = 64;
 
     private static final byte STRICT_EXPAND_OPEN = 6;
     private static final byte LENIENT_EXPAND_OPEN = 7;
@@ -51,10 +53,10 @@ public class IndicesOptions {
     private static final byte STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = 48;
 
     static {
-        byte max = 1 << 6;
+        short max = 1 << 7;
         VALUES = new IndicesOptions[max];
-        for (byte id = 0; id < max; id++) {
-            VALUES[id] = new IndicesOptions(id);
+        for (short id = 0; id < max; id++) {
+            VALUES[id] = new IndicesOptions((byte)id);
         }
     }
 
@@ -106,18 +108,31 @@ public class IndicesOptions {
      * @return whether aliases pointing to multiple indices are allowed
      */
     public boolean allowAliasesToMultipleIndices() {
-        //true is default here, for bw comp we keep the first 16 values
-        //in the array same as before + the default value for the new flag
+        // true is default here, for bw comp we keep the first 16 values
+        // in the array same as before + the default value for the new flag
         return (id & FORBID_ALIASES_TO_MULTIPLE_INDICES) == 0;
     }
 
+    /**
+     * @return whether aliases should be ignored (when resolving a wildcard)
+     */
+    public boolean ignoreAliases() {
+        return (id & IGNORE_ALIASES) != 0;
+    }
+    
     public void writeIndicesOptions(StreamOutput out) throws IOException {
-        out.write(id);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
+            out.write(id);
+        } else {
+            // if we are talking to a node that doesn't support the newly added flag (ignoreAliases)
+            // flip to 0 all the bits starting from the 7th
+            out.write(id & 0x3f);
+        }
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
-        //if we read from a node that doesn't support the newly added flag (allowAliasesToMultipleIndices)
-        //we just receive the old corresponding value with the new flag set to true (default)
+        //if we read from a node that doesn't support the newly added flag (ignoreAliases)
+        //we just receive the old corresponding value with the new flag set to false (default)
         byte id = in.readByte();
         if (id >= VALUES.length) {
             throw new IllegalArgumentException("No valid missing index type id: " + id);
@@ -133,8 +148,16 @@ public class IndicesOptions {
         return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, defaultOptions.allowAliasesToMultipleIndices(), defaultOptions.forbidClosedIndices());
     }
 
-    static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices, boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices) {
-        byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices, forbidClosedIndices);
+    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
+            boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices) {
+        return fromOptions(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices,
+                forbidClosedIndices, false);
+    }
+
+    public static IndicesOptions fromOptions(boolean ignoreUnavailable, boolean allowNoIndices, boolean expandToOpenIndices,
+            boolean expandToClosedIndices, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices, boolean ignoreAliases) {
+        byte id = toByte(ignoreUnavailable, allowNoIndices, expandToOpenIndices, expandToClosedIndices, allowAliasesToMultipleIndices,
+                forbidClosedIndices, ignoreAliases);
         return VALUES[id];
     }
 
@@ -195,8 +218,8 @@ public class IndicesOptions {
 
         //note that allowAliasesToMultipleIndices is not exposed, always true (only for internal use)
         return fromOptions(
-                lenientNodeBooleanValue(ignoreUnavailableString, defaultSettings.ignoreUnavailable()),
-                lenientNodeBooleanValue(allowNoIndicesString, defaultSettings.allowNoIndices()),
+                nodeBooleanValue(ignoreUnavailableString, "ignore_unavailable", defaultSettings.ignoreUnavailable()),
+                nodeBooleanValue(allowNoIndicesString, "allow_no_indices", defaultSettings.allowNoIndices()),
                 expandWildcardsOpen,
                 expandWildcardsClosed,
                 defaultSettings.allowAliasesToMultipleIndices(),
@@ -246,7 +269,7 @@ public class IndicesOptions {
     }
 
     private static byte toByte(boolean ignoreUnavailable, boolean allowNoIndices, boolean wildcardExpandToOpen,
-                               boolean wildcardExpandToClosed, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices) {
+            boolean wildcardExpandToClosed, boolean allowAliasesToMultipleIndices, boolean forbidClosedIndices, boolean ignoreAliases) {
         byte id = 0;
         if (ignoreUnavailable) {
             id |= IGNORE_UNAVAILABLE;
@@ -268,6 +291,9 @@ public class IndicesOptions {
         if (forbidClosedIndices) {
             id |= FORBID_CLOSED_INDICES;
         }
+        if (ignoreAliases) {
+            id |= IGNORE_ALIASES;
+        }
         return id;
     }
 
@@ -279,8 +305,9 @@ public class IndicesOptions {
                 ", allow_no_indices=" + allowNoIndices() +
                 ", expand_wildcards_open=" + expandWildcardsOpen() +
                 ", expand_wildcards_closed=" + expandWildcardsClosed() +
-                ", allow_alisases_to_multiple_indices=" + allowAliasesToMultipleIndices() +
+                ", allow_aliases_to_multiple_indices=" + allowAliasesToMultipleIndices() +
                 ", forbid_closed_indices=" + forbidClosedIndices() +
+                ", ignore_aliases=" + ignoreAliases() +
                 ']';
     }
 }

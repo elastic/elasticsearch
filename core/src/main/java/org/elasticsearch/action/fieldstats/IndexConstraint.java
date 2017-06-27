@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.fieldstats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -39,18 +38,15 @@ public class IndexConstraint {
         this.property = Property.read(input.readByte());
         this.comparison = Comparison.read(input.readByte());
         this.value = input.readString();
-        if (input.getVersion().onOrAfter(Version.V_2_0_1)) {
-            this.optionalFormat = input.readOptionalString();
-        } else {
-            this.optionalFormat = null;
-        }
+        this.optionalFormat = input.readOptionalString();
     }
 
     public IndexConstraint(String field, Property property, Comparison comparison, String value) {
         this(field, property, comparison, value, null);
     }
 
-    public IndexConstraint(String field, Property property, Comparison comparison, String value, String optionalFormat) {
+    public IndexConstraint(String field, Property property,
+                           Comparison comparison, String value, String optionalFormat) {
         this.field = Objects.requireNonNull(field);
         this.property = Objects.requireNonNull(property);
         this.comparison = Objects.requireNonNull(comparison);

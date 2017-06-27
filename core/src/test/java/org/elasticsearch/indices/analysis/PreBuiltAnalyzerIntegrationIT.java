@@ -25,12 +25,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -43,11 +43,10 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
-@ESBackcompatTestCase.CompatibilityVersion(version = Version.V_1_2_0_ID) // we throw an exception if we create an index with _field_names that is 1.3
 public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(DummyAnalysisPlugin.class, InternalSettingsPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class);
     }
 
     public void testThatPreBuiltAnalyzersAreNotClosedOnIndexClose() throws Exception {
@@ -55,7 +54,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         List<String> indexNames = new ArrayList<>();
         final int numIndices = scaledRandomIntBetween(2, 4);
         for (int i = 0; i < numIndices; i++) {
-            String indexName = randomAsciiOfLength(10).toLowerCase(Locale.ROOT);
+            String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
             indexNames.add(indexName);
 
             int randomInt = randomInt(PreBuiltAnalyzers.values().length-1);
@@ -92,7 +91,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
             String randomId = randomInt() + "";
 
             Map<String, Object> data = new HashMap<>();
-            data.put("foo", randomAsciiOfLength(scaledRandomIntBetween(5, 50)));
+            data.put("foo", randomAlphaOfLength(scaledRandomIntBetween(5, 50)));
 
             index(randomIndex, "type", randomId, data);
         }
@@ -113,41 +112,6 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
 
         // check that all of the prebuilt analyzers are still open
         assertLuceneAnalyzersAreNotClosed(loadedAnalyzers);
-    }
-
-    /**
-     * Test case for #5030: Upgrading analysis plugins fails
-     * See https://github.com/elasticsearch/elasticsearch/issues/5030
-     */
-    public void testThatPluginAnalyzersCanBeUpdated() throws Exception {
-        final XContentBuilder mapping = jsonBuilder().startObject()
-            .startObject("type")
-                .startObject("properties")
-                    .startObject("foo")
-                        .field("type", "text")
-                        .field("analyzer", "dummy")
-                    .endObject()
-                    .startObject("bar")
-                        .field("type", "text")
-                        .field("analyzer", "my_dummy")
-                    .endObject()
-                .endObject()
-            .endObject()
-            .endObject();
-
-        Settings versionSettings = settings(randomVersion(random()))
-                .put("index.analysis.analyzer.my_dummy.type", "custom")
-                .put("index.analysis.analyzer.my_dummy.filter", "my_dummy_token_filter")
-                .put("index.analysis.analyzer.my_dummy.char_filter", "my_dummy_char_filter")
-                .put("index.analysis.analyzer.my_dummy.tokenizer", "my_dummy_tokenizer")
-                .put("index.analysis.tokenizer.my_dummy_tokenizer.type", "dummy_tokenizer")
-                .put("index.analysis.filter.my_dummy_token_filter.type", "dummy_token_filter")
-                .put("index.analysis.char_filter.my_dummy_char_filter.type", "dummy_char_filter")
-                .build();
-
-        client().admin().indices().prepareCreate("test-analysis-dummy").addMapping("type", mapping).setSettings(versionSettings).get();
-
-        ensureGreen();
     }
 
     private void assertThatAnalyzersHaveBeenLoaded(Map<PreBuiltAnalyzers, List<Version>> expectedLoadedAnalyzers) {

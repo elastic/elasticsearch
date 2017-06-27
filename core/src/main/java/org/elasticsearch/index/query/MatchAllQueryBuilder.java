@@ -20,21 +20,36 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * A query that matches on all documents.
  */
 public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuilder> {
-
     public static final String NAME = "match_all";
 
-    static final MatchAllQueryBuilder PROTOTYPE = new MatchAllQueryBuilder();
+    public MatchAllQueryBuilder() {
+    }
+
+    /**
+     * Read from a stream.
+     */
+    public MatchAllQueryBuilder(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) {
+        // only superclass has state
+    }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -43,8 +58,22 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
         builder.endObject();
     }
 
+    private static final ObjectParser<MatchAllQueryBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME, MatchAllQueryBuilder::new);
+
+    static {
+        declareStandardFields(PARSER);
+    }
+
+    public static MatchAllQueryBuilder fromXContent(QueryParseContext context) {
+        try {
+            return PARSER.apply(context.parser(), context);
+        } catch (IllegalArgumentException e) {
+            throw new ParsingException(context.parser().getTokenLocation(), e.getMessage(), e);
+        }
+    }
+
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(QueryShardContext context) {
         return Queries.newMatchAllQuery();
     }
 
@@ -56,16 +85,6 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
     @Override
     protected int doHashCode() {
         return 0;
-    }
-
-    @Override
-    protected MatchAllQueryBuilder doReadFrom(StreamInput in) throws IOException {
-        return new MatchAllQueryBuilder();
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        //nothing to write really
     }
 
     @Override

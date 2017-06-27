@@ -26,7 +26,7 @@
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
-  testCompile 'com.google.jimfs:jimfs:1.0'
+  testCompile 'com.google.jimfs:jimfs:1.1'
 }
 
 // TODO: give each evil test its own fresh JVM for more isolation.
@@ -42,7 +42,7 @@ thirdPartyAudit.excludes = [
   'com.google.common.cache.Striped64$Cell',
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-  
+
   // missing class
   'com.ibm.icu.lang.UCharacter',
 ]

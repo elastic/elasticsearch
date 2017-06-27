@@ -78,7 +78,7 @@ public enum RegexpFlag {
 
     final int value;
 
-    private RegexpFlag(int value) {
+    RegexpFlag(int value) {
         this.value = value;
     }
 

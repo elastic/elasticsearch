@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.transport;
 
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
@@ -40,17 +39,18 @@ public class BoundTransportAddressTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         InetAddress[] inetAddresses = InetAddress.getAllByName("0.0.0.0");
-        List<InetSocketTransportAddress> transportAddressList = new ArrayList<>();
+        List<TransportAddress> transportAddressList = new ArrayList<>();
         for (InetAddress address : inetAddresses) {
-            transportAddressList.add(new InetSocketTransportAddress(address, randomIntBetween(9200, 9299)));
+            transportAddressList.add(new TransportAddress(address, randomIntBetween(9200, 9299)));
         }
-        final BoundTransportAddress transportAddress = new BoundTransportAddress(transportAddressList.toArray(new InetSocketTransportAddress[0]), transportAddressList.get(0));
+        final BoundTransportAddress transportAddress =
+            new BoundTransportAddress(transportAddressList.toArray(new TransportAddress[0]), transportAddressList.get(0));
         assertThat(transportAddress.boundAddresses().length, equalTo(transportAddressList.size()));
 
         // serialize
         BytesStreamOutput streamOutput = new BytesStreamOutput();
         transportAddress.writeTo(streamOutput);
-        StreamInput in = ByteBufferStreamInput.wrap(streamOutput.bytes());
+        StreamInput in = streamOutput.bytes().streamInput();
 
         BoundTransportAddress serializedAddress;
         if (randomBoolean()) {
@@ -74,7 +74,7 @@ public class BoundTransportAddressTests extends ESTestCase {
     public void testBadBoundAddressArray() {
         try {
             TransportAddress[] badArray = randomBoolean() ? null : new TransportAddress[0];
-            new BoundTransportAddress(badArray, new InetSocketTransportAddress(InetAddress.getLoopbackAddress(), 80));
+            new BoundTransportAddress(badArray, new TransportAddress(InetAddress.getLoopbackAddress(), 80));
             fail("expected an exception to be thrown due to no bound address");
         } catch (IllegalArgumentException e) {
             //expected

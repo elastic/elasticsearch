@@ -32,7 +32,6 @@ import static java.lang.annotation.ElementType.TYPE;
  * It supports multiple logger:level comma separated key value pairs
  * Use the _root keyword to set the root logger level
  * e.g. @TestLogging("_root:DEBUG,org.elasticsearch.cluster.metadata:TRACE")
- * or just @TestLogging("_root:DEBUG,cluster.metadata:TRACE") since we start the test with -Des.logger.prefix=
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target({PACKAGE, TYPE, METHOD})

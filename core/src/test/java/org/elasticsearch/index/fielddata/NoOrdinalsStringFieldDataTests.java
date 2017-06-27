@@ -20,6 +20,8 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.SortField;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -43,11 +45,6 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
             }
 
             @Override
-            public FieldDataType getFieldDataType() {
-                return in.getFieldDataType();
-            }
-
-            @Override
             public AtomicFieldData load(LeafReaderContext context) {
                 return in.load(context);
             }
@@ -58,8 +55,9 @@ public class NoOrdinalsStringFieldDataTests extends PagedBytesStringFieldDataTes
             }
 
             @Override
-            public XFieldComparatorSource comparatorSource(Object missingValue, MultiValueMode sortMode, Nested nested) {
-                return new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+            public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
+                XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
+                return new SortField(getFieldName(), source, reverse);
             }
 
             @Override

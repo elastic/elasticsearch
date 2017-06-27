@@ -23,18 +23,18 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import java.util.Comparator;
 import java.util.List;
@@ -48,12 +48,15 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
  * be specified to limit output to a particular index or indices.
  */
 public class RestRecoveryAction extends AbstractCatAction {
-
-    @Inject
-    public RestRecoveryAction(Settings settings, RestController restController, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestRecoveryAction(Settings settings, RestController restController) {
+        super(settings);
         restController.registerHandler(GET, "/_cat/recovery", this);
         restController.registerHandler(GET, "/_cat/recovery/{index}", this);
+    }
+
+    @Override
+    public String getName() {
+        return "cat_recovery_action";
     }
 
     @Override
@@ -63,13 +66,13 @@ public class RestRecoveryAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final RecoveryRequest recoveryRequest = new RecoveryRequest(Strings.splitStringByCommaToArray(request.param("index")));
         recoveryRequest.detailed(request.paramAsBoolean("detailed", false));
         recoveryRequest.activeOnly(request.paramAsBoolean("active_only", false));
         recoveryRequest.indicesOptions(IndicesOptions.fromRequest(request, recoveryRequest.indicesOptions()));
 
-        client.admin().indices().recoveries(recoveryRequest, new RestResponseListener<RecoveryResponse>(channel) {
+        return channel -> client.admin().indices().recoveries(recoveryRequest, new RestResponseListener<RecoveryResponse>(channel) {
             @Override
             public RestResponse buildResponse(final RecoveryResponse response) throws Exception {
                 return RestTable.buildResponse(buildRecoveryTable(request, response), channel);
@@ -87,18 +90,22 @@ public class RestRecoveryAction extends AbstractCatAction {
                 .addCell("type", "alias:ty;desc:recovery type")
                 .addCell("stage", "alias:st;desc:recovery stage")
                 .addCell("source_host", "alias:shost;desc:source host")
+                .addCell("source_node", "alias:snode;desc:source node name")
                 .addCell("target_host", "alias:thost;desc:target host")
+                .addCell("target_node", "alias:tnode;desc:target node name")
                 .addCell("repository", "alias:rep;desc:repository")
                 .addCell("snapshot", "alias:snap;desc:snapshot")
                 .addCell("files", "alias:f;desc:number of files to recover")
+                .addCell("files_recovered", "alias:fr;desc:files recovered")
                 .addCell("files_percent", "alias:fp;desc:percent of files recovered")
-                .addCell("bytes", "alias:b;desc:size to recover in bytes")
+                .addCell("files_total", "alias:tf;desc:total number of files")
+                .addCell("bytes", "alias:b;desc:number of bytes to recover")
+                .addCell("bytes_recovered", "alias:br;desc:bytes recovered")
                 .addCell("bytes_percent", "alias:bp;desc:percent of bytes recovered")
-                .addCell("total_files", "alias:tf;desc:total number of files")
-                .addCell("total_bytes", "alias:tb;desc:total number of bytes")
-                .addCell("translog", "alias:tr;desc:translog operations recovered")
-                .addCell("translog_percent", "alias:trp;desc:percent of translog recovery")
-                .addCell("total_translog", "alias:trt;desc:current total translog operations")
+                .addCell("bytes_total", "alias:tb;desc:total number of bytes")
+                .addCell("translog_ops", "alias:to;desc:number of translog ops to recover")
+                .addCell("translog_ops_recovered", "alias:tor;desc:translog ops recovered")
+                .addCell("translog_ops_percent", "alias:top;desc:percent of translog ops recovered")
                 .endHeaders();
         return t;
     }
@@ -142,22 +149,28 @@ public class RestRecoveryAction extends AbstractCatAction {
                 t.startRow();
                 t.addCell(index);
                 t.addCell(state.getShardId().id());
-                t.addCell(state.getTimer().time());
-                t.addCell(state.getType().toString().toLowerCase(Locale.ROOT));
+                t.addCell(new TimeValue(state.getTimer().time()));
+                t.addCell(state.getRecoverySource().getType().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getHostName());
+                t.addCell(state.getSourceNode() == null ? "n/a" : state.getSourceNode().getName());
                 t.addCell(state.getTargetNode().getHostName());
-                t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getRepository());
-                t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getSnapshot());
+                t.addCell(state.getTargetNode().getName());
+                t.addCell(state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ? "n/a" :
+                    ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getRepository());
+                t.addCell(state.getRecoverySource() == null || state.getRecoverySource().getType() != RecoverySource.Type.SNAPSHOT ? "n/a" :
+                    ((SnapshotRecoverySource) state.getRecoverySource()).snapshot().getSnapshotId().getName());
                 t.addCell(state.getIndex().totalRecoverFiles());
+                t.addCell(state.getIndex().recoveredFileCount());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));
-                t.addCell(state.getIndex().totalRecoverBytes());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
                 t.addCell(state.getIndex().totalFileCount());
+                t.addCell(state.getIndex().totalRecoverBytes());
+                t.addCell(state.getIndex().recoveredBytes());
+                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
                 t.addCell(state.getIndex().totalBytes());
+                t.addCell(state.getTranslog().totalOperations());
                 t.addCell(state.getTranslog().recoveredOperations());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getTranslog().recoveredPercent()));
-                t.addCell(state.getTranslog().totalOperations());
                 t.endRow();
             }
         }

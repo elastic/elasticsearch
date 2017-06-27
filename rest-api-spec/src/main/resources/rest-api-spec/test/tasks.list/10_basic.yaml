@@ -1,6 +1,0 @@
----
-"tasks_list test":
-  - do:
-      tasks.list: {}
-
-  - is_true: nodes

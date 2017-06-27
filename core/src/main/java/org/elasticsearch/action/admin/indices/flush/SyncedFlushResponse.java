@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.indices.flush.ShardsSyncedFlushResult;
 import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.rest.RestStatus;
@@ -181,14 +180,14 @@ public class SyncedFlushResponse extends ActionResponse implements ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
-        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
-        static final XContentBuilderString FAILURES = new XContentBuilderString("failures");
-        static final XContentBuilderString SHARD = new XContentBuilderString("shard");
-        static final XContentBuilderString ROUTING = new XContentBuilderString("routing");
-        static final XContentBuilderString REASON = new XContentBuilderString("reason");
+        static final String _SHARDS = "_shards";
+        static final String TOTAL = "total";
+        static final String SUCCESSFUL = "successful";
+        static final String FAILED = "failed";
+        static final String FAILURES = "failures";
+        static final String SHARD = "shard";
+        static final String ROUTING = "routing";
+        static final String REASON = "reason";
     }
 
     @Override

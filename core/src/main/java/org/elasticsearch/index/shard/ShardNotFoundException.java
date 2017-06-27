@@ -24,19 +24,24 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ShardNotFoundException extends ResourceNotFoundException {
     public ShardNotFoundException(ShardId shardId) {
         this(shardId, null);
     }
 
     public ShardNotFoundException(ShardId shardId, Throwable ex) {
-        super("no such shard", ex);
-        setShard(shardId);
-
+        this(shardId, "no such shard", ex);
     }
+
+    public ShardNotFoundException(ShardId shardId, String msg, Object... args) {
+        this(shardId, msg, null, args);
+    }
+
+    public ShardNotFoundException(ShardId shardId, String msg, Throwable ex, Object... args) {
+        super(msg, ex, args);
+        setShard(shardId);
+    }
+
     public ShardNotFoundException(StreamInput in) throws IOException{
         super(in);
     }

@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.cluster.shards;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class ClusterSearchShardsAction extends Action<ClusterSearchShardsRequest, ClusterSearchShardsResponse, ClusterSearchShardsRequestBuilder> {
 
     public static final ClusterSearchShardsAction INSTANCE = new ClusterSearchShardsAction();

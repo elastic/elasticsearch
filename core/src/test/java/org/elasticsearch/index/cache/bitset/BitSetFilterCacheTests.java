@@ -87,7 +87,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         writer.addDocument(document);
         writer.commit();
 
-        DirectoryReader reader = DirectoryReader.open(writer, false);
+        DirectoryReader reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
         IndexSearcher searcher = new IndexSearcher(reader);
 
@@ -112,7 +112,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
 
         writer.forceMerge(1);
         reader.close();
-        reader = DirectoryReader.open(writer, false);
+        reader = DirectoryReader.open(writer);
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
         searcher = new IndexSearcher(reader);
 
@@ -138,7 +138,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         document.add(new StringField("field", "value", Field.Store.NO));
         writer.addDocument(document);
         writer.commit();
-        final DirectoryReader writerReader = DirectoryReader.open(writer, false);
+        final DirectoryReader writerReader = DirectoryReader.open(writer);
         final IndexReader reader = ElasticsearchDirectoryReader.wrap(writerReader, new ShardId("test", "_na_", 0));
 
         final AtomicLong stats = new AtomicLong();
@@ -211,7 +211,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
                 newIndexWriterConfig()
         );
         writer.addDocument(new Document());
-        DirectoryReader reader = DirectoryReader.open(writer, true);
+        DirectoryReader reader = DirectoryReader.open(writer);
         writer.close();
         reader = ElasticsearchDirectoryReader.wrap(reader, new ShardId("test2", "_na_", 0));
 

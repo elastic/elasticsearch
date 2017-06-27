@@ -19,9 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.ingest.core.IngestDocument;
-import org.elasticsearch.ingest.core.ValueSource;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,19 +29,20 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class ValueSourceMustacheIT extends AbstractMustacheTests {
+public class ValueSourceMustacheIT extends AbstractScriptTestCase {
 
     public void testValueSourceWithTemplates() {
         Map<String, Object> model = new HashMap<>();
         model.put("field1", "value1");
         model.put("field2", Collections.singletonMap("field3", "value3"));
 
-        ValueSource valueSource = ValueSource.wrap("{{field1}}/{{field2}}/{{field2.field3}}", templateService);
+        ValueSource valueSource = ValueSource.wrap("{{field1}}/{{field2}}/{{field2.field3}}", scriptService);
         assertThat(valueSource, instanceOf(ValueSource.TemplatedValue.class));
         assertThat(valueSource.copyAndResolve(model), equalTo("value1/{field3=value3}/value3"));
 
-        valueSource = ValueSource.wrap(Arrays.asList("_value", "{{field1}}"), templateService);
+        valueSource = ValueSource.wrap(Arrays.asList("_value", "{{field1}}"), scriptService);
         assertThat(valueSource, instanceOf(ValueSource.ListValue.class));
+        @SuppressWarnings("unchecked")
         List<String> result = (List<String>) valueSource.copyAndResolve(model);
         assertThat(result.size(), equalTo(2));
         assertThat(result.get(0), equalTo("_value"));
@@ -54,8 +52,9 @@ public class ValueSourceMustacheIT extends AbstractMustacheTests {
         map.put("field1", "{{field1}}");
         map.put("field2", Collections.singletonMap("field3", "{{field2.field3}}"));
         map.put("field4", "_value");
-        valueSource = ValueSource.wrap(map, templateService);
+        valueSource = ValueSource.wrap(map, scriptService);
         assertThat(valueSource, instanceOf(ValueSource.MapValue.class));
+        @SuppressWarnings("unchecked")
         Map<String, Object> resultMap = (Map<String, Object>) valueSource.copyAndResolve(model);
         assertThat(resultMap.size(), equalTo(3));
         assertThat(resultMap.get("field1"), equalTo("value1"));
@@ -65,11 +64,11 @@ public class ValueSourceMustacheIT extends AbstractMustacheTests {
     }
 
     public void testAccessSourceViaTemplate() {
-        IngestDocument ingestDocument = new IngestDocument("marvel", "type", "id", null, null, null, null, new HashMap<>());
+        IngestDocument ingestDocument = new IngestDocument("marvel", "type", "id", null, null, new HashMap<>());
         assertThat(ingestDocument.hasField("marvel"), is(false));
-        ingestDocument.setFieldValue(templateService.compile("{{_index}}"), ValueSource.wrap("{{_index}}", templateService));
+        ingestDocument.setFieldValue(compile("{{_index}}"), ValueSource.wrap("{{_index}}", scriptService));
         assertThat(ingestDocument.getFieldValue("marvel", String.class), equalTo("marvel"));
-        ingestDocument.removeField(templateService.compile("{{marvel}}"));
+        ingestDocument.removeField(compile("{{marvel}}"));
         assertThat(ingestDocument.hasField("index"), is(false));
     }
 

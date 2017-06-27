@@ -24,12 +24,12 @@ import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
@@ -39,19 +39,19 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
-import org.elasticsearch.search.internal.InternalSearchHit;
-import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.rescore.RescoreSearchContext;
+import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- */
 public class TopHitsAggregator extends MetricsAggregator {
 
     /** Simple wrapper around a top-level collector and the current leaf collector. */
@@ -68,7 +68,7 @@ public class TopHitsAggregator extends MetricsAggregator {
     final SubSearchContext subSearchContext;
     final LongObjectPagedHashMap<TopDocsAndLeafCollector> topDocsCollectors;
 
-    public TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, AggregationContext context,
+    public TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.fetchPhase = fetchPhase;
@@ -78,9 +78,9 @@ public class TopHitsAggregator extends MetricsAggregator {
 
     @Override
     public boolean needsScores() {
-        Sort sort = subSearchContext.sort();
+        SortAndFormats sort = subSearchContext.sort();
         if (sort != null) {
-            return sort.needsScores() || subSearchContext.trackScores();
+            return sort.sort.needsScores() || subSearchContext.trackScores();
         } else {
             // sort by score
             return true;
@@ -112,12 +112,23 @@ public class TopHitsAggregator extends MetricsAggregator {
             public void collect(int docId, long bucket) throws IOException {
                 TopDocsAndLeafCollector collectors = topDocsCollectors.get(bucket);
                 if (collectors == null) {
-                    Sort sort = subSearchContext.sort();
+                    SortAndFormats sort = subSearchContext.sort();
                     int topN = subSearchContext.from() + subSearchContext.size();
+                    if (sort == null) {
+                        for (RescoreSearchContext rescoreContext : context.rescore()) {
+                            topN = Math.max(rescoreContext.window(), topN);
+                        }
+                    }
                     // In the QueryPhase we don't need this protection, because it is build into the IndexSearcher,
                     // but here we create collectors ourselves and we need prevent OOM because of crazy an offset and size.
                     topN = Math.min(topN, subSearchContext.searcher().getIndexReader().maxDoc());
-                    TopDocsCollector<?> topLevelCollector = sort != null ? TopFieldCollector.create(sort, topN, true, subSearchContext.trackScores(), subSearchContext.trackScores()) : TopScoreDocCollector.create(topN);
+                    TopDocsCollector<?> topLevelCollector;
+                    if (sort == null) {
+                        topLevelCollector = TopScoreDocCollector.create(topN);
+                    } else {
+                        topLevelCollector = TopFieldCollector.create(sort.sort, topN, true, subSearchContext.trackScores(),
+                                subSearchContext.trackScores());
+                    }
                     collectors = new TopDocsAndLeafCollector(topLevelCollector);
                     collectors.leafCollector = collectors.topLevelCollector.getLeafCollector(ctx);
                     collectors.leafCollector.setScorer(scorer);
@@ -135,9 +146,18 @@ public class TopHitsAggregator extends MetricsAggregator {
         if (topDocsCollector == null) {
             topHits = buildEmptyAggregation();
         } else {
-            final TopDocs topDocs = topDocsCollector.topLevelCollector.topDocs();
-
-            subSearchContext.queryResult().topDocs(topDocs);
+            TopDocs topDocs = topDocsCollector.topLevelCollector.topDocs();
+            if (subSearchContext.sort() == null) {
+                for (RescoreSearchContext ctx : context().rescore()) {
+                    try {
+                        topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
+                    } catch (IOException e) {
+                        throw new ElasticsearchException("Rescore TopHits Failed", e);
+                    }
+                }
+            }
+            subSearchContext.queryResult().topDocs(topDocs,
+                subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
             int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
             for (int i = 0; i < topDocs.scoreDocs.length; i++) {
                 docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
@@ -145,19 +165,19 @@ public class TopHitsAggregator extends MetricsAggregator {
             subSearchContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
             fetchPhase.execute(subSearchContext);
             FetchSearchResult fetchResult = subSearchContext.fetchResult();
-            InternalSearchHit[] internalHits = fetchResult.fetchResult().hits().internalHits();
+            SearchHit[] internalHits = fetchResult.fetchResult().hits().internalHits();
             for (int i = 0; i < internalHits.length; i++) {
                 ScoreDoc scoreDoc = topDocs.scoreDocs[i];
-                InternalSearchHit searchHitFields = internalHits[i];
+                SearchHit searchHitFields = internalHits[i];
                 searchHitFields.shard(subSearchContext.shardTarget());
                 searchHitFields.score(scoreDoc.score);
                 if (scoreDoc instanceof FieldDoc) {
                     FieldDoc fieldDoc = (FieldDoc) scoreDoc;
-                    searchHitFields.sortValues(fieldDoc.fields);
+                    searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
                 }
             }
-            topHits = new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits(), pipelineAggregators(),
-                    metaData());
+            topHits = new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits(),
+                    pipelineAggregators(), metaData());
         }
         return topHits;
     }
@@ -166,11 +186,12 @@ public class TopHitsAggregator extends MetricsAggregator {
     public InternalTopHits buildEmptyAggregation() {
         TopDocs topDocs;
         if (subSearchContext.sort() != null) {
-            topDocs = new TopFieldDocs(0, new FieldDoc[0], subSearchContext.sort().getSort(), Float.NaN);
+            topDocs = new TopFieldDocs(0, new FieldDoc[0], subSearchContext.sort().sort.getSort(), Float.NaN);
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
-        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, InternalSearchHits.empty(), pipelineAggregators(), metaData());
+        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, SearchHits.empty(),
+                pipelineAggregators(), metaData());
     }
 
     @Override

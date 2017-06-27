@@ -31,8 +31,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- */
 public class GetAliasesResponse extends ActionResponse {
 
     private ImmutableOpenMap<String, List<AliasMetaData>> aliases = ImmutableOpenMap.of();
@@ -59,7 +57,7 @@ public class GetAliasesResponse extends ActionResponse {
             int valueSize = in.readVInt();
             List<AliasMetaData> value = new ArrayList<>(valueSize);
             for (int j = 0; j < valueSize; j++) {
-                value.add(AliasMetaData.Builder.readFrom(in));
+                value.add(new AliasMetaData(in));
             }
             aliasesBuilder.put(key, Collections.unmodifiableList(value));
         }

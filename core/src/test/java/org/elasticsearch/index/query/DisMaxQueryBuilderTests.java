@@ -24,6 +24,8 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -32,7 +34,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -55,26 +56,22 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context);
-        if (queries.isEmpty()) {
-            assertThat(query, nullValue());
-        } else {
-            assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-            DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
-            assertThat(disjunctionMaxQuery.getTieBreakerMultiplier(), equalTo(queryBuilder.tieBreaker()));
-            assertThat(disjunctionMaxQuery.getDisjuncts().size(), equalTo(queries.size()));
-            Iterator<Query> queryIterator = queries.iterator();
-            for (int i = 0; i < disjunctionMaxQuery.getDisjuncts().size(); i++) {
-                assertThat(disjunctionMaxQuery.getDisjuncts().get(i), equalTo(queryIterator.next()));
-            }
+    protected void doAssertLuceneQuery(DisMaxQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        Collection<Query> queries = AbstractQueryBuilder.toQueries(queryBuilder.innerQueries(), context.getQueryShardContext());
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        DisjunctionMaxQuery disjunctionMaxQuery = (DisjunctionMaxQuery) query;
+        assertThat(disjunctionMaxQuery.getTieBreakerMultiplier(), equalTo(queryBuilder.tieBreaker()));
+        assertThat(disjunctionMaxQuery.getDisjuncts().size(), equalTo(queries.size()));
+        Iterator<Query> queryIterator = queries.iterator();
+        for (int i = 0; i < disjunctionMaxQuery.getDisjuncts().size(); i++) {
+            assertThat(disjunctionMaxQuery.getDisjuncts().get(i), equalTo(queryIterator.next()));
         }
     }
 
     @Override
     protected Map<String, DisMaxQueryBuilder> getAlternateVersions() {
         Map<String, DisMaxQueryBuilder> alternateVersions = new HashMap<>();
-        QueryBuilder<?> innerQuery = createTestQueryBuilder().innerQueries().get(0);
+        QueryBuilder innerQuery = createTestQueryBuilder().innerQueries().get(0);
         DisMaxQueryBuilder expectedQuery = new DisMaxQueryBuilder();
         expectedQuery.add(innerQuery);
         String contentString = "{\n" +
@@ -86,34 +83,9 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         return alternateVersions;
     }
 
-    /**
-     * test `null`return value for missing inner queries
-     */
-    public void testNoInnerQueries() throws IOException {
-        DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder();
-        assertNull(disMaxBuilder.toQuery(createShardContext()));
-    }
-
-    /**
-     * Test inner query parsing to null. Current DSL allows inner filter element to parse to <tt>null</tt>.
-     * Those should be ignored upstream. To test this, we use inner {@link ConstantScoreQueryBuilder}
-     * with empty inner filter.
-     */
-    public void testInnerQueryReturnsNull() throws IOException {
-        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } }";
-        QueryBuilder<?> innerQueryBuilder = parseQuery(queryString);
-        DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder().add(innerQueryBuilder);
-        assertNull(disMaxBuilder.toQuery(createShardContext()));
-    }
-
     public void testIllegalArguments() {
         DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
-        try {
-            disMaxQuery.add(null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        expectThrows(IllegalArgumentException.class, () -> disMaxQuery.add(null));
     }
 
     public void testToQueryInnerPrefixQuery() throws Exception {

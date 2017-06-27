@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
+import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,24 +26,24 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class CompletionStats implements Streamable, ToXContent {
 
-    private long sizeInBytes;
+    private static final String COMPLETION = "completion";
+    private static final String SIZE_IN_BYTES = "size_in_bytes";
+    private static final String SIZE = "size";
+    private static final String FIELDS = "fields";
 
+    private long sizeInBytes;
     @Nullable
-    private ObjectLongHashMap<String> fields;
+    private FieldMemoryStats fields;
 
     public CompletionStats() {
     }
 
-    public CompletionStats(long size, @Nullable ObjectLongHashMap<String> fields) {
+    public CompletionStats(long size, @Nullable FieldMemoryStats fields) {
         this.sizeInBytes = size;
         this.fields = fields;
     }
@@ -56,98 +56,43 @@ public class CompletionStats implements Streamable, ToXContent {
         return new ByteSizeValue(sizeInBytes);
     }
 
-    public ObjectLongHashMap<String> getFields() {
+    public FieldMemoryStats getFields() {
         return fields;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         sizeInBytes = in.readVLong();
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            fields = new ObjectLongHashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                fields.put(in.readString(), in.readVLong());
-            }
-        }
+        fields = in.readOptionalWriteable(FieldMemoryStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(sizeInBytes);
-        if (fields == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeVInt(fields.size());
-            
-            assert !fields.containsKey(null);
-            final Object[] keys = fields.keys;
-            final long[] values = fields.values;
-            for (int i = 0; i < keys.length; i++) {
-                if (keys[i] != null) {
-                    out.writeString((String) keys[i]);
-                    out.writeVLong(values[i]);
-                }
-            }
-        }
+        out.writeOptionalWriteable(fields);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.COMPLETION);
-        builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, sizeInBytes);
+        builder.startObject(COMPLETION);
+        builder.byteSizeField(SIZE_IN_BYTES, SIZE, sizeInBytes);
         if (fields != null) {
-            builder.startObject(Fields.FIELDS);
-
-            assert !fields.containsKey(null);
-            final Object[] keys = fields.keys;
-            final long[] values = fields.values;
-            for (int i = 0; i < keys.length; i++) {
-                if (keys[i] != null) {
-                    builder.startObject((String) keys[i], XContentBuilder.FieldCaseConversion.NONE);
-                    builder.byteSizeField(Fields.SIZE_IN_BYTES, Fields.SIZE, values[i]);
-                    builder.endObject();
-                }
-            }
-            builder.endObject();
+            fields.toXContent(builder, FIELDS, SIZE_IN_BYTES, SIZE);
         }
         builder.endObject();
         return builder;
-    }
-
-    public static CompletionStats readCompletionStats(StreamInput in) throws IOException {
-        CompletionStats stats = new CompletionStats();
-        stats.readFrom(in);
-        return stats;
-    }
-
-    static final class Fields {
-        static final XContentBuilderString COMPLETION = new XContentBuilderString("completion");
-        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
-        static final XContentBuilderString SIZE = new XContentBuilderString("size");
-        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
     }
 
     public void add(CompletionStats completion) {
         if (completion == null) {
             return;
         }
-
         sizeInBytes += completion.getSizeInBytes();
-
         if (completion.fields != null) {
-            if (fields == null) { 
-                fields = completion.fields.clone();
+            if (fields == null) {
+                fields = completion.fields.copy();
             } else {
-                assert !completion.fields.containsKey(null);
-                final Object[] keys = completion.fields.keys;
-                final long[] values = completion.fields.values;
-                for (int i = 0; i < keys.length; i++) {
-                    if (keys[i] != null) {
-                        fields.addTo((String) keys[i], values[i]);
-                    }
-                }
+                fields.add(completion.fields);
             }
         }
     }

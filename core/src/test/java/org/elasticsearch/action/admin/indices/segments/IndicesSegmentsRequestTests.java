@@ -54,7 +54,7 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
             String id = Integer.toString(j);
             client().prepareIndex("test", "type1", id).setSource("text", "sometext").get();
         }
-        client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).get();
+        client().admin().indices().prepareFlush("test").get();
     }
 
     public void testBasic() {

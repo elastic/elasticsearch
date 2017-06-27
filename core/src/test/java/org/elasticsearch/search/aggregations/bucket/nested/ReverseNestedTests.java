@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.bucket.nested;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 
-public class ReverseNestedTests extends BaseAggregationTestCase<ReverseNestedAggregatorBuilder> {
+public class ReverseNestedTests extends BaseAggregationTestCase<ReverseNestedAggregationBuilder> {
 
     @Override
-    protected ReverseNestedAggregatorBuilder createTestAggregatorBuilder() {
-        ReverseNestedAggregatorBuilder factory = new ReverseNestedAggregatorBuilder(randomAsciiOfLengthBetween(1, 20));
+    protected ReverseNestedAggregationBuilder createTestAggregatorBuilder() {
+        ReverseNestedAggregationBuilder factory = new ReverseNestedAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            factory.path(randomAsciiOfLengthBetween(3, 40));
+            factory.path(randomAlphaOfLengthBetween(3, 40));
         }
         return factory;
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -28,7 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.ingest.PipelineStore;
-import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -48,7 +47,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
 
     @Override
     protected void doExecute(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
-        final Map<String, Object> source = XContentHelper.convertToMap(request.getSource(), false).v2();
+        final Map<String, Object> source = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
 
         final SimulatePipelineRequest.Parsed simulateRequest;
         try {

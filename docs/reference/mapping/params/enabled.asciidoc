@@ -21,8 +21,7 @@ PUT my_index
     "session": {
       "properties": {
         "user_id": {
-          "type":  "string",
-          "index": "not_analyzed"
+          "type":  "keyword"
         },
         "last_updated": {
           "type": "date"
@@ -53,7 +52,7 @@ PUT my_index/session/session_2
   "last_updated": "2015-12-06T18:22:13"
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The `session_data` field is disabled.
 <2> Any arbitrary data can be passed to the `session_data` field as it will be entirely ignored.
 <3> The `session_data` will also ignore values that are not JSON objects.
@@ -88,7 +87,7 @@ GET my_index/session/session_1 <2>
 
 GET my_index/_mapping <3>
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 <1> The entire `session` mapping type is disabled.
 <2> The document can be retrieved.
 <3> Checking the mapping reveals that no fields have been added.

@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.settings.get;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class GetSettingsAction extends Action<GetSettingsRequest, GetSettingsResponse, GetSettingsRequestBuilder> {
 
     public static final GetSettingsAction INSTANCE = new GetSettingsAction();

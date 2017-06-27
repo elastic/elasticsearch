@@ -19,12 +19,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -34,6 +30,10 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequestBuilder;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldstats.FieldStatsRequest;
 import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
@@ -46,21 +46,6 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptRequestBuilder;
-import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequestBuilder;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequestBuilder;
-import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
-import org.elasticsearch.action.percolate.MultiPercolateRequest;
-import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
-import org.elasticsearch.action.percolate.MultiPercolateResponse;
-import org.elasticsearch.action.percolate.PercolateRequest;
-import org.elasticsearch.action.percolate.PercolateRequestBuilder;
-import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.ClearScrollResponse;
@@ -72,9 +57,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
-import org.elasticsearch.action.suggest.SuggestRequest;
-import org.elasticsearch.action.suggest.SuggestRequestBuilder;
-import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequestBuilder;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
@@ -87,6 +69,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.Map;
@@ -114,7 +97,7 @@ public interface Client extends ElasticsearchClient, Releasable {
             default:
                 throw new IllegalArgumentException("Can't parse [client.type] must be one of [node, transport]");
         }
-    }, false, Setting.Scope.CLUSTER);
+    }, Property.NodeScope);
 
     /**
      * The admin client that can be used to perform administrative operations.
@@ -281,80 +264,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      */
     GetRequestBuilder prepareGet(String index, @Nullable String type, String id);
 
-
-    /**
-     * Put an indexed script
-     */
-    PutIndexedScriptRequestBuilder preparePutIndexedScript();
-
-    /**
-     * Put the indexed script
-     */
-    PutIndexedScriptRequestBuilder preparePutIndexedScript(@Nullable String scriptLang, String id, String source);
-
-    /**
-     * delete an indexed script
-     */
-    void deleteIndexedScript(DeleteIndexedScriptRequest request, ActionListener<DeleteIndexedScriptResponse> listener);
-
-    /**
-     * Delete an indexed script
-     *
-     * @param request The put request
-     * @return The result future
-     */
-    ActionFuture<DeleteIndexedScriptResponse> deleteIndexedScript(DeleteIndexedScriptRequest request);
-
-
-    /**
-     * Delete an indexed script
-     */
-    DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript();
-
-    /**
-     * Delete an indexed script
-     */
-    DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript(@Nullable String scriptLang, String id);
-
-    /**
-     * Put an indexed script
-     */
-    void putIndexedScript(PutIndexedScriptRequest request, ActionListener<PutIndexedScriptResponse> listener);
-
-    /**
-     * Put an indexed script
-     *
-     * @param request The put request
-     * @return The result future
-     */
-    ActionFuture<PutIndexedScriptResponse> putIndexedScript(PutIndexedScriptRequest request);
-
-
-    /**
-     * Get an indexed script
-     */
-    GetIndexedScriptRequestBuilder prepareGetIndexedScript();
-
-    /**
-     * Get the indexed script
-     */
-    GetIndexedScriptRequestBuilder prepareGetIndexedScript(@Nullable String scriptLang, String id);
-
-    /**
-     * Get an indexed script
-     */
-    void getIndexedScript(GetIndexedScriptRequest request, ActionListener<GetIndexedScriptResponse> listener);
-
-    /**
-     * Gets the document that was indexed from an index with a type and id.
-     *
-     * @param request The get request
-     * @return The result future
-     * @see Requests#getRequest(String)
-     */
-    ActionFuture<GetIndexedScriptResponse> getIndexedScript(GetIndexedScriptRequest request);
-
-
     /**
      * Multi get documents.
      */
@@ -369,29 +278,6 @@ public interface Client extends ElasticsearchClient, Releasable {
      * Multi get documents.
      */
     MultiGetRequestBuilder prepareMultiGet();
-
-    /**
-     * Suggestion matching a specific phrase.
-     *
-     * @param request The suggest request
-     * @return The result future
-     * @see Requests#suggestRequest(String...)
-     */
-    ActionFuture<SuggestResponse> suggest(SuggestRequest request);
-
-    /**
-     * Suggestions matching a specific phrase.
-     *
-     * @param request  The suggest request
-     * @param listener A listener to be notified of the result
-     * @see Requests#suggestRequest(String...)
-     */
-    void suggest(SuggestRequest request, ActionListener<SuggestResponse> listener);
-
-    /**
-     * Suggestions matching a specific phrase.
-     */
-    SuggestRequestBuilder prepareSuggest(String... indices);
 
     /**
      * Search across one or more indices and one or more types with a query.
@@ -532,36 +418,6 @@ public interface Client extends ElasticsearchClient, Releasable {
     MultiTermVectorsRequestBuilder prepareMultiTermVectors();
 
     /**
-     * Percolates a request returning the matches documents.
-     */
-    ActionFuture<PercolateResponse> percolate(PercolateRequest request);
-
-    /**
-     * Percolates a request returning the matches documents.
-     */
-    void percolate(PercolateRequest request, ActionListener<PercolateResponse> listener);
-
-    /**
-     * Percolates a request returning the matches documents.
-     */
-    PercolateRequestBuilder preparePercolate();
-
-    /**
-     * Performs multiple percolate requests.
-     */
-    ActionFuture<MultiPercolateResponse> multiPercolate(MultiPercolateRequest request);
-
-    /**
-     * Performs multiple percolate requests.
-     */
-    void multiPercolate(MultiPercolateRequest request, ActionListener<MultiPercolateResponse> listener);
-
-    /**
-     * Performs multiple percolate requests.
-     */
-    MultiPercolateRequestBuilder prepareMultiPercolate();
-
-    /**
      * Computes a score explanation for the specified request.
      *
      * @param index The index this explain is targeted for
@@ -600,11 +456,38 @@ public interface Client extends ElasticsearchClient, Releasable {
      */
     void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener);
 
+    /**
+     * @deprecated Use _field_caps instead or run a min/max aggregations on the desired fields
+     */
+    @Deprecated
     FieldStatsRequestBuilder prepareFieldStats();
 
+    /**
+     * @deprecated Use _field_caps instead or run a min/max aggregations on the desired fields
+     */
+    @Deprecated
     ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request);
 
+    /**
+     * @deprecated Use _field_caps instead or run a min/max aggregations on the desired fields
+     */
+    @Deprecated
     void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener);
+
+    /**
+     * Builder for the field capabilities request.
+     */
+    FieldCapabilitiesRequestBuilder prepareFieldCaps();
+
+    /**
+     * An action that returns the field capabilities from the provided request
+     */
+    ActionFuture<FieldCapabilitiesResponse> fieldCaps(FieldCapabilitiesRequest request);
+
+    /**
+     * An action that returns the field capabilities from the provided request
+     */
+    void fieldCaps(FieldCapabilitiesRequest request, ActionListener<FieldCapabilitiesResponse> listener);
 
     /**
      * Returns this clients settings

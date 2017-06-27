@@ -20,12 +20,12 @@
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,33 +35,25 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
-/**
- *
- */
-public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHotThreadsRequest, NodesHotThreadsResponse, TransportNodesHotThreadsAction.NodeRequest, NodeHotThreads> {
+public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHotThreadsRequest,
+                                                                         NodesHotThreadsResponse,
+                                                                         TransportNodesHotThreadsAction.NodeRequest,
+                                                                         NodeHotThreads> {
 
     @Inject
-    public TransportNodesHotThreadsAction(Settings settings, ClusterName clusterName, ThreadPool threadPool,
+    public TransportNodesHotThreadsAction(Settings settings, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, NodesHotThreadsAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters,
-                indexNameExpressionResolver, NodesHotThreadsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC);
+        super(settings, NodesHotThreadsAction.NAME, threadPool, clusterService, transportService, actionFilters,
+              indexNameExpressionResolver, NodesHotThreadsRequest::new, NodeRequest::new, ThreadPool.Names.GENERIC, NodeHotThreads.class);
     }
 
     @Override
-    protected NodesHotThreadsResponse newResponse(NodesHotThreadsRequest request, AtomicReferenceArray responses) {
-        final List<NodeHotThreads> nodes = new ArrayList<>();
-        for (int i = 0; i < responses.length(); i++) {
-            Object resp = responses.get(i);
-            if (resp instanceof NodeHotThreads) {
-                nodes.add((NodeHotThreads) resp);
-            }
-        }
-        return new NodesHotThreadsResponse(clusterName, nodes.toArray(new NodeHotThreads[nodes.size()]));
+    protected NodesHotThreadsResponse newResponse(NodesHotThreadsRequest request,
+                                                  List<NodeHotThreads> responses, List<FailedNodeException> failures) {
+        return new NodesHotThreadsResponse(clusterService.getClusterName(), responses, failures);
     }
 
     @Override
@@ -87,11 +79,6 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<NodesHo
         } catch (Exception e) {
             throw new ElasticsearchException("failed to detect hot threads", e);
         }
-    }
-
-    @Override
-    protected boolean accumulateExceptions() {
-        return false;
     }
 
     public static class NodeRequest extends BaseNodeRequest {

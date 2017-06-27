@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.cluster.service.MasterService;
+
 import java.util.List;
 
 public interface ClusterStateTaskListener {
@@ -25,10 +27,11 @@ public interface ClusterStateTaskListener {
     /**
      * A callback called when execute fails.
      */
-    void onFailure(String source, Throwable t);
+    void onFailure(String source, Exception e);
 
     /**
-     * called when the task was rejected because the local node is no longer master
+     * called when the task was rejected because the local node is no longer master.
+     * Used only for tasks submitted to {@link MasterService}.
      */
     default void onNoLongerMaster(String source) {
         onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));

@@ -21,7 +21,7 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.PriorityQueue;
 
-public class BucketSignificancePriorityQueue extends PriorityQueue<SignificantTerms.Bucket> {
+public class BucketSignificancePriorityQueue<B extends SignificantTerms.Bucket> extends PriorityQueue<B> {
 
     public BucketSignificancePriorityQueue(int size) {
         super(size);

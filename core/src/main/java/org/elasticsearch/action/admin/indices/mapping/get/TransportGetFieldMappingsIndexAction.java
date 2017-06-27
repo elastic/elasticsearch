@@ -23,12 +23,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
@@ -50,12 +50,10 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.util.CollectionUtils.newLinkedList;
 
 /**
  * Transport action used to retrieve the mappings related to fields that belong to a specific index
@@ -130,7 +128,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
 
     private static final ToXContent.Params includeDefaultsParams = new ToXContent.Params() {
 
-        final static String INCLUDE_DEFAULTS = "include_defaults";
+        static final String INCLUDE_DEFAULTS = "include_defaults";
 
         @Override
         public String param(String key) {
@@ -174,24 +172,12 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
                     addFieldMapper(fieldMapper.fieldType().name(), fieldMapper, fieldMappings, request.includeDefaults());
                 }
             } else if (Regex.isSimpleMatchPattern(field)) {
-                // go through the field mappers 3 times, to make sure we give preference to the resolve order: full name, index name, name.
-                // also make sure we only store each mapper once.
-                Collection<FieldMapper> remainingFieldMappers = newLinkedList(allFieldMappers);
-                for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
-                    final FieldMapper fieldMapper = it.next();
+                for (FieldMapper fieldMapper : allFieldMappers) {
                     if (Regex.simpleMatch(field, fieldMapper.fieldType().name())) {
-                        addFieldMapper(fieldMapper.fieldType().name(), fieldMapper, fieldMappings, request.includeDefaults());
-                        it.remove();
+                        addFieldMapper(fieldMapper.fieldType().name(), fieldMapper, fieldMappings,
+                            request.includeDefaults());
                     }
                 }
-                for (Iterator<FieldMapper> it = remainingFieldMappers.iterator(); it.hasNext(); ) {
-                    final FieldMapper fieldMapper = it.next();
-                    if (Regex.simpleMatch(field, fieldMapper.fieldType().name())) {
-                        addFieldMapper(fieldMapper.fieldType().name(), fieldMapper, fieldMappings, request.includeDefaults());
-                        it.remove();
-                    }
-                }
-
             } else {
                 // not a pattern
                 FieldMapper fieldMapper = allFieldMappers.smartNameFieldMapper(field);

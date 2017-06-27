@@ -25,14 +25,18 @@ import java.security.AllPermission;
 
 /** Very simple sanity checks for {@link SpecialPermission} */
 public class SpecialPermissionTests extends ESTestCase {
-    
+
     public void testEquals() {
         assertEquals(new SpecialPermission(), new SpecialPermission());
+        assertEquals(SpecialPermission.INSTANCE, new SpecialPermission());
         assertFalse(new SpecialPermission().equals(new AllPermission()));
+        assertFalse(SpecialPermission.INSTANCE.equals(new AllPermission()));
     }
-    
+
     public void testImplies() {
-        assertTrue(new SpecialPermission().implies(new SpecialPermission()));
+        assertTrue(SpecialPermission.INSTANCE.implies(new SpecialPermission()));
+        assertTrue(SpecialPermission.INSTANCE.implies(SpecialPermission.INSTANCE));
         assertFalse(new SpecialPermission().implies(new AllPermission()));
+        assertFalse(SpecialPermission.INSTANCE.implies(new AllPermission()));
     }
 }

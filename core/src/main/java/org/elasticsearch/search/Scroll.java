@@ -21,12 +21,11 @@ package org.elasticsearch.search;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
-
-import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
+import java.util.Objects;
 
 /**
  * A scroll enables scrolling of search request. It holds a {@link #keepAlive()} time that
@@ -34,19 +33,19 @@ import static org.elasticsearch.common.unit.TimeValue.readTimeValue;
  *
  *
  */
-public class Scroll implements Streamable {
+public final class Scroll implements Writeable {
 
-    private TimeValue keepAlive;
+    private final TimeValue keepAlive;
 
-    private Scroll() {
-
+    public Scroll(StreamInput in) throws IOException {
+        this.keepAlive = new TimeValue(in);
     }
 
     /**
      * Constructs a new scroll of the provided keep alive.
      */
     public Scroll(TimeValue keepAlive) {
-        this.keepAlive = keepAlive;
+        this.keepAlive = Objects.requireNonNull(keepAlive, "keepAlive must not be null");
     }
 
     /**
@@ -56,26 +55,30 @@ public class Scroll implements Streamable {
         return keepAlive;
     }
 
-    public static Scroll readScroll(StreamInput in) throws IOException {
-        Scroll scroll = new Scroll();
-        scroll.readFrom(in);
-        return scroll;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            keepAlive = readTimeValue(in);
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (keepAlive == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            keepAlive.writeTo(out);
+        keepAlive.writeTo(out);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
         }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        Scroll scroll = (Scroll) o;
+        return Objects.equals(keepAlive, scroll.keepAlive);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(keepAlive);
+    }
+
+    @Override
+    public String toString() {
+        return "Scroll{keepAlive=" + keepAlive + '}';
     }
 }

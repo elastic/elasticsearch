@@ -44,7 +44,7 @@ public class OriginalIndicesTests extends ESTestCase {
             out.setVersion(randomVersion(random()));
             OriginalIndices.writeOriginalIndices(originalIndices, out);
 
-            StreamInput in = StreamInput.wrap(out.bytes());
+            StreamInput in = out.bytes().streamInput();
             in.setVersion(out.getVersion());
             OriginalIndices originalIndices2 = OriginalIndices.readOriginalIndices(in);
 
@@ -57,7 +57,7 @@ public class OriginalIndicesTests extends ESTestCase {
         int numIndices = randomInt(10);
         String[] indices = new String[numIndices];
         for (int j = 0; j < indices.length; j++) {
-            indices[j] = randomAsciiOfLength(randomIntBetween(1, 10));
+            indices[j] = randomAlphaOfLength(randomIntBetween(1, 10));
         }
         IndicesOptions indicesOptions = randomFrom(indicesOptionsValues);
         return new OriginalIndices(indices, indicesOptions);

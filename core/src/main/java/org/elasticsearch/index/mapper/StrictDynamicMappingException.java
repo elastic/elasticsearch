@@ -23,8 +23,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- */
 public class StrictDynamicMappingException extends MapperParsingException {
 
     public StrictDynamicMappingException(String path, String fieldName) {

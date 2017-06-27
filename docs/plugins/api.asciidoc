@@ -4,18 +4,6 @@
 API extension plugins add new functionality to Elasticsearch by adding new APIs or features, usually to do with search or mapping.
 
 [float]
-=== Core API extension plugins
-
-The core API extension plugins are:
-
-<<plugins-delete-by-query,Delete by Query>>::
-
-The delete by query plugin adds support for deleting all of the documents
-(from one or more indices) which match the specified query. It is a
-replacement for the problematic _delete-by-query_ functionality which has been
-removed from Elasticsearch core.
-
-[float]
 === Community contributed API extension plugins
 
 A number of plugins have been contributed by our community:
@@ -25,10 +13,6 @@ A number of plugins have been contributed by our community:
 
 * https://github.com/wikimedia/search-extra[Elasticsearch Trigram Accelerated Regular Expression Filter]:
   (by Wikimedia Foundation/Nik Everett)
-
-* https://github.com/kzwang/elasticsearch-image[Elasticsearch Image Plugin]:
-  Uses https://code.google.com/p/lire/[Lire (Lucene Image Retrieval)] to allow users
-  to index images and search for similar images (by Kevin Wang)
 
 * https://github.com/wikimedia/search-highlighter[Elasticsearch Experimental Highlighter]:
   (by Wikimedia Foundation/Nik Everett)
@@ -42,20 +26,4 @@ A number of plugins have been contributed by our community:
 * https://github.com/codelibs/elasticsearch-taste[Elasticsearch Taste Plugin]:
   Mahout Taste-based Collaborative Filtering implementation (by CodeLibs Project)
 
-* https://github.com/hadashiA/elasticsearch-flavor[Elasticsearch Flavor Plugin] using
-  http://mahout.apache.org/[Mahout] Collaboration filtering (by hadashiA)
 * https://github.com/jurgc11/es-change-feed-plugin[WebSocket Change Feed Plugin] (by ForgeRock/Chris Clifton)
-
-These community plugins appear to have been abandoned:
-
-* https://github.com/derryx/elasticsearch-changes-plugin[Elasticsearch Changes Plugin] (by Thomas Peuss)
-
-* https://github.com/mattweber/elasticsearch-mocksolrplugin[Elasticsearch Mock Solr Plugin] (by Matt Weber)
-
-* http://siren.solutions/siren/downloads/[Elasticsearch SIREn Plugin]: Nested data search (by SIREn Solutions)
-
-* https://github.com/endgameinc/elasticsearch-term-plugin[Terms Component Plugin] (by Endgame Inc.)
-
-* https://github.com/etsy/es-restlog[REST Request Logging Plugin] (by Etsy/Shikhar Bhushan)
-
-include::delete-by-query.asciidoc[]

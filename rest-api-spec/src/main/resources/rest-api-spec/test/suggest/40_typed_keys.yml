@@ -1,0 +1,66 @@
+setup:
+  - skip:
+      version: " - 5.3.99"
+      reason: typed_keys parameter was added in 5.4.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              test:
+                properties:
+                  title:
+                    type: keyword
+                  suggestions:
+                    type: completion
+                    contexts:
+                        -
+                          "name" : "format"
+                          "type" : "category"
+
+  - do:
+     bulk:
+        refresh: true
+        index: test
+        type: test
+        body:
+          - '{"index": {}}'
+          - '{"title": "Elasticsearch in Action", "suggestions": {"input": "ELK in Action", "contexts": {"format": "ebook"}}}'
+          - '{"index": {}}'
+          - '{"title": "Elasticsearch - The Definitive Guide", "suggestions": {"input": ["Elasticsearch in Action"]}}'
+
+---
+"Test typed keys parameter for suggesters":
+
+  - do:
+      search:
+        typed_keys: true
+        body:
+          query:
+            match_all: {}
+          suggest:
+            text: "Elastic"
+            term_suggester:
+              term:
+                field: title
+            completion_suggester:
+              prefix: "Elastic"
+              completion:
+                field: suggestions
+            context_suggester:
+              prefix: "Elastic"
+              completion:
+                field: suggestions
+                contexts:
+                  format: "ebook"
+            phrase_suggester:
+              phrase:
+                field: title
+
+  - is_true: suggest.term#term_suggester
+  - is_true: suggest.completion#completion_suggester
+  - is_true: suggest.completion#context_suggester
+  - is_true: suggest.phrase#phrase_suggester

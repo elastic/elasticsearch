@@ -4,9 +4,9 @@
 The local gateway module stores the cluster state and shard data across full
 cluster restarts.
 
-The following _static_ settings, which must be set on every data node in the
-cluster, controls how long nodes should wait before they try to recover any
-shards which are stored locally:
+ The following _static_ settings, which must be set on every master node,
+  control how long a freshly elected master should wait before it tries to
+  recover the cluster state and the cluster's data:
 
 `gateway.expected_nodes`::
 
@@ -48,4 +48,3 @@ as long as the following conditions are met:
     Recover as long as this many data nodes have joined the cluster.
 
 NOTE: These settings only take effect on a full cluster restart.
-

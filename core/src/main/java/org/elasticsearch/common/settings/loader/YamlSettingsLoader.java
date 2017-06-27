@@ -30,6 +30,10 @@ import java.util.Map;
  */
 public class YamlSettingsLoader extends XContentSettingsLoader {
 
+    public YamlSettingsLoader(boolean allowNullValues) {
+        super(allowNullValues);
+    }
+
     @Override
     public XContentType contentType() {
         return XContentType.YAML;

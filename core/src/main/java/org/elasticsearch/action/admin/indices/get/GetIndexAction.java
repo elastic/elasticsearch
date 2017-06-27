@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.get;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class GetIndexAction extends Action<GetIndexRequest, GetIndexResponse, GetIndexRequestBuilder> {
 
     public static final GetIndexAction INSTANCE = new GetIndexAction();

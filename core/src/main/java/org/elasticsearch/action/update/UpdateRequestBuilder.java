@@ -19,22 +19,27 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.WriteRequestBuilder;
+import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.script.Script;
 
 import java.util.Map;
 
-/**
- */
-public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder> {
+public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
+        implements WriteRequestBuilder<UpdateRequestBuilder> {
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(RestUpdateAction.class));
 
     public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action) {
         super(client, action, new UpdateRequest());
@@ -89,9 +94,54 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Explicitly specify the fields that will be returned. By default, nothing is returned.
+     * @deprecated Use {@link UpdateRequestBuilder#setFetchSource(String[], String[])} instead
      */
+    @Deprecated
     public UpdateRequestBuilder setFields(String... fields) {
+        DEPRECATION_LOGGER.deprecated("Deprecated field [fields] used, expected [_source] instead");
         request.fields(fields);
+        return this;
+    }
+
+    /**
+     * Indicate that _source should be returned with every hit, with an
+     * "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param include
+     *            An optional include (optionally wildcarded) pattern to filter
+     *            the returned _source
+     * @param exclude
+     *            An optional exclude (optionally wildcarded) pattern to filter
+     *            the returned _source
+     */
+    public UpdateRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
+        request.fetchSource(include, exclude);
+        return this;
+    }
+
+    /**
+     * Indicate that _source should be returned, with an
+     * "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param includes
+     *            An optional list of include (optionally wildcarded) pattern to
+     *            filter the returned _source
+     * @param excludes
+     *            An optional list of exclude (optionally wildcarded) pattern to
+     *            filter the returned _source
+     */
+    public UpdateRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
+        request.fetchSource(includes, excludes);
+        return this;
+    }
+
+    /**
+     * Indicates whether the response should contain the updated _source.
+     */
+    public UpdateRequestBuilder setFetchSource(boolean fetchSource) {
+        request.fetchSource(fetchSource);
         return this;
     }
 
@@ -121,23 +171,22 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
-
     /**
-     * Should a refresh be executed post this update operation causing the operation to
-     * be searchable. Note, heavy indexing should not set this to <tt>true</tt>. Defaults
-     * to <tt>false</tt>.
+     * Sets the number of shard copies that must be active before proceeding with the write.
+     * See {@link ReplicationRequest#waitForActiveShards(ActiveShardCount)} for details.
      */
-    public UpdateRequestBuilder setRefresh(boolean refresh) {
-        request.refresh(refresh);
+    public UpdateRequestBuilder setWaitForActiveShards(ActiveShardCount waitForActiveShards) {
+        request.waitForActiveShards(waitForActiveShards);
         return this;
     }
 
     /**
-     * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
+     * A shortcut for {@link #setWaitForActiveShards(ActiveShardCount)} where the numerical
+     * shard count is passed in, instead of having to first call {@link ActiveShardCount#from(int)}
+     * to get the ActiveShardCount.
      */
-    public UpdateRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        request.consistencyLevel(consistencyLevel);
-        return this;
+    public UpdateRequestBuilder setWaitForActiveShards(final int waitForActiveShards) {
+        return setWaitForActiveShards(ActiveShardCount.from(waitForActiveShards));
     }
 
     /**
@@ -175,32 +224,24 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(String source) {
-        request.doc(source);
+    public UpdateRequestBuilder setDoc(String source, XContentType xContentType) {
+        request.doc(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(byte[] source) {
-        request.doc(source);
+    public UpdateRequestBuilder setDoc(byte[] source, XContentType xContentType) {
+        request.doc(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc to use for updates when a script is not specified.
      */
-    public UpdateRequestBuilder setDoc(byte[] source, int offset, int length) {
-        request.doc(source, offset, length);
-        return this;
-    }
-
-    /**
-     * Sets the doc to use for updates when a script is not specified.
-     */
-    public UpdateRequestBuilder setDoc(String field, Object value) {
-        request.doc(field, value);
+    public UpdateRequestBuilder setDoc(byte[] source, int offset, int length, XContentType xContentType) {
+        request.doc(source, offset, length, xContentType);
         return this;
     }
 
@@ -210,6 +251,15 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setDoc(Object... source) {
         request.doc(source);
+        return this;
+    }
+
+    /**
+     * Sets the doc to use for updates when a script is not specified, the doc provided
+     * is a field and value pairs.
+     */
+    public UpdateRequestBuilder setDoc(XContentType xContentType, Object... source) {
+        request.doc(xContentType, source);
         return this;
     }
 
@@ -249,24 +299,24 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(String source) {
-        request.upsert(source);
+    public UpdateRequestBuilder setUpsert(String source, XContentType xContentType) {
+        request.upsert(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(byte[] source) {
-        request.upsert(source);
+    public UpdateRequestBuilder setUpsert(byte[] source, XContentType xContentType) {
+        request.upsert(source, xContentType);
         return this;
     }
 
     /**
      * Sets the doc source of the update request to be used when the document does not exists.
      */
-    public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length) {
-        request.upsert(source, offset, length);
+    public UpdateRequestBuilder setUpsert(byte[] source, int offset, int length, XContentType xContentType) {
+        request.upsert(source, offset, length, xContentType);
         return this;
     }
 
@@ -279,23 +329,12 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
-    public UpdateRequestBuilder setSource(XContentBuilder source) throws Exception {
-        request.source(source);
-        return this;
-    }
-
-    public UpdateRequestBuilder setSource(byte[] source) throws Exception {
-        request.source(source);
-        return this;
-    }
-
-    public UpdateRequestBuilder setSource(byte[] source, int offset, int length) throws Exception {
-        request.source(source, offset, length);
-        return this;
-    }
-
-    public UpdateRequestBuilder setSource(BytesReference source) throws Exception {
-        request.source(source);
+    /**
+     * Sets the doc source of the update request to be used when the document does not exists. The doc
+     * includes field and value pairs.
+     */
+    public UpdateRequestBuilder setUpsert(XContentType xContentType, Object... source) {
+        request.upsert(xContentType, source);
         return this;
     }
 
@@ -309,7 +348,7 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Sets whether to perform extra effort to detect noop updates via docAsUpsert.
-     * Defautls to true.
+     * Defaults to true.
      */
     public UpdateRequestBuilder setDetectNoop(boolean detectNoop) {
         request.detectNoop(detectNoop);
@@ -325,33 +364,4 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
-    /**
-     * Set the new ttl of the document as a long. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(Long ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
-
-    /**
-     * Set the new ttl of the document as a time value expression. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(String ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
-
-    /**
-     * Set the new ttl of the document as a {@link TimeValue} instance. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(TimeValue ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
 }

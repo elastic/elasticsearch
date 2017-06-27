@@ -28,8 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- */
 public class GetMappingsResponse extends ActionResponse {
 
     private ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> mappings = ImmutableOpenMap.of();
@@ -59,7 +57,7 @@ public class GetMappingsResponse extends ActionResponse {
             int valueSize = in.readVInt();
             ImmutableOpenMap.Builder<String, MappingMetaData> typeMapBuilder = ImmutableOpenMap.builder();
             for (int j = 0; j < valueSize; j++) {
-                typeMapBuilder.put(in.readString(), MappingMetaData.PROTO.readFrom(in));
+                typeMapBuilder.put(in.readString(), new MappingMetaData(in));
             }
             indexMapBuilder.put(key, typeMapBuilder.build());
         }

@@ -26,9 +26,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- *
- */
 public class CommitPoint {
 
     public static final CommitPoint NULL = new CommitPoint(-1, "_null_", Type.GENERATED, Collections.<CommitPoint.FileInfo>emptyList(), Collections.<CommitPoint.FileInfo>emptyList());
@@ -62,16 +59,9 @@ public class CommitPoint {
         public String checksum() {
             return checksum;
         }
-
-        public boolean isSame(StoreFileMetaData md) {
-            if (checksum == null || md.checksum() == null) {
-                return false;
-            }
-            return length == md.length() && checksum.equals(md.checksum());
-        }
     }
 
-    public static enum Type {
+    public enum Type {
         GENERATED,
         SAVED
     }

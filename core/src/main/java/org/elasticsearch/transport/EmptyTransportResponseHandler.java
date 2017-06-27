@@ -21,9 +21,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.threadpool.ThreadPool;
 
-/**
- *
- */
 public class EmptyTransportResponseHandler implements TransportResponseHandler<TransportResponse.Empty> {
 
     public static final EmptyTransportResponseHandler INSTANCE_SAME = new EmptyTransportResponseHandler(ThreadPool.Names.SAME);

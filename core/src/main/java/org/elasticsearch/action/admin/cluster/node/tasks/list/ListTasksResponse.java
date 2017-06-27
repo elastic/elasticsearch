@@ -19,40 +19,44 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Returns the list of tasks currently running on the nodes
  */
-public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
+public class ListTasksResponse extends BaseTasksResponse implements ToXContentObject {
 
     private List<TaskInfo> tasks;
 
-    private Map<DiscoveryNode, List<TaskInfo>> nodes;
+    private Map<String, List<TaskInfo>> perNodeTasks;
+
+    private List<TaskGroup> groups;
 
     public ListTasksResponse() {
+        this(null, null, null);
     }
 
-    public ListTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures, List<? extends FailedNodeException> nodeFailures) {
+    public ListTasksResponse(List<TaskInfo> tasks, List<TaskOperationFailure> taskFailures,
+            List<? extends FailedNodeException> nodeFailures) {
         super(taskFailures, nodeFailures);
         this.tasks = tasks == null ? Collections.emptyList() : Collections.unmodifiableList(new ArrayList<>(tasks));
     }
@@ -72,36 +76,125 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
     /**
      * Returns the list of tasks by node
      */
-    public Map<DiscoveryNode, List<TaskInfo>> getPerNodeTasks() {
-        if (nodes != null) {
-            return nodes;
+    public Map<String, List<TaskInfo>> getPerNodeTasks() {
+        if (perNodeTasks == null) {
+            perNodeTasks = tasks.stream().collect(Collectors.groupingBy(t -> t.getTaskId().getNodeId()));
         }
-        Map<DiscoveryNode, List<TaskInfo>> nodeTasks = new HashMap<>();
-
-        Set<DiscoveryNode> nodes = new HashSet<>();
-        for (TaskInfo shard : tasks) {
-            nodes.add(shard.getNode());
-        }
-
-        for (DiscoveryNode node : nodes) {
-            List<TaskInfo> tasks = new ArrayList<>();
-            for (TaskInfo taskInfo : this.tasks) {
-                if (taskInfo.getNode().equals(node)) {
-                    tasks.add(taskInfo);
-                }
-            }
-            nodeTasks.put(node, tasks);
-        }
-        this.nodes = nodeTasks;
-        return nodeTasks;
+        return perNodeTasks;
     }
 
+    /**
+     * Get the tasks found by this request grouped by parent tasks.
+     */
+    public List<TaskGroup> getTaskGroups() {
+        if (groups == null) {
+            buildTaskGroups();
+        }
+        return groups;
+    }
+
+    private void buildTaskGroups() {
+        Map<TaskId, TaskGroup.Builder> taskGroups = new HashMap<>();
+        List<TaskGroup.Builder> topLevelTasks = new ArrayList<>();
+        // First populate all tasks
+        for (TaskInfo taskInfo : this.tasks) {
+            taskGroups.put(taskInfo.getTaskId(), TaskGroup.builder(taskInfo));
+        }
+
+        // Now go through all task group builders and add children to their parents
+        for (TaskGroup.Builder taskGroup : taskGroups.values()) {
+            TaskId parentTaskId = taskGroup.getTaskInfo().getParentTaskId();
+            if (parentTaskId.isSet()) {
+                TaskGroup.Builder parentTask = taskGroups.get(parentTaskId);
+                if (parentTask != null) {
+                    // we found parent in the list of tasks - add it to the parent list
+                    parentTask.addGroup(taskGroup);
+                } else {
+                    // we got zombie or the parent was filtered out - add it to the the top task list
+                    topLevelTasks.add(taskGroup);
+                }
+            } else {
+                // top level task - add it to the top task list
+                topLevelTasks.add(taskGroup);
+            }
+        }
+        this.groups = Collections.unmodifiableList(topLevelTasks.stream().map(TaskGroup.Builder::build).collect(Collectors.toList()));
+    }
+
+    /**
+     * Get the tasks found by this request.
+     */
     public List<TaskInfo> getTasks() {
         return tasks;
     }
 
+    /**
+     * Convert this task response to XContent grouping by executing nodes.
+     */
+    public XContentBuilder toXContentGroupedByNode(XContentBuilder builder, Params params, DiscoveryNodes discoveryNodes)
+            throws IOException {
+        toXContentCommon(builder, params);
+        builder.startObject("nodes");
+        for (Map.Entry<String, List<TaskInfo>> entry : getPerNodeTasks().entrySet()) {
+            DiscoveryNode node = discoveryNodes.get(entry.getKey());
+            builder.startObject(entry.getKey());
+            if (node != null) {
+                // If the node is no longer part of the cluster, oh well, we'll just skip it's useful information.
+                builder.field("name", node.getName());
+                builder.field("transport_address", node.getAddress().toString());
+                builder.field("host", node.getHostName());
+                builder.field("ip", node.getAddress());
+
+                builder.startArray("roles");
+                for (DiscoveryNode.Role role : node.getRoles()) {
+                    builder.value(role.getRoleName());
+                }
+                builder.endArray();
+
+                if (!node.getAttributes().isEmpty()) {
+                    builder.startObject("attributes");
+                    for (Map.Entry<String, String> attrEntry : node.getAttributes().entrySet()) {
+                        builder.field(attrEntry.getKey(), attrEntry.getValue());
+                    }
+                    builder.endObject();
+                }
+            }
+            builder.startObject("tasks");
+            for(TaskInfo task : entry.getValue()) {
+                builder.startObject(task.getTaskId().toString());
+                task.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endObject();
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    /**
+     * Convert this response to XContent grouping by parent tasks.
+     */
+    public XContentBuilder toXContentGroupedByParents(XContentBuilder builder, Params params) throws IOException {
+        toXContentCommon(builder, params);
+        builder.startObject("tasks");
+        for (TaskGroup group : getTaskGroups()) {
+            builder.field(group.getTaskInfo().getTaskId().toString());
+            group.toXContent(builder, params);
+        }
+        builder.endObject();
+        return builder;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        toXContentGroupedByParents(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    private void toXContentCommon(XContentBuilder builder, Params params) throws IOException {
         if (getTaskFailures() != null && getTaskFailures().size() > 0) {
             builder.startArray("task_failures");
             for (TaskOperationFailure ex : getTaskFailures()){
@@ -121,44 +214,10 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
             }
             builder.endArray();
         }
-
-        builder.startObject("nodes");
-        for (Map.Entry<DiscoveryNode, List<TaskInfo>> entry : getPerNodeTasks().entrySet()) {
-            DiscoveryNode node = entry.getKey();
-            builder.startObject(node.getId(), XContentBuilder.FieldCaseConversion.NONE);
-            builder.field("name", node.name());
-            builder.field("transport_address", node.address().toString());
-            builder.field("host", node.getHostName());
-            builder.field("ip", node.getAddress());
-
-            if (!node.attributes().isEmpty()) {
-                builder.startObject("attributes");
-                for (ObjectObjectCursor<String, String> attr : node.attributes()) {
-                    builder.field(attr.key, attr.value, XContentBuilder.FieldCaseConversion.NONE);
-                }
-                builder.endObject();
-            }
-            builder.startArray("tasks");
-            for(TaskInfo task : entry.getValue()) {
-                task.toXContent(builder, params);
-            }
-            builder.endArray();
-            builder.endObject();
-        }
-        builder.endObject();
-        return builder;
     }
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this);
     }
 }

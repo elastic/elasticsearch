@@ -19,12 +19,9 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.mapper.object.RootObjectMapper;
-
 import java.util.Collection;
 
-public enum MapperUtils {
+enum MapperUtils {
     ;
 
     /** Split mapper and its descendants into object and field mappers. */

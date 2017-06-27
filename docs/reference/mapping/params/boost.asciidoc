@@ -1,8 +1,8 @@
-[[index-boost]]
+[[mapping-boost]]
 === `boost`
 
-Individual fields can be _boosted_ -- count more towards the relevance score
--- at index time, with the `boost` parameter as follows:
+Individual fields can be _boosted_ automatically -- count more towards the relevance score
+-- at query time, with the `boost` parameter as follows:
 
 [source,js]
 --------------------------------------------------
@@ -12,26 +12,68 @@ PUT my_index
     "my_type": {
       "properties": {
         "title": {
-          "type": "string",
+          "type": "text",
           "boost": 2 <1>
         },
         "content": {
-          "type": "string"
+          "type": "text"
         }
       }
     }
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> Matches on the `title` field will have twice the weight as those on the
     `content` field, which has the default `boost` of `1.0`.
 
-Note that a `title` field will usually be shorter than a `content` field.  The
-default relevance calculation takes field length into account, so a short
-`title` field will have a higher natural boost than a long `content` field.
+NOTE: The boost is applied only for term queries (prefix, range and fuzzy queries are not _boosted_).
 
+You can achieve the same effect by using the boost parameter directly in the query, for instance the following query (with field time boost):
+
+[source,js]
+--------------------------------------------------
+POST _search
+{
+    "query": {
+        "match" : {
+            "title": {
+                "query": "quick brown fox"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+is equivalent to:
+
+[source,js]
+--------------------------------------------------
+POST _search
+{
+    "query": {
+        "match" : {
+            "title": {
+                "query": "quick brown fox",
+                "boost": 2
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+
+The boost is also applied when it is copied with the
+value in the <<mapping-all-field,`_all`>> field. This means that, when
+querying the `_all` field, words that originated from the `title` field will
+have a higher score than words that originated in the `content` field.
+This functionality comes at a cost: queries on the `_all` field are slower
+when field boosting is used.
+
+deprecated[5.0.0, index time boost is deprecated.  Instead, the field mapping boost is applied at query time. For indices created before 5.0.0 the boost will still be applied at index time.]
 [WARNING]
 .Why index time boosting is a bad idea
 ==================================================
@@ -49,11 +91,3 @@ We advise against using index time boosting for the following reasons:
   which can lead to lower quality relevance calculations.
 
 ==================================================
-
-The only advantage that index time boosting has is that it is copied with the
-value into the <<mapping-all-field,`_all`>> field. This means that, when
-querying the `_all` field, words that originated from the `title` field will
-have a higher score than words that originated in the `content` field.
-This functionality comes at a cost: queries on the `_all` field are slower
-when index-time boosting is used.
-

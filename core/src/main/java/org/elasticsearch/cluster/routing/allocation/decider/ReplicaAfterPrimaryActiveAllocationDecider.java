@@ -22,7 +22,6 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -32,7 +31,6 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
 
     private static final String NAME = "replica_after_primary_active";
 
-    @Inject
     public ReplicaAfterPrimaryActiveAllocationDecider(Settings settings) {
         super(settings);
     }
@@ -45,12 +43,12 @@ public class ReplicaAfterPrimaryActiveAllocationDecider extends AllocationDecide
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
-            return allocation.decision(Decision.YES, NAME, "shard is primary");
+            return allocation.decision(Decision.YES, NAME, "shard is primary and can be allocated");
         }
-        ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting);
+        ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting.shardId());
         if (primary == null) {
-            return allocation.decision(Decision.NO, NAME, "primary shard is not yet active");
+            return allocation.decision(Decision.NO, NAME, "primary shard for this replica is not yet active");
         }
-        return allocation.decision(Decision.YES, NAME, "primary is already active");
+        return allocation.decision(Decision.YES, NAME, "primary shard for this replica is already active");
     }
 }

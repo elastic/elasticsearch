@@ -19,16 +19,13 @@
 
 package org.elasticsearch.index;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
-/**
- *
- */
 public abstract class AbstractIndexComponent implements IndexComponent {
 
-    protected final ESLogger logger;
+    protected final Logger logger;
     protected final DeprecationLogger deprecationLogger;
     protected final IndexSettings indexSettings;
 

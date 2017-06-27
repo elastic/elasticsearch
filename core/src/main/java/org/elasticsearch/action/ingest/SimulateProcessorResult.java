@@ -24,37 +24,53 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.ConfigurationUtils;
+import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
 
-public class SimulateProcessorResult implements Writeable<SimulateProcessorResult>, ToXContent {
+class SimulateProcessorResult implements Writeable, ToXContent {
     private final String processorTag;
     private final WriteableIngestDocument ingestDocument;
     private final Exception failure;
 
-    public SimulateProcessorResult(StreamInput in) throws IOException {
+    SimulateProcessorResult(String processorTag, IngestDocument ingestDocument, Exception failure) {
+        this.processorTag = processorTag;
+        this.ingestDocument = (ingestDocument == null) ? null : new WriteableIngestDocument(ingestDocument);
+        this.failure = failure;
+    }
+
+    SimulateProcessorResult(String processorTag, IngestDocument ingestDocument) {
+        this(processorTag, ingestDocument, null);
+    }
+
+    SimulateProcessorResult(String processorTag, Exception failure) {
+        this(processorTag, null, failure);
+    }
+
+    /**
+     * Read from a stream.
+     */
+    SimulateProcessorResult(StreamInput in) throws IOException {
         this.processorTag = in.readString();
         if (in.readBoolean()) {
-            this.failure = in.readThrowable();
-            this.ingestDocument = null;
+            this.ingestDocument = new WriteableIngestDocument(in);
         } else {
-            this.ingestDocument =  new WriteableIngestDocument(in);
-            this.failure = null;
+            this.ingestDocument = null;
         }
+        this.failure = in.readException();
     }
 
-    public SimulateProcessorResult(String processorTag, IngestDocument ingestDocument) {
-        this.processorTag = processorTag;
-        this.ingestDocument = new WriteableIngestDocument(ingestDocument);
-        this.failure = null;
-    }
-
-    public SimulateProcessorResult(String processorTag, Exception failure) {
-        this.processorTag = processorTag;
-        this.failure = failure;
-        this.ingestDocument = null;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(processorTag);
+        if (ingestDocument == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            ingestDocument.writeTo(out);
+        }
+        out.writeException(failure);
     }
 
     public IngestDocument getIngestDocument() {
@@ -73,33 +89,25 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
     }
 
     @Override
-    public SimulateProcessorResult readFrom(StreamInput in) throws IOException {
-        return new SimulateProcessorResult(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(processorTag);
-        if (failure == null) {
-            out.writeBoolean(false);
-            ingestDocument.writeTo(out);
-        } else {
-            out.writeBoolean(true);
-            out.writeThrowable(failure);
-        }
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+
         if (processorTag != null) {
-            builder.field(AbstractProcessorFactory.TAG_KEY, processorTag);
+            builder.field(ConfigurationUtils.TAG_KEY, processorTag);
         }
-        if (failure == null) {
+
+        if (failure != null && ingestDocument != null) {
+            builder.startObject("ignored_error");
+            ElasticsearchException.generateFailureXContent(builder, params, failure, true);
+            builder.endObject();
+        } else if (failure != null) {
+            ElasticsearchException.generateFailureXContent(builder, params, failure, true);
+        }
+
+        if (ingestDocument != null) {
             ingestDocument.toXContent(builder, params);
-        } else {
-            ElasticsearchException.renderThrowable(builder, params, failure);
         }
+
         builder.endObject();
         return builder;
     }

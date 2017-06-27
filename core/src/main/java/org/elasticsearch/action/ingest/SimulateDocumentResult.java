@@ -21,6 +21,6 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 
-public interface SimulateDocumentResult<T extends SimulateDocumentResult> extends Writeable<T>, ToXContent {
+public interface SimulateDocumentResult extends Writeable, ToXContent {
 
 }

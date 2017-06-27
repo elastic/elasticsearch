@@ -8,10 +8,10 @@ transport, it should make using Elasticsearch more efficient (though it has limi
 documentation).
 
 Using thrift requires installing the `transport-thrift` plugin, located
-https://github.com/elasticsearch/elasticsearch-transport-thrift[here].
+https://github.com/elastic/elasticsearch-transport-thrift[here].
 
 The thrift
-https://github.com/elasticsearch/elasticsearch-transport-thrift/blob/master/elasticsearch.thrift[schema]
+https://github.com/elastic/elasticsearch-transport-thrift/blob/master/elasticsearch.thrift[schema]
 can be used to generate thrift clients.
 
 [cols="<,<",options="header",]

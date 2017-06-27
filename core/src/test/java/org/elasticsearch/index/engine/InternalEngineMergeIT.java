@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -36,10 +37,12 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-@ClusterScope(numDataNodes = 1, scope = Scope.SUITE)
+@ClusterScope(supportsDedicatedMasters = false, numDataNodes = 1, scope = Scope.SUITE)
 public class InternalEngineMergeIT extends ESIntegTestCase {
+
+    @TestLogging("_root:DEBUG")
     public void testMergesHappening() throws InterruptedException, IOException, ExecutionException {
-        final int numOfShards = randomIntBetween(1,5);
+        final int numOfShards = randomIntBetween(1, 5);
         // some settings to keep num segments low
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, numOfShards)

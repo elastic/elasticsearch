@@ -20,8 +20,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.BoostingQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -38,9 +39,9 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        Query positive = queryBuilder.positiveQuery().toQuery(context);
-        Query negative = queryBuilder.negativeQuery().toQuery(context);
+    protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
+        Query positive = queryBuilder.positiveQuery().toQuery(context.getQueryShardContext());
+        Query negative = queryBuilder.negativeQuery().toQuery(context.getQueryShardContext());
         if (positive == null || negative == null) {
             assertThat(query, nullValue());
         } else {
@@ -49,26 +50,10 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     public void testIllegalArguments() {
-        try {
-            new BoostingQueryBuilder(null, new MatchAllQueryBuilder());
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //
-        }
-
-        try {
-            new BoostingQueryBuilder(new MatchAllQueryBuilder(), null);
-            fail("must not be null");
-        } catch (IllegalArgumentException e) {
-            //
-        }
-
-        try {
-            new BoostingQueryBuilder(new MatchAllQueryBuilder(), new MatchAllQueryBuilder()).negativeBoost(-1.0f);
-            fail("must not be negative");
-        } catch (IllegalArgumentException e) {
-            //
-        }
+        expectThrows(IllegalArgumentException.class, () -> new BoostingQueryBuilder(null, new MatchAllQueryBuilder()));
+        expectThrows(IllegalArgumentException.class, () -> new BoostingQueryBuilder(new MatchAllQueryBuilder(), null));
+        expectThrows(IllegalArgumentException.class,
+                () -> new BoostingQueryBuilder(new MatchAllQueryBuilder(), new MatchAllQueryBuilder()).negativeBoost(-1.0f));
     }
 
     public void testFromJson() throws IOException {
@@ -98,7 +83,6 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
 
         BoostingQueryBuilder queryBuilder = (BoostingQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
-
         assertEquals(query, 42, queryBuilder.boost(), 0.00001);
         assertEquals(query, 23, queryBuilder.negativeBoost(), 0.00001);
         assertEquals(query, 8, queryBuilder.negativeQuery().boost(), 0.00001);
@@ -109,12 +93,12 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         QueryBuilder positive = randomBoolean() ? new MatchAllQueryBuilder() : new WrapperQueryBuilder(new TermQueryBuilder("pos", "bar").toString());
         QueryBuilder negative = randomBoolean() ? new MatchAllQueryBuilder() : new WrapperQueryBuilder(new TermQueryBuilder("neg", "bar").toString());
         BoostingQueryBuilder qb = new BoostingQueryBuilder(positive, negative);
-        QueryBuilder<?> rewrite = qb.rewrite(queryShardContext());
+        QueryBuilder rewrite = qb.rewrite(createShardContext());
         if (positive instanceof MatchAllQueryBuilder && negative instanceof MatchAllQueryBuilder) {
             assertSame(rewrite, qb);
         } else {
             assertNotSame(rewrite, qb);
-            assertEquals(new BoostingQueryBuilder(positive.rewrite(queryShardContext()), negative.rewrite(queryShardContext())), rewrite);
+            assertEquals(new BoostingQueryBuilder(positive.rewrite(createShardContext()), negative.rewrite(createShardContext())), rewrite);
         }
     }
 }

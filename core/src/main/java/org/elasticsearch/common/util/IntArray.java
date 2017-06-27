@@ -27,21 +27,21 @@ public interface IntArray extends BigArray {
     /**
      * Get an element given its index.
      */
-    public abstract int get(long index);
+    int get(long index);
 
     /**
      * Set a value at the given index and return the previous value.
      */
-    public abstract int set(long index, int value);
+    int set(long index, int value);
 
     /**
      * Increment value at the given index by <code>inc</code> and return the value.
      */
-    public abstract int increment(long index, int inc);
+    int increment(long index, int inc);
 
     /**
      * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
      */
-    public abstract void fill(long fromIndex, long toIndex, int value);
+    void fill(long fromIndex, long toIndex, int value);
 
 }

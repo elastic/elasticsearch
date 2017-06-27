@@ -25,7 +25,7 @@ import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.TestUtil;
-import org.elasticsearch.cache.recycler.PageCacheRecycler;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -41,8 +41,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
     BytesRefHash hash;
 
     private BigArrays randombigArrays() {
-        final PageCacheRecycler recycler = randomBoolean() ? null : getInstanceFromNode(PageCacheRecycler.class);
-        return new MockBigArrays(recycler, new NoneCircuitBreakerService());
+        return new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }
 
     private void newHash() {
@@ -64,7 +63,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
         final int len = randomIntBetween(1, 100000);
         final BytesRef[] values = new BytesRef[len];
         for (int i = 0; i < values.length; ++i) {
-            values[i] = new BytesRef(randomAsciiOfLength(5));
+            values[i] = new BytesRef(randomAlphaOfLength(5));
         }
         final ObjectLongMap<BytesRef> valueToId = new ObjectLongHashMap<>();
         final BytesRef[] idToValue = new BytesRef[values.length];
@@ -110,7 +109,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(random(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
@@ -142,7 +141,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(random(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
@@ -181,7 +180,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(random(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();
@@ -216,7 +215,7 @@ public class BytesRefHashTests extends ESSingleNodeTestCase {
             for (int i = 0; i < 797; i++) {
                 String str;
                 do {
-                    str = TestUtil.randomRealisticUnicodeString(getRandom(), 1000);
+                    str = TestUtil.randomRealisticUnicodeString(random(), 1000);
                 } while (str.length() == 0);
                 ref.copyChars(str);
                 long count = hash.size();

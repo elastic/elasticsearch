@@ -28,4 +28,6 @@ public interface MockTaskManagerListener {
     void onTaskRegistered(Task task);
 
     void onTaskUnregistered(Task task);
+
+    void waitForTaskCompletion(Task task);
 }

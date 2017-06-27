@@ -16,7 +16,7 @@ AggregationBuilder aggregation =
         AggregationBuilders
                 .dateHistogram("agg")
                 .field("dateOfBirth")
-                .interval(DateHistogramInterval.YEAR);
+                .dateHistogramInterval(DateHistogramInterval.YEAR);
 --------------------------------------------------
 
 Or if you want to set an interval of 10 days:
@@ -27,7 +27,7 @@ AggregationBuilder aggregation =
         AggregationBuilders
                 .dateHistogram("agg")
                 .field("dateOfBirth")
-                .interval(DateHistogramInterval.days(10));
+                .dateHistogramInterval(DateHistogramInterval.days(10));
 --------------------------------------------------
 
 
@@ -67,3 +67,7 @@ key [2005-01-01T00:00:00.000Z], date [2005], doc_count [1]
 key [2007-01-01T00:00:00.000Z], date [2007], doc_count [2]
 key [2008-01-01T00:00:00.000Z], date [2008], doc_count [3]
 --------------------------------------------------
+
+===== Order
+
+Supports the same order functionality as the <<java-aggs-bucket-terms,`Terms Aggregation`>>.

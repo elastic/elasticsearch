@@ -5,21 +5,25 @@ Each filter and query can accept a `_name` in its top level definition.
 
 [source,js]
 --------------------------------------------------
+GET /_search
 {
-    "bool" : {
-        "should" : [
-            {"match" : { "name.first" : {"query" : "shay", "_name" : "first"} }},
-            {"match" : { "name.last" : {"query" : "banon", "_name" : "last"} }}
-        ],
-        "filter" : {
-            "terms" : {
-                "name.last" : ["banon", "kimchy"],
-                "_name" : "test"
+    "query": {
+        "bool" : {
+            "should" : [
+                {"match" : { "name.first" : {"query" : "shay", "_name" : "first"} }},
+                {"match" : { "name.last" : {"query" : "banon", "_name" : "last"} }}
+            ],
+            "filter" : {
+                "terms" : {
+                    "name.last" : ["banon", "kimchy"],
+                    "_name" : "test"
+                }
             }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The search response will include for each hit the `matched_queries` it matched on. The tagging of queries and filters
 only make sense for the `bool` query.

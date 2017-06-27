@@ -19,9 +19,10 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.vividsolutions.jts.geom.Coordinate;
-
 import java.util.List;
+
+import com.vividsolutions.jts.geom.Coordinate;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 
 /**
  * A collection of static methods for creating ShapeBuilders.
@@ -136,5 +137,17 @@ public class ShapeBuilders {
      */
     public static EnvelopeBuilder newEnvelope(Coordinate topLeft, Coordinate bottomRight) {
         return new EnvelopeBuilder(topLeft, bottomRight);
+    }
+
+    public static void register(List<Entry> namedWriteables) {
+        namedWriteables.add(new Entry(ShapeBuilder.class, PointBuilder.TYPE.shapeName(), PointBuilder::new));
+        namedWriteables.add(new Entry(ShapeBuilder.class, CircleBuilder.TYPE.shapeName(), CircleBuilder::new));
+        namedWriteables.add(new Entry(ShapeBuilder.class, EnvelopeBuilder.TYPE.shapeName(), EnvelopeBuilder::new));
+        namedWriteables.add(new Entry(ShapeBuilder.class, MultiPointBuilder.TYPE.shapeName(), MultiPointBuilder::new));
+        namedWriteables.add(new Entry(ShapeBuilder.class, LineStringBuilder.TYPE.shapeName(), LineStringBuilder::new));
+        namedWriteables.add(new Entry(ShapeBuilder.class, MultiLineStringBuilder.TYPE.shapeName(), MultiLineStringBuilder::new));
+        namedWriteables.add(new Entry(ShapeBuilder.class, PolygonBuilder.TYPE.shapeName(), PolygonBuilder::new));
+        namedWriteables.add(new Entry(ShapeBuilder.class, MultiPolygonBuilder.TYPE.shapeName(), MultiPolygonBuilder::new));
+        namedWriteables.add(new Entry(ShapeBuilder.class, GeometryCollectionBuilder.TYPE.shapeName(), GeometryCollectionBuilder::new));
     }
 }

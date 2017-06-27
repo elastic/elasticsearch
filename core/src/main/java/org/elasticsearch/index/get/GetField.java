@@ -22,17 +22,21 @@ package org.elasticsearch.index.get;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
-/**
- *
- */
-public class GetField implements Streamable, Iterable<Object> {
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
+
+public class GetField implements Streamable, ToXContent, Iterable<Object> {
 
     private String name;
     private List<Object> values;
@@ -41,8 +45,8 @@ public class GetField implements Streamable, Iterable<Object> {
     }
 
     public GetField(String name, List<Object> values) {
-        this.name = name;
-        this.values = values;
+        this.name = Objects.requireNonNull(name, "name must not be null");
+        this.values = Objects.requireNonNull(values, "values must not be null");
     }
 
     public String getName() {
@@ -92,5 +96,56 @@ public class GetField implements Streamable, Iterable<Object> {
         for (Object obj : values) {
             out.writeGenericValue(obj);
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startArray(name);
+        for (Object value : values) {
+            //this call doesn't really need to support writing any kind of object.
+            //Stored fields values are converted using MappedFieldType#valueForDisplay.
+            //As a result they can either be Strings, Numbers, Booleans, or BytesReference, that's all.
+            builder.value(value);
+        }
+        builder.endArray();
+        return builder;
+    }
+
+    public static GetField fromXContent(XContentParser parser) throws IOException {
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+        String fieldName = parser.currentName();
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+        List<Object> values = new ArrayList<>();
+        while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            values.add(parseStoredFieldsValue(parser));
+        }
+        return new GetField(fieldName, values);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        GetField objects = (GetField) o;
+        return Objects.equals(name, objects.name) &&
+                Objects.equals(values, objects.values);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, values);
+    }
+
+    @Override
+    public String toString() {
+        return "GetField{" +
+                "name='" + name + '\'' +
+                ", values=" + values +
+                '}';
     }
 }

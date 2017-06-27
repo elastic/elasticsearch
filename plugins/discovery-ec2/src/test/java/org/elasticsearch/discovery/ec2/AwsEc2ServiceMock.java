@@ -21,13 +21,12 @@ package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.model.Tag;
-import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 
-public class AwsEc2ServiceMock extends AbstractLifecycleComponent<AwsEc2Service> implements AwsEc2Service {
+public class AwsEc2ServiceMock extends AbstractLifecycleComponent implements AwsEc2Service {
 
     private int nodes;
     private List<List<Tag>> tagsList;

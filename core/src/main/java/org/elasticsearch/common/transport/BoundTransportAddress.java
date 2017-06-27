@@ -68,18 +68,18 @@ public class BoundTransportAddress implements Streamable {
         int boundAddressLength = in.readInt();
         boundAddresses = new TransportAddress[boundAddressLength];
         for (int i = 0; i < boundAddressLength; i++) {
-            boundAddresses[i] = TransportAddressSerializers.addressFromStream(in);
+            boundAddresses[i] = new TransportAddress(in);
         }
-        publishAddress = TransportAddressSerializers.addressFromStream(in);
+        publishAddress = new TransportAddress(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(boundAddresses.length);
         for (TransportAddress address : boundAddresses) {
-            TransportAddressSerializers.addressToStream(out, address);
+            address.writeTo(out);
         }
-        TransportAddressSerializers.addressToStream(out, publishAddress);
+        publishAddress.writeTo(out);
     }
 
     @Override

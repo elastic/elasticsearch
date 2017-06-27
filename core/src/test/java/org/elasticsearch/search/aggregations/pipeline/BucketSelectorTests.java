@@ -20,36 +20,37 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregatorBuilder;
+import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregationBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
 
-public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketSelectorPipelineAggregatorBuilder> {
+public class BucketSelectorTests extends BasePipelineAggregationTestCase<BucketSelectorPipelineAggregationBuilder> {
 
     @Override
-    protected BucketSelectorPipelineAggregatorBuilder createTestAggregatorFactory() {
-        String name = randomAsciiOfLengthBetween(3, 20);
+    protected BucketSelectorPipelineAggregationBuilder createTestAggregatorFactory() {
+        String name = randomAlphaOfLengthBetween(3, 20);
         Map<String, String> bucketsPaths = new HashMap<>();
         int numBucketPaths = randomIntBetween(1, 10);
         for (int i = 0; i < numBucketPaths; i++) {
-            bucketsPaths.put(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 40));
+            bucketsPaths.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 40));
         }
         Script script;
         if (randomBoolean()) {
-            script = new Script("script");
+            script = mockScript("script");
         } else {
-            Map<String, Object> params = null;
+            Map<String, Object> params = new HashMap<>();
             if (randomBoolean()) {
-                params = new HashMap<String, Object>();
                 params.put("foo", "bar");
             }
-            script = new Script("script", randomFrom(ScriptType.values()), randomFrom("my_lang", null), params);
+            ScriptType type = randomFrom(ScriptType.values());
+            script =
+                new Script(type, type == ScriptType.STORED ? null : randomFrom("my_lang", Script.DEFAULT_SCRIPT_LANG), "script", params);
         }
-        BucketSelectorPipelineAggregatorBuilder factory = new BucketSelectorPipelineAggregatorBuilder(name, bucketsPaths, script);
+        BucketSelectorPipelineAggregationBuilder factory = new BucketSelectorPipelineAggregationBuilder(name, bucketsPaths, script);
         if (randomBoolean()) {
             factory.gapPolicy(randomFrom(GapPolicy.values()));
         }

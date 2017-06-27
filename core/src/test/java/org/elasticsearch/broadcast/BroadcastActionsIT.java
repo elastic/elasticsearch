@@ -44,8 +44,6 @@ public class BroadcastActionsIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         logger.info("Running Cluster Health");
-        ensureYellow();
-
         client().index(indexRequest("test").type("type1").id("1").source(source("1", "test"))).actionGet();
         flush();
         client().index(indexRequest("test").type("type1").id("2").source(source("2", "test"))).actionGet();
@@ -58,7 +56,7 @@ public class BroadcastActionsIT extends ESIntegTestCase {
             SearchResponse countResponse = client().prepareSearch("test").setSize(0)
                     .setQuery(termQuery("_type", "type1"))
                     .get();
-            assertThat(countResponse.getHits().totalHits(), equalTo(2L));
+            assertThat(countResponse.getHits().getTotalHits(), equalTo(2L));
             assertThat(countResponse.getTotalShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getSuccessfulShards(), equalTo(numShards.numPrimaries));
             assertThat(countResponse.getFailedShards(), equalTo(0));

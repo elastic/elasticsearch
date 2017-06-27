@@ -21,24 +21,21 @@ package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleMarkFailure;
-import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -57,17 +54,20 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Random;
-import java.util.Set;
 
 public class MockFSDirectoryService extends FsDirectoryService {
 
-    public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING = Setting.doubleSetting("index.store.mock.random.io_exception_rate_on_open", 0.0d,  0.0d, false, Setting.Scope.INDEX);
-    public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_SETTING = Setting.doubleSetting("index.store.mock.random.io_exception_rate", 0.0d,  0.0d, false, Setting.Scope.INDEX);
-    public static final Setting<Boolean> RANDOM_PREVENT_DOUBLE_WRITE_SETTING = Setting.boolSetting("index.store.mock.random.prevent_double_write", true, false, Setting.Scope.INDEX);// true is default in MDW
-    public static final Setting<Boolean> RANDOM_NO_DELETE_OPEN_FILE_SETTING = Setting.boolSetting("index.store.mock.random.no_delete_open_file", true, false, Setting.Scope.INDEX);// true is default in MDW
-    public static final Setting<Boolean> CRASH_INDEX_SETTING = Setting.boolSetting("index.store.mock.random.crash_index", true, false, Setting.Scope.INDEX);// true is default in MDW
+    public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING =
+        Setting.doubleSetting("index.store.mock.random.io_exception_rate_on_open", 0.0d,  0.0d, Property.IndexScope, Property.NodeScope);
+    public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_SETTING =
+        Setting.doubleSetting("index.store.mock.random.io_exception_rate", 0.0d,  0.0d, Property.IndexScope, Property.NodeScope);
+    public static final Setting<Boolean> RANDOM_PREVENT_DOUBLE_WRITE_SETTING =
+        Setting.boolSetting("index.store.mock.random.prevent_double_write", true, Property.IndexScope, Property.NodeScope);// true is default in MDW
+    public static final Setting<Boolean> RANDOM_NO_DELETE_OPEN_FILE_SETTING =
+        Setting.boolSetting("index.store.mock.random.no_delete_open_file", true, Property.IndexScope, Property.NodeScope);// true is default in MDW
+    public static final Setting<Boolean> CRASH_INDEX_SETTING =
+        Setting.boolSetting("index.store.mock.random.crash_index", true, Property.IndexScope, Property.NodeScope);// true is default in MDW
 
     private final FsDirectoryService delegateService;
     private final Random random;
@@ -97,7 +97,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
             logger.debug("Using MockDirWrapper with seed [{}] throttle: [{}] crashIndex: [{}]", SeedUtils.formatSeed(seed),
                     throttle, crashIndex);
         }
-        delegateService = randomDirectorService(indexStore, path);
+        delegateService = randomDirectoryService(indexStore, path);
     }
 
 
@@ -111,8 +111,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         throw new UnsupportedOperationException();
     }
 
-    @SuppressWarnings("deprecation") // https://github.com/elastic/elasticsearch/issues/15846
-    public static void checkIndex(ESLogger logger, Store store, ShardId shardId) {
+    public static void checkIndex(Logger logger, Store store, ShardId shardId) {
         if (store.tryIncRef()) {
             logger.info("start check index");
             try {
@@ -130,11 +129,11 @@ public class MockFSDirectoryService extends FsDirectoryService {
                         ESTestCase.checkIndexFailed = true;
                         logger.warn("check index [failure] index files={}\n{}",
                                 Arrays.toString(dir.listAll()),
-                                new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
+                                os.bytes().utf8ToString());
                         throw new IOException("index check failure");
                     } else {
                         if (logger.isDebugEnabled()) {
-                            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
+                            logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
                         }
                     }
                 } catch (LockObtainFailedException e) {
@@ -150,39 +149,29 @@ public class MockFSDirectoryService extends FsDirectoryService {
         }
     }
 
-    @Override
-    public void onPause(long nanos) {
-        delegateService.onPause(nanos);
-    }
-
-    @Override
-    public StoreRateLimiting rateLimiting() {
-        return delegateService.rateLimiting();
-    }
-
-    @Override
-    public long throttleTimeInNanos() {
-        return delegateService.throttleTimeInNanos();
-    }
-
     private Directory wrap(Directory dir) {
         final ElasticsearchMockDirectoryWrapper w = new ElasticsearchMockDirectoryWrapper(random, dir, this.crashIndex);
         w.setRandomIOExceptionRate(randomIOExceptionRate);
         w.setRandomIOExceptionRateOnOpen(randomIOExceptionRateOnOpen);
         w.setThrottling(throttle);
         w.setCheckIndexOnClose(false); // we do this on the index level
-        w.setPreventDoubleWrite(preventDoubleWrite);
         // TODO: make this test robust to virus scanner
-        w.setEnableVirusScanner(false);
-        w.setNoDeleteOpenFile(noDeleteOpenFile);
+        w.setAssertNoDeleteOpenFile(false);
         w.setUseSlowOpenClosers(false);
         LuceneTestCase.closeAfterSuite(new CloseableDirectory(w));
         return w;
     }
 
-    private FsDirectoryService randomDirectorService(IndexStore indexStore, ShardPath path) {
+    private FsDirectoryService randomDirectoryService(IndexStore indexStore, ShardPath path) {
         final IndexSettings indexSettings = indexStore.getIndexSettings();
-        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData()).settings(Settings.builder().put(indexSettings.getSettings()).put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey())).build();
+        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData())
+            .settings(Settings.builder()
+                // don't use the settings from indexSettings#getSettings() they are merged with node settings and might contain
+                // secure settings that should not be copied in here since the new IndexSettings ctor below will barf if we do
+                .put(indexSettings.getIndexMetaData().getSettings())
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
+                    RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey()))
+            .build();
         final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings());
         return new FsDirectoryService(newIndexSettings, indexStore, path);
     }
@@ -208,7 +197,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         private final BaseDirectoryWrapper dir;
         private final TestRuleMarkFailure failureMarker;
 
-        public CloseableDirectory(BaseDirectoryWrapper dir) {
+        CloseableDirectory(BaseDirectoryWrapper dir) {
             this.dir = dir;
             this.failureMarker = ESTestCase.getSuiteFailureMarker();
         }

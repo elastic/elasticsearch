@@ -43,7 +43,7 @@ public class PatternReplaceTokenFilterFactory extends AbstractTokenFilterFactory
         }
         this.pattern = Regex.compile(sPattern, settings.get("flags"));
         this.replacement = settings.get("replacement", "");
-        this.all = settings.getAsBoolean("all", true);
+        this.all = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "all", true, deprecationLogger);
     }
 
     @Override

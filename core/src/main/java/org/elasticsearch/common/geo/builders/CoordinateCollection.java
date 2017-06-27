@@ -21,9 +21,12 @@ package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -46,6 +49,25 @@ public abstract class CoordinateCollection<E extends CoordinateCollection<E>> ex
             throw new IllegalArgumentException("cannot create point collection with empty set of points");
         }
         this.coordinates = coordinates;
+    }
+
+    /**
+     * Read from a stream.
+     */
+    protected CoordinateCollection(StreamInput in) throws IOException {
+        int size = in.readVInt();
+        coordinates = new ArrayList<>(size);
+        for (int i=0; i < size; i++) {
+            coordinates.add(readFromStream(in));
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(coordinates.size());
+        for (Coordinate point : coordinates) {
+            writeCoordinateTo(point, out);
+        }
     }
 
     @SuppressWarnings("unchecked")

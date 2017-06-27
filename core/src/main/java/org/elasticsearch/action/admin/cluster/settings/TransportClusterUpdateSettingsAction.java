@@ -19,12 +19,13 @@
 
 package org.elasticsearch.action.admin.cluster.settings;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -32,7 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -41,19 +42,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-/**
- *
- */
-public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
+public class TransportClusterUpdateSettingsAction extends
+    TransportMasterNodeAction<ClusterUpdateSettingsRequest, ClusterUpdateSettingsResponse> {
 
     private final AllocationService allocationService;
 
     private final ClusterSettings clusterSettings;
 
     @Inject
-    public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                AllocationService allocationService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettings clusterSettings) {
-        super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterUpdateSettingsRequest::new);
+    public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                                ThreadPool threadPool, AllocationService allocationService, ActionFilters actionFilters,
+                                                IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettings clusterSettings) {
+        super(settings, ClusterUpdateSettingsAction.NAME, false, transportService, clusterService, threadPool, actionFilters,
+            indexNameExpressionResolver, ClusterUpdateSettingsRequest::new);
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
     }
@@ -66,9 +67,15 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
     @Override
     protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
         // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
-        if ((request.transientSettings().getAsMap().isEmpty() && request.persistentSettings().getAsMap().size() == 1 && MetaData.SETTING_READ_ONLY_SETTING.exists(request.persistentSettings())) ||
-                request.persistentSettings().getAsMap().isEmpty() && request.transientSettings().getAsMap().size() == 1 && MetaData.SETTING_READ_ONLY_SETTING.exists(request.transientSettings())) {
-            return null;
+        if (request.transientSettings().size() + request.persistentSettings().size() == 1) {
+            // only one setting
+            if (MetaData.SETTING_READ_ONLY_SETTING.exists(request.persistentSettings())
+                || MetaData.SETTING_READ_ONLY_SETTING.exists(request.transientSettings())
+                || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.transientSettings())
+                || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.persistentSettings())) {
+                // one of the settings above as the only setting in the request means - resetting the block!
+                return null;
+            }
         }
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
@@ -80,7 +87,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
     }
 
     @Override
-    protected void masterOperation(final ClusterUpdateSettingsRequest request, final ClusterState state, final ActionListener<ClusterUpdateSettingsResponse> listener) {
+    protected void masterOperation(final ClusterUpdateSettingsRequest request, final ClusterState state,
+                                   final ActionListener<ClusterUpdateSettingsResponse> listener) {
         final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
         clusterService.submitStateUpdateTask("cluster_update_settings",
                 new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(Priority.IMMEDIATE, request, listener) {
@@ -93,11 +101,11 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             }
 
             @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
+            public void onAllNodesAcked(@Nullable Exception e) {
                 if (changed) {
                     reroute(true);
                 } else {
-                    super.onAllNodesAcked(t);
+                    super.onAllNodesAcked(e);
                 }
             }
 
@@ -114,9 +122,10 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                 // We're about to send a second update task, so we need to check if we're still the elected master
                 // For example the minimum_master_node could have been breached and we're no longer elected master,
                 // so we should *not* execute the reroute.
-                if (!clusterService.state().nodes().localNodeMaster()) {
+                if (!clusterService.state().nodes().isLocalNodeElectedMaster()) {
                     logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
-                    listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(), updater.getPersistentUpdate()));
+                    listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(),
+                        updater.getPersistentUpdate()));
                     return;
                 }
 
@@ -134,40 +143,39 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     }
 
                     @Override
-                    //we return when the cluster reroute is acked or it times out but the acknowledged flag depends on whether the update settings was acknowledged
+                    // we return when the cluster reroute is acked or it times out but the acknowledged flag depends on whether the
+                    // update settings was acknowledged
                     protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
-                        return new ClusterUpdateSettingsResponse(updateSettingsAcked && acknowledged, updater.getTransientUpdates(), updater.getPersistentUpdate());
+                        return new ClusterUpdateSettingsResponse(updateSettingsAcked && acknowledged, updater.getTransientUpdates(),
+                            updater.getPersistentUpdate());
                     }
 
                     @Override
                     public void onNoLongerMaster(String source) {
                         logger.debug("failed to preform reroute after cluster settings were updated - current node is no longer a master");
-                        listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(), updater.getPersistentUpdate()));
+                        listener.onResponse(new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(),
+                            updater.getPersistentUpdate()));
                     }
 
                     @Override
-                    public void onFailure(String source, Throwable t) {
+                    public void onFailure(String source, Exception e) {
                         //if the reroute fails we only log
-                        logger.debug("failed to perform [{}]", t, source);
-                        listener.onFailure(new ElasticsearchException("reroute after update settings failed", t));
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to perform [{}]", source), e);
+                        listener.onFailure(new ElasticsearchException("reroute after update settings failed", e));
                     }
 
                     @Override
                     public ClusterState execute(final ClusterState currentState) {
                         // now, reroute in case things that require it changed (e.g. number of replicas)
-                        RoutingAllocation.Result routingResult = allocationService.reroute(currentState, "reroute after cluster update settings");
-                        if (!routingResult.changed()) {
-                            return currentState;
-                        }
-                        return ClusterState.builder(currentState).routingResult(routingResult).build();
+                        return allocationService.reroute(currentState, "reroute after cluster update settings");
                     }
                 });
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
-                logger.debug("failed to perform [{}]", t, source);
-                super.onFailure(source, t);
+            public void onFailure(String source, Exception e) {
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to perform [{}]", source), e);
+                super.onFailure(source, e);
             }
 
             @Override

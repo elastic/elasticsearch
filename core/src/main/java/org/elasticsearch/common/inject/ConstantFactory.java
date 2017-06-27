@@ -30,7 +30,7 @@ class ConstantFactory<T> implements InternalFactory<T> {
 
     private final Initializable<T> initializable;
 
-    public ConstantFactory(Initializable<T> initializable) {
+    ConstantFactory(Initializable<T> initializable) {
         this.initializable = initializable;
     }
 

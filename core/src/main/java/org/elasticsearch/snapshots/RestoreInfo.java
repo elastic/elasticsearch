@@ -23,7 +23,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -112,12 +111,12 @@ public class RestoreInfo implements ToXContent, Streamable {
     }
 
     static final class Fields {
-        static final XContentBuilderString SNAPSHOT = new XContentBuilderString("snapshot");
-        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        static final XContentBuilderString TOTAL = new XContentBuilderString("total");
-        static final XContentBuilderString FAILED = new XContentBuilderString("failed");
-        static final XContentBuilderString SUCCESSFUL = new XContentBuilderString("successful");
+        static final String SNAPSHOT = "snapshot";
+        static final String INDICES = "indices";
+        static final String SHARDS = "shards";
+        static final String TOTAL = "total";
+        static final String FAILED = "failed";
+        static final String SUCCESSFUL = "successful";
     }
 
     /**

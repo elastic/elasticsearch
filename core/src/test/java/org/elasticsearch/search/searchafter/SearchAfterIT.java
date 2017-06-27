@@ -24,14 +24,13 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.text.Text;
+import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.hamcrest.Matchers;
 
 import java.util.List;
@@ -41,6 +40,7 @@ import java.util.Collections;
 import java.util.Arrays;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,7 +51,8 @@ public class SearchAfterIT extends ESIntegTestCase {
     private static final int NUM_DOCS = 100;
 
     public void testsShouldFail() throws Exception {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();
         indexRandom(true, client().prepareIndex("test", "type1", "0").setSource("field1", 0, "field2", "toto"));
         try {
@@ -64,9 +65,11 @@ public class SearchAfterIT extends ESIntegTestCase {
 
             fail("Should fail on search_after cannot be used with scroll.");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(SearchContextException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("`search_after` cannot be used in a scroll context."));
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchContextException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("`search_after` cannot be used in a scroll context."));
+            }
         }
         try {
             client().prepareSearch("test")
@@ -78,9 +81,11 @@ public class SearchAfterIT extends ESIntegTestCase {
 
             fail("Should fail on search_after cannot be used with from > 0.");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(SearchContextException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("`from` parameter must be set to 0 when `search_after` is used."));
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(SearchContextException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("`from` parameter must be set to 0 when `search_after` is used."));
+            }
         }
 
         try {
@@ -91,9 +96,11 @@ public class SearchAfterIT extends ESIntegTestCase {
 
             fail("Should fail on search_after on score only is disabled");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("Sort must contain at least one field."));
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("Sort must contain at least one field."));
+            }
         }
 
         try {
@@ -105,9 +112,11 @@ public class SearchAfterIT extends ESIntegTestCase {
                     .get();
             fail("Should fail on search_after size differs from sort field size");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("search_after has 1 value(s) but sort has 2."));
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("search_after has 1 value(s) but sort has 2."));
+            }
         }
 
         try {
@@ -118,9 +127,11 @@ public class SearchAfterIT extends ESIntegTestCase {
                     .get();
             fail("Should fail on search_after size differs from sort field size");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("search_after has 2 value(s) but sort has 1."));
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertTrue(e.shardFailures().length > 0);
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("search_after has 2 value(s) but sort has 1."));
+            }
         }
 
         try {
@@ -132,14 +143,17 @@ public class SearchAfterIT extends ESIntegTestCase {
 
             fail("Should fail on search_after on score only is disabled");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getClass(), Matchers.equalTo(RemoteTransportException.class));
-            assertThat(e.getCause().getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
-            assertThat(e.getCause().getCause().getMessage(), Matchers.equalTo("Failed to parse search_after value for field [field1]."));
+            assertTrue(e.shardFailures().length > 0);
+            for (ShardSearchFailure failure : e.shardFailures()) {
+                assertThat(failure.getCause().getClass(), Matchers.equalTo(IllegalArgumentException.class));
+                assertThat(failure.getCause().getMessage(), Matchers.equalTo("Failed to parse search_after value for field [field1]."));
+            }
         }
     }
 
     public void testWithNullStrings() throws ExecutionException, InterruptedException {
-        createIndex("test");
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field2", "type=keyword").get());
         ensureGreen();
         indexRandom(true,
                 client().prepareIndex("test", "type1", "0").setSource("field1", 0),
@@ -152,8 +166,8 @@ public class SearchAfterIT extends ESIntegTestCase {
                 .get();
         assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
-        assertThat(searchResponse.getHits().getHits()[0].sourceAsMap().get("field1"), Matchers.equalTo(100));
-        assertThat(searchResponse.getHits().getHits()[0].sourceAsMap().get("field2"), Matchers.equalTo("toto"));
+        assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field1"), Matchers.equalTo(100));
+        assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field2"), Matchers.equalTo("toto"));
     }
 
     public void testWithSimpleTypes() throws Exception {
@@ -186,11 +200,11 @@ public class SearchAfterIT extends ESIntegTestCase {
                         values.add(randomDouble());
                         break;
                     case 6:
-                        values.add(new Text(randomAsciiOfLengthBetween(5, 20)));
+                        values.add(randomAlphaOfLengthBetween(5, 20));
                         break;
                 }
             }
-            values.add(new Text(Strings.randomBase64UUID()));
+            values.add(UUIDs.randomBase64UUID());
             documents.add(values);
         }
         int reqSize = randomInt(NUM_DOCS-1);
@@ -260,9 +274,9 @@ public class SearchAfterIT extends ESIntegTestCase {
             SearchResponse searchResponse = req.get();
             for (SearchHit hit : searchResponse.getHits()) {
                 List toCompare = convertSortValues(documents.get(offset++));
-                assertThat(LST_COMPARATOR.compare(toCompare, Arrays.asList(hit.sortValues())), equalTo(0));
+                assertThat(LST_COMPARATOR.compare(toCompare, Arrays.asList(hit.getSortValues())), equalTo(0));
             }
-            sortValues = searchResponse.getHits().hits()[searchResponse.getHits().hits().length-1].getSortValues();
+            sortValues = searchResponse.getHits().getHits()[searchResponse.getHits().getHits().length-1].getSortValues();
         }
     }
 
@@ -293,7 +307,7 @@ public class SearchAfterIT extends ESIntegTestCase {
             } else if (type == Boolean.class) {
                 mappings.add("field" + Integer.toString(i));
                 mappings.add("type=boolean");
-            } else if (types.get(i) instanceof Text) {
+            } else if (types.get(i) instanceof String) {
                 mappings.add("field" + Integer.toString(i));
                 mappings.add("type=keyword");
             } else {

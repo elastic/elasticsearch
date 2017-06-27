@@ -25,8 +25,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,30 +44,31 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
     }
 
     @Override
-    public final BucketMetricsPipelineAggregatorBuilder<?> parse(String pipelineAggregatorName, XContentParser parser,
-            QueryParseContext context) throws IOException {
+    public final BucketMetricsPipelineAggregationBuilder<?> parse(String pipelineAggregatorName, QueryParseContext context)
+            throws IOException {
+        XContentParser parser = context.parser();
         XContentParser.Token token;
         String currentFieldName = null;
         String[] bucketsPaths = null;
         String format = null;
         GapPolicy gapPolicy = null;
-        Map<String, Object> leftover = new HashMap<>(5);
+        Map<String, Object> params = new HashMap<>(5);
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (context.parseFieldMatcher().match(currentFieldName, FORMAT)) {
+                if (FORMAT.match(currentFieldName)) {
                     format = parser.text();
-                } else if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                } else if (BUCKETS_PATH.match(currentFieldName)) {
                     bucketsPaths = new String[] { parser.text() };
-                } else if (context.parseFieldMatcher().match(currentFieldName, GAP_POLICY)) {
+                } else if (GAP_POLICY.match(currentFieldName)) {
                     gapPolicy = GapPolicy.parse(context, parser.text(), parser.getTokenLocation());
                 } else {
-                    leftover.put(currentFieldName, parser.text());
+                    parseToken(pipelineAggregatorName, parser, context, currentFieldName, token, params);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (context.parseFieldMatcher().match(currentFieldName, BUCKETS_PATH)) {
+                if (BUCKETS_PATH.match(currentFieldName)) {
                     List<String> paths = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String path = parser.text();
@@ -75,10 +76,10 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
                     }
                     bucketsPaths = paths.toArray(new String[paths.size()]);
                 } else {
-                    leftover.put(currentFieldName, parser.list());
+                    parseToken(pipelineAggregatorName, parser, context, currentFieldName, token, params);
                 }
             } else {
-                leftover.put(currentFieldName, parser.objectText());
+                parseToken(pipelineAggregatorName, parser, context, currentFieldName, token, params);
             }
         }
 
@@ -87,30 +88,32 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
                     "Missing required field [" + BUCKETS_PATH.getPreferredName() + "] for aggregation [" + pipelineAggregatorName + "]");
         }
 
-        BucketMetricsPipelineAggregatorBuilder<?> factory = null;
-        try {
-            factory = buildFactory(pipelineAggregatorName, bucketsPaths[0], leftover);
-            if (format != null) {
-                factory.format(format);
-            }
-            if (gapPolicy != null) {
-                factory.gapPolicy(gapPolicy);
-            }
-        } catch (ParseException exception) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "Could not parse settings for aggregation [" + pipelineAggregatorName + "].", exception);
+        BucketMetricsPipelineAggregationBuilder<?> factory  = buildFactory(pipelineAggregatorName, bucketsPaths[0], params);
+        if (format != null) {
+            factory.format(format);
+        }
+        if (gapPolicy != null) {
+            factory.gapPolicy(gapPolicy);
         }
 
-        if (leftover.size() > 0) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "Unexpected tokens " + leftover.keySet() + " in [" + pipelineAggregatorName + "].");
-        }
         assert(factory != null);
 
         return factory;
     }
 
-    protected abstract BucketMetricsPipelineAggregatorBuilder<?> buildFactory(String pipelineAggregatorName, String bucketsPaths,
-            Map<String, Object> unparsedParams) throws ParseException;
+    protected abstract BucketMetricsPipelineAggregationBuilder<?> buildFactory(String pipelineAggregatorName, String bucketsPaths,
+                                                                              Map<String, Object> params);
 
+    protected boolean token(XContentParser parser, QueryParseContext context, String field,
+                            XContentParser.Token token, Map<String, Object> params) throws IOException {
+        return false;
+    }
+
+    private void parseToken(String aggregationName, XContentParser parser, QueryParseContext context, String currentFieldName,
+                       XContentParser.Token currentToken, Map<String, Object> params) throws IOException {
+        if (token(parser, context, currentFieldName, currentToken, params) == false) {
+            throw new ParsingException(parser.getTokenLocation(),
+                "Unexpected token " + currentToken + " [" + currentFieldName + "] in [" + aggregationName + "]");
+        }
+    }
 }

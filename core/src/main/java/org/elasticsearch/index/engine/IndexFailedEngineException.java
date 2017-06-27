@@ -27,21 +27,16 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- *
+ * Deprecated as not used in 6.0, should be removed in 7.0
+ * Still exists for bwc in serializing/deserializing from
+ * 5.x nodes
  */
+@Deprecated
 public class IndexFailedEngineException extends EngineException {
 
     private final String type;
 
     private final String id;
-
-    public IndexFailedEngineException(ShardId shardId, String type, String id, Throwable cause) {
-        super(shardId, "Index failed for [" + type + "#" + id + "]", cause);
-        Objects.requireNonNull(type, "type must not be null");
-        Objects.requireNonNull(id, "id must not be null");
-        this.type = type;
-        this.id = id;
-    }
 
     public IndexFailedEngineException(StreamInput in) throws IOException{
         super(in);

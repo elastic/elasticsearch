@@ -21,6 +21,7 @@ package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
@@ -43,11 +44,12 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 public abstract class ESTokenStreamTestCase extends BaseTokenStreamTestCase {
 
     static {
+        try {
+            Class.forName("org.elasticsearch.test.ESTestCase");
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError(e);
+        }
         BootstrapForTesting.ensureInitialized();
-    }
-
-    public static Version randomVersion() {
-        return VersionUtils.randomVersion(random());
     }
 
     public Settings.Builder newAnalysisSettingsBuilder() {

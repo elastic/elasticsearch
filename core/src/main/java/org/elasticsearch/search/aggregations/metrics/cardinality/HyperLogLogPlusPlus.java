@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -35,6 +34,9 @@ import org.elasticsearch.common.util.IntArray;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Hyperloglog++ counter, implemented based on pseudo code from
@@ -67,7 +69,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
      */
     public static int precisionFromThreshold(long count) {
         final long hashTableEntries = (long) Math.ceil(count / MAX_LOAD_FACTOR);
-        int precision = PackedInts.bitsRequired(hashTableEntries * RamUsageEstimator.NUM_BYTES_INT);
+        int precision = PackedInts.bitsRequired(hashTableEntries * Integer.BYTES);
         precision = Math.max(precision, MIN_PRECISION);
         precision = Math.min(precision, MAX_PRECISION);
         return precision;
@@ -421,6 +423,32 @@ public final class HyperLogLogPlusPlus implements Releasable {
         Releasables.close(runLens, hashSet.sizes);
     }
 
+    private Set<Object> getComparableData(long bucket) {
+        Set<Object> values = new HashSet<>();
+        if (algorithm.get(bucket) == LINEAR_COUNTING) {
+            try (IntArray hashSetValues = hashSet.values(bucket)) {
+                for (long i = 0; i < hashSetValues.size(); i++) {
+                    values.add(hashSetValues.get(i));
+                }
+            }
+        } else {
+            for (long i = 0; i < runLens.size(); i++) {
+                values.add(runLens.get((bucket << p) + i));
+            }
+        }
+        return values;
+    }
+
+    public int hashCode(long bucket) {
+        return Objects.hash(p, algorithm.get(bucket), getComparableData(bucket));
+    }
+
+    public boolean equals(long bucket, HyperLogLogPlusPlus other) {
+        return Objects.equals(p, other.p) &&
+                Objects.equals(algorithm.get(bucket), other.algorithm.get(bucket)) &&
+                Objects.equals(getComparableData(bucket), getComparableData(bucket));
+    }
+
     /**
      * We are actually using HyperLogLog's runLens array but interpreting it as a hash set
      * for linear counting.
@@ -434,7 +462,7 @@ public final class HyperLogLogPlusPlus implements Releasable {
         private final BytesRef readSpare;
         private final ByteBuffer writeSpare;
 
-        public Hashset(long initialBucketCount) {
+        Hashset(long initialBucketCount) {
             capacity = m / 4; // because ints take 4 bytes
             threshold = (int) (capacity * MAX_LOAD_FACTOR);
             mask = capacity - 1;

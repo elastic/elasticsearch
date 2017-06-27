@@ -19,27 +19,27 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.spatial4j.core.context.jts.JtsSpatialContext;
-import com.spatial4j.core.exception.InvalidShapeException;
-import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
-
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.locationtech.spatial4j.context.jts.JtsSpatialContext;
+import org.locationtech.spatial4j.exception.InvalidShapeException;
+import org.locationtech.spatial4j.shape.Shape;
+import org.locationtech.spatial4j.shape.jts.JtsGeometry;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,17 +51,15 @@ import java.util.Locale;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWriteable<ShapeBuilder> {
+public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWriteable {
 
-    protected static final ESLogger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
+    protected static final Logger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
 
     private static final boolean DEBUG;
     static {
         // if asserts are enabled we run the debug statements even if they are not logged
         // to prevent exceptions only present if debug enabled
-        boolean debug = false;
-        assert debug = true;
-        DEBUG = debug;
+        DEBUG = Assertions.ENABLED;
     }
 
     public static final double DATELINE = 180;
@@ -80,21 +78,21 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     /** It's possible that some geometries in a MULTI* shape might overlap. With the possible exception of GeometryCollection,
      * this normally isn't allowed.
      */
-    protected final boolean multiPolygonMayOverlap = false;
-    /** @see com.spatial4j.core.shape.jts.JtsGeometry#validate() */
-    protected final boolean autoValidateJtsGeometry = true;
-    /** @see com.spatial4j.core.shape.jts.JtsGeometry#index() */
-    protected final boolean autoIndexJtsGeometry = true;//may want to turn off once SpatialStrategy impls do it.
+    protected static final boolean MULTI_POLYGON_MAY_OVERLAP = false;
+    /** @see org.locationtech.spatial4j.shape.jts.JtsGeometry#validate() */
+    protected static final boolean AUTO_VALIDATE_JTS_GEOMETRY = true;
+    /** @see org.locationtech.spatial4j.shape.jts.JtsGeometry#index() */
+    protected static final boolean AUTO_INDEX_JTS_GEOMETRY = true;//may want to turn off once SpatialStrategy impls do it.
 
     protected ShapeBuilder() {
     }
 
     protected JtsGeometry jtsGeometry(Geometry geom) {
         //dateline180Check is false because ElasticSearch does it's own dateline wrapping
-        JtsGeometry jtsGeometry = new JtsGeometry(geom, SPATIAL_CONTEXT, false, multiPolygonMayOverlap);
-        if (autoValidateJtsGeometry)
+        JtsGeometry jtsGeometry = new JtsGeometry(geom, SPATIAL_CONTEXT, false, MULTI_POLYGON_MAY_OVERLAP);
+        if (AUTO_VALIDATE_JTS_GEOMETRY)
             jtsGeometry.validate();
-        if (autoIndexJtsGeometry)
+        if (AUTO_INDEX_JTS_GEOMETRY)
             jtsGeometry.index();
         return jtsGeometry;
     }
@@ -180,7 +178,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
         out.writeDouble(coordinate.y);
     }
 
-    protected Coordinate readCoordinateFrom(StreamInput in) throws IOException {
+    protected static Coordinate readFromStream(StreamInput in) throws IOException {
         return new Coordinate(in.readDouble(), in.readDouble());
     }
 
@@ -382,7 +380,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
         }
     }
 
-    public static enum Orientation {
+    public enum Orientation {
         LEFT,
         RIGHT;
 
@@ -428,7 +426,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     /**
      * Enumeration that lists all {@link GeoShapeType}s that can be handled
      */
-    public static enum GeoShapeType {
+    public enum GeoShapeType {
         POINT("point"),
         MULTIPOINT("multipoint"),
         LINESTRING("linestring"),
@@ -441,7 +439,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
 
         private final String shapename;
 
-        private GeoShapeType(String shapename) {
+        GeoShapeType(String shapename) {
             this.shapename = shapename;
         }
 
@@ -519,7 +517,8 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
             } else if (geometryCollections == null && GeoShapeType.GEOMETRYCOLLECTION == shapeType) {
                 throw new ElasticsearchParseException("geometries not included");
             } else if (radius != null && GeoShapeType.CIRCLE != shapeType) {
-                throw new ElasticsearchParseException("field [{}] is supported for [{}] only", CircleBuilder.FIELD_RADIUS, CircleBuilder.TYPE);
+                throw new ElasticsearchParseException("field [{}] is supported for [{}] only", CircleBuilder.FIELD_RADIUS,
+                        CircleBuilder.TYPE);
             }
 
             switch (shapeType) {
@@ -539,7 +538,8 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
 
         protected static void validatePointNode(CoordinateNode node) {
             if (node.isEmpty()) {
-                throw new ElasticsearchParseException("invalid number of points (0) provided when expecting a single coordinate ([lat, lng])");
+                throw new ElasticsearchParseException(
+                        "invalid number of points (0) provided when expecting a single coordinate ([lat, lng])");
             } else if (node.coordinate == null) {
                 if (node.children.isEmpty() == false) {
                     throw new ElasticsearchParseException("multipoint data provided when single point data expected.");
@@ -559,8 +559,9 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
         protected static EnvelopeBuilder parseEnvelope(CoordinateNode coordinates) {
             // validate the coordinate array for envelope type
             if (coordinates.children.size() != 2) {
-                throw new ElasticsearchParseException("invalid number of points [{}] provided for " +
-                        "geo_shape [{}] when expecting an array of 2 coordinates", coordinates.children.size(), GeoShapeType.ENVELOPE.shapename);
+                throw new ElasticsearchParseException(
+                        "invalid number of points [{}] provided for geo_shape [{}] when expecting an array of 2 coordinates",
+                        coordinates.children.size(), GeoShapeType.ENVELOPE.shapename);
             }
             // verify coordinate bounds, correct if necessary
             Coordinate uL = coordinates.children.get(0).coordinate;
@@ -604,7 +605,8 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
              * LineStringBuilder should throw a graceful exception if < 2 coordinates/points are provided
              */
             if (coordinates.children.size() < 2) {
-                throw new ElasticsearchParseException("invalid number of points in LineString (found [{}] - must be >= 2)", coordinates.children.size());
+                throw new ElasticsearchParseException("invalid number of points in LineString (found [{}] - must be >= 2)",
+                        coordinates.children.size());
             }
 
             CoordinatesBuilder line = new CoordinatesBuilder();
@@ -636,10 +638,10 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
                 throw new ElasticsearchParseException(error);
             }
 
-            int numValidPts;
-            if (coordinates.children.size() < (numValidPts = (coerce) ? 3 : 4)) {
-                throw new ElasticsearchParseException("invalid number of points in LinearRing (found [{}] - must be >= " +  numValidPts + ")(",
-                        coordinates.children.size());
+            int numValidPts = coerce ? 3 : 4;
+            if (coordinates.children.size() < numValidPts) {
+                throw new ElasticsearchParseException("invalid number of points in LinearRing (found [{}] - must be >= [{}])",
+                        coordinates.children.size(), numValidPts);
             }
 
             if (!coordinates.children.get(0).coordinate.equals(
@@ -655,7 +657,8 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
 
         protected static PolygonBuilder parsePolygon(CoordinateNode coordinates, final Orientation orientation, final boolean coerce) {
             if (coordinates.children == null || coordinates.children.isEmpty()) {
-                throw new ElasticsearchParseException("invalid LinearRing provided for type polygon. Linear ring must be an array of coordinates");
+                throw new ElasticsearchParseException(
+                        "invalid LinearRing provided for type polygon. Linear ring must be an array of coordinates");
             }
 
             LineStringBuilder shell = parseLinearRing(coordinates.children.get(0), coerce);

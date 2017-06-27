@@ -21,11 +21,10 @@ package org.elasticsearch.indices.breaker;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -33,17 +32,13 @@ import java.util.Locale;
 /**
  * Class encapsulating stats about the circuit breaker
  */
-public class CircuitBreakerStats implements Streamable, ToXContent {
+public class CircuitBreakerStats implements Writeable, ToXContent {
 
-    private String name;
-    private long limit;
-    private long estimated;
-    private long trippedCount;
-    private double overhead;
-
-    CircuitBreakerStats() {
-
-    }
+    private final String name;
+    private final long limit;
+    private final long estimated;
+    private final long trippedCount;
+    private final double overhead;
 
     public CircuitBreakerStats(String name, long limit, long estimated, double overhead, long trippedCount) {
         this.name = name;
@@ -51,6 +46,23 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
         this.estimated = estimated;
         this.trippedCount = trippedCount;
         this.overhead = overhead;
+    }
+
+    public CircuitBreakerStats(StreamInput in) throws IOException {
+        limit = in.readLong();
+        estimated = in.readLong();
+        overhead = in.readDouble();
+        this.trippedCount = in.readLong();
+        this.name = in.readString();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(limit);
+        out.writeLong(estimated);
+        out.writeDouble(overhead);
+        out.writeLong(trippedCount);
+        out.writeString(name);
     }
 
     public String getName() {
@@ -71,30 +83,6 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
 
     public double getOverhead() {
         return this.overhead;
-    }
-
-    public static CircuitBreakerStats readOptionalCircuitBreakerStats(StreamInput in) throws IOException {
-        CircuitBreakerStats stats = in.readOptionalStreamable(CircuitBreakerStats::new);
-        return stats;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        // limit is the maximum from the old circuit breaker stats for backwards compatibility
-        limit = in.readLong();
-        estimated = in.readLong();
-        overhead = in.readDouble();
-        this.trippedCount = in.readLong();
-        this.name = in.readString();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(limit);
-        out.writeLong(estimated);
-        out.writeDouble(overhead);
-        out.writeLong(trippedCount);
-        out.writeString(name);
     }
 
     @Override
@@ -119,11 +107,11 @@ public class CircuitBreakerStats implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString LIMIT = new XContentBuilderString("limit_size_in_bytes");
-        static final XContentBuilderString LIMIT_HUMAN = new XContentBuilderString("limit_size");
-        static final XContentBuilderString ESTIMATED = new XContentBuilderString("estimated_size_in_bytes");
-        static final XContentBuilderString ESTIMATED_HUMAN = new XContentBuilderString("estimated_size");
-        static final XContentBuilderString OVERHEAD = new XContentBuilderString("overhead");
-        static final XContentBuilderString TRIPPED_COUNT = new XContentBuilderString("tripped");
+        static final String LIMIT = "limit_size_in_bytes";
+        static final String LIMIT_HUMAN = "limit_size";
+        static final String ESTIMATED = "estimated_size_in_bytes";
+        static final String ESTIMATED_HUMAN = "estimated_size";
+        static final String OVERHEAD = "overhead";
+        static final String TRIPPED_COUNT = "tripped";
     }
 }

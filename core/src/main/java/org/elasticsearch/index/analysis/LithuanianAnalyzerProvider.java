@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.lt.LithuanianAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -34,8 +34,10 @@ public class LithuanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Li
 
     public LithuanianAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new LithuanianAnalyzer(Analysis.parseStopWords(env, settings, LithuanianAnalyzer.getDefaultStopSet()),
-                                      Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new LithuanianAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, LithuanianAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

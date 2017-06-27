@@ -32,7 +32,10 @@ public enum MurmurHash3 {
      * A 128-bits hash.
      */
     public static class Hash128 {
-        public long h1, h2;
+        /** lower 64 bits part **/
+        public long h1;
+        /** higher 64 bits part **/
+        public long h2;
     }
 
     private static long C1 = 0x87c37b91114253d5L;

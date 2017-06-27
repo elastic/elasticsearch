@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.spatial.util.GeoEncodingUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -32,8 +31,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -42,15 +41,15 @@ import java.util.Map;
 /**
  * A geo metric aggregator that computes a geo-centroid from a {@code geo_point} type field
  */
-public final class GeoCentroidAggregator extends MetricsAggregator {
+final class GeoCentroidAggregator extends MetricsAggregator {
     private final ValuesSource.GeoPoint valuesSource;
-    LongArray centroids;
-    LongArray counts;
+    private LongArray centroids;
+    private LongArray counts;
 
-    protected GeoCentroidAggregator(String name, AggregationContext aggregationContext, Aggregator parent,
+    GeoCentroidAggregator(String name, SearchContext context, Aggregator parent,
                                     ValuesSource.GeoPoint valuesSource, List<PipelineAggregator> pipelineAggregators,
                                     Map<String, Object> metaData) throws IOException {
-        super(name, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, context, parent, pipelineAggregators, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
@@ -72,27 +71,30 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
                 centroids = bigArrays.grow(centroids, bucket + 1);
                 counts = bigArrays.grow(counts, bucket + 1);
 
-                values.setDocument(doc);
-                final int valueCount = values.count();
-                if (valueCount > 0) {
+                if (values.advanceExact(doc)) {
+                    final int valueCount = values.docValueCount();
                     double[] pt = new double[2];
                     // get the previously accumulated number of counts
                     long prevCounts = counts.get(bucket);
                     // increment by the number of points for this document
                     counts.increment(bucket, valueCount);
-                    // get the previous GeoPoint if a moving avg was computed
+                    // get the previous GeoPoint if a moving avg was
+                    // computed
                     if (prevCounts > 0) {
-                        final GeoPoint centroid = GeoPoint.fromIndexLong(centroids.get(bucket));
-                        pt[0] = centroid.lon();
-                        pt[1] = centroid.lat();
+                        final long mortonCode = centroids.get(bucket);
+                        pt[0] = InternalGeoCentroid.decodeLongitude(mortonCode);
+                        pt[1] = InternalGeoCentroid.decodeLatitude(mortonCode);
                     }
                     // update the moving average
                     for (int i = 0; i < valueCount; ++i) {
-                        GeoPoint value = values.valueAt(i);
+                        GeoPoint value = values.nextValue();
                         pt[0] = pt[0] + (value.getLon() - pt[0]) / ++prevCounts;
                         pt[1] = pt[1] + (value.getLat() - pt[1]) / prevCounts;
                     }
-                    centroids.set(bucket, GeoEncodingUtils.mortonHash(pt[0], pt[1]));
+                    // TODO: we do not need to interleave the lat and lon
+                    // bits here
+                    // should we just store them contiguously?
+                    centroids.set(bucket, InternalGeoCentroid.encodeLatLon(pt[1], pt[0]));
                 }
             }
         };
@@ -104,8 +106,11 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
             return buildEmptyAggregation();
         }
         final long bucketCount = counts.get(bucket);
-        final GeoPoint bucketCentroid = (bucketCount > 0) ? GeoPoint.fromIndexLong(centroids.get(bucket)) :
-                new GeoPoint(Double.NaN, Double.NaN);
+        final long mortonCode = centroids.get(bucket);
+        final GeoPoint bucketCentroid = (bucketCount > 0)
+                ? new GeoPoint(InternalGeoCentroid.decodeLatitude(mortonCode),
+                        InternalGeoCentroid.decodeLongitude(mortonCode))
+                : null;
         return new InternalGeoCentroid(name, bucketCentroid , bucketCount, pipelineAggregators(), metaData());
     }
 

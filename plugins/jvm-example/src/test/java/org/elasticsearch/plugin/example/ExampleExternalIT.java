@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.example;
 
+import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedReader;
@@ -34,7 +35,7 @@ public class ExampleExternalIT extends ESTestCase {
         String stringAddress = Objects.requireNonNull(System.getProperty("external.address"));
         URL url = new URL("http://" + stringAddress);
         InetAddress address = InetAddress.getByName(url.getHost());
-        try (Socket socket = new Socket(address, url.getPort());
+        try (Socket socket = new MockSocket(address, url.getPort());
              BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8))) {
            assertEquals("TEST", reader.readLine());
         }

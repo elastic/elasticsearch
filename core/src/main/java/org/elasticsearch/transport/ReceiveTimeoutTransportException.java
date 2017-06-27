@@ -24,13 +24,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class ReceiveTimeoutTransportException extends ActionTransportException {
 
     public ReceiveTimeoutTransportException(DiscoveryNode node, String action, String msg) {
-        super(node.name(), node.address(), action, msg, null);
+        super(node.getName(), node.getAddress(), action, msg, null);
     }
 
     public ReceiveTimeoutTransportException(StreamInput in) throws IOException {

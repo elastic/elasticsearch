@@ -18,149 +18,95 @@
  */
 package org.elasticsearch.action.bulk;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 /**
- * Abstracts the low-level details of bulk request handling
+ * Implements the low-level details of bulk request handling
  */
-abstract class BulkRequestHandler {
-    protected final ESLogger logger;
-    protected final Client client;
+public final class BulkRequestHandler {
+    private final Logger logger;
+    private final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer;
+    private final BulkProcessor.Listener listener;
+    private final Semaphore semaphore;
+    private final Retry retry;
+    private final int concurrentRequests;
 
-    protected BulkRequestHandler(Client client) {
-        this.client = client;
-        this.logger = Loggers.getLogger(getClass(), client.settings());
+    BulkRequestHandler(BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer, BackoffPolicy backoffPolicy,
+                       BulkProcessor.Listener listener, ThreadPool threadPool,
+                       int concurrentRequests) {
+        assert concurrentRequests >= 0;
+        this.logger = Loggers.getLogger(getClass());
+        this.consumer = consumer;
+        this.listener = listener;
+        this.concurrentRequests = concurrentRequests;
+        this.retry = new Retry(EsRejectedExecutionException.class, backoffPolicy, threadPool);
+        this.semaphore = new Semaphore(concurrentRequests > 0 ? concurrentRequests : 1);
     }
 
-
-    public abstract void execute(BulkRequest bulkRequest, long executionId);
-
-    public abstract boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException;
-
-
-    public static BulkRequestHandler syncHandler(Client client, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener) {
-        return new SyncBulkRequestHandler(client, backoffPolicy, listener);
-    }
-
-    public static BulkRequestHandler asyncHandler(Client client, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, int concurrentRequests) {
-        return new AsyncBulkRequestHandler(client, backoffPolicy, listener, concurrentRequests);
-    }
-
-    private static class SyncBulkRequestHandler extends BulkRequestHandler {
-        private final BulkProcessor.Listener listener;
-        private final BackoffPolicy backoffPolicy;
-
-        public SyncBulkRequestHandler(Client client, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener) {
-            super(client);
-            this.backoffPolicy = backoffPolicy;
-            this.listener = listener;
-        }
-
-        @Override
-        public void execute(BulkRequest bulkRequest, long executionId) {
-            boolean afterCalled = false;
-            try {
-                listener.beforeBulk(executionId, bulkRequest);
-                BulkResponse bulkResponse = Retry
-                        .on(EsRejectedExecutionException.class)
-                        .policy(backoffPolicy)
-                        .withSyncBackoff(client, bulkRequest);
-                afterCalled = true;
-                listener.afterBulk(executionId, bulkRequest, bulkResponse);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.info("Bulk request {} has been cancelled.", e, executionId);
-                if (!afterCalled) {
-                    listener.afterBulk(executionId, bulkRequest, e);
+    public void execute(BulkRequest bulkRequest, long executionId) {
+        Runnable toRelease = () -> {};
+        boolean bulkRequestSetupSuccessful = false;
+        try {
+            listener.beforeBulk(executionId, bulkRequest);
+            semaphore.acquire();
+            toRelease = semaphore::release;
+            CountDownLatch latch = new CountDownLatch(1);
+            retry.withBackoff(consumer, bulkRequest, new ActionListener<BulkResponse>() {
+                @Override
+                public void onResponse(BulkResponse response) {
+                    try {
+                        listener.afterBulk(executionId, bulkRequest, response);
+                    } finally {
+                        semaphore.release();
+                        latch.countDown();
+                    }
                 }
-            } catch (Throwable t) {
-                logger.warn("Failed to execute bulk request {}.", t, executionId);
-                if (!afterCalled) {
-                    listener.afterBulk(executionId, bulkRequest, t);
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        listener.afterBulk(executionId, bulkRequest, e);
+                    } finally {
+                        semaphore.release();
+                        latch.countDown();
+                    }
                 }
+            }, Settings.EMPTY);
+            bulkRequestSetupSuccessful = true;
+            if (concurrentRequests == 0) {
+                latch.await();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.info((Supplier<?>) () -> new ParameterizedMessage("Bulk request {} has been cancelled.", executionId), e);
+            listener.afterBulk(executionId, bulkRequest, e);
+        } catch (Exception e) {
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to execute bulk request {}.", executionId), e);
+            listener.afterBulk(executionId, bulkRequest, e);
+        } finally {
+            if (bulkRequestSetupSuccessful == false) {  // if we fail on client.bulk() release the semaphore
+                toRelease.run();
             }
         }
+    }
 
-        @Override
-        public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
-            // we are "closed" immediately as there is no request in flight
+    boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
+        if (semaphore.tryAcquire(this.concurrentRequests, timeout, unit)) {
+            semaphore.release(this.concurrentRequests);
             return true;
         }
-    }
-
-    private static class AsyncBulkRequestHandler extends BulkRequestHandler {
-        private final BackoffPolicy backoffPolicy;
-        private final BulkProcessor.Listener listener;
-        private final Semaphore semaphore;
-        private final int concurrentRequests;
-
-        private AsyncBulkRequestHandler(Client client, BackoffPolicy backoffPolicy, BulkProcessor.Listener listener, int concurrentRequests) {
-            super(client);
-            this.backoffPolicy = backoffPolicy;
-            assert concurrentRequests > 0;
-            this.listener = listener;
-            this.concurrentRequests = concurrentRequests;
-            this.semaphore = new Semaphore(concurrentRequests);
-        }
-
-        @Override
-        public void execute(BulkRequest bulkRequest, long executionId) {
-            boolean bulkRequestSetupSuccessful = false;
-            boolean acquired = false;
-            try {
-                listener.beforeBulk(executionId, bulkRequest);
-                semaphore.acquire();
-                acquired = true;
-                Retry.on(EsRejectedExecutionException.class)
-                        .policy(backoffPolicy)
-                        .withAsyncBackoff(client, bulkRequest, new ActionListener<BulkResponse>() {
-                            @Override
-                            public void onResponse(BulkResponse response) {
-                                try {
-                                    listener.afterBulk(executionId, bulkRequest, response);
-                                } finally {
-                                    semaphore.release();
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Throwable e) {
-                                try {
-                                    listener.afterBulk(executionId, bulkRequest, e);
-                                } finally {
-                                    semaphore.release();
-                                }
-                            }
-                        });
-                bulkRequestSetupSuccessful = true;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.info("Bulk request {} has been cancelled.", e, executionId);
-                listener.afterBulk(executionId, bulkRequest, e);
-            } catch (Throwable t) {
-                logger.warn("Failed to execute bulk request {}.", t, executionId);
-                listener.afterBulk(executionId, bulkRequest, t);
-            } finally {
-                if (!bulkRequestSetupSuccessful && acquired) {  // if we fail on client.bulk() release the semaphore
-                    semaphore.release();
-                }
-            }
-        }
-
-        @Override
-        public boolean awaitClose(long timeout, TimeUnit unit) throws InterruptedException {
-            if (semaphore.tryAcquire(this.concurrentRequests, timeout, unit)) {
-                semaphore.release(this.concurrentRequests);
-                return true;
-            }
-            return false;
-        }
+        return false;
     }
 }

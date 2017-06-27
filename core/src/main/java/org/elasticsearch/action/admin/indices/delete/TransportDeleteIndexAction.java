@@ -19,21 +19,29 @@
 
 package org.elasticsearch.action.admin.indices.delete;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataDeleteIndexService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Delete index action.
@@ -70,25 +78,31 @@ public class TransportDeleteIndexAction extends TransportMasterNodeAction<Delete
 
     @Override
     protected ClusterBlockException checkBlock(DeleteIndexRequest request, ClusterState state) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndices(state, request));
+        return state.blocks().indicesAllowReleaseResources(indexNameExpressionResolver.concreteIndexNames(state, request));
     }
 
     @Override
     protected void masterOperation(final DeleteIndexRequest request, final ClusterState state, final ActionListener<DeleteIndexResponse> listener) {
-        final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
-        if (concreteIndices.length == 0) {
+        final Set<Index> concreteIndices = new HashSet<>(Arrays.asList(indexNameExpressionResolver.concreteIndices(state, request)));
+        if (concreteIndices.isEmpty()) {
             listener.onResponse(new DeleteIndexResponse(true));
             return;
         }
-        deleteIndexService.deleteIndices(new MetaDataDeleteIndexService.Request(concreteIndices).timeout(request.timeout()).masterTimeout(request.masterNodeTimeout()), new MetaDataDeleteIndexService.Listener() {
+
+        DeleteIndexClusterStateUpdateRequest deleteRequest = new DeleteIndexClusterStateUpdateRequest()
+            .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
+            .indices(concreteIndices.toArray(new Index[concreteIndices.size()]));
+
+        deleteIndexService.deleteIndices(deleteRequest, new ActionListener<ClusterStateUpdateResponse>() {
 
             @Override
-            public void onResponse(MetaDataDeleteIndexService.Response response) {
-                listener.onResponse(new DeleteIndexResponse(response.acknowledged()));
+            public void onResponse(ClusterStateUpdateResponse response) {
+                listener.onResponse(new DeleteIndexResponse(response.isAcknowledged()));
             }
 
             @Override
-            public void onFailure(Throwable t) {
+            public void onFailure(Exception t) {
+                logger.debug((Supplier<?>) () -> new ParameterizedMessage("failed to delete indices [{}]", concreteIndices), t);
                 listener.onFailure(t);
             }
         });

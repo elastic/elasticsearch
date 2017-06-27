@@ -21,27 +21,35 @@ package org.elasticsearch.monitor.process;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-public class ProcessInfo implements Streamable, ToXContent {
+public class ProcessInfo implements Writeable, ToXContent {
 
-    long refreshInterval;
+    private final long refreshInterval;
+    private final long id;
+    private final boolean mlockall;
 
-    private long id;
-
-    private boolean mlockall;
-
-    ProcessInfo() {
-    }
-
-    public ProcessInfo(long id, boolean mlockall) {
+    public ProcessInfo(long id, boolean mlockall, long refreshInterval) {
         this.id = id;
         this.mlockall = mlockall;
+        this.refreshInterval = refreshInterval;
+    }
+
+    public ProcessInfo(StreamInput in) throws IOException {
+        refreshInterval = in.readLong();
+        id = in.readLong();
+        mlockall = in.readBoolean();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(refreshInterval);
+        out.writeLong(id);
+        out.writeBoolean(mlockall);
     }
 
     public long refreshInterval() {
@@ -64,11 +72,11 @@ public class ProcessInfo implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString PROCESS = new XContentBuilderString("process");
-        static final XContentBuilderString REFRESH_INTERVAL = new XContentBuilderString("refresh_interval");
-        static final XContentBuilderString REFRESH_INTERVAL_IN_MILLIS = new XContentBuilderString("refresh_interval_in_millis");
-        static final XContentBuilderString ID = new XContentBuilderString("id");
-        static final XContentBuilderString MLOCKALL = new XContentBuilderString("mlockall");
+        static final String PROCESS = "process";
+        static final String REFRESH_INTERVAL = "refresh_interval";
+        static final String REFRESH_INTERVAL_IN_MILLIS = "refresh_interval_in_millis";
+        static final String ID = "id";
+        static final String MLOCKALL = "mlockall";
     }
 
     @Override
@@ -79,25 +87,5 @@ public class ProcessInfo implements Streamable, ToXContent {
         builder.field(Fields.MLOCKALL, mlockall);
         builder.endObject();
         return builder;
-    }
-
-    public static ProcessInfo readProcessInfo(StreamInput in) throws IOException {
-        ProcessInfo info = new ProcessInfo();
-        info.readFrom(in);
-        return info;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        refreshInterval = in.readLong();
-        id = in.readLong();
-        mlockall = in.readBoolean();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeLong(refreshInterval);
-        out.writeLong(id);
-        out.writeBoolean(mlockall);
     }
 }

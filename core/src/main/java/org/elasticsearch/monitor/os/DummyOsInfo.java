@@ -21,13 +21,8 @@ package org.elasticsearch.monitor.os;
 
 public class DummyOsInfo extends OsInfo {
 
-    DummyOsInfo() {
-        refreshInterval = 0;
-        availableProcessors = 0;
-        allocatedProcessors = 0;
-        name = "dummy_name";
-        arch = "dummy_arch";
-        version = "dummy_version";
+    private DummyOsInfo() {
+        super(0, 0, 0, "dummy_name", "dummy_arch", "dummy_version");
     }
 
     public static final DummyOsInfo INSTANCE = new DummyOsInfo();

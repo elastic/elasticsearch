@@ -19,7 +19,7 @@
         "bytes": {
           "type": "enum",
           "description" : "The unit in which to display byte values",
-          "options": [ "b", "k", "m", "g" ]
+          "options": [ "b", "k", "kb", "m", "mb", "g", "gb", "t", "tb", "p", "pb" ]
         },
         "master_timeout": {
           "type" : "time",
@@ -33,6 +33,10 @@
           "type": "boolean",
           "description": "Return help information",
           "default": false
+        },
+        "s": {
+          "type": "list",
+          "description" : "Comma-separated list of column names or column aliases to sort by"
         },
         "v": {
           "type": "boolean",

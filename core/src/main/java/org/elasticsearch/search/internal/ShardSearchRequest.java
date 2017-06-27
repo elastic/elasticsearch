@@ -20,12 +20,23 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.script.Template;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.AliasFilterParsingException;
+import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 /**
  * Shard level request that represents a search.
@@ -34,9 +45,7 @@ import java.io.IOException;
  */
 public interface ShardSearchRequest {
 
-    String index();
-
-    int shardId();
+    ShardId shardId();
 
     String[] types();
 
@@ -48,11 +57,11 @@ public interface ShardSearchRequest {
 
     SearchType searchType();
 
-    String[] filteringAliases();
+    QueryBuilder filteringAliases();
+
+    float indexBoost();
 
     long nowInMillis();
-
-    Template template();
 
     Boolean requestCache();
 
@@ -73,4 +82,63 @@ public interface ShardSearchRequest {
      * Returns the cache key for this shard search request, based on its content
      */
     BytesReference cacheKey() throws IOException;
+
+    /**
+     * Rewrites this request into its primitive form. e.g. by rewriting the
+     * QueryBuilder.
+     */
+    void rewrite(QueryShardContext context) throws IOException;
+
+    /**
+     * Returns the filter associated with listed filtering aliases.
+     * <p>
+     * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
+     * Returns <tt>null</tt> if no filtering is required.</p>
+     */
+    static QueryBuilder parseAliasFilter(CheckedFunction<byte[], QueryBuilder, IOException> filterParser,
+                                         IndexMetaData metaData, String... aliasNames) {
+        if (aliasNames == null || aliasNames.length == 0) {
+            return null;
+        }
+        Index index = metaData.getIndex();
+        ImmutableOpenMap<String, AliasMetaData> aliases = metaData.getAliases();
+        Function<AliasMetaData, QueryBuilder> parserFunction = (alias) -> {
+            if (alias.filter() == null) {
+                return null;
+            }
+            try {
+                return filterParser.apply(alias.filter().uncompressed());
+            } catch (IOException ex) {
+                throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);
+            }
+        };
+        if (aliasNames.length == 1) {
+            AliasMetaData alias = aliases.get(aliasNames[0]);
+            if (alias == null) {
+                // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                throw new InvalidAliasNameException(index, aliasNames[0], "Unknown alias name was passed to alias Filter");
+            }
+            return parserFunction.apply(alias);
+        } else {
+            // we need to bench here a bit, to see maybe it makes sense to use OrFilter
+            BoolQueryBuilder combined = new BoolQueryBuilder();
+            for (String aliasName : aliasNames) {
+                AliasMetaData alias = aliases.get(aliasName);
+                if (alias == null) {
+                    // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                    throw new InvalidAliasNameException(index, aliasNames[0],
+                        "Unknown alias name was passed to alias Filter");
+                }
+                QueryBuilder parsedFilter = parserFunction.apply(alias);
+                if (parsedFilter != null) {
+                    combined.should(parsedFilter);
+                } else {
+                    // The filter might be null only if filter was removed after filteringAliases was called
+                    return null;
+                }
+            }
+            return combined;
+        }
+    }
+
 }

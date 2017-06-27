@@ -20,13 +20,12 @@ package org.elasticsearch.gradle.test
 
 import org.gradle.api.GradleException
 import org.gradle.api.Project
-import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
-
-import java.time.LocalDateTime
 
 /** Configuration for an elasticsearch cluster, used for integration tests. */
 class ClusterConfiguration {
+
+    private final Project project
 
     @Input
     String distribution = 'integ-test-zip'
@@ -35,10 +34,27 @@ class ClusterConfiguration {
     int numNodes = 1
 
     @Input
+    int numBwcNodes = 0
+
+    @Input
+    String bwcVersion = null
+
+    @Input
     int httpPort = 0
 
     @Input
     int transportPort = 0
+
+    /**
+     * An override of the data directory. Input is the node number and output
+     * is the override data directory.
+     */
+    @Input
+    Closure<String> dataDir = null
+
+    /** Optional override of the cluster name. */
+    @Input
+    String clusterName = null
 
     @Input
     boolean daemonize = true
@@ -46,8 +62,47 @@ class ClusterConfiguration {
     @Input
     boolean debug = false
 
+    /**
+     * if <code>true</code> each node will be configured with <tt>discovery.zen.minimum_master_nodes</tt> set
+     * to the total number of nodes in the cluster. This will also cause that each node has `0s` state recovery
+     * timeout which can lead to issues if for instance an existing clusterstate is expected to be recovered
+     * before any tests start
+     */
     @Input
-    String jvmArgs = System.getProperty('tests.jvm.argline', '')
+    boolean useMinimumMasterNodes = true
+
+    @Input
+    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+        " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+        " " + System.getProperty('tests.jvm.argline', '')
+
+    /**
+     * Should the shared environment be cleaned on cluster startup? Defaults
+     * to {@code true} so we run with a clean cluster but some tests wish to
+     * preserve snapshots between clusters so they set this to true.
+     */
+    @Input
+    boolean cleanShared = true
+
+    /**
+     * A closure to call which returns the unicast host to connect to for cluster formation.
+     *
+     * This allows multi node clusters, or a new cluster to connect to an existing cluster.
+     * The closure takes two arguments, the NodeInfo for the first node in the cluster, and
+     * an AntBuilder which may be used to wait on conditions before returning.
+     */
+    @Input
+    Closure unicastTransportUri = { NodeInfo seedNode, NodeInfo node, AntBuilder ant ->
+        if (seedNode == node) {
+            return null
+        }
+        ant.waitfor(maxwait: '40', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond') {
+            resourceexists {
+                file(file: seedNode.transportPortsFile.toString())
+            }
+        }
+        return seedNode.transportUri()
+    }
 
     /**
      * A closure to call before the cluster is considered ready. The closure is passed the node info,
@@ -57,25 +112,39 @@ class ClusterConfiguration {
     @Input
     Closure waitCondition = { NodeInfo node, AntBuilder ant ->
         File tmpFile = new File(node.cwd, 'wait.success')
-        ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}",
+        String waitUrl = "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow"
+        ant.echo(message: "==> [${new Date()}] checking health: ${waitUrl}",
+                 level: 'info')
+        // checking here for wait_for_nodes to be >= the number of nodes because its possible
+        // this cluster is attempting to connect to nodes created by another task (same cluster name),
+        // so there will be more nodes in that case in the cluster state
+        ant.get(src: waitUrl,
                 dest: tmpFile.toString(),
                 ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
                 retries: 10)
         return tmpFile.exists()
     }
 
+    public ClusterConfiguration(Project project) {
+        this.project = project
+    }
+
     Map<String, String> systemProperties = new HashMap<>()
 
-    Map<String, String> settings = new HashMap<>()
+    Map<String, Object> settings = new HashMap<>()
+
+    Map<String, String> keystoreSettings = new HashMap<>()
 
     // map from destination path, to source file
     Map<String, Object> extraConfigFiles = new HashMap<>()
 
-    LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
+    LinkedHashMap<String, Project> plugins = new LinkedHashMap<>()
 
     List<Project> modules = new ArrayList<>()
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
+
+    List<Object> dependencies = new ArrayList<>()
 
     @Input
     void systemProperty(String property, String value) {
@@ -83,18 +152,19 @@ class ClusterConfiguration {
     }
 
     @Input
-    void setting(String name, String value) {
+    void setting(String name, Object value) {
         settings.put(name, value)
     }
 
     @Input
-    void plugin(String name, FileCollection file) {
-        plugins.put(name, file)
+    void keystoreSetting(String name, String value) {
+        keystoreSettings.put(name, value)
     }
 
     @Input
-    void plugin(String name, Project pluginProject) {
-        plugins.put(name, pluginProject)
+    void plugin(String path) {
+        Project pluginProject = project.project(path)
+        plugins.put(pluginProject.name, pluginProject)
     }
 
     /** Add a module to the cluster. The project must be an esplugin and have a single zip default artifact. */
@@ -118,5 +188,11 @@ class ClusterConfiguration {
             throw new GradleException('Overwriting elasticsearch.yml is not allowed, add additional settings using cluster { setting "foo", "bar" }')
         }
         extraConfigFiles.put(path, sourceFile)
+    }
+
+    /** Add dependencies that must be run before the first task setting up the cluster. */
+    @Input
+    void dependsOn(Object... deps) {
+        dependencies.addAll(deps)
     }
 }

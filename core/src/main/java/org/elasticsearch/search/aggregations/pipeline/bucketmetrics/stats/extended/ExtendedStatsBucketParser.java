@@ -20,45 +20,36 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 
-import java.text.ParseException;
+import java.io.IOException;
 import java.util.Map;
 
 public class ExtendedStatsBucketParser extends BucketMetricsParser {
     static final ParseField SIGMA = new ParseField("sigma");
 
     @Override
-    public String type() {
-        return ExtendedStatsBucketPipelineAggregator.TYPE.name();
-    }
-
-    @Override
-    protected ExtendedStatsBucketPipelineAggregatorBuilder buildFactory(String pipelineAggregatorName,
-            String bucketsPath, Map<String, Object> unparsedParams) throws ParseException {
-
-        Double sigma = null;
-        Object param = unparsedParams.get(SIGMA.getPreferredName());
-
-        if (param != null) {
-            if (param instanceof Double) {
-                sigma = (Double) param;
-                unparsedParams.remove(SIGMA.getPreferredName());
-            } else {
-                throw new ParseException("Parameter [" + SIGMA.getPreferredName() + "] must be a Double, type `"
-                        + param.getClass().getSimpleName() + "` provided instead", 0);
-            }
-        }
-        ExtendedStatsBucketPipelineAggregatorBuilder factory =
-                new ExtendedStatsBucketPipelineAggregatorBuilder(pipelineAggregatorName, bucketsPath);
+    protected ExtendedStatsBucketPipelineAggregationBuilder buildFactory(String pipelineAggregatorName,
+            String bucketsPath, Map<String, Object> params) {
+        ExtendedStatsBucketPipelineAggregationBuilder factory =
+            new ExtendedStatsBucketPipelineAggregationBuilder(pipelineAggregatorName, bucketsPath);
+        Double sigma = (Double) params.get(SIGMA.getPreferredName());
         if (sigma != null) {
             factory.sigma(sigma);
         }
+
         return factory;
     }
 
     @Override
-    public ExtendedStatsBucketPipelineAggregatorBuilder getFactoryPrototype() {
-        return ExtendedStatsBucketPipelineAggregatorBuilder.PROTOTYPE;
+    protected boolean token(XContentParser parser, QueryParseContext context, String field,
+                            XContentParser.Token token, Map<String, Object> params) throws IOException {
+        if (SIGMA.match(field) && token == XContentParser.Token.VALUE_NUMBER) {
+            params.put(SIGMA.getPreferredName(), parser.doubleValue());
+            return true;
+        }
+        return false;
     }
 }

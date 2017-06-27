@@ -1,6 +1,10 @@
 [[mapping-uid-field]]
 === `_uid` field
 
+deprecated[6.0.0, Now that types have been removed, documents are uniquely
+identified by their `_id` and the `_uid` field has only been kept as a view
+over the `_id` field for backward compatibility.]
+
 Each document indexed is associated with a <<mapping-type-field,`_type`>> (see
 <<mapping-type>>) and an <<mapping-id-field,`_id`>>.  These values are
 combined as `{type}#{id}` and indexed as the `_uid` field.
@@ -16,11 +20,15 @@ PUT my_index/my_type/1
   "text": "Document with ID 1"
 }
 
-PUT my_index/my_type/2
+PUT my_index/my_type/2?refresh=true
 {
   "text": "Document with ID 2"
 }
+--------------------------
+// CONSOLE
 
+[source,js]
+--------------------------
 GET my_index/_search
 {
   "query": {
@@ -45,15 +53,19 @@ GET my_index/_search
   ],
   "script_fields": {
     "UID": {
-      "script": "doc['_uid']" <4>
+      "script": {
+         "lang": "painless",
+         "source": "doc['_uid']" <4>
+      }
     }
   }
 }
 --------------------------
-// AUTOSENSE
+// CONSOLE
+// TEST[continued]
+// TEST[warning:Fielddata access on the _uid field is deprecated, use _id instead]
 
 <1> Querying on the `_uid` field (also see the <<query-dsl-ids-query,`ids` query>>)
 <2> Aggregating on the `_uid` field
 <3> Sorting on the `_uid` field
-<4> Accessing the `_uid` field in scripts (inline scripts must be <<enable-dynamic-scripting,enabled>> for this example to work)
-
+<4> Accessing the `_uid` field in scripts

@@ -20,12 +20,12 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.CharArraySet;
+import org.apache.lucene.analysis.LowerCaseFilter;
+import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.LowerCaseFilter;
-import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.pattern.PatternTokenizer;
-import org.apache.lucene.analysis.util.CharArraySet;
 
 import java.util.regex.Pattern;
 
@@ -52,5 +52,14 @@ public final class PatternAnalyzer extends Analyzer {
             stream = new StopFilter(stream, stopWords);
         }
         return new TokenStreamComponents(tokenizer, stream);
+    }
+
+    @Override
+    protected TokenStream normalize(String fieldName, TokenStream in) {
+        TokenStream stream = in;
+        if (lowercase) {
+            stream = new LowerCaseFilter(stream);
+        }
+        return stream;
     }
 }

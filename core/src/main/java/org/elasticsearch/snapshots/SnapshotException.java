@@ -20,7 +20,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -30,33 +30,68 @@ import java.io.IOException;
  * Generic snapshot exception
  */
 public class SnapshotException extends ElasticsearchException {
-    private final SnapshotId snapshot;
 
-    public SnapshotException(SnapshotId snapshot, String msg) {
+    @Nullable
+    private final String repositoryName;
+    @Nullable
+    private final String snapshotName;
+
+    public SnapshotException(final Snapshot snapshot, final String msg) {
         this(snapshot, msg, null);
     }
 
-    public SnapshotException(SnapshotId snapshot, String msg, Throwable cause) {
+    public SnapshotException(final Snapshot snapshot, final String msg, final Throwable cause) {
         super("[" + (snapshot == null ? "_na" : snapshot) + "] " + msg, cause);
-        this.snapshot = snapshot;
+        if (snapshot != null) {
+            this.repositoryName = snapshot.getRepository();
+            this.snapshotName = snapshot.getSnapshotId().getName();
+        } else {
+            this.repositoryName = null;
+            this.snapshotName = null;
+        }
     }
 
-    public SnapshotException(StreamInput in) throws IOException {
+    public SnapshotException(final String repositoryName, final SnapshotId snapshotId, final String msg) {
+        this(repositoryName, snapshotId, msg, null);
+    }
+
+    public SnapshotException(final String repositoryName, final SnapshotId snapshotId, final String msg, final Throwable cause) {
+        super("[" + repositoryName + ":" + snapshotId + "] " + msg, cause);
+        this.repositoryName = repositoryName;
+        this.snapshotName = snapshotId.getName();
+    }
+
+    public SnapshotException(final String repositoryName, final String snapshotName, final String msg) {
+        this(repositoryName, snapshotName, msg, null);
+    }
+
+    public SnapshotException(final String repositoryName, final String snapshotName, final String msg, final Throwable cause) {
+        super("[" + repositoryName + ":" + snapshotName + "]" + msg, cause);
+        this.repositoryName = repositoryName;
+        this.snapshotName = snapshotName;
+    }
+
+    public SnapshotException(final StreamInput in) throws IOException {
         super(in);
-        if (in.readBoolean()) {
-            snapshot = SnapshotId.readSnapshotId(in);
-        } else {
-            snapshot = null;
-        }
+        repositoryName = in.readOptionalString();
+        snapshotName = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(snapshot);
+        out.writeOptionalString(repositoryName);
+        out.writeOptionalString(snapshotName);
     }
 
-    public SnapshotId snapshot() {
-        return snapshot;
+    @Nullable
+    public String getRepositoryName() {
+        return repositoryName;
     }
+
+    @Nullable
+    public String getSnapshotName() {
+        return snapshotName;
+    }
+
 }

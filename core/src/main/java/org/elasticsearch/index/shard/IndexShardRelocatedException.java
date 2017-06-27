@@ -23,9 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class IndexShardRelocatedException extends IllegalIndexShardStateException {
 
     public IndexShardRelocatedException(ShardId shardId) {

@@ -263,7 +263,7 @@ public class Nysiis implements StringEncoder {
         str = PAT_DT_ETC.matcher(str).replaceFirst("D");
 
         // First character of key = first character of name.
-        StringBuffer key = new StringBuffer(str.length());
+        StringBuilder key = new StringBuilder(str.length());
         key.append(str.charAt(0));
 
         // Transcode remaining characters, incrementing by one character each time

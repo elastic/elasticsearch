@@ -19,7 +19,8 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.common.logging.ESLogger;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -28,41 +29,24 @@ import java.util.function.Supplier;
 /**
  * Base class for delegating transport response to a transport channel
  */
-public abstract class TransportChannelResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
+public class TransportChannelResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 
-    /**
-     * Convenience method for delegating an empty response to the provided transport channel
-     */
-    public static TransportChannelResponseHandler<TransportResponse.Empty> emptyResponseHandler(ESLogger logger, TransportChannel channel, String extraInfoOnError) {
-        return new TransportChannelResponseHandler<TransportResponse.Empty>(logger, channel, extraInfoOnError) {
-            @Override
-            public TransportResponse.Empty newInstance() {
-                return TransportResponse.Empty.INSTANCE;
-            }
-        };
-    }
-
-    /**
-     * Convenience method for delegating a response provided by supplier to the provided transport channel
-     */
-    public static <T extends TransportResponse> TransportChannelResponseHandler responseHandler(ESLogger logger, Supplier<T> responseSupplier, TransportChannel channel, String extraInfoOnError) {
-        return new TransportChannelResponseHandler<T>(logger, channel, extraInfoOnError) {
-            @Override
-            public T newInstance() {
-                return responseSupplier.get();
-            }
-        };
-    }
-
-
-    private final ESLogger logger;
+    private final Logger logger;
     private final TransportChannel channel;
     private final String extraInfoOnError;
+    private final Supplier<T> responseSupplier;
 
-    protected TransportChannelResponseHandler(ESLogger logger, TransportChannel channel, String extraInfoOnError) {
+    public TransportChannelResponseHandler(Logger logger, TransportChannel channel, String extraInfoOnError,
+                                           Supplier<T> responseSupplier) {
         this.logger = logger;
         this.channel = channel;
         this.extraInfoOnError = extraInfoOnError;
+        this.responseSupplier = responseSupplier;
+    }
+
+    @Override
+    public T newInstance() {
+        return responseSupplier.get();
     }
 
     @Override
@@ -79,7 +63,12 @@ public abstract class TransportChannelResponseHandler<T extends TransportRespons
         try {
             channel.sendResponse(exp);
         } catch (IOException e) {
-            logger.debug("failed to send failure {}", e, extraInfoOnError == null ? "" : "(" + extraInfoOnError + ")");
+            logger.debug(
+                (org.apache.logging.log4j.util.Supplier<?>)
+                    () -> new ParameterizedMessage(
+                        "failed to send failure {}",
+                        extraInfoOnError == null ? "" : "(" + extraInfoOnError + ")"),
+                e);
         }
     }
 

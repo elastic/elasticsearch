@@ -22,13 +22,12 @@ package org.elasticsearch.search.aggregations.metrics.stats.extended;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -38,22 +37,22 @@ public class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactor
 
     private final double sigma;
 
-    public ExtendedStatsAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, double sigma,
-            AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
+    public ExtendedStatsAggregatorFactory(String name, ValuesSourceConfig<Numeric> config, double sigma,
+            SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
-        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
+        super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.sigma = sigma;
     }
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new ExtendedStatsAggregator(name, null, config.formatter(), context, parent, sigma, pipelineAggregators, metaData);
+        return new ExtendedStatsAggregator(name, null, config.format(), context, parent, sigma, pipelineAggregators, metaData);
     }
 
     @Override
     protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        return new ExtendedStatsAggregator(name, valuesSource, config.formatter(), context, parent, sigma, pipelineAggregators, metaData);
+        return new ExtendedStatsAggregator(name, valuesSource, config.format(), context, parent, sigma, pipelineAggregators, metaData);
     }
 }

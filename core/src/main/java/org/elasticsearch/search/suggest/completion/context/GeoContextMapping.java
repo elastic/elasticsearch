@@ -29,10 +29,11 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,9 +43,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-import static org.apache.lucene.spatial.util.GeoHashUtils.addNeighbors;
-import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
+import static org.elasticsearch.common.geo.GeoHashUtils.addNeighbors;
+import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 
 /**
  * A {@link ContextMapping} that uses a geo location/area as a
@@ -56,7 +58,7 @@ import static org.apache.lucene.spatial.util.GeoHashUtils.stringEncode;
  * {@link GeoQueryContext} defines the options for constructing
  * a unit of query context for this context type
  */
-public class GeoContextMapping extends ContextMapping {
+public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
 
     public static final String FIELD_PRECISION = "precision";
     public static final String FIELD_FIELDNAME = "path";
@@ -205,7 +207,8 @@ public class GeoContextMapping extends ContextMapping {
                     if (field instanceof StringField) {
                         spare.resetFromString(field.stringValue());
                     } else {
-                        spare.resetFromIndexHash(Long.parseLong(field.stringValue()));
+                        // todo return this to .stringValue() once LatLonPoint implements it
+                        spare.resetFromIndexableField(field);
                     }
                     geohashes.add(spare.geohash());
                 }
@@ -219,6 +222,11 @@ public class GeoContextMapping extends ContextMapping {
             locations.add(truncatedGeohash);
         }
         return locations;
+    }
+
+    @Override
+    protected GeoQueryContext fromXContent(QueryParseContext context) throws IOException {
+        return GeoQueryContext.fromXContent(context);
     }
 
     /**
@@ -245,22 +253,10 @@ public class GeoContextMapping extends ContextMapping {
      * see {@link GeoUtils#parseGeoPoint(String, GeoPoint)} for GEO POINT
      */
     @Override
-    public List<QueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
-        List<GeoQueryContext> queryContexts = new ArrayList<>();
-        Token token = parser.nextToken();
-        if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            queryContexts.add(GeoQueryContext.parse(parser));
-        } else if (token == Token.START_ARRAY) {
-            while (parser.nextToken() != Token.END_ARRAY) {
-                queryContexts.add(GeoQueryContext.parse(parser));
-            }
-        }
-        List<QueryContext> queryContextList = new ArrayList<>();
+    public List<InternalQueryContext> toInternalQueryContexts(List<GeoQueryContext> queryContexts) {
+        List<InternalQueryContext> internalQueryContextList = new ArrayList<>();
         for (GeoQueryContext queryContext : queryContexts) {
-            int minPrecision = this.precision;
-            if (queryContext.getPrecision() != -1) {
-                minPrecision = Math.min(minPrecision, queryContext.getPrecision());
-            }
+            int minPrecision = Math.min(this.precision, queryContext.getPrecision());
             GeoPoint point = queryContext.getGeoPoint();
             final Collection<String> locations = new HashSet<>();
             String geoHash = stringEncode(point.getLon(), point.getLat(), minPrecision);
@@ -268,19 +264,20 @@ public class GeoContextMapping extends ContextMapping {
             if (queryContext.getNeighbours().isEmpty() && geoHash.length() == this.precision) {
                 addNeighbors(geoHash, locations);
             } else if (queryContext.getNeighbours().isEmpty() == false) {
-                for (Integer neighbourPrecision : queryContext.getNeighbours()) {
-                    if (neighbourPrecision < geoHash.length()) {
+                queryContext.getNeighbours().stream()
+                    .filter(neighbourPrecision -> neighbourPrecision < geoHash.length())
+                    .forEach(neighbourPrecision -> {
                         String truncatedGeoHash = geoHash.substring(0, neighbourPrecision);
                         locations.add(truncatedGeoHash);
                         addNeighbors(truncatedGeoHash, locations);
-                    }
-                }
+                    });
             }
-            for (String location : locations) {
-                queryContextList.add(new QueryContext(location, queryContext.getBoost(), location.length() < this.precision));
-            }
+            internalQueryContextList.addAll(
+                locations.stream()
+                    .map(location -> new InternalQueryContext(location, queryContext.getBoost(), location.length() < this.precision))
+                    .collect(Collectors.toList()));
         }
-        return queryContextList;
+        return internalQueryContextList;
     }
 
     @Override
@@ -304,7 +301,7 @@ public class GeoContextMapping extends ContextMapping {
         private int precision = DEFAULT_PRECISION;
         private String fieldName = null;
 
-        protected Builder(String name) {
+        public Builder(String name) {
             super(name);
         }
 

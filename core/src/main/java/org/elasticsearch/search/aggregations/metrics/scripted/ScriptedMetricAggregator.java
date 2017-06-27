@@ -21,10 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -32,34 +29,27 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
+
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 public class ScriptedMetricAggregator extends MetricsAggregator {
 
-    private final SearchScript mapScript;
+    private final SearchScript.LeafFactory mapScript;
     private final ExecutableScript combineScript;
     private final Script reduceScript;
     private Map<String, Object> params;
 
-    protected ScriptedMetricAggregator(String name, Script initScript, Script mapScript, Script combineScript, Script reduceScript,
-            Map<String, Object> params, AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
+    protected ScriptedMetricAggregator(String name, SearchScript.LeafFactory mapScript, ExecutableScript combineScript,
+                                       Script reduceScript,
+            Map<String, Object> params, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.params = params;
-        ScriptService scriptService = context.searchContext().scriptService();
-        if (initScript != null) {
-            scriptService.executable(initScript, ScriptContext.Standard.AGGS, Collections.emptyMap()).run();
-        }
-        this.mapScript = scriptService.search(context.searchContext().lookup(), mapScript, ScriptContext.Standard.AGGS, Collections.emptyMap());
-        if (combineScript != null) {
-            this.combineScript = scriptService.executable(combineScript, ScriptContext.Standard.AGGS, Collections.emptyMap());
-        } else {
-            this.combineScript = null;
-        }
+        this.mapScript = mapScript;
+        this.combineScript = combineScript;
         this.reduceScript = reduceScript;
     }
 
@@ -71,8 +61,8 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        final LeafSearchScript leafMapScript = mapScript.getLeafSearchScript(ctx);
-        return new LeafBucketCollectorBase(sub, mapScript) {
+        final SearchScript leafMapScript = mapScript.newInstance(ctx);
+        return new LeafBucketCollectorBase(sub, leafMapScript) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0 : bucket;

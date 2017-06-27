@@ -19,24 +19,21 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
 import org.HdrHistogram.DoubleHistogram;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
 
-    public HDRPercentilesAggregator(String name, Numeric valuesSource, AggregationContext context, Aggregator parent, double[] percents,
-            int numberOfSignificantValueDigits, boolean keyed, ValueFormatter formatter,
+    public HDRPercentilesAggregator(String name, Numeric valuesSource, SearchContext context, Aggregator parent, double[] percents,
+            int numberOfSignificantValueDigits, boolean keyed, DocValueFormat formatter,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, valuesSource, context, parent, percents, numberOfSignificantValueDigits, keyed, formatter,
                 pipelineAggregators, metaData);
@@ -48,7 +45,7 @@ public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalHDRPercentiles(name, keys, state, keyed, formatter, pipelineAggregators(), metaData());
+            return new InternalHDRPercentiles(name, keys, state, keyed, format, pipelineAggregators(), metaData());
         }
     }
 
@@ -69,6 +66,6 @@ public class HDRPercentilesAggregator extends AbstractHDRPercentilesAggregator {
         state.setAutoResize(true);
         return new InternalHDRPercentiles(name, keys, state,
                 keyed,
-                formatter, pipelineAggregators(), metaData());
+                format, pipelineAggregators(), metaData());
     }
 }

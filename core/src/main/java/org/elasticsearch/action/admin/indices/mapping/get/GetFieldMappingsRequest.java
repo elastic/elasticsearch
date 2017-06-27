@@ -30,7 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /** Request the mappings of specific fields */
-public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> implements IndicesRequest.Replaceable {
+public class GetFieldMappingsRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     protected boolean local = false;
 

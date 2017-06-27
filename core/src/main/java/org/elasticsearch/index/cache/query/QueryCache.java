@@ -23,12 +23,9 @@ import org.elasticsearch.index.IndexComponent;
 
 import java.io.Closeable;
 
-/**
- *
- */
 public interface QueryCache extends IndexComponent, Closeable, org.apache.lucene.search.QueryCache {
 
-    static class EntriesStats {
+    class EntriesStats {
         public final long sizeInBytes;
         public final long count;
 

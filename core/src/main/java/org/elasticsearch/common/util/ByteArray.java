@@ -29,28 +29,28 @@ public interface ByteArray extends BigArray {
     /**
      * Get an element given its index.
      */
-    public abstract byte get(long index);
+    byte get(long index);
 
     /**
      * Set a value at the given index and return the previous value.
      */
-    public abstract byte set(long index, byte value);
+    byte set(long index, byte value);
 
     /**
      * Get a reference to a slice.
-     * 
+     *
      * @return <code>true</code> when a byte[] was materialized, <code>false</code> otherwise.
      */
-    public abstract boolean get(long index, int len, BytesRef ref);
+    boolean get(long index, int len, BytesRef ref);
 
     /**
      * Bulk set.
      */
-    public abstract void set(long index, byte[] buf, int offset, int len);
+    void set(long index, byte[] buf, int offset, int len);
 
     /**
      * Fill slots between <code>fromIndex</code> inclusive to <code>toIndex</code> exclusive with <code>value</code>.
      */
-    public abstract void fill(long fromIndex, long toIndex, byte value);
+    void fill(long fromIndex, long toIndex, byte value);
 
 }

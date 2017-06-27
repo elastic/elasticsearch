@@ -27,8 +27,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-/**
- */
 public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequest> {
 
     int threads = 3;
@@ -101,7 +99,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
         threads = in.readInt();
         ignoreIdleThreads = in.readBoolean();
         type = in.readString();
-        interval = TimeValue.readTimeValue(in);
+        interval = new TimeValue(in);
         snapshots = in.readInt();
     }
 

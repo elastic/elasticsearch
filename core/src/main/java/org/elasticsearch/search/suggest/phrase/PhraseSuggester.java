@@ -31,35 +31,33 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
-import org.elasticsearch.search.suggest.SuggestContextParser;
-import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
     private static final String SUGGESTION_TEMPLATE_VAR_NAME = "suggestion";
-    private final ScriptService scriptService;
-    private final IndicesService indicesService;
 
-    public PhraseSuggester(ScriptService scriptService, IndicesService indicesService) {
-        this.scriptService = scriptService;
-        this.indicesService = indicesService;
-    }
+    public static final PhraseSuggester INSTANCE = new PhraseSuggester();
+
+    private PhraseSuggester() {}
 
     /*
      * More Ideas:
@@ -70,8 +68,8 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
      *   - phonetic filters could be interesting here too for candidate selection
      */
     @Override
-    public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion, IndexSearcher searcher,
-            CharsRefBuilder spare) throws IOException {
+    public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion,
+            IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
         double realWordErrorLikelihood = suggestion.realworldErrorLikelyhood();
         final PhraseSuggestion response = new PhraseSuggestion(name, suggestion.getSize());
         final IndexReader indexReader = searcher.getIndexReader();
@@ -80,7 +78,7 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         final List<CandidateGenerator> gens = new ArrayList<>(generators.size());
         for (int i = 0; i < numGenerators; i++) {
             PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
-            DirectSpellChecker directSpellChecker = SuggestUtils.getDirectSpellChecker(generator);
+            DirectSpellChecker directSpellChecker = generator.createDirectSpellChecker();
             Terms terms = MultiFields.getTerms(indexReader, generator.field());
             if (terms !=  null) {
                 gens.add(new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(),
@@ -90,36 +88,41 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         final String suggestField = suggestion.getField();
         final Terms suggestTerms = MultiFields.getTerms(indexReader, suggestField);
         if (gens.size() > 0 && suggestTerms != null) {
-            final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(), suggestion.getTokenLimit());
+            final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(),
+                    suggestion.getTokenLimit());
             final BytesRef separator = suggestion.separator();
-            WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood, separator);
+            WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood,
+                    separator);
             Result checkerResult;
             try (TokenStream stream = checker.tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
-                checkerResult = checker.getCorrections(stream, new MultiCandidateGeneratorWrapper(suggestion.getShardSize(),
-                                                                                                         gens.toArray(new CandidateGenerator[gens.size()])), suggestion.maxErrors(),
-                                                              suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
+                checkerResult = checker.getCorrections(stream,
+                        new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
+                        suggestion.maxErrors(), suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
                 }
 
             PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
             response.addTerm(resultEntry);
 
             final BytesRefBuilder byteSpare = new BytesRefBuilder();
-            final CompiledScript collateScript = suggestion.getCollateQueryScript();
-            final boolean collatePrune = (collateScript != null) && suggestion.collatePrune();
+            final TemplateScript.Factory scriptFactory = suggestion.getCollateQueryScript();
+            final boolean collatePrune = (scriptFactory != null) && suggestion.collatePrune();
             for (int i = 0; i < checkerResult.corrections.length; i++) {
                 Correction correction = checkerResult.corrections[i];
                 spare.copyUTF8Bytes(correction.join(SEPARATOR, byteSpare, null, null));
                 boolean collateMatch = true;
-                if (collateScript != null) {
+                if (scriptFactory != null) {
                     // Checks if the template query collateScript yields any documents
                     // from the index for a correction, collateMatch is updated
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
-                    final ExecutableScript executable = scriptService.executable(collateScript, vars);
-                    final BytesReference querySource = (BytesReference) executable.run();
-                    IndexService indexService = indicesService.indexService(suggestion.getIndex());
-                    final ParsedQuery parsedQuery = indexService.newQueryShardContext().parse(querySource);
-                    collateMatch = Lucene.exists(searcher, parsedQuery.query());
+                    QueryShardContext shardContext = suggestion.getShardContext();
+                    final String querySource = scriptFactory.newInstance(vars).execute();
+                    try (XContentParser parser = XContentFactory.xContent(querySource).createParser(shardContext.getXContentRegistry(),
+                            querySource)) {
+                        QueryBuilder innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();
+                        final ParsedQuery parsedQuery = shardContext.toQuery(innerQueryBuilder);
+                        collateMatch = Lucene.exists(searcher, parsedQuery.query());
+                    }
                 }
                 if (!collateMatch && !collatePrune) {
                     continue;
@@ -142,18 +145,8 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
         return response;
     }
 
-    private PhraseSuggestion.Entry buildResultEntry(PhraseSuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
+    private static PhraseSuggestion.Entry buildResultEntry(SuggestionContext suggestion, CharsRefBuilder spare, double cutoffScore) {
         spare.copyUTF8Bytes(suggestion.getText());
         return new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length(), cutoffScore);
     }
-
-    ScriptService scriptService() {
-        return scriptService;
-    }
-
-    @Override
-    public SuggestContextParser getContextParser() {
-        return new PhraseSuggestParser(this);
-    }
-
 }

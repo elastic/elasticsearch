@@ -34,7 +34,7 @@ import java.util.stream.StreamSupport;
  */
 public abstract class BucketCollector implements Collector {
 
-    public final static BucketCollector NO_OP_COLLECTOR = new BucketCollector() {
+    public static final BucketCollector NO_OP_COLLECTOR = new BucketCollector() {
 
         @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {
@@ -70,7 +70,7 @@ public abstract class BucketCollector implements Collector {
 
                     @Override
                     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-                        List<LeafBucketCollector> leafCollectors = new ArrayList<>();
+                        List<LeafBucketCollector> leafCollectors = new ArrayList<>(collectors.length);
                         for (BucketCollector c : collectors) {
                             leafCollectors.add(c.getLeafCollector(ctx));
                         }

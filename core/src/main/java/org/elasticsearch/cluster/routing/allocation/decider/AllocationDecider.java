@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 
@@ -97,5 +98,31 @@ public abstract class AllocationDecider extends AbstractComponent {
      */
     public Decision canRebalance(RoutingAllocation allocation) {
         return Decision.ALWAYS;
+    }
+
+    /**
+     * Returns a {@link Decision} whether the given primary shard can be
+     * forcibly allocated on the given node. This method should only be called
+     * for unassigned primary shards where the node has a shard copy on disk.
+     *
+     * Note: all implementations that override this behavior should take into account
+     * the results of {@link #canAllocate(ShardRouting, RoutingNode, RoutingAllocation)}
+     * before making a decision on force allocation, because force allocation should only
+     * be considered if all deciders return {@link Decision#NO}.
+     */
+    public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard " + shardRouting;
+        assert shardRouting.unassigned() : "must not call canForceAllocatePrimary on an assigned shard " + shardRouting;
+        Decision decision = canAllocate(shardRouting, node, allocation);
+        if (decision.type() == Type.NO) {
+            // On a NO decision, by default, we allow force allocating the primary.
+            return allocation.decision(Decision.YES,
+                                       decision.label(),
+                                       "primary shard [{}] allowed to force allocate on node [{}]",
+                                       shardRouting.shardId(), node.nodeId());
+        } else {
+            // On a THROTTLE/YES decision, we use the same decision instead of forcing allocation
+            return decision;
+        }
     }
 }

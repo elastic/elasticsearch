@@ -100,7 +100,7 @@ public class GeometryCollectionBuilderTests extends AbstractShapeBuilderTestCase
             }
             mutation.shapes.set(shapePosition, shapeToChange);
         } else {
-            mutation.shape(RandomShapeGenerator.createShape(getRandom()));
+            mutation.shape(RandomShapeGenerator.createShape(random()));
         }
         return mutation;
     }

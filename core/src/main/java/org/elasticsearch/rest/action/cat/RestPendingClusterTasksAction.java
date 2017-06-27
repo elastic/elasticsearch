@@ -21,25 +21,26 @@ package org.elasticsearch.rest.action.cat;
 
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksRequest;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Table;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.rest.action.RestResponseListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestPendingClusterTasksAction extends AbstractCatAction {
-    @Inject
-    public RestPendingClusterTasksAction(Settings settings, RestController controller, Client client) {
-        super(settings, controller, client);
+    public RestPendingClusterTasksAction(Settings settings, RestController controller) {
+        super(settings);
         controller.registerHandler(GET, "/_cat/pending_tasks", this);
+    }
+
+    @Override
+    public String getName() {
+        return "cat_pending_cluster_tasks_action";
     }
 
     @Override
@@ -48,17 +49,20 @@ public class RestPendingClusterTasksAction extends AbstractCatAction {
     }
 
     @Override
-    public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
+    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         PendingClusterTasksRequest pendingClusterTasksRequest = new PendingClusterTasksRequest();
         pendingClusterTasksRequest.masterNodeTimeout(request.paramAsTime("master_timeout", pendingClusterTasksRequest.masterNodeTimeout()));
         pendingClusterTasksRequest.local(request.paramAsBoolean("local", pendingClusterTasksRequest.local()));
-        client.admin().cluster().pendingClusterTasks(pendingClusterTasksRequest, new RestResponseListener<PendingClusterTasksResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(PendingClusterTasksResponse pendingClusterTasks) throws Exception {
-                Table tab = buildTable(request, pendingClusterTasks);
-                return RestTable.buildResponse(tab, channel);
-            }
-        });
+        return channel ->
+                client.admin()
+                        .cluster()
+                        .pendingClusterTasks(pendingClusterTasksRequest, new RestResponseListener<PendingClusterTasksResponse>(channel) {
+                            @Override
+                            public RestResponse buildResponse(PendingClusterTasksResponse pendingClusterTasks) throws Exception {
+                                Table tab = buildTable(request, pendingClusterTasks);
+                                return RestTable.buildResponse(tab, channel);
+                            }
+                        });
     }
 
     @Override

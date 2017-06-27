@@ -31,7 +31,7 @@ import java.util.Locale;
  *
  *
  */
-public enum SortOrder implements Writeable<SortOrder> {
+public enum SortOrder implements Writeable {
     /**
      * Ascending order.
      */
@@ -50,25 +50,14 @@ public enum SortOrder implements Writeable<SortOrder> {
             return "desc";
         }
     };
-    
-    private static final SortOrder PROTOTYPE = ASC;
 
-    @Override
-    public SortOrder readFrom(StreamInput in) throws IOException {
-        int ordinal = in.readVInt();
-        if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown SortOrder ordinal [" + ordinal + "]");
-        }
-        return values()[ordinal];
-    }
-
-    public static SortOrder readOrderFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
+    static SortOrder readFromStream(StreamInput in) throws IOException {
+        return in.readEnum(SortOrder.class);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(this.ordinal());
+        out.writeEnum(this);
     }
 
     public static SortOrder fromString(String op) {

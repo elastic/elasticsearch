@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.analyze;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class AnalyzeAction extends Action<AnalyzeRequest, AnalyzeResponse, AnalyzeRequestBuilder> {
 
     public static final AnalyzeAction INSTANCE = new AnalyzeAction();

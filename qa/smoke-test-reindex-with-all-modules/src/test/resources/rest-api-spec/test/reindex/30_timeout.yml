@@ -1,0 +1,33 @@
+---
+"Timeout":
+  - skip:
+      version: "all"
+      reason:  painless doesn't support thread.sleep so we need to come up with a better way
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      catch: request_timeout
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: twitter
+            timeout: 10
+            query:
+              script:
+                lang: painless
+                # Sleep 100x longer than the timeout. That should cause a timeout!
+                # Return true causes the document to try to be collected which is what actually triggers the timeout.
+                script: java.lang.Thread.sleep(1000); return true
+          dest:
+            index: new_twitter
+  - is_true: timed_out
+  - match: {created: 0}
+  - match: {noops: 0}

@@ -16,6 +16,10 @@
           "type": "time",
           "description": "Specify timeout for connection to master"
         },
+        "preserve_existing": {
+          "type": "boolean",
+          "description": "Whether to update existing settings. If set to `true` existing settings on an index remain unchanged, the default is `false`"
+        },
         "ignore_unavailable": {
           "type": "boolean",
           "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"

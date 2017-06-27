@@ -23,11 +23,10 @@ import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.TikaCoreProperties;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.ingest.core.AbstractProcessor;
-import org.elasticsearch.ingest.core.AbstractProcessorFactory;
-import org.elasticsearch.ingest.core.IngestDocument;
+import org.elasticsearch.ingest.AbstractProcessor;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Processor;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -38,11 +37,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.newConfigurationException;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readIntProperty;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readOptionalList;
-import static org.elasticsearch.ingest.core.ConfigurationUtils.readStringProperty;
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
+import static org.elasticsearch.ingest.ConfigurationUtils.readIntProperty;
+import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
+import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public final class AttachmentProcessor extends AbstractProcessor {
 
@@ -50,83 +49,100 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
     private static final int NUMBER_OF_CHARS_INDEXED = 100000;
 
-    private final String sourceField;
+    private final String field;
     private final String targetField;
-    private final Set<Field> fields;
+    private final Set<Property> properties;
     private final int indexedChars;
+    private final boolean ignoreMissing;
 
-    AttachmentProcessor(String tag, String sourceField, String targetField, Set<Field> fields,
-                        int indexedChars) throws IOException {
+    AttachmentProcessor(String tag, String field, String targetField, Set<Property> properties,
+                        int indexedChars, boolean ignoreMissing) throws IOException {
         super(tag);
-        this.sourceField = sourceField;
+        this.field = field;
         this.targetField = targetField;
-        this.fields = fields;
+        this.properties = properties;
         this.indexedChars = indexedChars;
+        this.ignoreMissing = ignoreMissing;
+    }
+
+    boolean isIgnoreMissing() {
+        return ignoreMissing;
     }
 
     @Override
     public void execute(IngestDocument ingestDocument) {
-        String base64Input = ingestDocument.getFieldValue(sourceField, String.class);
         Map<String, Object> additionalFields = new HashMap<>();
 
-        try {
-            byte[] decodedContent = Base64.decode(base64Input.getBytes(UTF_8));
-            Metadata metadata = new Metadata();
-            String parsedContent = TikaImpl.parse(decodedContent, metadata, indexedChars);
+        byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
 
-            if (fields.contains(Field.CONTENT) && Strings.hasLength(parsedContent)) {
+        if (input == null && ignoreMissing) {
+            return;
+        } else if (input == null) {
+            throw new IllegalArgumentException("field [" + field + "] is null, cannot parse.");
+        }
+
+        try {
+            Metadata metadata = new Metadata();
+            String parsedContent = TikaImpl.parse(input, metadata, indexedChars);
+
+            if (properties.contains(Property.CONTENT) && Strings.hasLength(parsedContent)) {
                 // somehow tika seems to append a newline at the end automatically, lets remove that again
-                additionalFields.put(Field.CONTENT.toLowerCase(), parsedContent.trim());
+                additionalFields.put(Property.CONTENT.toLowerCase(), parsedContent.trim());
             }
 
-            if (fields.contains(Field.LANGUAGE) && Strings.hasLength(parsedContent)) {
+            if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
                 LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
                 String language = identifier.getLanguage();
-                additionalFields.put(Field.LANGUAGE.toLowerCase(), language);
+                additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
             }
 
-            if (fields.contains(Field.DATE)) {
+            if (properties.contains(Property.DATE)) {
                 String createdDate = metadata.get(TikaCoreProperties.CREATED);
                 if (createdDate != null) {
-                    additionalFields.put(Field.DATE.toLowerCase(), createdDate);
+                    additionalFields.put(Property.DATE.toLowerCase(), createdDate);
                 }
             }
 
-            if (fields.contains(Field.TITLE)) {
+            if (properties.contains(Property.TITLE)) {
                 String title = metadata.get(TikaCoreProperties.TITLE);
                 if (Strings.hasLength(title)) {
-                    additionalFields.put(Field.TITLE.toLowerCase(), title);
+                    additionalFields.put(Property.TITLE.toLowerCase(), title);
                 }
             }
 
-            if (fields.contains(Field.AUTHOR)) {
+            if (properties.contains(Property.AUTHOR)) {
                 String author = metadata.get("Author");
                 if (Strings.hasLength(author)) {
-                    additionalFields.put(Field.AUTHOR.toLowerCase(), author);
+                    additionalFields.put(Property.AUTHOR.toLowerCase(), author);
                 }
             }
 
-            if (fields.contains(Field.KEYWORDS)) {
+            if (properties.contains(Property.KEYWORDS)) {
                 String keywords = metadata.get("Keywords");
                 if (Strings.hasLength(keywords)) {
-                    additionalFields.put(Field.KEYWORDS.toLowerCase(), keywords);
+                    additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
                 }
             }
 
-            if (fields.contains(Field.CONTENT_TYPE)) {
+            if (properties.contains(Property.CONTENT_TYPE)) {
                 String contentType = metadata.get(Metadata.CONTENT_TYPE);
                 if (Strings.hasLength(contentType)) {
-                    additionalFields.put(Field.CONTENT_TYPE.toLowerCase(), contentType);
+                    additionalFields.put(Property.CONTENT_TYPE.toLowerCase(), contentType);
                 }
             }
 
-            if (fields.contains(Field.CONTENT_LENGTH)) {
+            if (properties.contains(Property.CONTENT_LENGTH)) {
                 String contentLength = metadata.get(Metadata.CONTENT_LENGTH);
-                String length = Strings.hasLength(contentLength) ? contentLength : String.valueOf(parsedContent.length());
-                additionalFields.put(Field.CONTENT_LENGTH.toLowerCase(), length);
+                long length;
+                if (Strings.hasLength(contentLength)) {
+                    length = Long.parseLong(contentLength);
+                } else {
+                    length = parsedContent.length();
+                }
+                additionalFields.put(Property.CONTENT_LENGTH.toLowerCase(), length);
             }
-        } catch (Throwable e) {
-            throw new ElasticsearchParseException("Error parsing document in field [{}]", e, sourceField);
+        } catch (Exception e) {
+            throw new ElasticsearchParseException("Error parsing document in field [{}]", e, field);
         }
 
         ingestDocument.setFieldValue(targetField, additionalFields);
@@ -137,53 +153,55 @@ public final class AttachmentProcessor extends AbstractProcessor {
         return TYPE;
     }
 
-    String getSourceField() {
-        return sourceField;
+    String getField() {
+        return field;
     }
 
     String getTargetField() {
         return targetField;
     }
 
-    Set<Field> getFields() {
-        return fields;
+    Set<Property> getProperties() {
+        return properties;
     }
 
     int getIndexedChars() {
         return indexedChars;
     }
 
-    public static final class Factory extends AbstractProcessorFactory<AttachmentProcessor> {
+    public static final class Factory implements Processor.Factory {
 
-        static final Set<Field> DEFAULT_FIELDS = EnumSet.allOf(Field.class);
+        static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
 
         @Override
-        public AttachmentProcessor doCreate(String processorTag, Map<String, Object> config) throws Exception {
-            String sourceField = readStringProperty(TYPE, processorTag, config, "source_field");
+        public AttachmentProcessor create(Map<String, Processor.Factory> registry, String processorTag,
+                                          Map<String, Object> config) throws Exception {
+            String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "attachment");
-            List<String> fieldNames = readOptionalList(TYPE, processorTag, config, "fields");
+            List<String> properyNames = readOptionalList(TYPE, processorTag, config, "properties");
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
+            boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
 
-            final Set<Field> fields;
-            if (fieldNames != null) {
-                fields = EnumSet.noneOf(Field.class);
-                for (String fieldName : fieldNames) {
+            final Set<Property> properties;
+            if (properyNames != null) {
+                properties = EnumSet.noneOf(Property.class);
+                for (String fieldName : properyNames) {
                     try {
-                        fields.add(Field.parse(fieldName));
+                        properties.add(Property.parse(fieldName));
                     } catch (Exception e) {
-                        throw newConfigurationException(TYPE, processorTag, "fields", "illegal field option [" +
-                            fieldName + "]. valid values are " + Arrays.toString(Field.values()));
+                        throw newConfigurationException(TYPE, processorTag, "properties", "illegal field option [" +
+                            fieldName + "]. valid values are " + Arrays.toString(Property.values()));
                     }
                 }
             } else {
-                fields = DEFAULT_FIELDS;
+                properties = DEFAULT_PROPERTIES;
             }
 
-            return new AttachmentProcessor(processorTag, sourceField, targetField, fields, indexedChars);
+            return new AttachmentProcessor(processorTag, field, targetField, properties, indexedChars, ignoreMissing);
         }
     }
 
-    public enum Field {
+    enum Property {
 
         CONTENT,
         TITLE,
@@ -194,7 +212,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
         CONTENT_LENGTH,
         LANGUAGE;
 
-        public static Field parse(String value) {
+        public static Property parse(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));
         }
 

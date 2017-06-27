@@ -24,13 +24,15 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.Sampler;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator;
-import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregatorBuilder;
+import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -95,16 +97,16 @@ public class SamplerIT extends ESIntegTestCase {
         // Tests that we can refer to nested elements under a sample in a path
         // statement
         boolean asc = randomBoolean();
-        SearchResponse response = client().prepareSearch("test").setTypes("book").setSearchType(SearchType.QUERY_AND_FETCH)
+        SearchResponse response = client().prepareSearch("test").setTypes("book").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .addAggregation(terms("genres")
                         .field("genre")
-                        .order(Terms.Order.aggregation("sample>max_price.value", asc))
+                        .order(BucketOrder.aggregation("sample>max_price.value", asc))
                         .subAggregation(sampler("sample").shardSize(100)
                                 .subAggregation(max("max_price").field("price")))
                 ).execute().actionGet();
         assertSearchResponse(response);
         Terms genres = response.getAggregations().get("genres");
-        Collection<Bucket> genreBuckets = genres.getBuckets();
+        List<? extends Bucket> genreBuckets = genres.getBuckets();
         // For this test to be useful we need >1 genre bucket to compare
         assertThat(genreBuckets.size(), greaterThan(1));
         double lastMaxPrice = asc ? Double.MIN_VALUE : Double.MAX_VALUE;
@@ -123,14 +125,14 @@ public class SamplerIT extends ESIntegTestCase {
     }
 
     public void testSimpleSampler() throws Exception {
-        SamplerAggregatorBuilder sampleAgg = sampler("sample").shardSize(100);
+        SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
-        SearchResponse response = client().prepareSearch("test").setSearchType(SearchType.QUERY_AND_FETCH)
+        SearchResponse response = client().prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("genre", "fantasy")).setFrom(0).setSize(60).addAggregation(sampleAgg).execute().actionGet();
         assertSearchResponse(response);
         Sampler sample = response.getAggregations().get("sample");
         Terms authors = sample.getAggregations().get("authors");
-        Collection<Bucket> testBuckets = authors.getBuckets();
+        List<? extends Bucket> testBuckets = authors.getBuckets();
 
         long maxBooksPerAuthor = 0;
         for (Terms.Bucket testBucket : testBuckets) {
@@ -140,10 +142,10 @@ public class SamplerIT extends ESIntegTestCase {
     }
 
     public void testUnmappedChildAggNoDiversity() throws Exception {
-        SamplerAggregatorBuilder sampleAgg = sampler("sample").shardSize(100);
+        SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
         SearchResponse response = client().prepareSearch("idx_unmapped")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("genre", "fantasy"))
                 .setFrom(0).setSize(60)
                 .addAggregation(sampleAgg)
@@ -157,10 +159,10 @@ public class SamplerIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmappedChildAggNoDiversity() throws Exception {
-        SamplerAggregatorBuilder sampleAgg = sampler("sample").shardSize(100);
+        SamplerAggregationBuilder sampleAgg = sampler("sample").shardSize(100);
         sampleAgg.subAggregation(terms("authors").field("author"));
         SearchResponse response = client().prepareSearch("idx_unmapped", "test")
-                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .setQuery(new TermQueryBuilder("genre", "fantasy"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(sampleAgg)

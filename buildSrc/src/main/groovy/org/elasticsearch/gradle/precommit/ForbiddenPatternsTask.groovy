@@ -59,8 +59,16 @@ public class ForbiddenPatternsTask extends DefaultTask {
         filesFilter.exclude('**/*.png')
 
         // add mandatory rules
-        patterns.put('nocommit', /nocommit/)
+        patterns.put('nocommit', /nocommit|NOCOMMIT/)
+        patterns.put('nocommit should be all lowercase or all uppercase',
+            /((?i)nocommit)(?<!(nocommit|NOCOMMIT))/)
         patterns.put('tab', /\t/)
+        if (System.getProperty('build.snapshot', 'true').equals('false')) {
+            patterns.put('norelease', /norelease|NORELEASE/)
+        }
+        patterns.put('norelease should be all lowercase or all uppercase',
+            /((?i)norelease)(?<!(norelease|NORELEASE))/)
+
 
         inputs.property("excludes", filesFilter.excludes)
         inputs.property("rules", patterns)

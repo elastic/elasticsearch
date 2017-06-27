@@ -20,8 +20,6 @@
 package org.elasticsearch.common.recycler;
 
 
-/**
- */
 public class NoneRecycler<T> extends AbstractRecycler<T> {
 
     public NoneRecycler(C<T> c) {

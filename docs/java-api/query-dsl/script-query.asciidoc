@@ -3,37 +3,27 @@
 
 See {ref}/query-dsl-script-query.html[Script Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = scriptQuery(
-    new Script("doc['num1'].value > 1") <1>
-);
+include-tagged::{query-dsl-test}[script_inline]
 --------------------------------------------------
 <1> inlined script
 
 
-If you have stored on each data node a script named `mygroovyscript.groovy` with:
+If you have stored on each data node a script named `myscript.painless` with:
 
-[source,groovy]
+[source,painless]
 --------------------------------------------------
-doc['num1'].value > param1
+doc['num1'].value > params.param1
 --------------------------------------------------
 
 You can use it then with:
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = scriptQuery(
-    new Script(
-        "mygroovyscript",                    <1>
-        ScriptType.FILE,       <2>
-        "groovy",                            <3>
-        ImmutableMap.of("param1", 5))        <4>
-);
+include-tagged::{query-dsl-test}[script_file]
 --------------------------------------------------
-<1> Script name
-<2> Script type: either `ScriptType.FILE`, `ScriptType.INLINE` or `ScriptType.INDEXED`
-<3> Scripting engine
-<4> Parameters as a `Map` of `<String, Object>`
-
-
+<1> Script type: either `ScriptType.FILE`, `ScriptType.INLINE` or `ScriptType.INDEXED`
+<2> Scripting engine
+<3> Script name
+<4> Parameters as a `Map<String, Object>`

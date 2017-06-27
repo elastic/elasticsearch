@@ -19,23 +19,22 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
-import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
 public class TurkishAnalyzerProvider extends AbstractIndexAnalyzerProvider<TurkishAnalyzer> {
 
     private final TurkishAnalyzer analyzer;
 
     public TurkishAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        analyzer = new TurkishAnalyzer(Analysis.parseStopWords(env, settings, TurkishAnalyzer.getDefaultStopSet()),
-                                       Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer = new TurkishAnalyzer(
+            Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, TurkishAnalyzer.getDefaultStopSet()),
+            Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
+        );
         analyzer.setVersion(version);
     }
 

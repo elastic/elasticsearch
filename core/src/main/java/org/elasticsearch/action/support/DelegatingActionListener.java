@@ -41,7 +41,7 @@ public abstract class DelegatingActionListener<Instigator extends ActionResponse
     }
 
     @Override
-    public final void onFailure(Throwable e) {
+    public final void onFailure(Exception e) {
         delegatedActionListener.onFailure(e);
     }
 }

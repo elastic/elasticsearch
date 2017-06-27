@@ -21,6 +21,8 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanWithinQuery;
+import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 
@@ -34,24 +36,14 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanWithinQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanWithinQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(SpanWithinQuery.class));
     }
 
     public void testIllegalArguments() {
-        try {
-            new SpanWithinQueryBuilder(null, SpanTermQueryBuilder.PROTOTYPE);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
-
-        try {
-            new SpanWithinQueryBuilder(SpanTermQueryBuilder.PROTOTYPE, null);
-            fail("cannot be null");
-        } catch (IllegalArgumentException e) {
-            // expected
-        }
+        SpanTermQueryBuilder spanTermQuery = new SpanTermQueryBuilder("field", "value");
+        expectThrows(IllegalArgumentException.class, () -> new SpanWithinQueryBuilder(null, spanTermQuery));
+        expectThrows(IllegalArgumentException.class, () -> new SpanWithinQueryBuilder(spanTermQuery, null));
     }
 
     public void testFromJson() throws IOException {

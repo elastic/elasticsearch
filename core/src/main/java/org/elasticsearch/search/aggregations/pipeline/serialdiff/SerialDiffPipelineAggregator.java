@@ -23,17 +23,16 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,27 +44,11 @@ import java.util.stream.StreamSupport;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class SerialDiffPipelineAggregator extends PipelineAggregator {
-
-    public final static Type TYPE = new Type("serial_diff");
-
-    public final static PipelineAggregatorStreams.Stream STREAM = in -> {
-        SerialDiffPipelineAggregator result = new SerialDiffPipelineAggregator();
-        result.readFrom(in);
-        return result;
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-    }
-
-    private ValueFormatter formatter;
+    private DocValueFormat formatter;
     private GapPolicy gapPolicy;
     private int lag;
 
-    public SerialDiffPipelineAggregator() {
-    }
-
-    public SerialDiffPipelineAggregator(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
+    public SerialDiffPipelineAggregator(String name, String[] bucketsPaths, @Nullable DocValueFormat formatter, GapPolicy gapPolicy,
                                         int lag, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
@@ -73,24 +56,43 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
         this.lag = lag;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public SerialDiffPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        formatter = in.readNamedWriteable(DocValueFormat.class);
+        gapPolicy = GapPolicy.readFrom(in);
+        lag = in.readVInt();
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public void doWriteTo(StreamOutput out) throws IOException {
+        out.writeNamedWriteable(formatter);
+        gapPolicy.writeTo(out);
+        out.writeVInt(lag);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return SerialDiffPipelineAggregationBuilder.NAME;
     }
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalHistogram histo = (InternalHistogram) aggregation;
-        List<? extends InternalHistogram.Bucket> buckets = histo.getBuckets();
-        InternalHistogram.Factory<? extends InternalHistogram.Bucket> factory = histo.getFactory();
+        InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
+                histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
+                InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
+        HistogramFactory factory = (HistogramFactory) histo;
 
-        List newBuckets = new ArrayList<>();
+        List<Bucket> newBuckets = new ArrayList<>();
         EvictingQueue<Double> lagWindow = new EvictingQueue<>(lag);
         int counter = 0;
 
-        for (InternalHistogram.Bucket bucket : buckets) {
+        for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
-            InternalHistogram.Bucket newBucket = bucket;
+            Bucket newBucket = bucket;
 
             counter += 1;
 
@@ -111,33 +113,15 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
             if (!Double.isNaN(thisBucketValue) && !Double.isNaN(lagValue)) {
                 double diff = thisBucketValue - lagValue;
 
-                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
-                    return (InternalAggregation) p;
-                }).collect(Collectors.toList());
-                aggs.add(new InternalSimpleValue(name(), diff, formatter, new ArrayList<PipelineAggregator>(), metaData()));
-                newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
-                        aggs), bucket.getKeyed(), bucket.getFormatter());
+                List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map(
+                        (p) -> (InternalAggregation) p).collect(Collectors.toList());
+                aggs.add(new InternalSimpleValue(name(), diff, formatter, new ArrayList<>(), metaData()));
+                newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), new InternalAggregations(aggs));
             }
-
 
             newBuckets.add(newBucket);
             lagWindow.add(thisBucketValue);
-
         }
-        return factory.create(newBuckets, histo);
-    }
-
-    @Override
-    public void doReadFrom(StreamInput in) throws IOException {
-        formatter = ValueFormatterStreams.readOptional(in);
-        gapPolicy = GapPolicy.readFrom(in);
-        lag = in.readVInt();
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        ValueFormatterStreams.writeOptional(formatter, out);
-        gapPolicy.writeTo(out);
-        out.writeVInt(lag);
+        return factory.createAggregation(newBuckets);
     }
 }

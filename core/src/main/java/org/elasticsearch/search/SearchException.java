@@ -26,9 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class SearchException extends ElasticsearchException implements ElasticsearchWrapperException {
 
     private final SearchShardTarget shardTarget;
@@ -45,7 +42,7 @@ public class SearchException extends ElasticsearchException implements Elasticse
     public SearchException(StreamInput in) throws IOException {
         super(in);
         if (in.readBoolean()) {
-            shardTarget = SearchShardTarget.readSearchShardTarget(in);
+            shardTarget = new SearchShardTarget(in);
         } else {
             shardTarget = null;
         }
@@ -54,7 +51,12 @@ public class SearchException extends ElasticsearchException implements Elasticse
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalStreamable(shardTarget);
+        if (shardTarget == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            shardTarget.writeTo(out);
+        }
     }
 
     public SearchShardTarget shard() {

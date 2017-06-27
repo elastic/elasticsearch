@@ -22,10 +22,12 @@ configure(subprojects.findAll { it.parent.path == project.path }) {
   group = 'org.elasticsearch.plugin'
 
   apply plugin: 'elasticsearch.esplugin'
-  apply plugin: 'com.bmuschko.nexus'
 
   esplugin {
     // for local ES plugins, the name of the plugin is the same as the directory
     name project.name
+    
+    licenseFile rootProject.file('LICENSE.txt')
+    noticeFile rootProject.file('NOTICE.txt')
   }
 }

@@ -21,10 +21,10 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -37,12 +37,12 @@ import java.io.IOException;
 
 public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexFieldData<BytesBinaryDVAtomicFieldData> {
 
-    public BytesBinaryDVIndexFieldData(Index index, String fieldName, FieldDataType fieldDataType) {
-        super(index, fieldName, fieldDataType);
+    public BytesBinaryDVIndexFieldData(Index index, String fieldName) {
+        super(index, fieldName);
     }
 
     @Override
-    public final XFieldComparatorSource comparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {
+    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
         throw new IllegalArgumentException("can't sort on binary field");
     }
 
@@ -67,7 +67,7 @@ public class BytesBinaryDVIndexFieldData extends DocValuesIndexFieldData impleme
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
             final String fieldName = fieldType.name();
-            return new BytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldName, fieldType.fieldDataType());
+            return new BytesBinaryDVIndexFieldData(indexSettings.getIndex(), fieldName);
         }
 
     }

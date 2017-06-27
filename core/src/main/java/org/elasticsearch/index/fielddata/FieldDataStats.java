@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
+import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,24 +27,27 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Objects;
 
-/**
- */
 public class FieldDataStats implements Streamable, ToXContent {
 
+    private static final String FIELDDATA = "fielddata";
+    private static final String MEMORY_SIZE = "memory_size";
+    private static final String MEMORY_SIZE_IN_BYTES = "memory_size_in_bytes";
+    private static final String EVICTIONS = "evictions";
+    private static final String FIELDS = "fields";
     long memorySize;
     long evictions;
     @Nullable
-    ObjectLongHashMap<String> fields;
+    FieldMemoryStats fields;
 
     public FieldDataStats() {
 
     }
 
-    public FieldDataStats(long memorySize, long evictions, @Nullable ObjectLongHashMap<String> fields) {
+    public FieldDataStats(long memorySize, long evictions, @Nullable FieldMemoryStats fields) {
         this.memorySize = memorySize;
         this.evictions = evictions;
         this.fields = fields;
@@ -54,17 +57,10 @@ public class FieldDataStats implements Streamable, ToXContent {
         this.memorySize += stats.memorySize;
         this.evictions += stats.evictions;
         if (stats.fields != null) {
-            if (fields == null) { 
-                fields = stats.fields.clone();
+            if (fields == null) {
+                fields = stats.fields.copy();
             } else {
-                assert !stats.fields.containsKey(null);
-                final Object[] keys = stats.fields.keys;
-                final long[] values = stats.fields.values;
-                for (int i = 0; i < keys.length; i++) {
-                    if (keys[i] != null) {
-                        fields.addTo((String) keys[i], values[i]);
-                    }
-                }
+                fields.add(stats.fields);
             }
         }
     }
@@ -82,78 +78,48 @@ public class FieldDataStats implements Streamable, ToXContent {
     }
 
     @Nullable
-    public ObjectLongHashMap<String> getFields() {
+    public FieldMemoryStats getFields() {
         return fields;
-    }
-
-    public static FieldDataStats readFieldDataStats(StreamInput in) throws IOException {
-        FieldDataStats stats = new FieldDataStats();
-        stats.readFrom(in);
-        return stats;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         memorySize = in.readVLong();
         evictions = in.readVLong();
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            fields = new ObjectLongHashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                fields.put(in.readString(), in.readVLong());
-            }
-        }
+        fields = in.readOptionalWriteable(FieldMemoryStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(memorySize);
         out.writeVLong(evictions);
-        if (fields == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeVInt(fields.size());
-            assert !fields.containsKey(null);
-            final Object[] keys = fields.keys;
-            final long[] values = fields.values;
-            for (int i = 0; i < keys.length; i++) {
-                if (keys[i] != null) {
-                    out.writeString((String) keys[i]);
-                    out.writeVLong(values[i]);
-                }
-            }
-        }
+        out.writeOptionalWriteable(fields);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Fields.FIELDDATA);
-        builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, memorySize);
-        builder.field(Fields.EVICTIONS, getEvictions());
+        builder.startObject(FIELDDATA);
+        builder.byteSizeField(MEMORY_SIZE_IN_BYTES, MEMORY_SIZE, memorySize);
+        builder.field(EVICTIONS, getEvictions());
         if (fields != null) {
-            builder.startObject(Fields.FIELDS);
-            assert !fields.containsKey(null);
-            final Object[] keys = fields.keys;
-            final long[] values = fields.values;
-            for (int i = 0; i < keys.length; i++) {
-                if (keys[i] != null) {
-                    builder.startObject((String) keys[i], XContentBuilder.FieldCaseConversion.NONE);
-                    builder.byteSizeField(Fields.MEMORY_SIZE_IN_BYTES, Fields.MEMORY_SIZE, values[i]);
-                    builder.endObject();
-                }
-            }
-            builder.endObject();
+            fields.toXContent(builder, FIELDS, MEMORY_SIZE_IN_BYTES, MEMORY_SIZE);
         }
         builder.endObject();
         return builder;
     }
 
-    static final class Fields {
-        static final XContentBuilderString FIELDDATA = new XContentBuilderString("fielddata");
-        static final XContentBuilderString MEMORY_SIZE = new XContentBuilderString("memory_size");
-        static final XContentBuilderString MEMORY_SIZE_IN_BYTES = new XContentBuilderString("memory_size_in_bytes");
-        static final XContentBuilderString EVICTIONS = new XContentBuilderString("evictions");
-        static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        FieldDataStats that = (FieldDataStats) o;
+        return memorySize == that.memorySize &&
+            evictions == that.evictions &&
+            Objects.equals(fields, that.fields);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(memorySize, evictions, fields);
     }
 }

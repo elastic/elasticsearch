@@ -3,8 +3,8 @@
 
 See {ref}/query-dsl-type-query.html[Type Query]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = typeQuery("my_type"); <1>
+include-tagged::{query-dsl-test}[type]
 --------------------------------------------------
 <1> type

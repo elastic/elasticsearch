@@ -20,14 +20,12 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.max;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,36 +34,24 @@ import java.util.List;
 import java.util.Map;
 
 public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
-
-    public final static Type TYPE = new Type("max_bucket");
-
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public MaxBucketPipelineAggregator readResult(StreamInput in) throws IOException {
-            MaxBucketPipelineAggregator result = new MaxBucketPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-    }
-
     private List<String> maxBucketKeys;
     private double maxValue;
 
-    private MaxBucketPipelineAggregator() {
-    }
-
-    protected MaxBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter,
+    protected MaxBucketPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat formatter,
             Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
     }
 
+    /**
+     * Read from a stream.
+     */
+    public MaxBucketPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public String getWriteableName() {
+        return MaxBucketPipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -88,7 +74,7 @@ public class MaxBucketPipelineAggregator extends BucketMetricsPipelineAggregator
     @Override
     protected InternalAggregation buildAggregation(List<PipelineAggregator> pipelineAggregators, Map<String, Object> metadata) {
         String[] keys = maxBucketKeys.toArray(new String[maxBucketKeys.size()]);
-        return new InternalBucketMetricValue(name(), keys, maxValue, formatter, Collections.emptyList(), metaData());
+        return new InternalBucketMetricValue(name(), keys, maxValue, format, Collections.emptyList(), metaData());
     }
 
 }

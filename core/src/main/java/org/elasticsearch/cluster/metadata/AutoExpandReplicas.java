@@ -20,6 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 
 /**
  * This class acts as a functional wrapper around the <tt>index.auto_expand_replicas</tt> setting.
@@ -32,7 +33,7 @@ final class AutoExpandReplicas {
     public static final Setting<AutoExpandReplicas> SETTING = new Setting<>(IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, "false", (value) -> {
         final int min;
         final int max;
-        if (Booleans.parseBoolean(value, true) == false) {
+        if (Booleans.isFalse(value)) {
             return new AutoExpandReplicas(0, 0, false);
         }
         final int dash = value.indexOf('-');
@@ -56,7 +57,7 @@ final class AutoExpandReplicas {
             }
         }
         return new AutoExpandReplicas(min, max, true);
-    }, true, Setting.Scope.INDEX);
+    }, Property.Dynamic, Property.IndexScope);
 
     private final int minReplicas;
     private final int maxReplicas;

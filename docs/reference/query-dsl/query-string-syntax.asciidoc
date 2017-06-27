@@ -38,10 +38,6 @@ search terms, but it is possible to specify other fields in the query syntax:
 
     book.\*:(quick brown)
 
-* where the field `title` has no value (or is missing):
-
-    _missing_:title
-
 * where the field `title` has any non-null value:
 
     _exists_:title
@@ -65,12 +61,15 @@ they match.  Leading wildcards can be disabled by setting
 `allow_leading_wildcard` to `false`.
 =======
 
-Wildcarded terms are not analyzed by default -- they are lowercased
-(`lowercase_expanded_terms` defaults to `true`) but no further analysis
-is done, mainly because it is impossible to accurately analyze a word that
-is missing some of its letters.  However, by setting `analyze_wildcard` to
-`true`, an attempt will be made to analyze wildcarded words before searching
-the term list for matching terms.
+Only parts of the analysis chain that operate at the character level are
+applied. So for instance, if the analyzer performs both lowercasing and
+stemming, only the lowercasing will be applied: it would be wrong to perform
+stemming on a word that is missing some of its letters.
+
+By setting `analyze_wildcard` to true, queries that end with a `*` will be
+analyzed and a boolean query will be built out of the different tokens, by
+ensuring exact matches on the first N-1 tokens, and prefix match on the last
+token.
 
 ===== Regular expressions
 
@@ -280,14 +279,18 @@ The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
 Failing to escape these special characters correctly could lead to a syntax
 error which prevents your query from running.
 
+NOTE: `<` and `>` can't be escaped at all. The only way to prevent them from
+attempting to create a range query is to remove them from the query string
+entirely.
+
 .Watch this space
 ****
 A space may also be a reserved character.  For instance, if you have a
 synonym list which converts `"wi fi"` to `"wifi"`, a `query_string` search
 for `"wi fi"` would fail. The query string parser would interpret your
 query as a search for `"wi OR fi"`, while the token stored in your
-index is actually `"wifi"`.  Escaping the space will protect it from
-being touched by the query string parser: `"wi\ fi"`.
+index is actually `"wifi"`.  The option `split_on_whitespace=false` will protect it from
+being touched by the query string parser and will let the analysis run on the entire input (`"wi fi"`).
 ****
 
 ===== Empty Query

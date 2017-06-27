@@ -35,9 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class MoreLikeThisQueryTests extends ESTestCase {
     public void testSimple() throws Exception {
         Directory dir = new RAMDirectory();
@@ -54,7 +51,7 @@ public class MoreLikeThisQueryTests extends ESTestCase {
         document.add(new TextField("text", "lucene release", Field.Store.YES));
         indexWriter.addDocument(document);
 
-        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexReader reader = DirectoryReader.open(indexWriter);
         IndexSearcher searcher = new IndexSearcher(reader);
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery("lucene", new String[]{"text"}, Lucene.STANDARD_ANALYZER);

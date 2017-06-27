@@ -19,64 +19,34 @@
 
 package org.elasticsearch.common.compress;
 
-import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.deflate.DeflateCompressor;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.jboss.netty.buffer.ChannelBuffer;
 
 import java.io.IOException;
+import java.util.Objects;
 
-/**
- */
 public class CompressorFactory {
 
-    private static final Compressor[] compressors;
-    private static volatile Compressor defaultCompressor;
-
-    static {
-        compressors = new Compressor[] {
-                new DeflateCompressor()
-        };
-        defaultCompressor = new DeflateCompressor();
-    }
-
-    public static void setDefaultCompressor(Compressor defaultCompressor) {
-        CompressorFactory.defaultCompressor = defaultCompressor;
-    }
-
-    public static Compressor defaultCompressor() {
-        return defaultCompressor;
-    }
+    public static final Compressor COMPRESSOR = new DeflateCompressor();
 
     public static boolean isCompressed(BytesReference bytes) {
         return compressor(bytes) != null;
     }
 
-    /**
-     * @deprecated we don't compress lucene indexes anymore and rely on lucene codecs
-     */
-    @Deprecated
-    public static boolean isCompressed(IndexInput in) throws IOException {
-        return compressor(in) != null;
-    }
-
     @Nullable
     public static Compressor compressor(BytesReference bytes) {
-        for (Compressor compressor : compressors) {
-            if (compressor.isCompressed(bytes)) {
+            if (COMPRESSOR.isCompressed(bytes)) {
                 // bytes should be either detected as compressed or as xcontent,
                 // if we have bytes that can be either detected as compressed or
                 // as a xcontent, we have a problem
                 assert XContentFactory.xContentType(bytes) == null;
-                return compressor;
+                return COMPRESSOR;
             }
-        }
 
         XContentType contentType = XContentFactory.xContentType(bytes);
         if (contentType == null) {
@@ -97,34 +67,12 @@ public class CompressorFactory {
                (bytes.get(2) == 0 || bytes.get(2) == 1);
     }
 
-    public static Compressor compressor(ChannelBuffer buffer) {
-        for (Compressor compressor : compressors) {
-            if (compressor.isCompressed(buffer)) {
-                return compressor;
-            }
-        }
-        throw new NotCompressedException();
-    }
-
-    /**
-     * @deprecated we don't compress lucene indexes anymore and rely on lucene codecs
-     */
-    @Deprecated
-    @Nullable
-    public static Compressor compressor(IndexInput in) throws IOException {
-        for (Compressor compressor : compressors) {
-            if (compressor.isCompressed(in)) {
-                return compressor;
-            }
-        }
-        return null;
-    }
-
     /**
      * Uncompress the provided data, data can be detected as compressed using {@link #isCompressed(BytesReference)}.
+     * @throws NullPointerException a NullPointerException will be thrown when bytes is null
      */
     public static BytesReference uncompressIfNeeded(BytesReference bytes) throws IOException {
-        Compressor compressor = compressor(bytes);
+        Compressor compressor = compressor(Objects.requireNonNull(bytes, "the BytesReference must not be null"));
         BytesReference uncompressed;
         if (compressor != null) {
             uncompressed = uncompress(bytes, compressor);

@@ -39,13 +39,25 @@
           "description" : "A comma-separated list of specific routing values"
         },
         "scroll": {
-          "type" : "duration",
+          "type" : "time",
           "description" : "Specify how long a consistent view of the index should be maintained for scrolled search"
         },
         "search_type": {
           "type" : "enum",
           "options" : ["query_then_fetch", "query_and_fetch", "dfs_query_then_fetch", "dfs_query_and_fetch"],
           "description" : "Search operation type"
+        },
+        "explain": {
+          "type" : "boolean",
+          "description" : "Specify whether to return detailed information about score computation as part of a hit"
+        },
+        "profile": {
+          "type" : "boolean",
+          "description" : "Specify whether to profile the query execution"
+        },
+        "typed_keys": {
+          "type" : "boolean",
+          "description" : "Specify whether aggregation and suggester names should be prefixed by their respective types in the response"
         }
       }
     },

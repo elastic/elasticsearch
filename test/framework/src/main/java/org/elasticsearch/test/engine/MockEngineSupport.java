@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.engine;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -28,9 +29,9 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -46,7 +47,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * Support class to build MockEngines like {@link org.elasticsearch.test.engine.MockInternalEngine} or {@link org.elasticsearch.test.engine.MockShadowEngine}
+ * Support class to build MockEngines like {@link org.elasticsearch.test.engine.MockInternalEngine}
  * since they need to subclass the actual engine
  */
 public final class MockEngineSupport {
@@ -55,15 +56,17 @@ public final class MockEngineSupport {
      * Allows tests to wrap an index reader randomly with a given ratio. This is disabled by default ie. <tt>0.0d</tt> since reader wrapping is insanely
      * slow if {@link org.apache.lucene.index.AssertingDirectoryReader} is used.
      */
-    public static final Setting<Double> WRAP_READER_RATIO = Setting.doubleSetting("index.engine.mock.random.wrap_reader_ratio", 0.0d, 0.0d, false, Setting.Scope.INDEX);
+    public static final Setting<Double> WRAP_READER_RATIO =
+        Setting.doubleSetting("index.engine.mock.random.wrap_reader_ratio", 0.0d, 0.0d, Property.IndexScope);
     /**
      * Allows tests to prevent an engine from being flushed on close ie. to test translog recovery...
      */
-    public static final Setting<Boolean> DISABLE_FLUSH_ON_CLOSE = Setting.boolSetting("index.mock.disable_flush_on_close", false, false, Setting.Scope.INDEX);
+    public static final Setting<Boolean> DISABLE_FLUSH_ON_CLOSE =
+        Setting.boolSetting("index.mock.disable_flush_on_close", false, Property.IndexScope);
 
 
     private final AtomicBoolean closing = new AtomicBoolean(false);
-    private final ESLogger logger = Loggers.getLogger(Engine.class);
+    private final Logger logger = Loggers.getLogger(Engine.class);
     private final ShardId shardId;
     private final QueryCache filterCache;
     private final QueryCachingPolicy filterCachingPolicy;
@@ -169,17 +172,12 @@ public final class MockEngineSupport {
         return reader;
     }
 
-    public static abstract class DirectoryReaderWrapper extends FilterDirectoryReader {
+    public abstract static class DirectoryReaderWrapper extends FilterDirectoryReader {
         protected final SubReaderWrapper subReaderWrapper;
 
         public DirectoryReaderWrapper(DirectoryReader in, SubReaderWrapper subReaderWrapper) throws IOException {
             super(in, subReaderWrapper);
             this.subReaderWrapper = subReaderWrapper;
-        }
-
-        @Override
-        public Object getCoreCacheKey() {
-            return in.getCoreCacheKey();
         }
 
     }

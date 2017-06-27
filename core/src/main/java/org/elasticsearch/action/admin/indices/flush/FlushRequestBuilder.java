@@ -22,9 +22,6 @@ package org.elasticsearch.action.admin.indices.flush;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushRequest, FlushResponse, FlushRequestBuilder> {
 
     public FlushRequestBuilder(ElasticsearchClient client, FlushAction action) {

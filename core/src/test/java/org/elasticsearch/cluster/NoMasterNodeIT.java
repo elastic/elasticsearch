@@ -23,54 +23,52 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
-import java.util.HashMap;
+import java.util.Collections;
 
-import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThan;
 
-/**
- */
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
-@ESIntegTestCase.SuppressLocalMode
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0, autoMinMasterNodes = false)
 public class NoMasterNodeIT extends ESIntegTestCase {
-    public void testNoMasterActions() throws Exception {
-        // note, sometimes, we want to check with the fact that an index gets created, sometimes not...
-        boolean autoCreateIndex = randomBoolean();
-        logger.info("auto_create_index set to {}", autoCreateIndex);
 
-        Settings settings = settingsBuilder()
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), "zen").build();
+    }
+
+    public void testNoMasterActions() throws Exception {
+        Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
-                .put("action.auto_create_index", autoCreateIndex)
+                .put("action.auto_create_index", true)
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .put(DiscoverySettings.NO_MASTER_BLOCK_SETTING.getKey(), "all")
                 .build();
 
-        TimeValue timeout = TimeValue.timeValueMillis(200);
+        final TimeValue timeout = TimeValue.timeValueMillis(10);
 
         internalCluster().startNode(settings);
         // start a second node, create an index, and then shut it down so we have no master block
@@ -78,12 +76,9 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         createIndex("test");
         client().admin().cluster().prepareHealth("test").setWaitForGreenStatus().execute().actionGet();
         internalCluster().stopRandomDataNode();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                assertTrue(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID));
-            }
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            assertTrue(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID));
         });
 
         assertThrows(client().prepareGet("test", "type1", "1"),
@@ -99,22 +94,6 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         );
 
         assertThrows(client().prepareMultiGet().add("no_index", "type1", "1"),
-                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
-        );
-
-        PercolateSourceBuilder percolateSource = new PercolateSourceBuilder();
-        percolateSource.setDoc(docBuilder().setDoc(new HashMap()));
-        assertThrows(client().preparePercolate()
-                        .setIndices("test").setDocumentType("type1")
-                        .setSource(percolateSource),
-                ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
-        );
-
-        percolateSource = new PercolateSourceBuilder();
-        percolateSource.setDoc(docBuilder().setDoc(new HashMap()));
-        assertThrows(client().preparePercolate()
-                        .setIndices("no_index").setDocumentType("type1")
-                        .setSource(percolateSource),
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
@@ -135,40 +114,41 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        checkWriteAction(
-                false, timeout,
+        checkUpdateAction(false, timeout,
                 client().prepareUpdate("test", "type1", "1")
-                        .setScript(new Script("test script", ScriptService.ScriptType.INLINE, null, null)).setTimeout(timeout));
+                        .setScript(new Script(
+                            ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
+
+        checkUpdateAction(true, timeout,
+                client().prepareUpdate("no_index", "type1", "1")
+                        .setScript(new Script(
+                            ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
+
 
         checkWriteAction(
-                autoCreateIndex, timeout,
-                client().prepareUpdate("no_index", "type1", "1")
-                        .setScript(new Script("test script", ScriptService.ScriptType.INLINE, null, null)).setTimeout(timeout));
+            client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
-
-        checkWriteAction(false, timeout,
-                client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
-
-        checkWriteAction(autoCreateIndex, timeout,
-                client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
+        checkWriteAction(
+            client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout));
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.add(client().prepareIndex("test", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        checkBulkAction(false, bulkRequestBuilder);
+        bulkRequestBuilder.setTimeout(timeout);
+        checkWriteAction(bulkRequestBuilder);
 
         bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        checkBulkAction(autoCreateIndex, bulkRequestBuilder);
+        bulkRequestBuilder.setTimeout(timeout);
+        checkWriteAction(bulkRequestBuilder);
 
         internalCluster().startNode(settings);
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
     }
 
-    void checkWriteAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?, ?> builder) {
+    void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?, ?> builder) {
         // we clean the metadata when loosing a master, therefore all operations on indices will auto create it, if allowed
-        long now = System.currentTimeMillis();
         try {
             builder.get();
             fail("expected ClusterBlockException or MasterNotDiscoveredException");
@@ -178,42 +158,21 @@ public class NoMasterNodeIT extends ESIntegTestCase {
             } else {
                 assertFalse(autoCreateIndex);
             }
-            // verify we waited before giving up...
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
         }
     }
 
-    void checkBulkAction(boolean indexShouldBeAutoCreated, BulkRequestBuilder builder) {
-        // bulk operation do not throw MasterNotDiscoveredException exceptions. The only test that auto create kicked in and failed is
-        // via the timeout, as bulk operation do not wait on blocks.
-        TimeValue timeout;
-        if (indexShouldBeAutoCreated) {
-            // we expect the bulk to fail because it will try to go to the master. Use small timeout and detect it has passed
-            timeout = new TimeValue(200);
-        } else {
-            // the request should fail very quickly - use a large timeout and make sure it didn't pass...
-            timeout = new TimeValue(5000);
-        }
-        builder.setTimeout(timeout);
-        long now = System.currentTimeMillis();
+    void checkWriteAction(ActionRequestBuilder<?, ?, ?> builder) {
         try {
             builder.get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
-            if (indexShouldBeAutoCreated) {
-                // timeout is 200
-                assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
-                assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
-            } else {
-                // timeout is 5000
-                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() - 50));
-            }
+            assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
     }
 
     public void testNoMasterActionsWriteMasterBlock() throws Exception {
-        Settings settings = settingsBuilder()
+        Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
                 .put("action.auto_create_index", false)
                 .put("discovery.zen.minimum_master_nodes", 2)
@@ -235,7 +194,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         ensureSearchable("test1", "test2");
 
         ClusterStateResponse clusterState = client().admin().cluster().prepareState().get();
-        logger.info("Cluster state:\n" + clusterState.getState().prettyPrint());
+        logger.info("Cluster state:\n{}", clusterState.getState());
 
         internalCluster().stopRandomDataNode();
         assertTrue(awaitBusy(() -> {
@@ -260,19 +219,17 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         TimeValue timeout = TimeValue.timeValueMillis(200);
         long now = System.currentTimeMillis();
         try {
-            client().prepareUpdate("test1", "type1", "1").setDoc("field", "value2").setTimeout(timeout).get();
+            client().prepareUpdate("test1", "type1", "1").setDoc(Requests.INDEX_CONTENT_TYPE, "field", "value2").setTimeout(timeout).get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
             assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 
-        now = System.currentTimeMillis();
         try {
             client().prepareIndex("test1", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()).setTimeout(timeout).get();
             fail("Expected ClusterBlockException");
         } catch (ClusterBlockException e) {
-            assertThat(System.currentTimeMillis() - now, greaterThan(timeout.millis() - 50));
             assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
         }
 

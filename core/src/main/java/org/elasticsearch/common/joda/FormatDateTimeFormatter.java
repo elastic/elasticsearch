@@ -22,6 +22,7 @@ package org.elasticsearch.common.joda;
 import org.joda.time.format.DateTimeFormatter;
 
 import java.util.Locale;
+import java.util.Objects;
 
 /**
  * A simple wrapper around {@link DateTimeFormatter} that retains the
@@ -43,9 +44,9 @@ public class FormatDateTimeFormatter {
 
     public FormatDateTimeFormatter(String format, DateTimeFormatter parser, DateTimeFormatter printer, Locale locale) {
         this.format = format;
-        this.locale = locale;
-        this.printer = locale == null ? printer.withDefaultYear(1970) : printer.withLocale(locale).withDefaultYear(1970);
-        this.parser = locale == null ? parser.withDefaultYear(1970) : parser.withLocale(locale).withDefaultYear(1970);
+        this.locale = Objects.requireNonNull(locale, "A locale is required as JODA otherwise uses the default locale");
+        this.printer = printer.withLocale(locale).withDefaultYear(1970);
+        this.parser = parser.withLocale(locale).withDefaultYear(1970);
     }
 
     public String format() {

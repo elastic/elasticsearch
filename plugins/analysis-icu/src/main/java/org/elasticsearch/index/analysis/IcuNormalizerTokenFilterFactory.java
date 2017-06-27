@@ -19,7 +19,10 @@
 
 package org.elasticsearch.index.analysis;
 
+import com.ibm.icu.text.FilteredNormalizer2;
 import com.ibm.icu.text.Normalizer2;
+import com.ibm.icu.text.UnicodeSet;
+
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -28,21 +31,40 @@ import org.elasticsearch.index.IndexSettings;
 
 /**
  * Uses the {@link org.apache.lucene.analysis.icu.ICUNormalizer2Filter} to normalize tokens.
- * <p>The <tt>name</tt> can be used to provide the type of normalization to perform.
+ * <p>The <tt>name</tt> can be used to provide the type of normalization to perform.</p>
+ * <p>The <tt>unicodeSetFilter</tt> attribute can be used to provide the UniCodeSet for filtering.</p>
  *
  *
  */
-public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory {
+public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
-    private final String name;
+    private final Normalizer2 normalizer;
 
     public IcuNormalizerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.name = settings.get("name", "nfkc_cf");
+        String method = settings.get("name", "nfkc_cf");
+        Normalizer2 normalizer = Normalizer2.getInstance(null, method, Normalizer2.Mode.COMPOSE);
+        this.normalizer = wrapWithUnicodeSetFilter(normalizer, settings);
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, Normalizer2.getInstance(null, name, Normalizer2.Mode.COMPOSE));
+        return new org.apache.lucene.analysis.icu.ICUNormalizer2Filter(tokenStream, normalizer);
+    }
+
+    @Override
+    public Object getMultiTermComponent() {
+        return this;
+    }
+
+    static Normalizer2 wrapWithUnicodeSetFilter(final Normalizer2 normalizer, Settings settings) {
+        String unicodeSetFilter = settings.get("unicodeSetFilter");
+        if (unicodeSetFilter != null) {
+            UnicodeSet unicodeSet = new UnicodeSet(unicodeSetFilter);
+
+            unicodeSet.freeze();
+            return new FilteredNormalizer2(normalizer, unicodeSet);
+        }
+        return normalizer;
     }
 }

@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
 
 import java.io.IOException;
@@ -74,10 +75,10 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, Map<String, Map<String, FieldMappingMetaData>>> indexEntry : mappings.entrySet()) {
-            builder.startObject(indexEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(indexEntry.getKey());
             builder.startObject("mappings");
             for (Map.Entry<String, Map<String, FieldMappingMetaData>> typeEntry : indexEntry.getValue().entrySet()) {
-                builder.startObject(typeEntry.getKey(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(typeEntry.getKey());
                 for (Map.Entry<String, FieldMappingMetaData> fieldEntry : typeEntry.getValue().entrySet()) {
                     builder.startObject(fieldEntry.getKey());
                     fieldEntry.getValue().toXContent(builder, params);
@@ -108,11 +109,16 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
         /** Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}. */
         public Map<String, Object> sourceAsMap() {
-            return XContentHelper.convertToMap(source, true).v2();
+            return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();
         }
 
         public boolean isNull() {
             return NULL.fullName().equals(fullName) && NULL.source.length() == source.length();
+        }
+
+        //pkg-private for testing
+        BytesReference getSource() {
+            return source;
         }
 
         @Override
@@ -121,7 +127,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             if (params.paramAsBoolean("pretty", false)) {
                 builder.field("mapping", sourceAsMap());
             } else {
-                builder.rawField("mapping", source);
+                builder.rawField("mapping", source, XContentType.JSON);
             }
             return builder;
         }

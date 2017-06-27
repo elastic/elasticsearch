@@ -25,14 +25,15 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.derivative.Derivative;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
@@ -47,7 +48,9 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
@@ -177,7 +180,7 @@ public class DerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
@@ -216,7 +219,7 @@ public class DerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
@@ -254,13 +257,13 @@ public class DerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         assertThat(deriv.getBuckets().size(), equalTo(numValueBuckets));
-        Object[] propertiesKeys = (Object[]) deriv.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) deriv.getProperty("_count");
-        Object[] propertiesSumCounts = (Object[]) deriv.getProperty("sum.value");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)deriv).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)deriv).getProperty("_count");
+        Object[] propertiesSumCounts = (Object[]) ((InternalAggregation)deriv).getProperty("sum.value");
 
         List<Bucket> buckets = new ArrayList<Bucket>(deriv.getBuckets());
         Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
@@ -277,13 +280,14 @@ public class DerivativeIT extends ESIntegTestCase {
                 assertThat(sumDeriv, notNullValue());
                 long sumDerivValue = expectedSum - expectedSumPreviousBucket;
                 assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
-                assertThat((double) bucket.getProperty("histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
+                assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty("histo",
+                        AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
                         equalTo((double) sumDerivValue));
             } else {
                 assertThat(sumDeriv, nullValue());
             }
             expectedSumPreviousBucket = expectedSum;
-            assertThat((long) propertiesKeys[i], equalTo((long) i * interval));
+            assertThat(propertiesKeys[i], equalTo((double) i * interval));
             assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
             assertThat((double) propertiesSumCounts[i], equalTo((double) expectedSum));
         }
@@ -299,13 +303,13 @@ public class DerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         assertThat(deriv.getBuckets().size(), equalTo(numValueBuckets));
-        Object[] propertiesKeys = (Object[]) deriv.getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) deriv.getProperty("_count");
-        Object[] propertiesSumCounts = (Object[]) deriv.getProperty("stats.sum");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation)deriv).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)deriv).getProperty("_count");
+        Object[] propertiesSumCounts = (Object[]) ((InternalAggregation)deriv).getProperty("stats.sum");
 
         List<Bucket> buckets = new ArrayList<Bucket>(deriv.getBuckets());
         Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
@@ -322,13 +326,14 @@ public class DerivativeIT extends ESIntegTestCase {
                 assertThat(sumDeriv, notNullValue());
                 long sumDerivValue = expectedSum - expectedSumPreviousBucket;
                 assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
-                assertThat((double) bucket.getProperty("histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
+                assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty("histo",
+                        AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
                         equalTo((double) sumDerivValue));
             } else {
                 assertThat(sumDeriv, nullValue());
             }
             expectedSumPreviousBucket = expectedSum;
-            assertThat((long) propertiesKeys[i], equalTo((long) i * interval));
+            assertThat(propertiesKeys[i], equalTo((double) i * interval));
             assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
             assertThat((double) propertiesSumCounts[i], equalTo((double) expectedSum));
         }
@@ -343,7 +348,7 @@ public class DerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         assertThat(deriv.getBuckets().size(), equalTo(0));
@@ -358,7 +363,7 @@ public class DerivativeIT extends ESIntegTestCase {
 
         assertSearchResponse(response);
 
-        InternalHistogram<Bucket> deriv = response.getAggregations().get("histo");
+        Histogram deriv = response.getAggregations().get("histo");
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
@@ -387,10 +392,10 @@ public class DerivativeIT extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
 
-        InternalHistogram<Bucket> deriv = searchResponse.getAggregations().get("histo");
+        Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
-        List<Bucket> buckets = deriv.getBuckets();
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(valueCounts_empty.length));
 
         for (int i = 0; i < valueCounts_empty.length; i++) {
@@ -411,16 +416,16 @@ public class DerivativeIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
-                                .extendedBounds(new ExtendedBounds(0L, (long) numBuckets_empty_rnd - 1))
+                                .extendedBounds(0L, numBuckets_empty_rnd - 1)
                                 .subAggregation(derivative("deriv", "_count").gapPolicy(randomFrom(GapPolicy.values()))))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx_rnd));
 
-        InternalHistogram<Bucket> deriv = searchResponse.getAggregations().get("histo");
+        Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
-        List<Bucket> buckets = deriv.getBuckets();
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(numBuckets_empty_rnd));
 
         for (int i = 0; i < valueCounts_empty_rnd.length; i++) {
@@ -446,10 +451,10 @@ public class DerivativeIT extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
 
-        InternalHistogram<Bucket> deriv = searchResponse.getAggregations().get("histo");
+        Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
-        List<Bucket> buckets = deriv.getBuckets();
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(valueCounts_empty.length));
 
         for (int i = 0; i < valueCounts_empty.length; i++) {
@@ -475,10 +480,10 @@ public class DerivativeIT extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
 
-        InternalHistogram<Bucket> deriv = searchResponse.getAggregations().get("histo");
+        Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
-        List<Bucket> buckets = deriv.getBuckets();
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(valueCounts_empty.length));
 
         double lastSumValue = Double.NaN;
@@ -517,10 +522,10 @@ public class DerivativeIT extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx));
 
-        InternalHistogram<Bucket> deriv = searchResponse.getAggregations().get("histo");
+        Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
-        List<Bucket> buckets = deriv.getBuckets();
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(valueCounts_empty.length));
 
         double lastSumValue = Double.NaN;
@@ -550,16 +555,16 @@ public class DerivativeIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
-                                .extendedBounds(new ExtendedBounds(0L, (long) numBuckets_empty_rnd - 1))
+                                .extendedBounds(0L, (long) numBuckets_empty_rnd - 1)
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(derivative("deriv", "sum").gapPolicy(gapPolicy))).execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx_rnd));
 
-        InternalHistogram<Bucket> deriv = searchResponse.getAggregations().get("histo");
+        Histogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
-        List<Bucket> buckets = deriv.getBuckets();
+        List<? extends Bucket> buckets = deriv.getBuckets();
         assertThat(buckets.size(), equalTo(numBuckets_empty_rnd));
 
         double lastSumValue = Double.NaN;
@@ -612,6 +617,36 @@ public class DerivativeIT extends ESIntegTestCase {
                 throw e;
             }
         }
+    }
+
+    public void testAvgMovavgDerivNPE() throws Exception {
+        createIndex("movavg_npe");
+
+        for (int i = 0; i < 10; i++) {
+            Integer value = i;
+            if (i == 1 || i == 3) {
+                value = null;
+            }
+
+            XContentBuilder doc = jsonBuilder()
+                    .startObject()
+                    .field("tick", i)
+                    .field("value", value)
+                    .endObject();
+            client().prepareIndex("movavg_npe", "type").setSource(doc).get();
+        }
+
+        refresh();
+
+        SearchResponse response = client()
+                .prepareSearch("movavg_npe")
+                .addAggregation(
+                        histogram("histo").field("tick").interval(1)
+                                .subAggregation(avg("avg").field("value"))
+                                .subAggregation(movingAvg("movavg", "avg").modelBuilder(new SimpleModel.SimpleModelBuilder()).window(3))
+                                .subAggregation(derivative("deriv", "movavg"))).execute().actionGet();
+
+        assertSearchResponse(response);
     }
 
     private void checkBucketKeyAndDocCount(final String msg, final Histogram.Bucket bucket, final long expectedKey,

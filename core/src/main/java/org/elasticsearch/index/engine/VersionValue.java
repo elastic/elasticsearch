@@ -21,44 +21,48 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.index.translog.Translog;
 
 import java.util.Collection;
 import java.util.Collections;
 
 class VersionValue implements Accountable {
 
-    private final long version;
-    private final Translog.Location translogLocation;
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(VersionValue.class);
 
-    public VersionValue(long version, Translog.Location translogLocation) {
+    /** the version of the document. used for versioned indexed operations and as a BWC layer, where no seq# are set yet */
+    final long version;
+
+    /** the seq number of the operation that last changed the associated uuid */
+    final long seqNo;
+    /** the the term of the operation that last changed the associated uuid */
+    final long term;
+
+    VersionValue(long version, long seqNo, long term) {
         this.version = version;
-        this.translogLocation = translogLocation;
+        this.seqNo = seqNo;
+        this.term = term;
     }
 
-    public long time() {
-        throw new UnsupportedOperationException();
-    }
-
-    public long version() {
-        return version;
-    }
-
-    public boolean delete() {
+    public boolean isDelete() {
         return false;
-    }
-
-    public Translog.Location translogLocation() {
-        return this.translogLocation;
     }
 
     @Override
     public long ramBytesUsed() {
-        return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_OBJECT_REF + translogLocation.ramBytesUsed();
+        return BASE_RAM_BYTES_USED;
     }
-    
+
     @Override
     public Collection<Accountable> getChildResources() {
         return Collections.emptyList();
+    }
+
+    @Override
+    public String toString() {
+        return "VersionValue{" +
+            "version=" + version +
+            ", seqNo=" + seqNo +
+            ", term=" + term +
+            '}';
     }
 }

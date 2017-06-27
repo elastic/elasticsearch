@@ -19,67 +19,87 @@
 
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
-import org.apache.lucene.spatial.util.GeoEncodingUtils;
+import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
- * Serialization and merge logic for {@link org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregator}
+ * Serialization and merge logic for {@link GeoCentroidAggregator}.
  */
-public class InternalGeoCentroid extends InternalMetricsAggregation implements GeoCentroid {
+public class InternalGeoCentroid extends InternalAggregation implements GeoCentroid {
+    private final GeoPoint centroid;
+    private final long count;
 
-    public final static Type TYPE = new Type("geo_centroid");
-    public final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
-        @Override
-        public InternalGeoCentroid readResult(StreamInput in) throws IOException {
-            InternalGeoCentroid result = new InternalGeoCentroid();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        AggregationStreams.registerStream(STREAM, TYPE.stream());
+    public static long encodeLatLon(double lat, double lon) {
+        return (Integer.toUnsignedLong(GeoEncodingUtils.encodeLatitude(lat)) << 32) | Integer.toUnsignedLong(GeoEncodingUtils.encodeLongitude(lon));
     }
 
-    protected GeoPoint centroid;
-    protected long count;
-
-    protected InternalGeoCentroid() {
+    public static double decodeLatitude(long encodedLatLon) {
+        return GeoEncodingUtils.decodeLatitude((int) (encodedLatLon >>> 32));
     }
 
-    public InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
+    public static double decodeLongitude(long encodedLatLon) {
+        return GeoEncodingUtils.decodeLongitude((int) (encodedLatLon & 0xFFFFFFFFL));
+    }
+
+    InternalGeoCentroid(String name, GeoPoint centroid, long count, List<PipelineAggregator>
             pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
+        assert (centroid == null) == (count == 0);
         this.centroid = centroid;
         assert count >= 0;
         this.count = count;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public InternalGeoCentroid(StreamInput in) throws IOException {
+        super(in);
+        count = in.readVLong();
+        if (in.readBoolean()) {
+            final long hash = in.readLong();
+            centroid = new GeoPoint(decodeLatitude(hash), decodeLongitude(hash));
+        } else {
+            centroid = null;
+        }
+    }
+
+    @Override
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeVLong(count);
+        if (centroid != null) {
+            out.writeBoolean(true);
+            // should we just write lat and lon separately?
+            out.writeLong(encodeLatLon(centroid.lat(), centroid.lon()));
+        } else {
+            out.writeBoolean(false);
+        }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return GeoCentroidAggregationBuilder.NAME;
+    }
+
     @Override
     public GeoPoint centroid() {
-        return (centroid == null || Double.isNaN(centroid.lon()) ? null : centroid);
+        return centroid;
     }
 
     @Override
     public long count() {
         return count;
-    }
-
-    @Override
-    public Type type() {
-        return TYPE;
     }
 
     @Override
@@ -117,6 +137,8 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
                     return centroid.lat();
                 case "lon":
                     return centroid.lon();
+                case "count":
+                    return count;
                 default:
                     throw new IllegalArgumentException("Found unknown path element [" + coordinate + "] in [" + getName() + "]");
             }
@@ -125,36 +147,44 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
         }
     }
 
-    @Override
-    protected void doReadFrom(StreamInput in) throws IOException {
-        count = in.readVLong();
-        if (in.readBoolean()) {
-            centroid = GeoPoint.fromIndexLong(in.readLong());
-        } else {
-            centroid = null;
-        }
-    }
-
-    @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVLong(count);
-        if (centroid != null) {
-            out.writeBoolean(true);
-            out.writeLong(GeoEncodingUtils.mortonHash(centroid.lon(), centroid.lat()));
-        } else {
-            out.writeBoolean(false);
-        }
-    }
-
     static class Fields {
-        public static final XContentBuilderString CENTROID = new XContentBuilderString("location");
+        static final ParseField CENTROID = new ParseField("location");
+        static final ParseField COUNT = new ParseField("count");
+        static final ParseField CENTROID_LAT = new ParseField("lat");
+        static final ParseField CENTROID_LON = new ParseField("lon");
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (centroid != null) {
-            builder.startObject(Fields.CENTROID).field("lat", centroid.lat()).field("lon", centroid.lon()).endObject();
+            builder.startObject(Fields.CENTROID.getPreferredName());
+            {
+                builder.field(Fields.CENTROID_LAT.getPreferredName(), centroid.lat());
+                builder.field(Fields.CENTROID_LON.getPreferredName(), centroid.lon());
+            }
+            builder.endObject();
         }
+        builder.field(Fields.COUNT.getPreferredName(), count);
         return builder;
+    }
+
+    @Override
+    public boolean doEquals(Object o) {
+        InternalGeoCentroid that = (InternalGeoCentroid) o;
+        return count == that.count &&
+                Objects.equals(centroid, that.centroid);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(centroid, count);
+    }
+
+    @Override
+    public String toString() {
+        return "InternalGeoCentroid{" +
+                "centroid=" + centroid +
+                ", count=" + count +
+                '}';
     }
 }

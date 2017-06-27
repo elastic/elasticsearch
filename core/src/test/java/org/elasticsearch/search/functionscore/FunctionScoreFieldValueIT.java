@@ -55,7 +55,6 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()
                         .endObject()).get());
-        ensureYellow();
 
         client().prepareIndex("test", "type1", "1").setSource("test", 5, "body", "foo").get();
         client().prepareIndex("test", "type1", "2").setSource("test", 17, "body", "foo").get();
@@ -111,7 +110,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
                 .setQuery(functionScoreQuery(matchAllQuery(),
                         fieldValueFactorFunction("notmapped").modifier(FieldValueFactorFunction.Modifier.RECIPROCAL).missing(100)))
                 .get();
-        assertEquals(response.getHits().getAt(0).score(), response.getHits().getAt(2).score(), 0);
+        assertEquals(response.getHits().getAt(0).getScore(), response.getHits().getAt(2).getScore(), 0);
 
 
         // n divided by 0 is infinity, which should provoke an exception.

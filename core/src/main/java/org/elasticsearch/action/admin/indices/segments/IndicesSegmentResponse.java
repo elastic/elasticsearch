@@ -19,6 +19,10 @@
 
 package org.elasticsearch.action.admin.indices.segments;
 
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -27,7 +31,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.engine.Segment;
 
 import java.io.IOException;
@@ -38,6 +41,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Locale;
 
 public class IndicesSegmentResponse extends BroadcastResponse implements ToXContent {
 
@@ -102,7 +106,7 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
         builder.startObject(Fields.INDICES);
 
         for (IndexSegments indexSegments : getIndices().values()) {
-            builder.startObject(indexSegments.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(indexSegments.getIndex());
 
             builder.startObject(Fields.SHARDS);
             for (IndexShardSegments indexSegment : indexSegments) {
@@ -141,6 +145,9 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
                         if (segment.getMergeId() != null) {
                             builder.field(Fields.MERGE_ID, segment.getMergeId());
                         }
+                        if (segment.getSegmentSort() != null) {
+                            toXContent(builder, segment.getSegmentSort());
+                        }
                         if (segment.ramTree != null) {
                             builder.startArray(Fields.RAM_TREE);
                             for (Accountable child : segment.ramTree.getChildResources()) {
@@ -164,7 +171,26 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
         builder.endObject();
         return builder;
     }
-    
+
+    static void toXContent(XContentBuilder builder, Sort sort) throws IOException {
+        builder.startArray("sort");
+        for (SortField field : sort.getSort()) {
+            builder.startObject();
+            builder.field("field", field.getField());
+            if (field instanceof SortedNumericSortField) {
+                builder.field("mode", ((SortedNumericSortField) field).getSelector()
+                    .toString().toLowerCase(Locale.ROOT));
+            } else if (field instanceof SortedSetSortField) {
+                builder.field("mode", ((SortedSetSortField) field).getSelector()
+                    .toString().toLowerCase(Locale.ROOT));
+            }
+            builder.field("missing", field.getMissingValue());
+            builder.field("reverse", field.getReverse());
+            builder.endObject();
+        }
+        builder.endArray();
+    }
+
     static void toXContent(XContentBuilder builder, Accountable tree) throws IOException {
         builder.startObject();
         builder.field(Fields.DESCRIPTION, tree.toString());
@@ -181,31 +207,31 @@ public class IndicesSegmentResponse extends BroadcastResponse implements ToXCont
     }
 
     static final class Fields {
-        static final XContentBuilderString INDICES = new XContentBuilderString("indices");
-        static final XContentBuilderString SHARDS = new XContentBuilderString("shards");
-        static final XContentBuilderString ROUTING = new XContentBuilderString("routing");
-        static final XContentBuilderString STATE = new XContentBuilderString("state");
-        static final XContentBuilderString PRIMARY = new XContentBuilderString("primary");
-        static final XContentBuilderString NODE = new XContentBuilderString("node");
-        static final XContentBuilderString RELOCATING_NODE = new XContentBuilderString("relocating_node");
+        static final String INDICES = "indices";
+        static final String SHARDS = "shards";
+        static final String ROUTING = "routing";
+        static final String STATE = "state";
+        static final String PRIMARY = "primary";
+        static final String NODE = "node";
+        static final String RELOCATING_NODE = "relocating_node";
 
-        static final XContentBuilderString SEGMENTS = new XContentBuilderString("segments");
-        static final XContentBuilderString GENERATION = new XContentBuilderString("generation");
-        static final XContentBuilderString NUM_COMMITTED_SEGMENTS = new XContentBuilderString("num_committed_segments");
-        static final XContentBuilderString NUM_SEARCH_SEGMENTS = new XContentBuilderString("num_search_segments");
-        static final XContentBuilderString NUM_DOCS = new XContentBuilderString("num_docs");
-        static final XContentBuilderString DELETED_DOCS = new XContentBuilderString("deleted_docs");
-        static final XContentBuilderString SIZE = new XContentBuilderString("size");
-        static final XContentBuilderString SIZE_IN_BYTES = new XContentBuilderString("size_in_bytes");
-        static final XContentBuilderString COMMITTED = new XContentBuilderString("committed");
-        static final XContentBuilderString SEARCH = new XContentBuilderString("search");
-        static final XContentBuilderString VERSION = new XContentBuilderString("version");
-        static final XContentBuilderString COMPOUND = new XContentBuilderString("compound");
-        static final XContentBuilderString MERGE_ID = new XContentBuilderString("merge_id");
-        static final XContentBuilderString MEMORY = new XContentBuilderString("memory");
-        static final XContentBuilderString MEMORY_IN_BYTES = new XContentBuilderString("memory_in_bytes");
-        static final XContentBuilderString RAM_TREE = new XContentBuilderString("ram_tree");
-        static final XContentBuilderString DESCRIPTION = new XContentBuilderString("description");
-        static final XContentBuilderString CHILDREN = new XContentBuilderString("children");
+        static final String SEGMENTS = "segments";
+        static final String GENERATION = "generation";
+        static final String NUM_COMMITTED_SEGMENTS = "num_committed_segments";
+        static final String NUM_SEARCH_SEGMENTS = "num_search_segments";
+        static final String NUM_DOCS = "num_docs";
+        static final String DELETED_DOCS = "deleted_docs";
+        static final String SIZE = "size";
+        static final String SIZE_IN_BYTES = "size_in_bytes";
+        static final String COMMITTED = "committed";
+        static final String SEARCH = "search";
+        static final String VERSION = "version";
+        static final String COMPOUND = "compound";
+        static final String MERGE_ID = "merge_id";
+        static final String MEMORY = "memory";
+        static final String MEMORY_IN_BYTES = "memory_in_bytes";
+        static final String RAM_TREE = "ram_tree";
+        static final String DESCRIPTION = "description";
+        static final String CHILDREN = "children";
     }
 }

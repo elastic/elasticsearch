@@ -22,13 +22,11 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,39 +35,33 @@ import java.util.List;
 import java.util.Map;
 
 public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
-
-    public final static Type TYPE = new Type("percentiles_bucket");
     public final ParseField PERCENTS_FIELD = new ParseField("percents");
 
-    public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
-        @Override
-        public PercentilesBucketPipelineAggregator readResult(StreamInput in) throws IOException {
-            PercentilesBucketPipelineAggregator result = new PercentilesBucketPipelineAggregator();
-            result.readFrom(in);
-            return result;
-        }
-    };
-
-    public static void registerStreams() {
-        PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
-        InternalPercentilesBucket.registerStreams();
-    }
-
-    private double[] percents;
+    private final double[] percents;
     private List<Double> data;
 
-    private PercentilesBucketPipelineAggregator() {
-    }
-
     protected PercentilesBucketPipelineAggregator(String name, double[] percents, String[] bucketsPaths, GapPolicy gapPolicy,
-                                                  ValueFormatter formatter, Map<String, Object> metaData) {
+                                                  DocValueFormat formatter, Map<String, Object> metaData) {
         super(name, bucketsPaths, gapPolicy, formatter, metaData);
         this.percents = percents;
     }
 
+    /**
+     * Read from a stream.
+     */
+    public PercentilesBucketPipelineAggregator(StreamInput in) throws IOException {
+        super(in);
+        percents = in.readDoubleArray();
+    }
+
     @Override
-    public Type type() {
-        return TYPE;
+    public void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeDoubleArray(percents);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return PercentilesBucketPipelineAggregationBuilder.NAME;
     }
 
     @Override
@@ -96,26 +88,13 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
             }
         } else {
             for (int i = 0; i < percents.length; i++) {
-                int index = (int)((percents[i] / 100.0) * data.size());
+                int index = (int) Math.round((percents[i] / 100.0) * (data.size() - 1));
                 percentiles[i] = data.get(index);
             }
         }
 
         // todo need postCollection() to clean up temp sorted data?
 
-        return new InternalPercentilesBucket(name(), percents, percentiles, formatter, pipelineAggregators, metadata);
+        return new InternalPercentilesBucket(name(), percents, percentiles, format, pipelineAggregators, metadata);
     }
-
-    @Override
-    public void doReadFrom(StreamInput in) throws IOException {
-        super.doReadFrom(in);
-        percents = in.readDoubleArray();
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        super.doWriteTo(out);
-        out.writeDoubleArray(percents);
-    }
-
 }

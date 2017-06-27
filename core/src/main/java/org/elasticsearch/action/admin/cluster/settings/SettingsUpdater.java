@@ -32,8 +32,8 @@ import static org.elasticsearch.cluster.ClusterState.builder;
  * due to the update.
  */
 final class SettingsUpdater {
-    final Settings.Builder transientUpdates = Settings.settingsBuilder();
-    final Settings.Builder persistentUpdates = Settings.settingsBuilder();
+    final Settings.Builder transientUpdates = Settings.builder();
+    final Settings.Builder persistentUpdates = Settings.builder();
     private final ClusterSettings clusterSettings;
 
     SettingsUpdater(ClusterSettings clusterSettings) {
@@ -50,11 +50,11 @@ final class SettingsUpdater {
 
     synchronized ClusterState updateSettings(final ClusterState currentState, Settings transientToApply, Settings persistentToApply) {
         boolean changed = false;
-        Settings.Builder transientSettings = Settings.settingsBuilder();
+        Settings.Builder transientSettings = Settings.builder();
         transientSettings.put(currentState.metaData().transientSettings());
         changed |= clusterSettings.updateDynamicSettings(transientToApply, transientSettings, transientUpdates, "transient");
 
-        Settings.Builder persistentSettings = Settings.settingsBuilder();
+        Settings.Builder persistentSettings = Settings.builder();
         persistentSettings.put(currentState.metaData().persistentSettings());
         changed |= clusterSettings.updateDynamicSettings(persistentToApply, persistentSettings, persistentUpdates, "persistent");
 
@@ -67,17 +67,25 @@ final class SettingsUpdater {
             .transientSettings(transientSettings.build());
 
         ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-        boolean updatedReadOnly = MetaData.SETTING_READ_ONLY_SETTING.get(metaData.persistentSettings()) || MetaData.SETTING_READ_ONLY_SETTING.get(metaData.transientSettings());
+        boolean updatedReadOnly = MetaData.SETTING_READ_ONLY_SETTING.get(metaData.persistentSettings())
+            || MetaData.SETTING_READ_ONLY_SETTING.get(metaData.transientSettings());
         if (updatedReadOnly) {
             blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
         } else {
             blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
         }
+        boolean updatedReadOnlyAllowDelete = MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.persistentSettings())
+            || MetaData.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(metaData.transientSettings());
+        if (updatedReadOnlyAllowDelete) {
+            blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+        } else {
+            blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_ALLOW_DELETE_BLOCK);
+        }
         ClusterState build = builder(currentState).metaData(metaData).blocks(blocks).build();
         Settings settings = build.metaData().settings();
         // now we try to apply things and if they are invalid we fail
         // this dryRun will validate & parse settings but won't actually apply them.
-        clusterSettings.dryRun(settings);
+        clusterSettings.validateUpdate(settings);
         return build;
     }
 

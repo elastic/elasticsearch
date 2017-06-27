@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.cluster.tasks;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 
-/**
- */
 public class PendingClusterTasksRequest extends MasterNodeReadRequest<PendingClusterTasksRequest> {
 
     @Override

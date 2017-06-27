@@ -29,8 +29,23 @@ public class UpdateSettingsClusterStateUpdateRequest extends IndicesClusterState
 
     private Settings settings;
 
-    public UpdateSettingsClusterStateUpdateRequest() {
+    private boolean preserveExisting = false;
 
+    /**
+     * Returns <code>true</code> iff the settings update should only add but not update settings. If the setting already exists
+     * it should not be overwritten by this update. The default is <code>false</code>
+     */
+    public boolean isPreserveExisting() {
+        return preserveExisting;
+    }
+
+    /**
+     * Iff set to <code>true</code> this settings update will only add settings not already set on an index. Existing settings remain
+     * unchanged.
+     */
+    public UpdateSettingsClusterStateUpdateRequest setPreserveExisting(boolean preserveExisting) {
+        this.preserveExisting = preserveExisting;
+        return this;
     }
 
     /**

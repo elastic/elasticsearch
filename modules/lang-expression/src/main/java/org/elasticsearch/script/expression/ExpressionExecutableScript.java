@@ -19,44 +19,39 @@
 
 package org.elasticsearch.script.expression;
 
+import org.apache.lucene.expressions.Expression;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.GeneralScriptException;
+
 import java.util.HashMap;
 import java.util.Map;
-
-import org.apache.lucene.expressions.Expression;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptException;
 
 /**
  * A bridge to evaluate an {@link Expression} against a map of variables in the context
  * of an {@link ExecutableScript}.
  */
 public class ExpressionExecutableScript implements ExecutableScript {
+    public final Expression expression;
+    public final Map<String, ReplaceableConstDoubleValues> functionValuesMap;
+    public final ReplaceableConstDoubleValues[] functionValuesArray;
 
-    private final int NO_DOCUMENT = -1;
-
-    public final CompiledScript compiledScript;
-    public final Map<String, ReplaceableConstFunctionValues> functionValuesMap;
-    public final ReplaceableConstFunctionValues[] functionValuesArray;
-
-    public ExpressionExecutableScript(CompiledScript compiledScript, Map<String, Object> vars) {
-        this.compiledScript = compiledScript;
-        Expression expression = (Expression)this.compiledScript.compiled();
+    public ExpressionExecutableScript(Expression expression, Map<String, Object> vars) {
+        this.expression = expression;
         int functionValuesLength = expression.variables.length;
 
         if (vars.size() != functionValuesLength) {
-            throw new ScriptException("Error using " + compiledScript + ". " +
+            throw new GeneralScriptException("Error using " + expression + ". " +
                     "The number of variables in an executable expression script [" +
                     functionValuesLength + "] must match the number of variables in the variable map" +
                     " [" + vars.size() + "].");
         }
 
-        functionValuesArray = new ReplaceableConstFunctionValues[functionValuesLength];
+        functionValuesArray = new ReplaceableConstDoubleValues[functionValuesLength];
         functionValuesMap = new HashMap<>();
 
         for (int functionValuesIndex = 0; functionValuesIndex < functionValuesLength; ++functionValuesIndex) {
             String variableName = expression.variables[functionValuesIndex];
-            functionValuesArray[functionValuesIndex] = new ReplaceableConstFunctionValues();
+            functionValuesArray[functionValuesIndex] = new ReplaceableConstDoubleValues();
             functionValuesMap.put(variableName, functionValuesArray[functionValuesIndex]);
         }
 
@@ -72,12 +67,12 @@ public class ExpressionExecutableScript implements ExecutableScript {
                 double doubleValue = ((Number)value).doubleValue();
                 functionValuesMap.get(name).setValue(doubleValue);
             } else {
-                throw new ScriptException("Error using " + compiledScript + ". " +
+                throw new GeneralScriptException("Error using " + expression + ". " +
                         "Executable expressions scripts can only process numbers." +
                         "  The variable [" + name + "] is not a number.");
             }
         } else {
-            throw new ScriptException("Error using " + compiledScript + ". " +
+            throw new GeneralScriptException("Error using " + expression + ". " +
                     "The variable [" + name + "] does not exist in the executable expressions script.");
         }
     }
@@ -85,9 +80,9 @@ public class ExpressionExecutableScript implements ExecutableScript {
     @Override
     public Object run() {
         try {
-            return ((Expression) compiledScript.compiled()).evaluate(NO_DOCUMENT, functionValuesArray);
+            return expression.evaluate(functionValuesArray);
         } catch (Exception exception) {
-            throw new ScriptException("Error evaluating " + compiledScript, exception);
+            throw new GeneralScriptException("Error evaluating " + expression, exception);
         }
     }
 }

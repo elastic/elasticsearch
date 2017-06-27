@@ -32,12 +32,7 @@ public final class MockEngineFactory implements EngineFactory {
     }
 
     @Override
-    public Engine newReadWriteEngine(EngineConfig config, boolean skipTranslogRecovery) {
-        return new MockInternalEngine(config, skipTranslogRecovery, wrapper);
-    }
-
-    @Override
-    public Engine newReadOnlyEngine(EngineConfig config) {
-        return new MockShadowEngine(config, wrapper);
+    public Engine newReadWriteEngine(EngineConfig config) {
+        return new MockInternalEngine(config, wrapper);
     }
 }

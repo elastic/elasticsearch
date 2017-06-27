@@ -22,33 +22,26 @@ package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 
 public class JLHScore extends SignificanceHeuristic {
-
-    public static final JLHScore PROTOTYPE = new JLHScore();
-
-    protected static final ParseField NAMES_FIELD = new ParseField("jlh");
+    public static final String NAME = "jlh";
 
     public JLHScore() {
     }
 
-    @Override
-    public String getWriteableName() {
-        return NAMES_FIELD.getPreferredName();
-    }
-
-    @Override
-    public SignificanceHeuristic readFrom(StreamInput in) throws IOException {
-        return PROTOTYPE;
+    /**
+     * Read from a stream.
+     */
+    public JLHScore(StreamInput in) {
+        // Nothing to read.
     }
 
     @Override
@@ -56,9 +49,8 @@ public class JLHScore extends SignificanceHeuristic {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAMES_FIELD.getPreferredName()).endObject();
-        return builder;
+    public String getWriteableName() {
+        return NAME;
     }
 
     /**
@@ -106,29 +98,42 @@ public class JLHScore extends SignificanceHeuristic {
         return absoluteProbabilityChange * relativeProbabilityChange;
     }
 
-    public static class JLHScoreParser implements SignificanceHeuristicParser {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(NAME).endObject();
+        return builder;
+    }
 
-        @Override
-        public SignificanceHeuristic parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher)
-                throws IOException, QueryShardException {
-            // move to the closing bracket
-            if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
-                throw new ElasticsearchParseException("failed to parse [jlh] significance heuristic. expected an empty object, but found [{}] instead", parser.currentToken());
-            }
-            return PROTOTYPE;
+    public static SignificanceHeuristic parse(QueryParseContext context)
+            throws IOException, QueryShardException {
+        XContentParser parser = context.parser();
+        // move to the closing bracket
+        if (!parser.nextToken().equals(XContentParser.Token.END_OBJECT)) {
+            throw new ElasticsearchParseException(
+                    "failed to parse [jlh] significance heuristic. expected an empty object, but found [{}] instead",
+                    parser.currentToken());
         }
+        return new JLHScore();
+    }
 
-        @Override
-        public String[] getNames() {
-            return NAMES_FIELD.getAllNamesIncludedDeprecated();
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
         }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
     }
 
     public static class JLHScoreBuilder implements SignificanceHeuristicBuilder {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(NAMES_FIELD.getPreferredName()).endObject();
+            builder.startObject(NAME).endObject();
             return builder;
         }
     }

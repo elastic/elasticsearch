@@ -28,7 +28,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -41,7 +40,7 @@ public class FunctionScoreQuery extends Query {
 
     public static final float DEFAULT_MAX_BOOST = Float.MAX_VALUE;
 
-    Query subQuery;
+    final Query subQuery;
     final ScoreFunction function;
     final float maxBoost;
     final CombineFunction combineFunction;
@@ -74,6 +73,10 @@ public class FunctionScoreQuery extends Query {
         return function;
     }
 
+    public Float getMinScore() {
+        return minScore;
+    }
+
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = super.rewrite(reader);
@@ -84,22 +87,20 @@ public class FunctionScoreQuery extends Query {
         if (newQ == subQuery) {
             return this;
         }
-        FunctionScoreQuery bq = (FunctionScoreQuery) this.clone();
-        bq.subQuery = newQ;
-        return bq;
+        return new FunctionScoreQuery(newQ, function, minScore, combineFunction, maxBoost);
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
         if (needsScores == false && minScore == null) {
-            return subQuery.createWeight(searcher, needsScores);
+            return subQuery.createWeight(searcher, needsScores, boost);
         }
 
         boolean subQueryNeedsScores =
                 combineFunction != CombineFunction.REPLACE // if we don't replace we need the original score
                 || function == null // when the function is null, we just multiply the score, so we need it
                 || function.needsScores(); // some scripts can replace with a script that returns eg. 1/_score
-        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores);
+        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryNeedsScores, boost);
         return new CustomBoostFactorWeight(this, subQueryWeight, subQueryNeedsScores);
     }
 
@@ -108,7 +109,7 @@ public class FunctionScoreQuery extends Query {
         final Weight subQueryWeight;
         final boolean needsScores;
 
-        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, boolean needsScores) throws IOException {
+        CustomBoostFactorWeight(Query parent, Weight subQueryWeight, boolean needsScores) throws IOException {
             super(parent);
             this.subQueryWeight = subQueryWeight;
             this.needsScores = needsScores;
@@ -117,16 +118,6 @@ public class FunctionScoreQuery extends Query {
         @Override
         public void extractTerms(Set<Term> terms) {
             subQueryWeight.extractTerms(terms);
-        }
-
-        @Override
-        public float getValueForNormalization() throws IOException {
-            return subQueryWeight.getValueForNormalization();
-        }
-
-        @Override
-        public void normalize(float norm, float boost) {
-            subQueryWeight.normalize(norm, boost);
         }
 
         private FunctionFactorScorer functionScorer(LeafReaderContext context) throws IOException {
@@ -205,7 +196,6 @@ public class FunctionScoreQuery extends Query {
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("function score (").append(subQuery.toString(field)).append(",function=").append(function).append(')');
-        sb.append(ToStringUtils.boost(getBoost()));
         return sb.toString();
     }
 
@@ -214,7 +204,7 @@ public class FunctionScoreQuery extends Query {
         if (this == o) {
             return true;
         }
-        if (super.equals(o) == false) {
+        if (sameClassAs(o) == false) {
             return false;
         }
         FunctionScoreQuery other = (FunctionScoreQuery) o;
@@ -225,6 +215,6 @@ public class FunctionScoreQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subQuery.hashCode(), function, combineFunction, minScore, maxBoost);
+        return Objects.hash(classHash(), subQuery.hashCode(), function, combineFunction, minScore, maxBoost);
     }
 }

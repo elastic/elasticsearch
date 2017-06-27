@@ -19,23 +19,23 @@
 
 package org.elasticsearch.gateway;
 
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.NoopDiscovery;
-import org.elasticsearch.test.cluster.NoopClusterService;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 
 public class GatewayServiceTests extends ESTestCase {
-    private GatewayService createService(Settings.Builder settings) {
-        return new GatewayService(Settings.builder()
-                .put("http.enabled", "false")
-                .put("discovery.type", "local")
-                .put(settings.build()).build(),
-                null, new NoopClusterService(), null, null, null, null, null, new NoopDiscovery());
 
+    private GatewayService createService(Settings.Builder settings) {
+        ClusterService clusterService = new ClusterService(Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                null);
+        return new GatewayService(settings.build(),
+                null, clusterService, null, null, null, null);
     }
 
     public void testDefaultRecoverAfterTime() throws IOException {

@@ -32,7 +32,6 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
@@ -42,9 +41,10 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.similarities.Similarity.SimWeight;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.ToStringUtils;
+import org.apache.lucene.util.SmallFloat;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -63,27 +63,41 @@ public final class AllTermQuery extends Query {
         this.term = term;
     }
 
+    public Term getTerm() {
+        return term;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (sameClassAs(obj) == false) {
+            return false;
+        }
+        return Objects.equals(term, ((AllTermQuery) obj).term);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * classHash() + term.hashCode();
+    }
+
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = super.rewrite(reader);
         if (rewritten != this) {
             return rewritten;
         }
-        boolean fieldExists = false;
         boolean hasPayloads = false;
         for (LeafReaderContext context : reader.leaves()) {
             final Terms terms = context.reader().terms(term.field());
             if (terms != null) {
-                fieldExists = true;
                 if (terms.hasPayloads()) {
                     hasPayloads = true;
                     break;
                 }
             }
         }
-        if (fieldExists == false) {
-            return new MatchNoDocsQuery();
-        }
+        // if the terms does not exist we could return a MatchNoDocsQuery but this would break the unified highlighter
+        // which rewrites query with an empty reader.
         if (hasPayloads == false) {
             return new TermQuery(term);
         }
@@ -91,26 +105,16 @@ public final class AllTermQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
         if (needsScores == false) {
-            return new TermQuery(term).createWeight(searcher, needsScores);
+            return new TermQuery(term).createWeight(searcher, needsScores, boost);
         }
         final TermContext termStates = TermContext.build(searcher.getTopReaderContext(), term);
         final CollectionStatistics collectionStats = searcher.collectionStatistics(term.field());
         final TermStatistics termStats = searcher.termStatistics(term, termStates);
         final Similarity similarity = searcher.getSimilarity(needsScores);
-        final SimWeight stats = similarity.computeWeight(collectionStats, termStats);
+        final SimWeight stats = similarity.computeWeight(boost, collectionStats, termStats);
         return new Weight(this) {
-
-            @Override
-            public final float getValueForNormalization() throws IOException {
-                return stats.getValueForNormalization();
-            }
-
-            @Override
-            public final void normalize(float norm, float topLevelBoost) {
-                stats.normalize(norm, topLevelBoost);
-            }
 
             @Override
             public void extractTerms(Set<Term> terms) {
@@ -128,7 +132,8 @@ public final class AllTermQuery extends Query {
                         SimScorer docScorer = similarity.simScorer(stats, context);
                         Explanation freqExplanation = Explanation.match(freq, "termFreq=" + freq);
                         Explanation termScoreExplanation = docScorer.explain(doc, freqExplanation);
-                        Explanation payloadBoostExplanation = Explanation.match(scorer.payloadBoost(), "payloadBoost=" + scorer.payloadBoost());
+                        Explanation payloadBoostExplanation =
+                            Explanation.match(scorer.payloadBoost(), "payloadBoost=" + scorer.payloadBoost());
                         return Explanation.match(
                                 score,
                                 "weight(" + getQuery() + " in " + doc + ") ["
@@ -186,9 +191,14 @@ public final class AllTermQuery extends Query {
                     float boost;
                     if (payload == null) {
                         boost = 1;
-                    } else {
-                        assert payload.length == 4;
+                    } else if (payload.length == 1) {
+                        boost = SmallFloat.byte315ToFloat(payload.bytes[payload.offset]);
+                    } else if (payload.length == 4) {
+                        // TODO: for bw compat only, remove this in 6.0
                         boost = PayloadHelper.decodeFloat(payload.bytes, payload.offset);
+                    } else {
+                        throw new IllegalStateException("Payloads are expected to have a length of 1 or 4 but got: "
+                            + payload);
                     }
                     payloadBoost += boost;
                 }
@@ -221,7 +231,7 @@ public final class AllTermQuery extends Query {
 
     @Override
     public String toString(String field) {
-        return new TermQuery(term).toString(field) + ToStringUtils.boost(getBoost());
+        return new TermQuery(term).toString(field);
     }
 
 }

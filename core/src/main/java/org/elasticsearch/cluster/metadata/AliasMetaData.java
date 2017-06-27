@@ -21,13 +21,16 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -37,12 +40,7 @@ import java.util.Set;
 
 import static java.util.Collections.emptySet;
 
-/**
- *
- */
 public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
-
-    public static final AliasMetaData PROTO = new AliasMetaData("", null, null, null);
 
     private final String alias;
 
@@ -174,22 +172,29 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
 
     }
 
-    @Override
-    public AliasMetaData readFrom(StreamInput in) throws IOException {
-        String alias = in.readString();
-        CompressedXContent filter = null;
+    public AliasMetaData(StreamInput in) throws IOException {
+        alias = in.readString();
         if (in.readBoolean()) {
             filter = CompressedXContent.readCompressedString(in);
+        } else {
+            filter = null;
         }
-        String indexRouting = null;
         if (in.readBoolean()) {
             indexRouting = in.readString();
+        } else {
+            indexRouting = null;
         }
-        String searchRouting = null;
         if (in.readBoolean()) {
             searchRouting = in.readString();
+            searchRoutingValues = Collections.unmodifiableSet(Strings.splitStringByCommaToSet(searchRouting));
+        } else {
+            searchRouting = null;
+            searchRoutingValues = emptySet();
         }
-        return new AliasMetaData(alias, filter, indexRouting, searchRouting);
+    }
+
+    public static Diff<AliasMetaData> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(AliasMetaData::new, in);
     }
 
     public static class Builder {
@@ -228,14 +233,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                 this.filter = null;
                 return this;
             }
-            try {
-                try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
-                    filter(parser.mapOrdered());
-                }
-                return this;
-            } catch (IOException e) {
-                throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
-            }
+            return filter(XContentHelper.convertToMap(XContentFactory.xContent(filter), filter, true));
         }
 
         public Builder filter(Map<String, Object> filter) {
@@ -281,7 +279,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
         }
 
         public static void toXContent(AliasMetaData aliasMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(aliasMetaData.alias(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(aliasMetaData.alias());
 
             boolean binary = params.paramAsBoolean("binary", false);
 
@@ -289,11 +287,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                 if (binary) {
                     builder.field("filter", aliasMetaData.filter.compressed());
                 } else {
-                    byte[] data = aliasMetaData.filter().uncompressed();
-                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                    Map<String, Object> filter = parser.mapOrdered();
-                    parser.close();
-                    builder.field("filter", filter);
+                    builder.field("filter", XContentHelper.convertToMap(new BytesArray(aliasMetaData.filter().uncompressed()), true).v2());
                 }
             }
             if (aliasMetaData.indexRouting() != null) {
@@ -338,14 +332,6 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                 }
             }
             return builder.build();
-        }
-
-        public void writeTo(AliasMetaData aliasMetaData, StreamOutput out) throws IOException {
-            aliasMetaData.writeTo(out);
-        }
-
-        public static AliasMetaData readFrom(StreamInput in) throws IOException {
-            return PROTO.readFrom(in);
         }
     }
 

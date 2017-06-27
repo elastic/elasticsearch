@@ -19,9 +19,6 @@
 
 package org.elasticsearch.transport;
 
-/**
- *
- */
 public interface TransportResponseHandler<T extends TransportResponse> {
 
     /**

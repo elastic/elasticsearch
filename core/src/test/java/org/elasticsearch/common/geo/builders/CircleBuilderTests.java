@@ -20,6 +20,7 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.vividsolutions.jts.geom.Coordinate;
+
 import org.elasticsearch.common.unit.DistanceUnit;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuild
     }
 
     static CircleBuilder mutate(CircleBuilder original) throws IOException {
-        CircleBuilder mutation = (CircleBuilder) copyShape(original);
+        CircleBuilder mutation = copyShape(original);
         double radius = original.radius();
         DistanceUnit unit = original.unit();
 

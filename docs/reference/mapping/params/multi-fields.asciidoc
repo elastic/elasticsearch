@@ -3,22 +3,21 @@
 
 It is often useful to index the same field in different ways for different
 purposes.  This is the purpose of _multi-fields_. For instance, a `string`
-field could be <<mapping-index,indexed>> as an `analyzed` field for full-text
-search, and as a `not_analyzed` field for sorting or aggregations:
+field could be mapped as a `text` field for full-text
+search, and as a `keyword` field for sorting or aggregations:
 
 [source,js]
 --------------------------------------------------
-PUT /my_index
+PUT my_index
 {
   "mappings": {
     "my_type": {
       "properties": {
         "city": {
-          "type": "string",
+          "type": "text",
           "fields": {
             "raw": { <1>
-              "type":  "string",
-              "index": "not_analyzed"
+              "type":  "keyword"
             }
           }
         }
@@ -27,17 +26,17 @@ PUT /my_index
   }
 }
 
-PUT /my_index/my_type/1
+PUT my_index/my_type/1
 {
   "city": "New York"
 }
 
-PUT /my_index/my_type/2
+PUT my_index/my_type/2
 {
   "city": "York"
 }
 
-GET /my_index/_search
+GET my_index/_search
 {
   "query": {
     "match": {
@@ -56,9 +55,9 @@ GET /my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
-<1> The `city.raw` field is a `not_analyzed` version of the `city` field.
-<2> The analyzed `city` field can be used for full text search.
+// CONSOLE
+<1> The `city.raw` field is a `keyword` version of the `city` field.
+<2> The `city` field can be used for full text search.
 <3> The `city.raw` field can be used for sorting and aggregations
 
 NOTE: Multi-fields do not change the original `_source` field.
@@ -83,10 +82,10 @@ PUT my_index
     "my_type": {
       "properties": {
         "text": { <1>
-          "type": "string",
+          "type": "text",
           "fields": {
             "english": { <2>
-              "type":     "string",
+              "type":     "text",
               "analyzer": "english"
             }
           }
@@ -116,7 +115,7 @@ GET my_index/_search
   }
 }
 --------------------------------------------------
-// AUTOSENSE
+// CONSOLE
 
 <1> The `text` field uses the `standard` analyzer.
 <2> The `text.english` field uses the `english` analyzer.
@@ -133,4 +132,3 @@ stemmed field allows a query for `foxes` to also match the document containing
 just `fox`.  This allows us to match as many documents as possible.  By also
 querying the unstemmed `text` field, we improve the relevance score of the
 document which matches `foxes` exactly.
-

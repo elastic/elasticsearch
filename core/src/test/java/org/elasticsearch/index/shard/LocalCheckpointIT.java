@@ -10,7 +10,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.ExecutionException;
 

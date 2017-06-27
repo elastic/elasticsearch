@@ -521,7 +521,6 @@ public abstract class TransportReplicationAction<
         @Override
         public void onResponse(Releasable releasable) {
             try {
-                replica.updateGlobalCheckpointOnReplica(globalCheckpoint);
                 final ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
                 releasable.close(); // release shard operation lock before responding to caller
                 final TransportReplicationAction.ReplicaResponse response =
@@ -596,7 +595,7 @@ public abstract class TransportReplicationAction<
                 throw new ShardNotFoundException(this.replica.shardId(), "expected aID [{}] but found [{}]", targetAllocationID,
                     actualAllocationId);
             }
-            replica.acquireReplicaOperationPermit(request.primaryTerm, this, executor);
+            replica.acquireReplicaOperationPermit(request.primaryTerm, globalCheckpoint, this, executor);
         }
 
         /**

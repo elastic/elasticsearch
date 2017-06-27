@@ -89,7 +89,7 @@ Continue with installation? [y/N]y
 --
 [source,yaml]
 -----------------------------------------------------------
-action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*
+action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*,.ml*
 -----------------------------------------------------------
 --
 

@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -39,9 +41,11 @@ public class SSLConfigurationTests extends ESTestCase {
 
     public void testThatOnlyKeystoreInSettingsSetsTruststoreSettings() {
         final String path = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks").toString();
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("keystore.path", path)
-                .put("keystore.password", "testnode")
+                .setSecureSettings(secureSettings)
                 .build();
         // Pass settings in as component settings
         SSLConfiguration globalSettings = new SSLConfiguration(settings);
@@ -61,39 +65,87 @@ public class SSLConfigurationTests extends ESTestCase {
         }
     }
 
-    public void testThatKeyPasswordCanBeSet() {
+    public void testKeystorePassword() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("keystore.secure_password", "password");
         Settings settings = Settings.builder()
-                .put("keystore.path", "path")
-                .put("keystore.password", "password")
-                .put("keystore.key_password", "key")
-                .build();
+            .put("keystore.path", "path")
+            .setSecureSettings(secureSettings)
+            .build();
         SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
         assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
         StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
         assertThat(ksKeyInfo.keyStorePassword, is(equalTo("password")));
-        assertThat(ksKeyInfo.keyPassword, is(equalTo("key")));
+        assertThat(ksKeyInfo.keyPassword, is(equalTo("password")));
     }
 
+    public void testKeystorePasswordBackcompat() {
+        Settings settings = Settings.builder()
+            .put("keystore.path", "path")
+            .put("keystore.password", "password")
+            .build();
+        SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
+        assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
+        StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
+        assertThat(ksKeyInfo.keyStorePassword, is(equalTo("password")));
+        assertThat(ksKeyInfo.keyPassword, is(equalTo("password")));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
+            SSLConfiguration.SETTINGS_PARSER.legacyKeystorePassword});
+    }
+
+    public void testKeystoreKeyPassword() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("keystore.secure_password", "password");
+        secureSettings.setString("keystore.secure_key_password", "keypass");
+        Settings settings = Settings.builder()
+            .put("keystore.path", "path")
+            .setSecureSettings(secureSettings)
+            .build();
+        SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
+        assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
+        StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
+        assertThat(ksKeyInfo.keyStorePassword, is(equalTo("password")));
+        assertThat(ksKeyInfo.keyPassword, is(equalTo("keypass")));
+    }
+
+    public void testKeystoreKeyPasswordBackcompat() {
+        Settings settings = Settings.builder()
+            .put("keystore.path", "path")
+            .put("keystore.password", "password")
+            .put("keystore.key_password", "keypass")
+            .build();
+        SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
+        assertThat(sslConfiguration.keyConfig(), instanceOf(StoreKeyConfig.class));
+        StoreKeyConfig ksKeyInfo = (StoreKeyConfig) sslConfiguration.keyConfig();
+        assertThat(ksKeyInfo.keyStorePassword, is(equalTo("password")));
+        assertThat(ksKeyInfo.keyPassword, is(equalTo("keypass")));
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {
+            SSLConfiguration.SETTINGS_PARSER.legacyKeystorePassword, SSLConfiguration.SETTINGS_PARSER.legacyKeystoreKeyPassword});
+    }
 
     public void testThatProfileSettingsOverrideServiceSettings() {
+        MockSecureSettings profileSecureSettings = new MockSecureSettings();
+        profileSecureSettings.setString("keystore.secure_password", "password");
+        profileSecureSettings.setString("keystore.secure_key_password", "key");
+        profileSecureSettings.setString("truststore.secure_password", "password for trust");
         Settings profileSettings = Settings.builder()
                 .put("keystore.path", "path")
-                .put("keystore.password", "password")
-                .put("keystore.key_password", "key")
                 .put("keystore.algorithm", "algo")
                 .put("truststore.path", "trust path")
-                .put("truststore.password", "password for trust")
                 .put("truststore.algorithm", "trusted")
+                .setSecureSettings(profileSecureSettings)
                 .build();
 
+        MockSecureSettings serviceSecureSettings = new MockSecureSettings();
+        serviceSecureSettings.setString("xpack.ssl.keystore.secure_password", "comp password");
+        serviceSecureSettings.setString("xpack.ssl.keystore.secure_key_password", "comp key");
+        serviceSecureSettings.setString("xpack.ssl.truststore.secure_password", "comp password for trust");
         Settings serviceSettings = Settings.builder()
                 .put("xpack.ssl.keystore.path", "comp path")
-                .put("xpack.ssl.keystore.password", "comp password")
-                .put("xpack.ssl.keystore.key_password", "comp key")
                 .put("xpack.ssl.keystore.algorithm", "comp algo")
                 .put("xpack.ssl.truststore.path", "comp trust path")
-                .put("xpack.ssl.truststore.password", "comp password for trust")
                 .put("xpack.ssl.truststore.algorithm", "comp trusted")
+                .setSecureSettings(serviceSecureSettings)
                 .build();
 
         SSLConfiguration globalSettings = new SSLConfiguration(serviceSettings);
@@ -128,11 +180,9 @@ public class SSLConfigurationTests extends ESTestCase {
     public void testThatSettingsWithDifferentKeystoresAreNotEqual() {
         SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.builder()
                 .put("keystore.path", "path")
-                .put("keystore.password", randomAlphaOfLength(5))
                 .build());
         SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.builder()
                 .put("keystore.path", "path1")
-                .put("keystore.password", randomAlphaOfLength(5))
                 .build());
         assertThat(sslConfiguration.equals(sslConfiguration1), is(equalTo(false)));
         assertThat(sslConfiguration1.equals(sslConfiguration), is(equalTo(false)));
@@ -143,11 +193,9 @@ public class SSLConfigurationTests extends ESTestCase {
     public void testThatSettingsWithDifferentTruststoresAreNotEqual() {
         SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.builder()
                 .put("truststore.path", "/trust")
-                .put("truststore.password", randomAlphaOfLength(5))
                 .build());
         SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.builder()
                 .put("truststore.path", "/truststore")
-                .put("truststore.password", randomAlphaOfLength(5))
                 .build());
         assertThat(sslConfiguration.equals(sslConfiguration1), is(equalTo(false)));
         assertThat(sslConfiguration1.equals(sslConfiguration), is(equalTo(false)));
@@ -167,11 +215,9 @@ public class SSLConfigurationTests extends ESTestCase {
     public void testThatSettingsWithDifferentKeystoresHaveDifferentHashCode() {
         SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.builder()
                 .put("keystore.path", "path")
-                .put("keystore.password", randomAlphaOfLength(5))
                 .build());
         SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.builder()
                 .put("keystore.path", "path1")
-                .put("keystore.password", randomAlphaOfLength(5))
                 .build());
         assertThat(sslConfiguration.hashCode(), is(not(equalTo(sslConfiguration1.hashCode()))));
     }
@@ -179,25 +225,23 @@ public class SSLConfigurationTests extends ESTestCase {
     public void testThatSettingsWithDifferentTruststoresHaveDifferentHashCode() {
         SSLConfiguration sslConfiguration = new SSLConfiguration(Settings.builder()
                 .put("truststore.path", "/trust")
-                .put("truststore.password", randomAlphaOfLength(5))
                 .build());
         SSLConfiguration sslConfiguration1 = new SSLConfiguration(Settings.builder()
                 .put("truststore.path", "/truststore")
-                .put("truststore.password", randomAlphaOfLength(5))
                 .build());
         assertThat(sslConfiguration.hashCode(), is(not(equalTo(sslConfiguration1.hashCode()))));
     }
 
-    public void testConfigurationUsingPEMKeyFiles() {
+    public void testPEMFile() {
         Environment env = randomBoolean() ? null :
                 new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("key",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
-                .put("key_passphrase", "testnode")
-                .put("certificate",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-                .build();
+            .put("key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+            .put("certificate", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .setSecureSettings(secureSettings)
+            .build();
 
         SSLConfiguration config = new SSLConfiguration(settings);
         assertThat(config.keyConfig(), instanceOf(PEMKeyConfig.class));
@@ -208,19 +252,40 @@ public class SSLConfigurationTests extends ESTestCase {
         assertCombiningTrustConfigContainsCorrectIssuers(config);
     }
 
-    public void testConfigurationUsingPEMKeyAndTrustFiles() {
+    public void testPEMFileBackcompat() {
+        Environment env = randomBoolean() ? null :
+            new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        Settings settings = Settings.builder()
+            .put("key",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+            .put("key_passphrase", "testnode")
+            .put("certificate",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .build();
+
+        SSLConfiguration config = new SSLConfiguration(settings);
+        assertThat(config.keyConfig(), instanceOf(PEMKeyConfig.class));
+        PEMKeyConfig keyConfig = (PEMKeyConfig) config.keyConfig();
+        KeyManager keyManager = keyConfig.createKeyManager(env);
+        assertNotNull(keyManager);
+        assertThat(config.trustConfig(), instanceOf(CombiningTrustConfig.class));
+        assertCombiningTrustConfigContainsCorrectIssuers(config);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {SSLConfiguration.SETTINGS_PARSER.legacyKeyPassword});
+    }
+
+    public void testPEMKeyAndTrustFiles() {
         Environment env = randomBoolean() ? null :
                 new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("secure_key_passphrase", "testnode");
         Settings settings = Settings.builder()
-                .put("key",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
-                .put("key_passphrase", "testnode")
-                .put("certificate",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
-                .putArray("certificate_authorities",
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt").toString(),
-                        getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt").toString())
-                .build();
+            .put("key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+            .put("certificate", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .putArray("certificate_authorities",
+                      getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt").toString(),
+                      getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt").toString())
+            .setSecureSettings(secureSettings)
+            .build();
 
         SSLConfiguration config = new SSLConfiguration(settings);
         assertThat(config.keyConfig(), instanceOf(PEMKeyConfig.class));
@@ -231,6 +296,30 @@ public class SSLConfigurationTests extends ESTestCase {
         assertThat(config.trustConfig(), instanceOf(PEMTrustConfig.class));
         TrustManager trustManager = keyConfig.createTrustManager(env);
         assertNotNull(trustManager);
+    }
+
+    public void testPEMKeyAndTrustFilesBackcompat() {
+        Environment env = randomBoolean() ? null :
+            new Environment(Settings.builder().put("path.home", createTempDir()).build());
+        Settings settings = Settings.builder()
+            .put("key", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
+            .put("key_passphrase", "testnode")
+            .put("certificate", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
+            .putArray("certificate_authorities",
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt").toString(),
+                getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt").toString())
+            .build();
+
+        SSLConfiguration config = new SSLConfiguration(settings);
+        assertThat(config.keyConfig(), instanceOf(PEMKeyConfig.class));
+        PEMKeyConfig keyConfig = (PEMKeyConfig) config.keyConfig();
+        KeyManager keyManager = keyConfig.createKeyManager(env);
+        assertNotNull(keyManager);
+        assertThat(config.trustConfig(), not(sameInstance(keyConfig)));
+        assertThat(config.trustConfig(), instanceOf(PEMTrustConfig.class));
+        TrustManager trustManager = keyConfig.createTrustManager(env);
+        assertNotNull(trustManager);
+        assertSettingDeprecationsAndWarnings(new Setting<?>[] {SSLConfiguration.SETTINGS_PARSER.legacyKeyPassword});
     }
 
     private void assertCombiningTrustConfigContainsCorrectIssuers(SSLConfiguration sslConfiguration) {

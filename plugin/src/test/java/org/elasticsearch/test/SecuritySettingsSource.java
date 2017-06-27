@@ -9,6 +9,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -34,6 +36,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Consumer;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -77,6 +80,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     private final String subfolderPrefix;
     private final boolean useGeneratedSSLConfig;
     private final boolean hostnameVerificationEnabled;
+    private final boolean usePEM;
 
     /**
      * Creates a new {@link org.elasticsearch.test.NodeConfigurationSource} for the security configuration.
@@ -92,6 +96,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         this.subfolderPrefix = scope.name();
         this.useGeneratedSSLConfig = useGeneratedSSLConfig;
         this.hostnameVerificationEnabled = randomBoolean();
+        this.usePEM = randomBoolean();
     }
 
     private Path nodePath(final Path parentFolder, final String subfolderPrefix, final int nodeOrdinal) {
@@ -121,8 +126,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
                 .put("xpack.security.authc.realms.file.order", 0)
                 .put("xpack.security.authc.realms.index.type", NativeRealm.TYPE)
-                .put("xpack.security.authc.realms.index.order", "1")
-                .put(getNodeSSLSettings());
+                .put("xpack.security.authc.realms.index.order", "1");
+        addNodeSSLSettings(builder);
         return builder.build();
     }
 
@@ -133,8 +138,8 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     @Override
     public Settings transportClientSettings() {
-        Settings.Builder builder = Settings.builder().put(super.transportClientSettings())
-                .put(getClientSSLSettings());
+        Settings.Builder builder = Settings.builder().put(super.transportClientSettings());
+        addClientSSLSettings(builder, "");
         if (randomBoolean()) {
             builder.put(Security.USER_SETTING.getKey(),
                     transportClientUsername() + ":" + new String(transportClientPassword().getChars()));
@@ -188,32 +193,36 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
         return XPackPlugin.class;
     }
 
-    public Settings getNodeSSLSettings() {
-        if (randomBoolean()) {
-            return getSSLSettingsForPEMFiles("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", "testnode",
-                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                    Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.crt",
-                            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt",
-                            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
-                            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
-                            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
-                    useGeneratedSSLConfig, hostnameVerificationEnabled, false);
-        }
-        return getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode",
+    private void addNodeSSLSettings(Settings.Builder builder) {
+        if (usePEM) {
+            addSSLSettingsForPEMFiles(builder, "",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem", "testnode",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.crt",
+                              "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/active-directory-ca.crt",
+                              "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+                              "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/openldap.crt",
+                              "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"),
                 useGeneratedSSLConfig, hostnameVerificationEnabled, false);
+
+        } else {
+            addSSLSettingsForStore(builder, "", "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks",
+                "testnode", useGeneratedSSLConfig, hostnameVerificationEnabled, false);
+        }
     }
 
-    public Settings getClientSSLSettings() {
-        if (randomBoolean()) {
-            return getSSLSettingsForPEMFiles("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem", "testclient",
-                    "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
-                    Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
-                            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"),
-                    useGeneratedSSLConfig, hostnameVerificationEnabled, true);
-        }
-
-        return getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient",
+    public void addClientSSLSettings(Settings.Builder builder, String prefix) {
+        if (usePEM) {
+            addSSLSettingsForPEMFiles(builder, prefix,
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem", "testclient",
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt",
+                Arrays.asList("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt",
+                              "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"),
                 useGeneratedSSLConfig, hostnameVerificationEnabled, true);
+        } else {
+            addSSLSettingsForStore(builder, prefix, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks",
+                "testclient", useGeneratedSSLConfig, hostnameVerificationEnabled, true);
+        }
     }
 
     /**
@@ -221,56 +230,83 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
      *
      * @param resourcePathToStore the location of the keystore or truststore
      * @param password the password
-     * @return the configuration settings
      */
-    public static Settings getSSLSettingsForStore(String resourcePathToStore, String password) {
-        return getSSLSettingsForStore(resourcePathToStore, password, false, true, true);
+    public static void addSSLSettingsForStore(Settings.Builder builder, String resourcePathToStore, String password) {
+        addSSLSettingsForStore(builder, "", resourcePathToStore, password, false, true, true);
     }
 
-    private static Settings getSSLSettingsForStore(String resourcePathToStore, String password, boolean useGeneratedSSLConfig,
-                                                   boolean hostnameVerificationEnabled, boolean transportClient) {
+    private static void addSSLSettingsForStore(Settings.Builder builder, String prefix, String resourcePathToStore, String password,
+                                               boolean useGeneratedSSLConfig, boolean hostnameVerificationEnabled,
+                                               boolean transportClient) {
         Path store = resolveResourcePath(resourcePathToStore);
 
-        Settings.Builder builder = Settings.builder();
-
         if (transportClient == false) {
-            builder.put("xpack.security.http.ssl.enabled", false);
+            builder.put(prefix + "xpack.security.http.ssl.enabled", false);
         }
 
-        builder.put("xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
+        builder.put(prefix + "xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
         if (useGeneratedSSLConfig == false) {
-            builder.put("xpack.ssl.keystore.path", store)
-                    .put("xpack.ssl.keystore.password", password);
+            builder.put(prefix + "xpack.ssl.keystore.path", store);
+            if (transportClient) {
+                // continue using insecure settings for clients until we figure out what to do there...
+                builder.put(prefix + "xpack.ssl.keystore.password", password);
+            } else {
+                addSecureSettings(builder, secureSettings ->
+                    secureSettings.setString(prefix + "xpack.ssl.keystore.secure_password", password));
+            }
         }
 
-        if (useGeneratedSSLConfig == false && randomBoolean()) {
-            builder.put("xpack.ssl.truststore.path", store)
-                    .put("xpack.ssl.truststore.password", password);
+        if (useGeneratedSSLConfig == false && true /*randomBoolean()*/) {
+            builder.put(prefix + "xpack.ssl.truststore.path", store);
+            if (transportClient) {
+                // continue using insecure settings for clients until we figure out what to do there...
+                builder.put(prefix + "xpack.ssl.truststore.password", password);
+            } else {
+                addSecureSettings(builder, secureSettings ->
+                    secureSettings.setString(prefix + "xpack.ssl.truststore.secure_password", password));
+            }
         }
-        return builder.build();
     }
 
-    private static Settings getSSLSettingsForPEMFiles(String keyPath, String password, String certificatePath,
-                                            List<String> trustedCertificates, boolean useGeneratedSSLConfig,
-                                            boolean hostnameVerificationEnabled, boolean transportClient) {
-        Settings.Builder builder = Settings.builder();
+    private static void addSSLSettingsForPEMFiles(Settings.Builder builder, String prefix, String keyPath, String password,
+                                                  String certificatePath, List<String> trustedCertificates, boolean useGeneratedSSLConfig,
+                                                  boolean hostnameVerificationEnabled, boolean transportClient) {
 
         if (transportClient == false) {
-            builder.put("xpack.security.http.ssl.enabled", false);
+            builder.put(prefix + "xpack.security.http.ssl.enabled", false);
         }
 
-        builder.put("xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
+        builder.put(prefix + "xpack.ssl.verification_mode", hostnameVerificationEnabled ? "full" : "certificate");
         if (useGeneratedSSLConfig == false) {
-            builder.put("xpack.ssl.key", resolveResourcePath(keyPath))
-                    .put("xpack.ssl.key_passphrase", password)
-                    .put("xpack.ssl.certificate", resolveResourcePath(certificatePath));
+            builder.put(prefix + "xpack.ssl.key", resolveResourcePath(keyPath))
+                    .put(prefix + "xpack.ssl.certificate", resolveResourcePath(certificatePath));
+            if (transportClient) {
+                // continue using insecure settings for clients until we figure out what to do there...
+                builder.put(prefix + "xpack.ssl.key_passphrase", password);
+            } else {
+                addSecureSettings(builder, secureSettings ->
+                    secureSettings.setString(prefix + "xpack.ssl.secure_key_passphrase", password));
+            }
 
             if (trustedCertificates.isEmpty() == false) {
-                builder.put("xpack.ssl.certificate_authorities",
+                builder.put(prefix + "xpack.ssl.certificate_authorities",
                         Strings.arrayToCommaDelimitedString(resolvePathsToString(trustedCertificates)));
             }
         }
-        return builder.build();
+    }
+
+    public static void addSecureSettings(Settings.Builder builder, Consumer<MockSecureSettings> settingsSetter) {
+        SecureSettings secureSettings = builder.getSecureSettings();
+        if (secureSettings instanceof MockSecureSettings) {
+            settingsSetter.accept((MockSecureSettings) secureSettings);
+        } else if (secureSettings == null) {
+            MockSecureSettings mockSecureSettings = new MockSecureSettings();
+            settingsSetter.accept(mockSecureSettings);
+            builder.setSecureSettings(mockSecureSettings);
+        } else {
+            throw new AssertionError("Test settings builder must contain MockSecureSettings, " +
+                "but has [" + secureSettings.getClass().getName() + "]");
+        }
     }
 
     private static String[] resolvePathsToString(List<String> resourcePaths) {

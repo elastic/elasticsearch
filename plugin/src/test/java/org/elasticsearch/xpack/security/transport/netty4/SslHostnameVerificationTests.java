@@ -8,9 +8,11 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.TestXPackTransportClient;
 
@@ -19,7 +21,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map.Entry;
 
-import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 
@@ -52,10 +53,12 @@ public class SslHostnameVerificationTests extends SecurityIntegTestCase {
             throw new RuntimeException(e);
         }
 
+        SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings -> {
+            secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode-no-subjaltname");
+            secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode-no-subjaltname");
+        });
         return settingsBuilder.put("xpack.ssl.keystore.path", keystore.toAbsolutePath())
-                .put("xpack.ssl.keystore.password", "testnode-no-subjaltname")
                 .put("xpack.ssl.truststore.path", keystore.toAbsolutePath())
-                .put("xpack.ssl.truststore.password", "testnode-no-subjaltname")
                 // disable hostname verification as this test uses certs without a valid SAN or DNS in the CN
                 .put("xpack.ssl.verification_mode", "certificate")
                 .build();

@@ -81,13 +81,13 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         String password = new String(CharArrays.toUtf8Bytes(nodeClientPassword().getChars()), StandardCharsets.UTF_8);
         String url = getHttpURL();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
-        Settings sslSettings =
-                SecuritySettingsSource.getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks",
-                        "testnode");
-        Settings settings = Settings.builder().put(sslSettings)
+
+        Settings.Builder builder = Settings.builder()
                 .put("path.home", home)
-                .put("path.conf", conf)
-                .build();
+                .put("path.conf", conf);
+        SecuritySettingsSource.addSSLSettingsForStore(builder,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
+        Settings settings = builder.build();
         logger.error("--> retrieving users using URL: {}, home: {}", url, home);
 
         OptionParser parser = muor.getParser();
@@ -126,10 +126,10 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         String password = new String(CharArrays.toUtf8Bytes(nodeClientPassword().getChars()), StandardCharsets.UTF_8);
         String url = getHttpURL();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
-        Settings sslSettings =
-                SecuritySettingsSource.getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks",
-                        "testclient");
-        Settings settings = Settings.builder().put(sslSettings).put("path.home", home).build();
+        Settings.Builder builder = Settings.builder().put("path.home", home);
+        SecuritySettingsSource.addSSLSettingsForStore(builder,
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");
+        Settings settings = builder.build();
         logger.error("--> retrieving roles using URL: {}, home: {}", url, home);
 
         OptionParser parser = muor.getParser();

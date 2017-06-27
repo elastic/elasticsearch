@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -77,7 +78,7 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     public void testActiveDirectoryRealmWithAllSettingsValidatesSuccessfully() throws Exception {
-        assertSuccess(activeDirectoryRealm("ad1"));
+        assertSuccess(activeDirectoryRealm("ad1", true));
     }
 
     public void testPkiRealmWithCertificateAuthoritiesValidatesSuccessfully() throws Exception {
@@ -98,7 +99,7 @@ public class RealmSettingsTests extends ESTestCase {
                 .put(fileRealm("file1").build())
                 .put(nativeRealm("native2").build())
                 .put(ldapRealm("ldap3", true, false).build())
-                .put(activeDirectoryRealm("ad4").build())
+                .put(activeDirectoryRealm("ad4", false).build()) // don't load SSL twice
                 .put(pkiRealm("pki5", false).build())
                 .build();
         assertSuccess(settings);
@@ -125,7 +126,7 @@ public class RealmSettingsTests extends ESTestCase {
     }
 
     private Settings.Builder ldapSettings(boolean userSearch, boolean groupSearch) {
-        final Settings.Builder builder = commonLdapSettings("ldap")
+        final Settings.Builder builder = commonLdapSettings("ldap", true)
                 .put("bind_dn", "elasticsearch")
                 .put("bind_password", "t0p_s3cr3t")
                 .put("follow_referrals", randomBoolean());
@@ -157,12 +158,12 @@ public class RealmSettingsTests extends ESTestCase {
         return builder;
     }
 
-    private Settings.Builder activeDirectoryRealm(String name) {
-        return realm(name, activeDirectorySettings());
+    private Settings.Builder activeDirectoryRealm(String name, boolean configureSSL) {
+        return realm(name, activeDirectorySettings(configureSSL));
     }
 
-    private Settings.Builder activeDirectorySettings() {
-        final Settings.Builder builder = commonLdapSettings("active_directory")
+    private Settings.Builder activeDirectorySettings(boolean configureSSL) {
+        final Settings.Builder builder = commonLdapSettings("active_directory", configureSSL)
                 .put("domain_name", "MEGACORP");
         builder.put("user_search.base_dn", "o=people, dc.example, dc.com");
         builder.put("user_search.scope", "sub_tree");
@@ -172,7 +173,7 @@ public class RealmSettingsTests extends ESTestCase {
         return builder;
     }
 
-    private Settings.Builder commonLdapSettings(String type) {
+    private Settings.Builder commonLdapSettings(String type, boolean configureSSL) {
         final Settings.Builder builder = baseSettings(type, true)
                 .putArray("url", "ldap://dir1.internal:9876", "ldap://dir2.internal:9876", "ldap://dir3.internal:9876")
                 .put("load_balance.type", "round_robin")
@@ -182,7 +183,9 @@ public class RealmSettingsTests extends ESTestCase {
                 .put("timeout.tcp_connect", randomPositiveTimeValue())
                 .put("timeout.tcp_read", randomPositiveTimeValue())
                 .put("timeout.ldap_search", randomPositiveTimeValue());
-        configureSsl("ssl.", builder, randomBoolean(), randomBoolean());
+        if (configureSSL) {
+            configureSsl("ssl.", builder, randomBoolean(), randomBoolean());
+        }
         return builder;
     }
 
@@ -197,7 +200,9 @@ public class RealmSettingsTests extends ESTestCase {
 
         if (useTrustStore) {
             builder.put("truststore.path", randomAlphaOfLengthBetween(8, 32));
-            builder.put("truststore.password", randomAlphaOfLengthBetween(4, 12));
+            SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
+                secureSettings.setString("keystore.secure_password", randomAlphaOfLength(8));
+            });
             builder.put("truststore.algorithm", randomAlphaOfLengthBetween(6, 10));
         } else {
             builder.putArray("certificate_authorities", generateRandomStringArray(5, 32, false, false));
@@ -208,17 +213,22 @@ public class RealmSettingsTests extends ESTestCase {
     private Settings.Builder configureSsl(String prefix, Settings.Builder builder, boolean useKeyStore, boolean useTrustStore) {
         if (useKeyStore) {
             builder.put(prefix + "keystore.path", "x-pack/ssl/" + randomAlphaOfLength(5) + ".jks");
-            builder.put(prefix + "keystore.password", randomAlphaOfLength(8));
-            builder.put(prefix + "keystore.key_password", randomAlphaOfLength(8));
+            SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
+                secureSettings.setString(prefix + "keystore.secure_password", randomAlphaOfLength(8));
+                secureSettings.setString(prefix + "keystore.secure_key_password", randomAlphaOfLength(8));
+            });
         } else {
             builder.put(prefix + "key", "x-pack/ssl/" + randomAlphaOfLength(5) + ".key");
-            builder.put(prefix + "key_passphrase", randomAlphaOfLength(32));
+            SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
+                secureSettings.setString(prefix + "secure_key_passphrase", randomAlphaOfLength(32)));
+
             builder.put(prefix + "certificate", "x-pack/ssl/" + randomAlphaOfLength(5) + ".cert");
         }
 
         if (useTrustStore) {
             builder.put(prefix + "truststore.path", "x-pack/ssl/" + randomAlphaOfLength(5) + ".jts");
-            builder.put(prefix + "truststore.password", randomAlphaOfLength(8));
+            SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
+                secureSettings.setString(prefix + "truststore.secure_password", randomAlphaOfLength(8)));
         } else {
             builder.put(prefix + "certificate_authorities", "x-pack/ssl/" + randomAlphaOfLength(8) + ".ca");
         }

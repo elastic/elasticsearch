@@ -11,6 +11,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -173,14 +174,18 @@ public class PkiRealm extends Realm {
 
     private static X509TrustManager trustManagersFromTruststore(String truststorePath, RealmConfig realmConfig) {
         final Settings settings = realmConfig.settings();
-        String password = SSL_SETTINGS.truststorePassword.get(settings).orElseThrow(() -> new IllegalArgumentException(
+        if (SSL_SETTINGS.truststorePassword.exists(settings) == false) {
+            throw new IllegalArgumentException(
                 "[" + RealmSettings.getFullSettingKey(realmConfig, SSL_SETTINGS.truststorePassword) + "] is not configured"
-        ));
-        String trustStoreAlgorithm = SSL_SETTINGS.truststoreAlgorithm.get(settings);
-        try {
-            return CertUtils.trustManager(truststorePath, password, trustStoreAlgorithm, realmConfig.env());
-        } catch (Exception e) {
-            throw new IllegalArgumentException("failed to load specified truststore", e);
+            );
+        }
+        try (SecureString password = SSL_SETTINGS.truststorePassword.get(settings)) {
+            String trustStoreAlgorithm = SSL_SETTINGS.truststoreAlgorithm.get(settings);
+            try {
+                return CertUtils.trustManager(truststorePath, password.getChars(), trustStoreAlgorithm, realmConfig.env());
+            } catch (Exception e) {
+                throw new IllegalArgumentException("failed to load specified truststore", e);
+            }
         }
     }
 

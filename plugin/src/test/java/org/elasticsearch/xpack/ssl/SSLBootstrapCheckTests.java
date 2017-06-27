@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ssl;
 
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -19,13 +20,15 @@ public class SSLBootstrapCheckTests extends ESTestCase {
 
     public void testSSLBootstrapCheckWithKey() throws Exception {
         final String keyPrefix = randomBoolean() ? "security.transport." : "";
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack." + keyPrefix + "ssl.secure_key_passphrase", "testclient");
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .put("xpack." + keyPrefix + "ssl.key",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem"))
-                .put("xpack." + keyPrefix + "ssl.key_passphrase", "testclient")
                 .put("xpack." + keyPrefix + "ssl.certificate",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"))
+                .setSecureSettings(secureSettings)
                 .build();
         final Environment env = randomBoolean() ? new Environment(settings) : null;
         SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), settings, env);
@@ -34,16 +37,18 @@ public class SSLBootstrapCheckTests extends ESTestCase {
 
     public void testSSLBootstrapCheckWithDefaultCABeingTrusted() throws Exception {
         final String keyPrefix = randomBoolean() ? "security.transport." : "";
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack." + keyPrefix + "ssl.secure_key_passphrase", "testclient");
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .put("xpack." + keyPrefix + "ssl.key",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem"))
-                .put("xpack." + keyPrefix + "ssl.key_passphrase", "testclient")
                 .put("xpack." + keyPrefix + "ssl.certificate",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"))
                 .putArray("xpack." + keyPrefix + "ssl.certificate_authorities",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt").toString(),
                         getDataPath("/org/elasticsearch/xpack/ssl/ca.pem").toString())
+                .setSecureSettings(secureSettings)
                 .build();
         final Environment env = randomBoolean() ? new Environment(settings) : null;
         SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), settings, env);
@@ -59,15 +64,17 @@ public class SSLBootstrapCheckTests extends ESTestCase {
 
     public void testSSLBootstrapCheckWithDefaultKeyBeingUsed() throws Exception {
         final String keyPrefix = randomBoolean() ? "security.transport." : "";
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack." + keyPrefix + "ssl.secure_key_passphrase", "testclient");
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .put("xpack." + keyPrefix + "ssl.key",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.pem"))
-                .put("xpack." + keyPrefix + "ssl.key_passphrase", "testclient")
                 .put("xpack." + keyPrefix + "ssl.certificate",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.crt"))
                 .put("xpack.security.http.ssl.key", getDataPath("/org/elasticsearch/xpack/ssl/private.pem").toString())
                 .put("xpack.security.http.ssl.certificate", getDataPath("/org/elasticsearch/xpack/ssl/ca.pem").toString())
+                .setSecureSettings(secureSettings)
                 .build();
         final Environment env = randomBoolean() ? new Environment(settings) : null;
         SSLBootstrapCheck bootstrapCheck = new SSLBootstrapCheck(new SSLService(settings, env), settings, env);

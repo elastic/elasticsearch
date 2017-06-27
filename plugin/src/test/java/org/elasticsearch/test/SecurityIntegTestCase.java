@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -198,11 +199,17 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(customSecuritySettingsSource.nodeSettings(nodeOrdinal))
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 // Disable native ML autodetect_process as the c++ controller won't be available
-                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
-                .build();
+                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false);
+        Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal);
+        builder.put(customSettings.getAsMap()); // handle secure settings separately
+        Settings.Builder customBuilder = Settings.builder().put(customSettings);
+        if (customBuilder.getSecureSettings() != null) {
+            SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
+                secureSettings.merge((MockSecureSettings) customBuilder.getSecureSettings()));
+        }
+        return builder.build();
     }
 
     @Override

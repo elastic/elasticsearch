@@ -19,6 +19,7 @@ public class TokenPassphraseBootstrapCheckTests extends ESTestCase {
     public void testTokenPassphraseCheck() throws Exception {
         assertTrue(new TokenPassphraseBootstrapCheck(Settings.EMPTY).check());
         MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("foo", "bar"); // leniency in setSecureSettings... if its empty it's skipped
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         assertTrue(new TokenPassphraseBootstrapCheck(settings).check());
 
@@ -36,6 +37,7 @@ public class TokenPassphraseBootstrapCheckTests extends ESTestCase {
         Settings settings = Settings.builder().put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), false).build();
         assertFalse(new TokenPassphraseBootstrapCheck(settings).check());
         MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("foo", "bar"); // leniency in setSecureSettings... if its empty it's skipped
         settings = Settings.builder().put(settings).setSecureSettings(secureSettings).build();
         assertFalse(new TokenPassphraseBootstrapCheck(settings).check());
 

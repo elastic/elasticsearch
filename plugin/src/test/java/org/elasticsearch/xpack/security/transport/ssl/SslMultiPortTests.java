@@ -19,11 +19,10 @@ import org.junit.BeforeClass;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map.Entry;
 
 import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_PASSWORD;
 import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_USER_NAME;
-import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 
@@ -138,9 +137,10 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      * set to trust the testclient-client-profile certificate so the connection should always succeed
      */
     public void testThatProfileTransportClientCanConnectToClientProfile() throws Exception {
-        Settings settings = getSSLSettingsForStore(
+        Settings.Builder builder = Settings.builder();
+        addSSLSettingsForStore(builder,
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
-        try (TransportClient transportClient = createTransportClient(settings)) {
+        try (TransportClient transportClient = createTransportClient(builder.build())) {
             transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), getProfilePort("client")));
             assertGreenClusterState(transportClient);
         }
@@ -153,9 +153,10 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      * authentication
      */
     public void testThatProfileTransportClientCanConnectToNoClientAuthProfile() throws Exception {
-        Settings settings = getSSLSettingsForStore(
+        Settings.Builder builder = Settings.builder();
+        addSSLSettingsForStore(builder,
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
-        try (TransportClient transportClient = createTransportClient(settings)) {
+        try (TransportClient transportClient = createTransportClient(builder.build())) {
             transportClient.addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(),
                     getProfilePort("no_client_auth")));
             assertGreenClusterState(transportClient);
@@ -169,9 +170,10 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      * so the connection should always fail
      */
     public void testThatProfileTransportClientCannotConnectToDefaultProfile() throws Exception {
-        Settings settings = getSSLSettingsForStore(
+        Settings.Builder builder = Settings.builder();
+        addSSLSettingsForStore(builder,
                 "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient-client-profile.jks", "testclient-client-profile");
-        try (TransportClient transportClient = createTransportClient(settings)) {
+        try (TransportClient transportClient = createTransportClient(builder.build())) {
             TransportAddress transportAddress = randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses());
             transportClient.addTransportAddress(transportAddress);
             transportClient.admin().cluster().prepareHealth().get();

@@ -35,9 +35,9 @@ import java.util.Objects;
 class StoreKeyConfig extends KeyConfig {
 
     final String keyStorePath;
-    final String keyStorePassword;
+    final SecureString keyStorePassword;
     final String keyStoreAlgorithm;
-    final String keyPassword;
+    final SecureString keyPassword;
     final String trustStoreAlgorithm;
 
     /**
@@ -48,11 +48,13 @@ class StoreKeyConfig extends KeyConfig {
      * @param keyStoreAlgorithm the algorithm for the keystore
      * @param trustStoreAlgorithm the algorithm to use when loading as a truststore
      */
-    StoreKeyConfig(String keyStorePath, String keyStorePassword, String keyPassword, String keyStoreAlgorithm,
+    StoreKeyConfig(String keyStorePath, SecureString keyStorePassword, SecureString keyPassword, String keyStoreAlgorithm,
                    String trustStoreAlgorithm) {
         this.keyStorePath = Objects.requireNonNull(keyStorePath, "keystore path must be specified");
-        this.keyStorePassword = Objects.requireNonNull(keyStorePassword, "keystore password must be specified");
-        this.keyPassword = keyPassword;
+        // since we support reloading the keystore, we must store the passphrase in memory for the life of the node, so we
+        // clone the password and never close it during our uses below
+        this.keyStorePassword = Objects.requireNonNull(keyStorePassword, "keystore password must be specified").clone();
+        this.keyPassword = Objects.requireNonNull(keyPassword).clone();
         this.keyStoreAlgorithm = keyStoreAlgorithm;
         this.trustStoreAlgorithm = trustStoreAlgorithm;
     }
@@ -62,9 +64,7 @@ class StoreKeyConfig extends KeyConfig {
         try {
             KeyStore ks = getKeyStore(environment);
             checkKeyStore(ks);
-            try (SecureString keyPasswordSecureString = new SecureString(keyPassword.toCharArray())) {
-                return CertUtils.keyManager(ks, keyPasswordSecureString.getChars(), keyStoreAlgorithm);
-            }
+            return CertUtils.keyManager(ks, keyPassword.getChars(), keyStoreAlgorithm);
         } catch (IOException | CertificateException | NoSuchAlgorithmException | UnrecoverableKeyException | KeyStoreException e) {
             throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
         }
@@ -73,7 +73,7 @@ class StoreKeyConfig extends KeyConfig {
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertUtils.trustManager(keyStorePath, keyStorePassword, trustStoreAlgorithm, environment);
+            return CertUtils.trustManager(keyStorePath, keyStorePassword.getChars(), trustStoreAlgorithm, environment);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }
@@ -88,19 +88,17 @@ class StoreKeyConfig extends KeyConfig {
     List<PrivateKey> privateKeys(@Nullable Environment environment) {
         try {
             KeyStore keyStore = getKeyStore(environment);
-            try (SecureString keyPasswordSecureString = new SecureString(keyPassword.toCharArray())) {
-                List<PrivateKey> privateKeys = new ArrayList<>();
-                for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements(); ) {
-                    final String alias = e.nextElement();
-                    if (keyStore.isKeyEntry(alias)) {
-                        Key key = keyStore.getKey(alias, keyPasswordSecureString.getChars());
-                        if (key instanceof PrivateKey) {
-                            privateKeys.add((PrivateKey) key);
-                        }
+            List<PrivateKey> privateKeys = new ArrayList<>();
+            for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements(); ) {
+                final String alias = e.nextElement();
+                if (keyStore.isKeyEntry(alias)) {
+                    Key key = keyStore.getKey(alias, keyPassword.getChars());
+                    if (key instanceof PrivateKey) {
+                        privateKeys.add((PrivateKey) key);
                     }
                 }
-                return privateKeys;
             }
+            return privateKeys;
         } catch (Exception e) {
             throw new ElasticsearchException("failed to list keys", e);
         }
@@ -111,12 +109,7 @@ class StoreKeyConfig extends KeyConfig {
         try (InputStream in = Files.newInputStream(CertUtils.resolvePath(keyStorePath, environment))) {
             // TODO remove reliance on JKS since we can use PKCS12 stores in JDK8+...
             KeyStore ks = KeyStore.getInstance("jks");
-            if (keyStorePassword == null) {
-                throw new IllegalArgumentException("keystore password may not be null");
-            }
-            try (SecureString keyStorePasswordSecureString  = new SecureString(keyStorePassword.toCharArray())) {
-                ks.load(in, keyStorePasswordSecureString.getChars());
-            }
+            ks.load(in, keyStorePassword.getChars());
             return ks;
         }
     }

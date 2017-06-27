@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.security.transport.netty4;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.ssl.SSLClientAuth;
 
@@ -30,7 +32,7 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings settings = super.nodeSettings(nodeOrdinal);
         Settings.Builder builder = Settings.builder()
-                .put(settings.filter((s) -> s.startsWith("xpack.ssl.") == false));
+                .put(settings.filter((s) -> s.startsWith("xpack.ssl.") == false).getAsMap());
         settings = builder.build();
 
         // The default Unicast test behavior is to use 'localhost' with the port number. For this test we need to use IP
@@ -52,10 +54,12 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
             throw new RuntimeException(e);
         }
 
+        SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings -> {
+            secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode-ip-only");
+            secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode-ip-only");
+        });
         return settingsBuilder.put("xpack.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("xpack.ssl.keystore.password", "testnode-ip-only")
                 .put("xpack.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put("xpack.ssl.truststore.password", "testnode-ip-only")
                 .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
                 .put("network.host", "127.0.0.1")
                 .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)

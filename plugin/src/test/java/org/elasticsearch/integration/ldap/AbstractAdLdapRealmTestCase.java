@@ -14,11 +14,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.action.rolemapping.PutRoleMappingRequestBuilder;
 import org.elasticsearch.xpack.security.action.rolemapping.PutRoleMappingResponse;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
@@ -139,8 +141,8 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         Path store = getDataPath(TESTNODE_KEYSTORE);
         Settings.Builder builder = Settings.builder();
         if (useGlobalSSL) {
-            builder.put(super.nodeSettings(nodeOrdinal).filter((s) -> s.startsWith("xpack.ssl.") == false))
-                    .put(sslSettingsForStore(store, "testnode"));
+            builder.put(super.nodeSettings(nodeOrdinal).filter((s) -> s.startsWith("xpack.ssl.") == false));
+            addSslSettingsForStore(builder, store, "testnode");
         } else {
             builder.put(super.nodeSettings(nodeOrdinal));
         }
@@ -198,10 +200,10 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     protected Settings transportClientSettings() {
         if (useGlobalSSL) {
             Path store = getDataPath(TESTNODE_KEYSTORE);
-            return Settings.builder()
-                    .put(super.transportClientSettings().filter((s) -> s.startsWith("xpack.ssl.") == false))
-                    .put(sslSettingsForStore(store, "testnode"))
-                    .build();
+            Settings.Builder builder = Settings.builder()
+                    .put(super.transportClientSettings().filter((s) -> s.startsWith("xpack.ssl.") == false));
+            addSslSettingsForStore(builder, store, "testnode");
+            return builder.build();
         } else {
             return super.transportClientSettings();
         }
@@ -285,13 +287,14 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
         return UsernamePasswordToken.basicAuthHeaderValue(username, new SecureString(password.toCharArray()));
     }
 
-    private Settings sslSettingsForStore(Path store, String password) {
-        return Settings.builder()
-                .put("xpack.ssl.keystore.path", store)
-                .put("xpack.ssl.keystore.password", password)
-                .put("xpack.ssl.verification_mode", "certificate")
-                .put("xpack.ssl.truststore.path", store)
-                .put("xpack.ssl.truststore.password", password).build();
+    private void addSslSettingsForStore(Settings.Builder builder, Path store, String password) {
+        SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
+                secureSettings.setString("xpack.ssl.keystore.secure_password", password);
+                secureSettings.setString("xpack.ssl.truststore.secure_password", password);
+        });
+        builder.put("xpack.ssl.keystore.path", store)
+               .put("xpack.ssl.verification_mode", "certificate")
+               .put("xpack.ssl.truststore.path", store);
     }
 
     static class RoleMappingEntry {

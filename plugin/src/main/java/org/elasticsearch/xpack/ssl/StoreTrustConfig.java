@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 
 import javax.net.ssl.X509ExtendedTrustManager;
@@ -21,7 +22,7 @@ import java.util.Objects;
 class StoreTrustConfig extends TrustConfig {
 
     final String trustStorePath;
-    final String trustStorePassword;
+    final SecureString trustStorePassword;
     final String trustStoreAlgorithm;
 
     /**
@@ -30,17 +31,18 @@ class StoreTrustConfig extends TrustConfig {
      * @param trustStorePassword the password for the truststore
      * @param trustStoreAlgorithm the algorithm to use for reading the truststore
      */
-    StoreTrustConfig(String trustStorePath, String trustStorePassword, String trustStoreAlgorithm) {
+    StoreTrustConfig(String trustStorePath, SecureString trustStorePassword, String trustStoreAlgorithm) {
         this.trustStorePath = trustStorePath;
-        this.trustStorePassword = trustStorePath != null ?
-                Objects.requireNonNull(trustStorePassword, "truststore password must be specified") : trustStorePassword;
+        // since we support reloading the truststore, we must store the passphrase in memory for the life of the node, so we
+        // clone the password and never close it during our uses below
+        this.trustStorePassword = Objects.requireNonNull(trustStorePassword, "truststore password must be specified").clone();
         this.trustStoreAlgorithm = trustStoreAlgorithm;
     }
 
     @Override
     X509ExtendedTrustManager createTrustManager(@Nullable Environment environment) {
         try {
-            return CertUtils.trustManager(trustStorePath, trustStorePassword, trustStoreAlgorithm, environment);
+            return CertUtils.trustManager(trustStorePath, trustStorePassword.getChars(), trustStoreAlgorithm, environment);
         } catch (Exception e) {
             throw new ElasticsearchException("failed to initialize a TrustManagerFactory", e);
         }

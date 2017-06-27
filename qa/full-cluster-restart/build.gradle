@@ -152,7 +152,7 @@ subprojects {
       dataDir = { nodeNum -> oldClusterTest.nodes[nodeNum].dataDir }
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.ssl.keystore.password', 'testnode'
+      keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
       setting 'xpack.security.authc.realms.native.type', 'native'
       setting 'xpack.security.authc.realms.native.order', '0'
       dependsOn copyTestNodeKeystore

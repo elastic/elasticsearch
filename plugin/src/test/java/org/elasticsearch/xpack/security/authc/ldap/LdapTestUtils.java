@@ -11,6 +11,7 @@ import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionOptions;
 import com.unboundid.ldap.sdk.LDAPURL;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -28,22 +29,23 @@ public class LdapTestUtils {
     public static LDAPConnection openConnection(String url, String bindDN, String bindPassword, Path truststore) throws Exception {
         boolean useGlobalSSL = ESTestCase.randomBoolean();
         Settings.Builder builder = Settings.builder().put("path.home", LuceneTestCase.createTempDir());
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        builder.setSecureSettings(secureSettings);
         if (useGlobalSSL) {
-            builder.put("xpack.ssl.truststore.path", truststore)
-                    .put("xpack.ssl.truststore.password", "changeit");
-
+            builder.put("xpack.ssl.truststore.path", truststore);
             // fake realm to load config with certificate verification mode
             builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
+            secureSettings.setString("xpack.ssl.truststore.secure_password", "changeit");
+            secureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
         } else {
             // fake realms so ssl will get loaded
             builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.foo.ssl.truststore.password", "changeit");
             builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
             builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", truststore);
-            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
             builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
+            secureSettings.setString("xpack.security.authc.realms.foo.ssl.truststore.secure_password", "changeit");
+            secureSettings.setString("xpack.security.authc.realms.bar.ssl.truststore.secure_password", "changeit");
         }
         Settings settings = builder.build();
         Environment env = new Environment(settings);
@@ -60,8 +62,10 @@ public class LdapTestUtils {
         if (useGlobalSSL) {
             connectionSettings = Settings.EMPTY;
         } else {
+            MockSecureSettings connSecureSettings = new MockSecureSettings();
+            connSecureSettings.setString("truststore.secure_password", "changeit");
             connectionSettings = Settings.builder().put("truststore.path", truststore)
-                    .put("truststore.password", "changeit").build();
+                        .setSecureSettings(connSecureSettings).build();
         }
         return LdapUtils.privilegedConnect(() -> new LDAPConnection(sslService.sslSocketFactory(connectionSettings), options,
                 ldapurl.getHost(), ldapurl.getPort(), bindDN, bindPassword));

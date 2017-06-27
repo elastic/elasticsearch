@@ -1,5 +1,5 @@
 [[windows]]
-=== Install Elasticsearch with MSI Windows Installer
+=== Install Elasticsearch with Windows MSI Installer
 
 Elasticsearch can be installed on Windows using the `.msi` package.  This can
 install Elasticsearch as a Windows service or allow it to be run manually using
@@ -269,6 +269,11 @@ and configured to start when installation completes, as follows:
 --------------------------------------------
 .\bin\elasticsearch.exe
 --------------------------------------------
+
+The command line terminal will display output similar to the following:
+
+[[msi-installer-elasticsearch-exe]]
+image::images/msi_installer/elasticsearch_exe.png[]
 
 By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT` in addition
 to the `<cluster name>.log` file within `LOGSDIRECTORY`, and can be stopped by pressing `Ctrl-C`.

@@ -23,6 +23,8 @@ import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -95,6 +97,23 @@ public abstract class AggregationBuilder
      */
     @Override
     public abstract AggregationBuilder subAggregations(AggregatorFactories.Builder subFactories);
+
+    public final AggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
+        AggregationBuilder rewritten = doRewrite(context);
+        if (rewritten == this) {
+            return rewritten;
+        }
+        if (getMetaData() != null && rewritten.getMetaData() == null) {
+            rewritten.setMetaData(getMetaData());
+        }
+        AggregatorFactories.Builder rewrittenSubAggs = factoriesBuilder.rewrite(context);
+        rewritten.subAggregations(rewrittenSubAggs);
+        return rewritten;
+    }
+
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        return this;
+    }
 
     /** Common xcontent fields shared among aggregator builders */
     public static final class CommonFields extends ParseField.CommonFields {

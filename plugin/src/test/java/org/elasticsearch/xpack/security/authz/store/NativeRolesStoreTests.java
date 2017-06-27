@@ -83,7 +83,8 @@ public class NativeRolesStoreTests extends ESTestCase {
         Path path = getDataPath("roles2xformat.json");
         byte[] bytes = Files.readAllBytes(path);
         String roleString = new String(bytes, Charset.defaultCharset());
-        RoleDescriptor role = NativeRolesStore.transformRole("role1", new BytesArray(roleString), logger, new XPackLicenseState());
+        RoleDescriptor role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "role1",
+            new BytesArray(roleString), logger, new XPackLicenseState());
         assertNotNull(role);
         assertNotNull(role.getIndicesPrivileges());
         RoleDescriptor.IndicesPrivileges indicesPrivileges = role.getIndicesPrivileges()[0];
@@ -125,7 +126,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
         XContentBuilder builder = flsRole.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
         BytesReference bytes = builder.bytes();
-        RoleDescriptor role = NativeRolesStore.transformRole("fls", bytes, logger, licenseState);
+        RoleDescriptor role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "-fls", bytes, logger, licenseState);
         assertNotNull(role);
         assertTrue(role.getTransientMetadata().containsKey("unlicensed_features"));
         assertThat(role.getTransientMetadata().get("unlicensed_features"), instanceOf(List.class));
@@ -133,7 +134,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
         builder = dlsRole.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
         bytes = builder.bytes();
-        role = NativeRolesStore.transformRole("dls", bytes, logger, licenseState);
+        role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "dls", bytes, logger, licenseState);
         assertNotNull(role);
         assertTrue(role.getTransientMetadata().containsKey("unlicensed_features"));
         assertThat(role.getTransientMetadata().get("unlicensed_features"), instanceOf(List.class));
@@ -141,7 +142,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
         builder = flsDlsRole.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
         bytes = builder.bytes();
-        role = NativeRolesStore.transformRole("fls_dls", bytes, logger, licenseState);
+        role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "fls_dls", bytes, logger, licenseState);
         assertNotNull(role);
         assertTrue(role.getTransientMetadata().containsKey("unlicensed_features"));
         assertThat(role.getTransientMetadata().get("unlicensed_features"), instanceOf(List.class));
@@ -149,32 +150,32 @@ public class NativeRolesStoreTests extends ESTestCase {
 
         builder = noFlsDlsRole.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
         bytes = builder.bytes();
-        role = NativeRolesStore.transformRole("no_fls_dls", bytes, logger, licenseState);
+        role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "no_fls_dls", bytes, logger, licenseState);
         assertNotNull(role);
         assertFalse(role.getTransientMetadata().containsKey("unlicensed_features"));
 
         when(licenseState.isDocumentAndFieldLevelSecurityAllowed()).thenReturn(true);
         builder = flsRole.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
         bytes = builder.bytes();
-        role = NativeRolesStore.transformRole("fls", bytes, logger, licenseState);
+        role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "fls", bytes, logger, licenseState);
         assertNotNull(role);
         assertFalse(role.getTransientMetadata().containsKey("unlicensed_features"));
 
         builder = dlsRole.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
         bytes = builder.bytes();
-        role = NativeRolesStore.transformRole("dls", bytes, logger, licenseState);
+        role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "dls", bytes, logger, licenseState);
         assertNotNull(role);
         assertFalse(role.getTransientMetadata().containsKey("unlicensed_features"));
 
         builder = flsDlsRole.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
         bytes = builder.bytes();
-        role = NativeRolesStore.transformRole("fls_dls", bytes, logger, licenseState);
+        role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "fls_dls", bytes, logger, licenseState);
         assertNotNull(role);
         assertFalse(role.getTransientMetadata().containsKey("unlicensed_features"));
 
         builder = noFlsDlsRole.toXContent(XContentBuilder.builder(XContentType.JSON.xContent()), ToXContent.EMPTY_PARAMS);
         bytes = builder.bytes();
-        role = NativeRolesStore.transformRole("no_fls_dls", bytes, logger, licenseState);
+        role = NativeRolesStore.transformRole(RoleDescriptor.ROLE_TYPE + "no_fls_dls", bytes, logger, licenseState);
         assertNotNull(role);
         assertFalse(role.getTransientMetadata().containsKey("unlicensed_features"));
     }

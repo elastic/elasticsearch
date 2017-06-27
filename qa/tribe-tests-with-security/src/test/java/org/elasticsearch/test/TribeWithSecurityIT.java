@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.INTERNAL_SECURITY_INDEX;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -77,16 +77,16 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
 
     @After
     public void removeSecurityIndex() {
-        client().admin().indices().prepareDelete(SECURITY_INDEX_NAME).get();
-        cluster2.client().admin().indices().prepareDelete(SECURITY_INDEX_NAME).get();
+        client().admin().indices().prepareDelete(INTERNAL_SECURITY_INDEX).get();
+        cluster2.client().admin().indices().prepareDelete(INTERNAL_SECURITY_INDEX).get();
         securityClient(client()).prepareClearRealmCache().get();
         securityClient(cluster2.client()).prepareClearRealmCache().get();
     }
 
     @Before
     public void addSecurityIndex() {
-        client().admin().indices().prepareCreate(SECURITY_INDEX_NAME).get();
-        cluster2.client().admin().indices().prepareCreate(SECURITY_INDEX_NAME).get();
+        client().admin().indices().prepareCreate(INTERNAL_SECURITY_INDEX).get();
+        cluster2.client().admin().indices().prepareCreate(INTERNAL_SECURITY_INDEX).get();
     }
 
     @Override

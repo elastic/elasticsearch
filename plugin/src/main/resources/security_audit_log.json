@@ -6,7 +6,7 @@
     "index.mapper.dynamic" : false
   },
   "mappings": {
-    "event": {
+    "doc": {
       "dynamic" : "strict",
       "properties": {
         "@timestamp": {

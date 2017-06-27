@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.junit.Before;
 
@@ -264,8 +265,9 @@ public class LicensingTests extends SecurityIntegTestCase {
     }
 
     public void testNativeRealmMigratorWorksUnderBasicLicense() throws Exception {
-        final String securityIndex = ".security";
-        final String reservedUserType = "reserved-user";
+        final String internalSecurityIndex = IndexLifecycleManager.INTERNAL_SECURITY_INDEX;
+        final String aliasedIndex = SecurityLifecycleService.SECURITY_INDEX_NAME;
+        final String reservedUserType = "doc";
         final String securityVersionField = "security-version";
         final String oldVersionThatRequiresMigration = Version.V_5_0_2.toString();
         final String expectedVersionAfterMigration = Version.CURRENT.toString();
@@ -281,7 +283,7 @@ public class LicensingTests extends SecurityIntegTestCase {
         final PutIndexTemplateResponse putTemplateResponse = client.admin().indices().putTemplate(putTemplateRequest).actionGet();
         assertThat(putTemplateResponse.isAcknowledged(), equalTo(true));
 
-        final CreateIndexRequest createIndexRequest = client.admin().indices().prepareCreate(securityIndex).request();
+        final CreateIndexRequest createIndexRequest = client.admin().indices().prepareCreate(internalSecurityIndex).request();
         final CreateIndexResponse createIndexResponse = client.admin().indices().create(createIndexRequest).actionGet();
         assertThat(createIndexResponse.isAcknowledged(), equalTo(true));
 
@@ -290,17 +292,17 @@ public class LicensingTests extends SecurityIntegTestCase {
         final Map<String, Object> reservedUserMapping = (Map<String, Object>) mappings.get(reservedUserType);
 
         final PutMappingRequest putMappingRequest = client.admin().indices()
-                .preparePutMapping(securityIndex).setSource(reservedUserMapping).setType(reservedUserType).request();
+                .preparePutMapping(internalSecurityIndex).setSource(reservedUserMapping).setType(reservedUserType).request();
 
         final PutMappingResponse putMappingResponse = client.admin().indices().putMapping(putMappingRequest).actionGet();
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
-        final GetMappingsRequest getMappingsRequest = client.admin().indices().prepareGetMappings(securityIndex).request();
+        final GetMappingsRequest getMappingsRequest = client.admin().indices().prepareGetMappings(internalSecurityIndex).request();
         logger.info("Waiting for '{}' in mapping meta-data of index '{}' to equal '{}'",
-                securityVersionField, securityIndex, expectedVersionAfterMigration);
+                securityVersionField, aliasedIndex, expectedVersionAfterMigration);
         final boolean upgradeOk = awaitBusy(() -> {
             final GetMappingsResponse getMappingsResponse = client.admin().indices().getMappings(getMappingsRequest).actionGet();
-            final MappingMetaData metaData = getMappingsResponse.mappings().get(securityIndex).get(reservedUserType);
+            final MappingMetaData metaData = getMappingsResponse.mappings().get(internalSecurityIndex).get(reservedUserType);
             try {
                 Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");
                 return meta != null && expectedVersionAfterMigration.equals(meta.get(securityVersionField));
@@ -310,8 +312,9 @@ public class LicensingTests extends SecurityIntegTestCase {
         }, 3, TimeUnit.SECONDS);
         assertThat("Update of " + securityVersionField + " did not happen within allowed time limit", upgradeOk, equalTo(true));
 
-        logger.info("Update of {}/{} complete, checking that logstash_system user exists", securityIndex, securityVersionField);
-        final GetRequest getRequest = client.prepareGet(securityIndex, reservedUserType, "logstash_system").setRefresh(true).request();
+        logger.info("Update of {}/{} complete, checking that logstash_system user exists", aliasedIndex, securityVersionField);
+        final String logstashUser = "reserved-user-logstash_system";
+        final GetRequest getRequest = client.prepareGet(aliasedIndex, reservedUserType, logstashUser).setRefresh(true).request();
         final GetResponse getResponse = client.get(getRequest).actionGet();
         assertThat(getResponse.isExists(), equalTo(true));
         assertThat(getResponse.getFields(), equalTo(Collections.emptyMap()));

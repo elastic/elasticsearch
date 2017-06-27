@@ -16,7 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
 import java.io.FileNotFoundException;
 import java.nio.file.Files;
@@ -59,7 +58,8 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
         RoleDescriptor rd = new RoleDescriptor("rolename", cluster, ips, runAs);
         assertThat(ESNativeRealmMigrateTool.MigrateUserOrRoles.createRoleJson(rd),
                 equalTo("{\"cluster\":[],\"indices\":[{\"names\":[\"i1\",\"i2\",\"i3\"]," +
-                                "\"privileges\":[\"all\"],\"field_security\":{\"grant\":[\"body\"]}}],\"run_as\":[],\"metadata\":{}}"));
+                                "\"privileges\":[\"all\"],\"field_security\":{\"grant\":[\"body\"]}}]," +
+                                "\"run_as\":[],\"metadata\":{},\"type\":\"role\"}"));
     }
 
     public void testTerminalLogger() throws Exception {

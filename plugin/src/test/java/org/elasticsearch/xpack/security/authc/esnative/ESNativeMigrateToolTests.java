@@ -94,9 +94,9 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         OptionSet options = parser.parse("-u", username, "-p", password, "-U", url, "--path.conf", conf);
         logger.info("--> options: {}", options.asMap());
         Set<String> users = muor.getUsersThatExist(t, settings, new Environment(settings), options);
-        logger.info("--> output: \n{}", t.getOutput());;
+        logger.info("--> output: \n{}", t.getOutput());
         for (String u : addedUsers) {
-            assertThat("expected list to contain: " + u, users.contains(u), is(true));
+            assertThat("expected list to contain: " + u + ", real list: " + users, users.contains(u), is(true));
         }
     }
 

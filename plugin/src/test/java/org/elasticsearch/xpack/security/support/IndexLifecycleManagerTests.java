@@ -59,7 +59,7 @@ public class IndexLifecycleManagerTests extends ESTestCase {
     private static final ClusterName CLUSTER_NAME = new ClusterName("index-lifecycle-manager-tests");
     private static final ClusterState EMPTY_CLUSTER_STATE = new ClusterState.Builder(CLUSTER_NAME).build();
     public static final String INDEX_NAME = "IndexLifecycleManagerTests";
-    public static final String TEMPLATE_NAME = "IndexLifecycleManagerTests-template";
+    private static final String TEMPLATE_NAME = "IndexLifecycleManagerTests-template";
     private IndexLifecycleManager manager;
     private IndexLifecycleManager.IndexDataMigrator migrator;
     private Map<Action<?, ?, ?>, Map<ActionRequest, ActionListener<?>>> actions;

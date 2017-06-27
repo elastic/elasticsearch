@@ -66,8 +66,9 @@ import java.util.function.Consumer;
  */
 public class NativeUsersStore extends AbstractComponent {
 
+    static final String INDEX_TYPE = "doc";
     private static final String USER_DOC_TYPE = "user";
-    public static final String RESERVED_USER_DOC_TYPE = "reserved-user";
+    static final String RESERVED_USER_TYPE = "reserved-user";
 
     private final Hasher hasher = Hasher.BCRYPT;
     private final InternalClient client;
@@ -110,16 +111,22 @@ public class NativeUsersStore extends AbstractComponent {
                     (uap) -> listener.onResponse(uap == null ? Collections.emptyList() : Collections.singletonList(uap.user())),
                     handleException::accept));
         } else {
+            if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+                listener.onFailure(new IllegalStateException(
+                    "Security index is not on the current version - please upgrade with the upgrade api"));
+                return;
+            }
             try {
                 final QueryBuilder query;
                 if (userNames == null || userNames.length == 0) {
-                    query = QueryBuilders.matchAllQuery();
+                    query = QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), USER_DOC_TYPE);
                 } else {
-                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(USER_DOC_TYPE).addIds(userNames));
+                    final String[] users = Arrays.asList(userNames).stream()
+                        .map(s -> getIdForUser(USER_DOC_TYPE, s)).toArray(String[]::new);
+                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(INDEX_TYPE).addIds(users));
                 }
                 SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
                         .setScroll(TimeValue.timeValueSeconds(10L))
-                        .setTypes(USER_DOC_TYPE)
                         .setQuery(query)
                         .setSize(1000)
                         .setFetchSource(true)
@@ -140,8 +147,14 @@ public class NativeUsersStore extends AbstractComponent {
      * Async method to retrieve a user and their password
      */
     private void getUserAndPassword(final String user, final ActionListener<UserAndPassword> listener) {
+        if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
+        }
         try {
-            GetRequest request = client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, USER_DOC_TYPE, user).request();
+            GetRequest request = client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME,
+                INDEX_TYPE, getIdForUser(USER_DOC_TYPE, user)).request();
             client.get(request, new ActionListener<GetResponse>() {
                 @Override
                 public void onResponse(GetResponse response) {
@@ -181,6 +194,10 @@ public class NativeUsersStore extends AbstractComponent {
         if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
             return;
+        } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("password cannot be changed as user service cannot write until template and " +
                     "mappings are up to date"));
@@ -189,12 +206,13 @@ public class NativeUsersStore extends AbstractComponent {
 
         final String docType;
         if (ReservedRealm.isReserved(username, settings)) {
-            docType = RESERVED_USER_DOC_TYPE;
+            docType = RESERVED_USER_TYPE;
         } else {
             docType = USER_DOC_TYPE;
         }
 
-        client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, docType, username)
+        securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
+            client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(docType, username))
                 .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.PASSWORD.getPreferredName(), String.valueOf(request.passwordHash()))
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .execute(new ActionListener<UpdateResponse>() {
@@ -207,7 +225,7 @@ public class NativeUsersStore extends AbstractComponent {
                     @Override
                     public void onFailure(Exception e) {
                         if (isIndexNotFoundOrDocumentMissing(e)) {
-                            if (docType.equals(RESERVED_USER_DOC_TYPE)) {
+                            if (docType.equals(RESERVED_USER_TYPE)) {
                                 createReservedUser(username, request.passwordHash(), request.getRefreshPolicy(), listener);
                             } else {
                                 logger.debug((Supplier<?>) () ->
@@ -220,7 +238,7 @@ public class NativeUsersStore extends AbstractComponent {
                             listener.onFailure(e);
                         }
                     }
-                });
+                }));
     }
 
     /**
@@ -228,8 +246,15 @@ public class NativeUsersStore extends AbstractComponent {
      * has been indexed
      */
     private void createReservedUser(String username, char[] passwordHash, RefreshPolicy refresh, ActionListener<Void> listener) {
-        client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
-                .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(), true)
+        if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
+        }
+        securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
+            client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(RESERVED_USER_TYPE, username))
+                .setSource(Fields.PASSWORD.getPreferredName(), String.valueOf(passwordHash), Fields.ENABLED.getPreferredName(), true,
+                           Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                 .setRefreshPolicy(refresh)
                 .execute(new ActionListener<IndexResponse>() {
                     @Override
@@ -241,7 +266,7 @@ public class NativeUsersStore extends AbstractComponent {
                     public void onFailure(Exception e) {
                         listener.onFailure(e);
                     }
-                });
+                }));
     }
 
     /**
@@ -254,7 +279,11 @@ public class NativeUsersStore extends AbstractComponent {
         if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
             return;
-        }  else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
+        } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
+        } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("user cannot be created or changed as the user service cannot write until " +
                     "template and mappings are up to date"));
             return;
@@ -277,15 +306,19 @@ public class NativeUsersStore extends AbstractComponent {
      */
     private void updateUserWithoutPassword(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         assert putUserRequest.passwordHash() == null;
+        assert !securityLifecycleService.isSecurityIndexOutOfDate() : "security index should be up to date";
         // We must have an existing document
-        client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, USER_DOC_TYPE, putUserRequest.username())
+        securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
+            client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE,
+                             getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
                 .setDoc(Requests.INDEX_CONTENT_TYPE,
-                        User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
-                        User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
-                        User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
-                        User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
-                        User.Fields.METADATA.getPreferredName(), putUserRequest.metadata(),
-                        User.Fields.ENABLED.getPreferredName(), putUserRequest.enabled())
+                        Fields.USERNAME.getPreferredName(), putUserRequest.username(),
+                        Fields.ROLES.getPreferredName(), putUserRequest.roles(),
+                        Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
+                        Fields.EMAIL.getPreferredName(), putUserRequest.email(),
+                        Fields.METADATA.getPreferredName(), putUserRequest.metadata(),
+                        Fields.ENABLED.getPreferredName(), putUserRequest.enabled(),
+                        Fields.TYPE.getPreferredName(), USER_DOC_TYPE)
                 .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                 .execute(new ActionListener<UpdateResponse>() {
                     @Override
@@ -308,20 +341,23 @@ public class NativeUsersStore extends AbstractComponent {
                         }
                         listener.onFailure(failure);
                     }
-                });
+                }));
     }
 
     private void indexUser(final PutUserRequest putUserRequest, final ActionListener<Boolean> listener) {
         assert putUserRequest.passwordHash() != null;
-        client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME,
-                USER_DOC_TYPE, putUserRequest.username())
-                .setSource(User.Fields.USERNAME.getPreferredName(), putUserRequest.username(),
-                        User.Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
-                        User.Fields.ROLES.getPreferredName(), putUserRequest.roles(),
-                        User.Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
-                        User.Fields.EMAIL.getPreferredName(), putUserRequest.email(),
-                        User.Fields.METADATA.getPreferredName(), putUserRequest.metadata(),
-                        User.Fields.ENABLED.getPreferredName(), putUserRequest.enabled())
+        assert !securityLifecycleService.isSecurityIndexOutOfDate() : "security index should be up to date";
+        securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
+            client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE,
+                            getIdForUser(USER_DOC_TYPE, putUserRequest.username()))
+                .setSource(Fields.USERNAME.getPreferredName(), putUserRequest.username(),
+                        Fields.PASSWORD.getPreferredName(), String.valueOf(putUserRequest.passwordHash()),
+                        Fields.ROLES.getPreferredName(), putUserRequest.roles(),
+                        Fields.FULL_NAME.getPreferredName(), putUserRequest.fullName(),
+                        Fields.EMAIL.getPreferredName(), putUserRequest.email(),
+                        Fields.METADATA.getPreferredName(), putUserRequest.metadata(),
+                        Fields.ENABLED.getPreferredName(), putUserRequest.enabled(),
+                        Fields.TYPE.getPreferredName(), USER_DOC_TYPE)
                 .setRefreshPolicy(putUserRequest.getRefreshPolicy())
                 .execute(new ActionListener<IndexResponse>() {
                     @Override
@@ -333,7 +369,7 @@ public class NativeUsersStore extends AbstractComponent {
                     public void onFailure(Exception e) {
                         listener.onFailure(e);
                     }
-                });
+                }));
     }
 
     /**
@@ -345,7 +381,11 @@ public class NativeUsersStore extends AbstractComponent {
         if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be created or modified using a tribe node"));
             return;
-        }  else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
+        } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
+        } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("enabled status cannot be changed as user service cannot write until template " +
                     "and mappings are up to date"));
             return;
@@ -360,9 +400,11 @@ public class NativeUsersStore extends AbstractComponent {
 
     private void setRegularUserEnabled(final String username, final boolean enabled, final RefreshPolicy refreshPolicy,
                             final ActionListener<Void> listener) {
+        assert !securityLifecycleService.isSecurityIndexOutOfDate() : "security index should be up to date";
         try {
-            client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, USER_DOC_TYPE, username)
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, User.Fields.ENABLED.getPreferredName(), enabled)
+            securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
+                client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(USER_DOC_TYPE, username))
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
                     .setRefreshPolicy(refreshPolicy)
                     .execute(new ActionListener<UpdateResponse>() {
                         @Override
@@ -384,7 +426,7 @@ public class NativeUsersStore extends AbstractComponent {
                             }
                             listener.onFailure(failure);
                         }
-                    });
+                    }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -392,12 +434,15 @@ public class NativeUsersStore extends AbstractComponent {
 
     private void setReservedUserEnabled(final String username, final boolean enabled, final RefreshPolicy refreshPolicy,
                                         boolean clearCache, final ActionListener<Void> listener) {
+        assert !securityLifecycleService.isSecurityIndexOutOfDate() : "security index should be up to date";
         try {
-            client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
-                    .setDoc(Requests.INDEX_CONTENT_TYPE, User.Fields.ENABLED.getPreferredName(), enabled)
+            securityLifecycleService.createIndexIfNeededThenExecute(listener, () ->
+                client.prepareUpdate(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(RESERVED_USER_TYPE, username))
+                    .setDoc(Requests.INDEX_CONTENT_TYPE, Fields.ENABLED.getPreferredName(), enabled)
                     .setUpsert(XContentType.JSON,
-                            User.Fields.PASSWORD.getPreferredName(), "",
-                            User.Fields.ENABLED.getPreferredName(), enabled)
+                               Fields.PASSWORD.getPreferredName(), "",
+                               Fields.ENABLED.getPreferredName(), enabled,
+                               Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                     .setRefreshPolicy(refreshPolicy)
                     .execute(new ActionListener<UpdateResponse>() {
                         @Override
@@ -413,7 +458,7 @@ public class NativeUsersStore extends AbstractComponent {
                         public void onFailure(Exception e) {
                             listener.onFailure(e);
                         }
-                    });
+                    }));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -423,7 +468,11 @@ public class NativeUsersStore extends AbstractComponent {
         if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("users may not be deleted using a tribe node"));
             return;
-        }  else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
+        } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
+        } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("user cannot be deleted as user service cannot write until template and " +
                     "mappings are up to date"));
             return;
@@ -431,7 +480,7 @@ public class NativeUsersStore extends AbstractComponent {
 
         try {
             DeleteRequest request = client.prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME,
-                    USER_DOC_TYPE, deleteUserRequest.username()).request();
+                    INDEX_TYPE, getIdForUser(USER_DOC_TYPE, deleteUserRequest.username())).request();
             request.indicesOptions().ignoreUnavailable();
             request.setRefreshPolicy(deleteUserRequest.getRefreshPolicy());
             client.delete(request, new ActionListener<DeleteResponse>() {
@@ -474,14 +523,18 @@ public class NativeUsersStore extends AbstractComponent {
         if (!securityLifecycleService.isSecurityIndexExisting()) {
             listener.onFailure(new IllegalStateException("Attempt to get reserved user info but the security index does not exist"));
             return;
+        } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
         }
-        client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
+        client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(RESERVED_USER_TYPE, username))
                 .execute(new ActionListener<GetResponse>() {
                     @Override
                     public void onResponse(GetResponse getResponse) {
                         if (getResponse.isExists()) {
                             Map<String, Object> sourceMap = getResponse.getSourceAsMap();
-                            String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
+                            String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
                             Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
                             if (password == null) {
                                 listener.onFailure(new IllegalStateException("password hash must not be null!"));
@@ -514,9 +567,13 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     void getAllReservedUserInfo(ActionListener<Map<String, ReservedUserInfo>> listener) {
+        if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
+        }
         client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                .setTypes(RESERVED_USER_DOC_TYPE)
-                .setQuery(QueryBuilders.matchAllQuery())
+                .setQuery(QueryBuilders.termQuery(Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE))
                 .setFetchSource(true)
                 .execute(new ActionListener<SearchResponse>() {
                     @Override
@@ -526,8 +583,12 @@ public class NativeUsersStore extends AbstractComponent {
                                 "this to retrieve them all!";
                         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
                             Map<String, Object> sourceMap = searchHit.getSourceAsMap();
-                            String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
+                            String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
                             Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
+                            final String id = searchHit.getId();
+                            assert id != null && id.startsWith(RESERVED_USER_TYPE) :
+                                "id [" + id + "] does not start with reserved-user prefix";
+                            final String username = id.substring(RESERVED_USER_TYPE.length() + 1);
                             if (password == null) {
                                 listener.onFailure(new IllegalStateException("password hash must not be null!"));
                                 return;
@@ -535,9 +596,9 @@ public class NativeUsersStore extends AbstractComponent {
                                 listener.onFailure(new IllegalStateException("enabled must not be null!"));
                                 return;
                             } else if (password.isEmpty()) {
-                                userInfos.put(searchHit.getId(), new ReservedUserInfo(ReservedRealm.DEFAULT_PASSWORD_HASH, enabled, true));
+                                userInfos.put(username, new ReservedUserInfo(ReservedRealm.DEFAULT_PASSWORD_HASH, enabled, true));
                             } else {
-                                userInfos.put(searchHit.getId(), new ReservedUserInfo(password.toCharArray(), enabled, false));
+                                userInfos.put(username, new ReservedUserInfo(password.toCharArray(), enabled, false));
                             }
                         }
                         listener.onResponse(userInfos);
@@ -577,21 +638,23 @@ public class NativeUsersStore extends AbstractComponent {
     }
 
     @Nullable
-    private UserAndPassword transformUser(String username, Map<String, Object> sourceMap) {
+    private UserAndPassword transformUser(final String id, final Map<String, Object> sourceMap) {
         if (sourceMap == null) {
             return null;
         }
+        assert id != null && id.startsWith(USER_DOC_TYPE) : "id [" + id + "] does not start with user prefix";
+        final String username = id.substring(USER_DOC_TYPE.length() + 1);
         try {
-            String password = (String) sourceMap.get(User.Fields.PASSWORD.getPreferredName());
-            String[] roles = ((List<String>) sourceMap.get(User.Fields.ROLES.getPreferredName())).toArray(Strings.EMPTY_ARRAY);
-            String fullName = (String) sourceMap.get(User.Fields.FULL_NAME.getPreferredName());
-            String email = (String) sourceMap.get(User.Fields.EMAIL.getPreferredName());
-            Boolean enabled = (Boolean) sourceMap.get(User.Fields.ENABLED.getPreferredName());
+            String password = (String) sourceMap.get(Fields.PASSWORD.getPreferredName());
+            String[] roles = ((List<String>) sourceMap.get(Fields.ROLES.getPreferredName())).toArray(Strings.EMPTY_ARRAY);
+            String fullName = (String) sourceMap.get(Fields.FULL_NAME.getPreferredName());
+            String email = (String) sourceMap.get(Fields.EMAIL.getPreferredName());
+            Boolean enabled = (Boolean) sourceMap.get(Fields.ENABLED.getPreferredName());
             if (enabled == null) {
                 // fallback mechanism as a user from 2.x may not have the enabled field
                 enabled = Boolean.TRUE;
             }
-            Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(User.Fields.METADATA.getPreferredName());
+            Map<String, Object> metadata = (Map<String, Object>) sourceMap.get(Fields.METADATA.getPreferredName());
             return new UserAndPassword(new User(username, roles, fullName, email, metadata, enabled), password.toCharArray());
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("error in the format of data for user [{}]", username), e);
@@ -607,6 +670,13 @@ public class NativeUsersStore extends AbstractComponent {
             }
         }
         return false;
+    }
+
+    /**
+     * Gets the document id for the given user and user type (reserved user or regular user).
+     */
+    public static String getIdForUser(final String docType, final String userName) {
+        return docType + "-" + userName;
     }
 
     static class ReservedUserInfo {

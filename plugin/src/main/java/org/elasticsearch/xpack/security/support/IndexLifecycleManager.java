@@ -23,8 +23,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -50,6 +53,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 
 /**
@@ -57,6 +61,8 @@ import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
  */
 public class IndexLifecycleManager extends AbstractComponent {
 
+    public static final String INTERNAL_SECURITY_INDEX = ".security-v6";
+    private static final int INTERNAL_INDEX_FORMAT = 6;
     private static final String SECURITY_VERSION_STRING = "security-version";
     public static final String TEMPLATE_VERSION_PATTERN =
             Pattern.quote("${security.template.version}");
@@ -78,6 +84,7 @@ public class IndexLifecycleManager extends AbstractComponent {
 
     private volatile boolean templateIsUpToDate;
     private volatile boolean indexExists;
+    private volatile boolean isIndexUpToDate;
     private volatile boolean indexAvailable;
     private volatile boolean canWriteToIndex;
     private volatile boolean mappingIsUpToDate;
@@ -132,6 +139,10 @@ public class IndexLifecycleManager extends AbstractComponent {
         return indexExists;
     }
 
+    public boolean isIndexUpToDate() {
+        return isIndexUpToDate;
+    }
+
     public boolean isAvailable() {
         return indexAvailable;
     }
@@ -151,7 +162,10 @@ public class IndexLifecycleManager extends AbstractComponent {
 
     private void processClusterState(ClusterState state) {
         assert state != null;
-        this.indexExists = resolveConcreteIndex(indexName, state.metaData()) != null;
+        final IndexMetaData securityIndex = resolveConcreteIndex(indexName, state.metaData());
+        this.indexExists = securityIndex != null;
+        this.isIndexUpToDate = (securityIndex != null
+                                  && INDEX_FORMAT_SETTING.get(securityIndex.getSettings()).intValue() == INTERNAL_INDEX_FORMAT);
         this.indexAvailable = checkIndexAvailable(state);
         this.templateIsUpToDate = TemplateUtils.checkTemplateExistsAndIsUpToDate(templateName,
             SECURITY_VERSION_STRING, state, logger);
@@ -441,5 +455,38 @@ public class IndexLifecycleManager extends AbstractComponent {
                         return getClass() + "{" + indexName + " PutTemplate}";
                     }
                 });
+    }
+
+    /**
+     * Creates the security index, if it does not already exist, then runs the given
+     * action on the security index.
+     */
+    public <T> void createIndexIfNeededThenExecute(final ActionListener<T> listener, final Runnable andThen) {
+        if (indexExists) {
+            andThen.run();
+        } else {
+            CreateIndexRequest request = new CreateIndexRequest(INTERNAL_SECURITY_INDEX);
+            client.admin().indices().create(request, new ActionListener<CreateIndexResponse>() {
+                @Override
+                public void onResponse(CreateIndexResponse createIndexResponse) {
+                    if (createIndexResponse.isAcknowledged()) {
+                        andThen.run();
+                    } else {
+                        listener.onFailure(new ElasticsearchException("Failed to create security index"));
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (e instanceof ResourceAlreadyExistsException) {
+                        // the index already exists - it was probably just created so this
+                        // node hasn't yet received the cluster state update with the index
+                        andThen.run();
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            });
+        }
     }
 }

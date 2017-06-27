@@ -36,6 +36,8 @@ import org.junit.Before;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -94,8 +96,8 @@ public class NativeUsersStoreTests extends ESTestCase {
 
         final GetResult result = new GetResult(
                 SecurityLifecycleService.SECURITY_INDEX_NAME,
-                NativeUsersStore.RESERVED_USER_DOC_TYPE,
-                randomAlphaOfLength(12),
+                NativeUsersStore.INDEX_TYPE,
+                NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
                 1L,
                 true,
                 jsonBuilder().map(values).bytes(),
@@ -132,6 +134,15 @@ public class NativeUsersStoreTests extends ESTestCase {
         when(securityLifecycleService.isSecurityIndexAvailable()).thenReturn(true);
         when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
         when(securityLifecycleService.isSecurityIndexWriteable()).thenReturn(true);
+        when(securityLifecycleService.isSecurityIndexOutOfDate()).thenReturn(false);
+        when(securityLifecycleService.isSecurityIndexUpToDate()).thenReturn(true);
+        doAnswer((i) -> {
+            Runnable action = (Runnable) i.getArguments()[1];
+            action.run();
+            ActionListener listener = (ActionListener) i.getArguments()[0];
+            listener.onResponse(null);
+            return null;
+        }).when(securityLifecycleService).createIndexIfNeededThenExecute(any(ActionListener.class), any(Runnable.class));
         final NativeUsersStore nativeUsersStore = new NativeUsersStore(Settings.EMPTY, internalClient, securityLifecycleService);
         return nativeUsersStore;
     }

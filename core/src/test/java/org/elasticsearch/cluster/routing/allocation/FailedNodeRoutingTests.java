@@ -19,20 +19,47 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase;
+import org.elasticsearch.indices.cluster.ClusterStateChanges;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
+
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.hamcrest.Matchers.equalTo;
@@ -91,4 +118,102 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             assertThat(routingNode.numberOfShardsWithState(INITIALIZING), equalTo(1));
         }
     }
+
+    public void testRandomClusterPromotesNewestReplica() throws InterruptedException {
+
+        ThreadPool threadPool = new TestThreadPool(getClass().getName());
+        ClusterStateChanges cluster = new ClusterStateChanges(xContentRegistry(), threadPool);
+        ClusterState state = randomInitialClusterState();
+
+        // randomly add nodes of mixed versions
+        logger.info("--> adding random nodes");
+        for (int i = 0; i < randomIntBetween(4, 8); i++) {
+            DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes())
+                .add(createNode()).build();
+            state = ClusterState.builder(state).nodes(newNodes).build();
+            state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after node leave
+        }
+
+        // Log the shard versions (for debugging if necessary)
+        for (ObjectCursor<DiscoveryNode> cursor : state.nodes().getDataNodes().values()) {
+            Version nodeVer = cursor.value.getVersion();
+            logger.info("--> node [{}] has version [{}]", cursor.value.getId(), nodeVer);
+        }
+
+        // randomly create some indices
+        logger.info("--> creating some indices");
+        for (int i = 0; i < randomIntBetween(2, 5); i++) {
+            String name = "index_" + randomAlphaOfLength(15).toLowerCase(Locale.ROOT);
+            Settings.Builder settingsBuilder = Settings.builder()
+                .put(SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 3))
+                .put(SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, 3));
+            CreateIndexRequest request = new CreateIndexRequest(name, settingsBuilder.build()).waitForActiveShards(ActiveShardCount.NONE);
+            state = cluster.createIndex(state, request);
+            assertTrue(state.metaData().hasIndex(name));
+        }
+        state = cluster.reroute(state, new ClusterRerouteRequest());
+
+        ClusterState previousState = state;
+
+        logger.info("--> starting shards");
+        state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));
+        logger.info("--> starting replicas a random number of times");
+        for (int i = 0; i < randomIntBetween(1,4); i++) {
+            state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));
+        }
+
+        logger.info("--> state before failing shards: {}", state);
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            for (ShardRouting shardRouting : state.getRoutingNodes().shardsWithState(STARTED)) {
+                if (shardRouting.primary() && randomBoolean()) {
+                    ShardRouting replicaToBePromoted = state.getRoutingNodes()
+                        .activeReplicaWithHighestVersion(shardRouting.shardId());
+                    if (replicaToBePromoted != null) {
+                        Version replicaNodeVersion = state.nodes().getDataNodes()
+                            .get(replicaToBePromoted.currentNodeId()).getVersion();
+                        List<FailedShard> shardsToFail = new ArrayList<>();
+                        logger.info("--> found replica that should be promoted: {}", replicaToBePromoted);
+                        logger.info("--> failing shard {}", shardRouting);
+                        shardsToFail.add(new FailedShard(shardRouting, "failed primary", new Exception()));
+                        state = cluster.applyFailedShards(state, shardsToFail);
+                        ShardRouting newPrimary = state.routingTable().index(shardRouting.index())
+                            .shard(shardRouting.id()).primaryShard();
+
+                        assertThat(newPrimary.allocationId().getId(),
+                            equalTo(replicaToBePromoted.allocationId().getId()));
+                    }
+                }
+                state = cluster.reroute(state, new ClusterRerouteRequest());
+            }
+        }
+        terminate(threadPool);
+    }
+
+    private static final AtomicInteger nodeIdGenerator = new AtomicInteger();
+
+    public ClusterState randomInitialClusterState() {
+        List<DiscoveryNode> allNodes = new ArrayList<>();
+        DiscoveryNode localNode = createNode(DiscoveryNode.Role.MASTER); // local node is the master
+        allNodes.add(localNode);
+        // at least two nodes that have the data role so that we can allocate shards
+        allNodes.add(createNode(DiscoveryNode.Role.DATA));
+        allNodes.add(createNode(DiscoveryNode.Role.DATA));
+        for (int i = 0; i < randomIntBetween(2, 5); i++) {
+            allNodes.add(createNode());
+        }
+        ClusterState state = ClusterStateCreationUtils.state(localNode, localNode, allNodes.toArray(new DiscoveryNode[allNodes.size()]));
+        return state;
+    }
+
+
+    protected DiscoveryNode createNode(DiscoveryNode.Role... mustHaveRoles) {
+        Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Sets.newHashSet(DiscoveryNode.Role.values())));
+        for (DiscoveryNode.Role mustHaveRole : mustHaveRoles) {
+            roles.add(mustHaveRole);
+        }
+        final String id = String.format(Locale.ROOT, "node_%03d", nodeIdGenerator.incrementAndGet());
+        return new DiscoveryNode(id, id, buildNewFakeTransportAddress(), Collections.emptyMap(), roles,
+            VersionUtils.randomVersionBetween(random(), Version.V_5_6_0, null));
+    }
+
 }

@@ -13,13 +13,14 @@ Ready to get some hands-on experience with the {xpackml} features? This
 tutorial shows you how to:
 
 * Load a sample data set into {es}
-* Create a {ml} job
+* Create single and multi-metric {ml} jobs in {kib}
 * Use the results to identify possible anomalies in the data
 
 At the end of this tutorial, you should have a good idea of what {ml} is and
 will hopefully be inspired to use it to detect anomalies in your own data.
 
-You might also be interested in these video tutorials:
+You might also be interested in these video tutorials, which use the same sample
+data:
 
 * https://www.elastic.co/videos/machine-learning-tutorial-creating-a-single-metric-job[Machine Learning for the Elastic Stack: Creating a single metric job]
 * https://www.elastic.co/videos/machine-learning-tutorial-creating-a-multi-metric-job[Machine Learning for the Elastic Stack: Creating a multi-metric job]
@@ -278,8 +279,8 @@ You should see output similar to the following:
 [source,shell]
 ----------------------------------
 
-health status index ... pri rep docs.count  docs.deleted  store.size ...
-green  open   server-metrics ... 1 0 905940  0  120.5mb  ...
+health status index ... pri rep docs.count  ...
+green  open   server-metrics ... 1 0 905940  ...
 ----------------------------------
 
 Next, you must define an index pattern for this data set:
@@ -305,7 +306,7 @@ This data set can now be analyzed in {ml} jobs in {kib}.
 
 
 [[ml-gs-jobs]]
-=== Creating Jobs
+=== Creating Single Metric Jobs
 
 Machine learning jobs contain the configuration information and metadata
 necessary to perform an analytical task. They also contain the results of the
@@ -322,7 +323,25 @@ web browser so that it does not block pop-up windows or create an
 exception for your Kibana URL.
 --
 
-To work with jobs in {kib}:
+You can choose to create single metric, multi-metric, or advanced jobs in
+{kib}. At this point in the tutorial, the goal is to detect anomalies in the
+total requests received by your applications and services. The sample data
+contains a single key performance indicator to track this, which is the total
+requests over time. It is therefore logical to start by creating a single metric
+job for this KPI.
+
+TIP: If you are using aggregated data, you can create an advanced job
+and configure it to use a `summary_count_field`. The {ml} algorithms will
+make the best possible use of summarized data in this case. For simplicity, in
+this tutorial we will not make use of that advanced functionality.
+
+//TO-DO: Add link to aggregations.asciidoc: For more information, see <<>>.
+
+A single metric job contains a single _detector_. A detector defines the type of
+analysis that will occur (for example, `max`, `average`, or `rare` analytical
+functions) and the fields that will be analyzed.
+
+To create a single metric job in {kib}:
 
 . Open {kib} in your web browser and log in. If you are running {kib} locally,
 go to `http://localhost:5601/`.
@@ -334,30 +353,7 @@ go to `http://localhost:5601/`.
 image::images/ml-kibana.jpg[Job Management]
 --
 
-You can choose to create single metric, multi-metric, or advanced jobs in
-{kib}. In this tutorial, the goal is to detect anomalies in the total requests
-received by your applications and services. The sample data contains a single
-key performance indicator to track this, which is the total requests over time.
-It is therefore logical to start by creating a single metric job for this KPI.
-
-TIP: If you are using aggregated data, you can create an advanced job
-and configure it to use a `summary_count_field`. The {ml} algorithms will
-make the best possible use of summarized data in this case. For simplicity in this tutorial
-we will not make use of that advanced functionality.
-
-
-[float]
-[[ml-gs-job1-create]]
-==== Creating a Single Metric Job
-
-A single metric job contains a single _detector_. A detector defines the type of
-analysis that will occur (for example, `max`, `average`, or `rare` analytical
-functions) and the fields that will be analyzed.
-
-To create a single metric job in {kib}:
-
-. Click **Machine Learning** in the side navigation,
-then click **Create new job**.
+. Click **Create new job**.
 
 . Click **Create single metric job**. +
 +
@@ -568,9 +564,8 @@ button: image:images/ml-stop-feed.jpg["Stop {dfeed}"]
 
 Now that you have processed all the data, let's start exploring the job results.
 
-
-[[ml-gs-jobresults]]
-=== Exploring Job Results
+[[ml-gs-job1-analyze]]
+=== Exploring Single Metric Job Results
 
 The {xpackml} features analyze the input stream of data, model its behavior,
 and perform analysis based on the detectors you defined in your job. When an
@@ -589,21 +584,12 @@ Anomaly Explorer::
   also swim lanes for each influencer. By selecting a block in a swim lane, the
   anomaly details are displayed alongside the original source data (where
   applicable).
-//TBD: Are they swimlane blocks, tiles, segments or cards? hmmm
-//TBD: Do the time periods in the heat map correspond to buckets? hmmm is it a heat map?
-//As time is the x-axis, and the block sizes stay the same, it feels more intuitive call it a swimlane.
-//The swimlane bucket intervals depends on the time range selected. Their smallest possible
-//granularity is a bucket, but if you have a big time range selected, then they will span many buckets
 
 Single Metric Viewer::
   This view contains a chart that represents the actual and expected values over
   time. This is only available for jobs that analyze a single time series and
   where `model_plot_config` is enabled. As in the **Anomaly Explorer**, anomalous
   data points are shown in different colors depending on their score.
-
-[float]
-[[ml-gs-job1-analyze]]
-==== Exploring Single Metric Job Results
 
 By default when you view the results for a single metric job, the
 **Single Metric Viewer** opens:
@@ -652,7 +638,7 @@ You can see the same information in a different format by using the
 image::images/ml-gs-job1-explorer.jpg["Anomaly Explorer for total-requests job"]
 
 
-Click one of the red blocks in the swim lane to see details about the anomalies
+Click one of the red sections in the swim lane to see details about the anomalies
 that occurred in that time interval. For example:
 [role="screenshot"]
 image::images/ml-gs-job1-explorer-anomaly.jpg["Anomaly Explorer details for total-requests job"]
@@ -663,71 +649,5 @@ contributing to the problem? Are the anomalies confined to particular
 applications or servers? You can begin to troubleshoot these situations by
 layering additional jobs or creating multi-metric jobs.
 
-////
-The troubleshooting job would not create alarms of its own, but rather would
-help explain the overall situation.  It's usually a different job because it's
-operating on different indices. Layering jobs is an important concept.
-////
-////
-[float]
-[[ml-gs-job2-create]]
-==== Creating a Multi-Metric Job
-
-TBD.
-
-* Walk through creation of a simple multi-metric job.
-* Provide overview of:
-** partition fields,
-** influencers
-*** An influencer is someone or something that has influenced or contributed to the anomaly.
-Results are aggregated for each influencer, for each bucket, across all detectors.
-In this way, a combined anomaly score is calculated for each influencer,
-which determines its relative anomalousness. You can specify one or many influencers.
-Picking an influencer is strongly recommended for the following reasons:
-**** It allow you to blame someone/something for the anomaly
-**** It simplifies and aggregates results
-*** The best influencer is the person or thing that you want to blame for the anomaly.
-In many cases, users or client IP make excellent influencers.
-*** By/over/partition fields are usually good candidates for influencers.
-*** Influencers can be any field in the source data; they do not need to be fields
-specified in detectors, although they often are.
-** by/over fields,
-*** detectors
-**** You can have more than one detector in a job which is more efficient than
-running multiple jobs against the same data stream.
-
-//http://www.prelert.com/docs/behavioral_analytics/latest/concepts/multivariate.html
-
-[float]
-[[ml-gs-job2-analyze]]
-===== Viewing Multi-Metric Job Results
-
-TBD.
-
-* Walk through exploration of job results.
-* Describe how influencer detection accelerates root cause identification.
-
-////
-////
-* Provide brief overview of statistical models and/or link to more info.
-* Possibly discuss effect of altering bucket span.
-
-The anomaly score is a sophisticated aggregation of the anomaly records in the
-bucket. The calculation is optimized for high throughput, gracefully ages
-historical data, and reduces the signal to noise levels. It adjusts for
-variations in event rate, takes into account the frequency and the level of
-anomalous activity and is adjusted relative to past anomalous behavior.
-In addition, [the anomaly score] is boosted if anomalous activity occurs for related entities,
-for example if disk IO and CPU are both behaving unusually for a given host.
-** Once an anomalous time interval has been identified, it can be expanded to
-view the detailed anomaly records which are the significant causal factors.
-////
-////
-[[ml-gs-alerts]]
-=== Creating Alerts for Job Results
-
-TBD.
-
-* Walk through creation of simple alert for anomalous data?
-
-////
+include::getting-started-multi.asciidoc[]
+include::getting-started-next.asciidoc[]

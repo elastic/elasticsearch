@@ -1,0 +1,21 @@
+[[release-notes-5.4.3]]
+== 5.4.3 Release Notes
+
+[[enhancement-5.4.3]]
+[float]
+=== Enhancements
+
+Snapshot/Restore::
+* Improves snapshot logging and snapshot deletion error handling {pull}25264[#25264]
+
+
+
+[[bug-5.4.3]]
+[float]
+=== Bug fixes
+
+Snapshot/Restore::
+* Remove redundant and broken MD5 checksum from repository-s3 {pull}25270[#25270] (issue: {issue}25269[#25269])
+
+
+

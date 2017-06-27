@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.state;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -278,7 +279,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
             Object properties;
             try {
                 properties = typeMappings.getSourceAsMap().get("properties");
-            } catch (IOException e) {
+            } catch (ElasticsearchParseException e) {
                 throw new AssertionError(e);
             }
             assertNotNull(properties);

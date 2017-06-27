@@ -135,7 +135,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         }
     }
 
-    SignificanceHeuristic getRandomSignificanceheuristic() {
+    public static SignificanceHeuristic getRandomSignificanceheuristic() {
         List<SignificanceHeuristic> heuristics = new ArrayList<>();
         heuristics.add(new JLHScore());
         heuristics.add(new MutualInformation(randomBoolean(), randomBoolean()));

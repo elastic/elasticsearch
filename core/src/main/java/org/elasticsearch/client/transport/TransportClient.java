@@ -97,7 +97,7 @@ public abstract class TransportClient extends AbstractClient {
                 .put(InternalSettingsPreparer.prepareSettings(settings))
                 .put(NetworkService.NETWORK_SERVER.getKey(), false)
                 .put(CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE);
-        return new PluginsService(settingsBuilder.build(), null, null, plugins);
+        return new PluginsService(settingsBuilder.build(), null, null, null, plugins);
     }
 
     protected static Collection<Class<? extends Plugin>> addPlugins(Collection<Class<? extends Plugin>> collection,

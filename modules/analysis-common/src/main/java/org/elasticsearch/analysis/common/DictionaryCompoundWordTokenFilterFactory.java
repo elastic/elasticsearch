@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis.compound;
+package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.compound.DictionaryCompoundWordTokenFilter;
@@ -33,7 +33,7 @@ import org.elasticsearch.index.IndexSettings;
  */
 public class DictionaryCompoundWordTokenFilterFactory extends AbstractCompoundWordTokenFilterFactory {
 
-    public DictionaryCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    DictionaryCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
     }
 

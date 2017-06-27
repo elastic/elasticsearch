@@ -1007,7 +1007,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         ServiceHolder(Settings nodeSettings, Settings indexSettings,
                       Collection<Class<? extends Plugin>> plugins, AbstractQueryTestCase<?> testCase) throws IOException {
             Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, null);
-            PluginsService pluginsService = new PluginsService(nodeSettings, env.modulesFile(), env.pluginsFile(), plugins);
+            PluginsService pluginsService;
+            pluginsService = new PluginsService(nodeSettings, null, env.modulesFile(), env.pluginsFile(), plugins);
 
             client = (Client) Proxy.newProxyInstance(
                     Client.class.getClassLoader(),

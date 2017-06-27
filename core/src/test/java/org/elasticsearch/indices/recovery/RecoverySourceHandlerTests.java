@@ -35,6 +35,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -76,6 +77,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -453,8 +455,14 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             relocated.set(true);
             assertTrue(recoveriesDelayed.get());
             return null;
-        }).when(shard).relocated(any(String.class));
+        }).when(shard).relocated(any(String.class), any(Consumer.class));
         when(shard.acquireIndexCommit(anyBoolean())).thenReturn(mock(Engine.IndexCommitRef.class));
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            final ActionListener<Releasable> listener = (ActionListener<Releasable>)invocationOnMock.getArguments()[0];
+            listener.onResponse(() -> {});
+            return null;
+        }).when(shard).acquirePrimaryOperationPermit(any(ActionListener.class), any(String.class));
 
 //        final Engine.IndexCommitRef indexCommitRef = mock(Engine.IndexCommitRef.class);
 //        when(shard.acquireIndexCommit(anyBoolean())).thenReturn(indexCommitRef);

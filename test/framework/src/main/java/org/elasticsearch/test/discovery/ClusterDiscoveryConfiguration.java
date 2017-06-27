@@ -34,6 +34,7 @@ import org.elasticsearch.transport.TransportSettings;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -55,6 +56,11 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         return nodeSettings;
+    }
+
+    @Override
+    public Path nodeConfigPath(int nodeOrdinal) {
+        return null;
     }
 
     @Override

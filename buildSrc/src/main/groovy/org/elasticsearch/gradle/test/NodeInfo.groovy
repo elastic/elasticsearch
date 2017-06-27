@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle.test
 
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.Version
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 
@@ -143,7 +144,7 @@ class NodeInfo {
             args.add("${esScript}")
         }
 
-        env = [ 'JAVA_HOME' : project.javaHome ]
+        env = ['JAVA_HOME': project.javaHome]
         args.addAll("-E", "node.portsfile=true")
         String collectedSystemProperties = config.systemProperties.collect { key, value -> "-D${key}=${value}" }.join(" ")
         String esJavaOpts = config.jvmArgs.isEmpty() ? collectedSystemProperties : collectedSystemProperties + " " + config.jvmArgs
@@ -158,7 +159,11 @@ class NodeInfo {
             }
         }
         env.put('ES_JVM_OPTIONS', new File(confDir, 'jvm.options'))
-        args.addAll("-E", "path.conf=${confDir}")
+        if (Version.fromString(nodeVersion).major == 5) {
+            args.addAll("-E", "path.conf=${confDir}")
+        } else {
+            args.addAll("--path.conf", "${confDir}")
+        }
         if (!System.properties.containsKey("tests.es.path.data")) {
             args.addAll("-E", "path.data=${-> dataDir.toString()}")
         }

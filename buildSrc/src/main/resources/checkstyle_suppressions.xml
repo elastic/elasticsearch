@@ -13,6 +13,9 @@
   <!-- JNA requires the no-argument constructor on JNAKernel32Library.SizeT to be public-->
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]JNAKernel32Library.java" checks="RedundantModifier" />
 
+  <!-- the constructors on some local classes in these tests must be public-->
+  <suppress files="core[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]PluginsServiceTests.java" checks="RedundantModifier" />
+
   <!-- Hopefully temporary suppression of LineLength on files that don't pass it. We should remove these when we the
     files start to pass. -->
   <suppress files="client[/\\]rest[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]HeapBufferedAsyncResponseConsumerTests.java" checks="LineLength" />
@@ -267,7 +270,6 @@
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]CustomAnalyzerProvider.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]ShingleTokenFilterFactory.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]StemmerOverrideTokenFilterFactory.java" checks="LineLength" />
-  <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]analysis[/\\]compound[/\\]HyphenationCompoundWordTokenFilterFactory.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]cache[/\\]bitset[/\\]BitsetFilterCache.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]codec[/\\]PerFieldMappingPostingFormatCodec.java" checks="LineLength" />
   <suppress files="core[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]index[/\\]engine[/\\]ElasticsearchConcurrentMergeScheduler.java" checks="LineLength" />

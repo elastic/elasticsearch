@@ -11,22 +11,14 @@ release-state can be: released | prerelease | unreleased
 
 :release-state:   unreleased
 
-:ref:             https://www.elastic.co/guide/en/elasticsearch/reference/{branch}
-:defguide:        https://www.elastic.co/guide/en/elasticsearch/guide/2.x
+:defguide:        https://www.elastic.co/guide/en/elasticsearch/guide/master
+:painless:        https://www.elastic.co/guide/en/elasticsearch/painless/master
 :plugins:         https://www.elastic.co/guide/en/elasticsearch/plugins/{branch}
-:javaclient:      https://www.elastic.co/guide/en/elasticsearch/client/java-api/{branch}
-:xpack-ref:       https://www.elastic.co/guide/en/x-pack/{branch}
-:logstash:        https://www.elastic.co/guide/en/logstash/{branch}
-:kibana:          https://www.elastic.co/guide/en/kibana/{branch}
 :issue:           https://github.com/elastic/elasticsearch/issues/
 :pull:            https://github.com/elastic/elasticsearch/pull/
 
 :docker-image:    docker.elastic.co/elasticsearch/elasticsearch:{version}
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
-
-:xpack:           X-Pack
-:es:              Elasticsearch
-:kib:             Kibana
 
 ///////
 Javadoc roots used to generate links from Painless's API reference
@@ -45,3 +37,30 @@ ifeval::["{release-state}"!="unreleased"]
 :elasticsearch-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/elasticsearch/{version}
 :painless-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}
 endif::[]
+
+//////////
+The following attributes are synchronized across multiple books
+//////////
+:ref:             https://www.elastic.co/guide/en/elasticsearch/reference/{branch}
+:xpack-ref:       https://www.elastic.co/guide/en/x-pack/{branch}
+:logstash-ref:    http://www.elastic.co/guide/en/logstash/{branch}
+:kibana-ref:      https://www.elastic.co/guide/en/kibana/{branch}
+:stack-ref:       http://www.elastic.co/guide/en/elastic-stack/{branch}
+:javaclient:      https://www.elastic.co/guide/en/elasticsearch/client/java-api/{branch}
+
+:xpack:           X-Pack
+:es:              Elasticsearch
+:kib:             Kibana
+
+:security:        X-Pack security
+:monitoring:      X-Pack monitoring
+:watcher:         Watcher
+:reporting:       X-Pack reporting
+:graph:           X-Pack graph
+:searchprofiler:  X-Pack search profiler
+:xpackml:         X-Pack machine learning
+:ml:              machine learning
+:dfeed:           datafeed
+:dfeeds:          datafeeds
+:dfeed-cap:       Datafeed
+:dfeeds-cap:      Datafeeds

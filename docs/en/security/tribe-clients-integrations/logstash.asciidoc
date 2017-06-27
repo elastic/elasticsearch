@@ -179,7 +179,7 @@ output {
 [[ls-monitoring-user]]
 ===== Configuring Logstash Monitoring
 
-If you wish to ship Logstash {logstash-ref}/logstash-monitoring.html[monitoring]
+If you wish to ship Logstash {logstash-ref}/monitoring-logstash.html[monitoring]
 data to a secure cluster, Logstash must be configured with a username and password.
 
 X-Pack security comes preconfigured with a `logstash_system` user for this purpose.

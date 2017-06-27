@@ -48,7 +48,6 @@ public class LocalCheckpointIT extends ESIntegTestCase {
         assertLocalCheckpoint(numDocs, indexShard);
     }
 
-    @TestLogging("_root:DEBUG,org.elasticsearch.index.seqno:TRACE")
     public void testPrimaryPromotion() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();

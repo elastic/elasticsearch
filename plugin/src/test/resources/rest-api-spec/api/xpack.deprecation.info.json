@@ -1,0 +1,19 @@
+{
+  "xpack.deprecation.info": {
+    "documentation": "http://www.elastic.co/guide/en/migration/current/appendix-api-deprecation-info.html",
+    "methods": [ "GET" ],
+    "url": {
+      "path": "/{index}/_xpack/migration/deprecations",
+      "paths": ["/_xpack/migration/deprecations", "/{index}/_xpack/migration/deprecations"],
+      "parts": {
+        "index": {
+          "type" : "string",
+          "description" : "Index pattern"
+        }
+      },
+      "params": {
+      }
+    },
+    "body": null
+  }
+}

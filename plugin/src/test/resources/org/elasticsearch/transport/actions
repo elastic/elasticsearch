@@ -155,3 +155,4 @@ cluster:admin/reindex/rethrottle
 indices:data/write/update/byquery
 indices:data/write/delete/byquery
 indices:data/write/reindex
+cluster:admin/xpack/deprecation/info

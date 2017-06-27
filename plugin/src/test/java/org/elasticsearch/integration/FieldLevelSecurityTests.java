@@ -7,6 +7,7 @@ package org.elasticsearch.integration;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -72,7 +74,8 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, ParentJoinPlugin.class);
+        return Arrays.asList(XPackPlugin.class, ParentJoinPlugin.class,
+                InternalSettingsPlugin.class);
     }
 
     @Override
@@ -1300,7 +1303,7 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testParentChild_parentField() {
         assertAcked(prepareCreate("test")
-                .setSettings("mapping.single_type", false)
+                .setSettings("index.version.created", Version.V_5_6_0.id)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent"));
         ensureGreen();

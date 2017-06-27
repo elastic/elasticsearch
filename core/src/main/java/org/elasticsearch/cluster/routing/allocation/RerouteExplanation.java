@@ -69,12 +69,14 @@ public class RerouteExplanation implements ToXContent {
     public static RerouteExplanation readFrom(StreamInput in) throws IOException {
         AllocationCommand command = in.readNamedWriteable(AllocationCommand.class);
         Decision decisions = Decision.readFrom(in);
-        return new RerouteExplanation(command, decisions);
+        List<String> warnings = in.readList(StreamInput::readString);
+        return new RerouteExplanation(command, decisions, warnings);
     }
 
     public static void writeTo(RerouteExplanation explanation, StreamOutput out) throws IOException {
         out.writeNamedWriteable(explanation.command);
         explanation.decisions.writeTo(out);
+        out.writeStringList(explanation.warnings);
     }
 
     @Override

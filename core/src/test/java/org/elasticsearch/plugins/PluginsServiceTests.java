@@ -172,12 +172,12 @@ public class PluginsServiceTests extends ESTestCase {
         class MultiplePublicConstructorsPlugin extends Plugin {
 
             @SuppressWarnings("unused")
-            MultiplePublicConstructorsPlugin() {
+            public MultiplePublicConstructorsPlugin() {
 
             }
 
             @SuppressWarnings("unused")
-            MultiplePublicConstructorsPlugin(final Settings settings) {
+            public MultiplePublicConstructorsPlugin(final Settings settings) {
 
             }
 
@@ -194,7 +194,7 @@ public class PluginsServiceTests extends ESTestCase {
         class TooManyParametersPlugin extends Plugin {
 
             @SuppressWarnings("unused")
-            TooManyParametersPlugin(Settings settings, Path configPath, Object object) {
+            public TooManyParametersPlugin(Settings settings, Path configPath, Object object) {
 
             }
 
@@ -203,7 +203,7 @@ public class PluginsServiceTests extends ESTestCase {
         class TwoParametersFirstIncorrectType extends Plugin {
 
             @SuppressWarnings("unused")
-            TwoParametersFirstIncorrectType(Object object, Path configPath) {
+            public TwoParametersFirstIncorrectType(Object object, Path configPath) {
 
             }
         }
@@ -211,7 +211,7 @@ public class PluginsServiceTests extends ESTestCase {
         class TwoParametersSecondIncorrectType extends Plugin {
 
             @SuppressWarnings("unused")
-            TwoParametersSecondIncorrectType(Settings settings, Object object) {
+            public TwoParametersSecondIncorrectType(Settings settings, Object object) {
 
             }
 
@@ -220,7 +220,7 @@ public class PluginsServiceTests extends ESTestCase {
         class OneParameterIncorrectType extends Plugin {
 
             @SuppressWarnings("unused")
-            OneParameterIncorrectType(Object object) {
+            public OneParameterIncorrectType(Object object) {
 
             }
         }

@@ -194,16 +194,14 @@ public class EvilLoggerTests extends ESTestCase {
     }
 
     private void setupLogging(final String config, final Settings settings) throws IOException, UserException {
-        assert !Environment.PATH_CONF_SETTING.exists(settings);
         assert !Environment.PATH_HOME_SETTING.exists(settings);
         final Path configDir = getDataPath(config);
-        // need to set custom path.conf so we can use a custom log4j2.properties file for the test
         final Settings mergedSettings = Settings.builder()
             .put(settings)
-            .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        final Environment environment = new Environment(mergedSettings);
+        // need to use custom config path so we can use a custom log4j2.properties file for the test
+        final Environment environment = new Environment(mergedSettings, configDir);
         LogConfigurator.configure(environment);
     }
 

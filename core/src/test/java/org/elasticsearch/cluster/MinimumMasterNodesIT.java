@@ -188,6 +188,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25415")
     public void testMultipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = Settings.builder()
                 .put("discovery.zen.minimum_master_nodes", 3)

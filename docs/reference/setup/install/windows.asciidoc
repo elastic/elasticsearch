@@ -74,7 +74,7 @@ image::images/msi_installer/msi_installer_selected_plugins.png[]
 By default, the {xpack-ref}/index.html[X-Pack] plugin will be selected to be installed, and if 
 installing with the <<ingest, ingest>> node role, the {plugins}/ingest-attachment.html[Ingest Attachment Processor] and {plugins}/ingest-geoip.html[Ingest GeoIP Processor] plugins will also be selected for installation.
 
-NOTE: X-Pack includes a trial license for 30 days. After that, you can obtain one of the https://www.elastic.co/subscriptions[available subscriptions] or {xpack-ref}/security-settings.html[disable Security]. The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
+NOTE: X-Pack includes a trial license for 30 days. After that, you can obtain one of the https://www.elastic.co/subscriptions[available subscriptions] or {ref}/security-settings.html[disable Security]. The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
 
 After clicking the install button, Elasticsearch will be installed: 
 

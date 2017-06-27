@@ -23,6 +23,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -95,7 +96,17 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         transportService.submitRequest(targetNode, PeerRecoveryTargetService.Actions.WAIT_CLUSTERSTATE,
             new RecoveryWaitForClusterStateRequest(recoveryId, shardId, clusterStateVersion),
             TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
-            EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+    }
+
+    @Override
+    public void handoffPrimaryContext(final PrimaryContext primaryContext) {
+        transportService.submitRequest(
+                targetNode,
+                PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
+                new RecoveryHandoffPrimaryContextRequest(recoveryId, shardId, primaryContext),
+                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
+                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
     }
 
     @Override

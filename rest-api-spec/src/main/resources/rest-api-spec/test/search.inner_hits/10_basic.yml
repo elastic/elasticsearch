@@ -4,8 +4,6 @@ setup:
       indices.create:
         index: test
         body:
-            settings:
-              mapping.single_type: false
             mappings:
               type_1:
                 properties:
@@ -16,7 +14,7 @@ setup:
 "Nested inner hits":
     - skip:
         version: "5.99.99 - "# this will only run in a mixed cluster environment with at least 1 5.x node
-        reason:  mapping.single_type can not be changed on 6.x indices onwards
+        reason:  multiple types are not supported on 6.x indices onwards
     - do:
         index:
           index: test

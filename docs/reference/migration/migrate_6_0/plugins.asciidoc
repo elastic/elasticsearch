@@ -80,3 +80,13 @@ The icu4j library has been upgraded to 59.1,
 Indices created in the previous major version will need to be reindexed
 in order to return correct (and correctly ordered) results,
 and to take advantage of new characters.
+
+==== Plugins should not construct `Environment` instances from `Settings`
+
+Previously, plugins could construct an `Environment` instance from `Settings` to
+discover the path to plugin-specific config files. This will no longer work in
+all situations as the `Settings` object does not carry the necessary information
+for the config path to be set correctly. Instead, plugins that need to know the
+config path should have a single constructor that accepts a pair of `Settings`
+and `Path` instances, and construct an `Environment` using the corresponding
+constructor on `Environment`.

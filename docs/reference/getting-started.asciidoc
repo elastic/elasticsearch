@@ -111,10 +111,10 @@ java -version
 echo $JAVA_HOME
 --------------------------------------------------
 
-Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, a `DEB` or `RPM` package, or a Windows `MSI` installation package. 
+Once we have Java set up, we can then download and run Elasticsearch. The binaries are available from http://www.elastic.co/downloads[`www.elastic.co/downloads`] along with all the releases that have been made in the past. For each release, you have a choice among a `zip` or `tar` archive, a `DEB` or `RPM` package, or a Windows `MSI` installation package.
 
 [float]
-=== Installation example with tar 
+=== Installation example with tar
 
 For simplicity, let's use the <<zip-targz, tar>> file.
 
@@ -152,7 +152,7 @@ And now we are ready to start our node and single cluster:
 
 For Windows users, we recommend using the <<windows, MSI Installer package>>. The package contains a graphical user interface (GUI) that guides you through the installation process.
 
-First, download the Elasticsearch {version} MSI from 
+First, download the Elasticsearch {version} MSI from
 https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.msi.
 
 Then double-click the downloaded file to launch the GUI. Within the first screen, select the deployment directories:
@@ -160,7 +160,7 @@ Then double-click the downloaded file to launch the GUI. Within the first screen
 [[getting-started-msi-installer-locations]]
 image::images/msi_installer/msi_installer_locations.png[]
 
-Then select whether to install as a service or start Elasticsearch manually as needed. 
+Then select whether to install as a service or start Elasticsearch manually as needed.
 To align with the tar example, choose not to install as a service:
 
 [[getting-started-msi-installer-service]]
@@ -176,7 +176,7 @@ Again, to align with the tar example, uncheck all plugins to not install any plu
 [[getting-started-msi-installer-plugins]]
 image::images/msi_installer/msi_installer_plugins.png[]
 
-After clicking the install button, Elasticsearch will be installed: 
+After clicking the install button, Elasticsearch will be installed:
 
 [[getting-started-msi-installer-success]]
 image::images/msi_installer/msi_installer_success.png[]
@@ -264,7 +264,7 @@ Now that we have our node (and cluster) up and running, the next step is to unde
 Let's start with a basic health check, which we can use to see how our cluster is doing. We'll be using curl to do this but you can use any tool that allows you to make HTTP/REST calls. Let's assume that we are still on the same node where we started Elasticsearch on and open another command shell window.
 
 To check the cluster health, we will be using the <<cat,`_cat` API>>. You can
-run the command below in {kibana}/console-kibana.html[Kibana's Console]
+run the command below in {kibana-ref}/console-kibana.html[Kibana's Console]
 by clicking "VIEW IN CONSOLE" or with `curl` by clicking the "COPY AS CURL"
 link below and pasting it into a terminal.
 

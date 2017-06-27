@@ -41,10 +41,10 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -63,7 +63,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
-import java.util.stream.Collectors;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -377,6 +376,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     @Override
     public void ensureClusterStateVersion(long clusterStateVersion) {
         ensureClusterStateVersionCallback.accept(clusterStateVersion);
+    }
+
+    @Override
+    public void handoffPrimaryContext(final PrimaryContext primaryContext) {
+        indexShard.updateAllocationIdsFromPrimaryContext(primaryContext);
     }
 
     @Override

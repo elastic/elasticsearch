@@ -333,8 +333,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     }
                     dataPathToShardCount.put(dataPath, curCount+1);
                 }
-                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings, routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE ? getAvgShardSizeInBytes() : routing.getExpectedShardSize(),
-                                                       dataPathToShardCount);
+                path = ShardPath.selectNewPathForShard(nodeEnv, shardId, indexSettings);
                 logger.debug("{} creating using a new path [{}]", shardId, path);
             } else {
                 logger.debug("{} creating using an existing path [{}]", shardId, path);

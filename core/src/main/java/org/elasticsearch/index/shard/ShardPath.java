@@ -31,10 +31,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 
 public final class ShardPath {
     public static final String INDEX_FOLDER_NAME = "index";
     public static final String TRANSLOG_FOLDER_NAME = "translog";
+
+    public static int shardRountBinNumber = -1;
 
     private final Path path;
     private final String indexUUID;
@@ -191,13 +194,12 @@ public final class ShardPath {
                 curBytes = 0L;
             }
             reservedBytes.put(dataPath, curBytes + estShardSizeInBytes);
-        }       
+        }
 
         return reservedBytes;
     }
 
-    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, Settings indexSettings,
-                                                  long avgShardSizeInBytes, Map<Path,Integer> dataPathToShardCount) throws IOException {
+    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, Settings indexSettings) throws IOException {
 
         final Path dataPath;
         final Path statePath;
@@ -206,37 +208,14 @@ public final class ShardPath {
             dataPath = env.resolveCustomLocation(indexSettings, shardId);
             statePath = env.nodePaths()[0].resolve(shardId);
         } else {
-
-            long totFreeSpace = 0;
-            for (NodeEnvironment.NodePath nodePath : env.nodePaths()) {
-                totFreeSpace += nodePath.fileStore.getUsableSpace();
-            }
-
-            // TODO: this is a hack!!  We should instead keep track of incoming (relocated) shards since we know
-            // how large they will be once they're done copying, instead of a silly guess for such cases:
-
-            // Very rough heurisic of how much disk space we expect the shard will use over its lifetime, the max of current average
-            // shard size across the cluster and 5% of the total available free space on this node:
-            long estShardSizeInBytes = Math.max(avgShardSizeInBytes, (long) (totFreeSpace/20.0));
-
-            // TODO - do we need something more extensible? Yet, this does the job for now...
             final NodeEnvironment.NodePath[] paths = env.nodePaths();
-            NodeEnvironment.NodePath bestPath = null;
-            long maxUsableBytes = Long.MIN_VALUE;
-            for (NodeEnvironment.NodePath nodePath : paths) {
-                FileStore fileStore = nodePath.fileStore;
-                long usableBytes = fileStore.getUsableSpace();
 
-                // Deduct estimated reserved bytes from usable space:
-                Integer count = dataPathToShardCount.get(nodePath.path);
-                if (count != null) {
-                    usableBytes -= estShardSizeInBytes * count;
-                }
-                if (usableBytes > maxUsableBytes) {
-                    maxUsableBytes = usableBytes;
-                    bestPath = nodePath;
-                }
+            if (ShardPath.shardRountBinNumber == -1) {
+                ShardPath.shardRountBinNumber = new Random().nextInt(paths.length);
             }
+
+            NodeEnvironment.NodePath bestPath = paths[ShardPath.shardRountBinNumber];
+            ShardPath.shardRountBinNumber = ++ ShardPath.shardRountBinNumber % paths.length;
 
             statePath = bestPath.resolve(shardId);
             dataPath = statePath;

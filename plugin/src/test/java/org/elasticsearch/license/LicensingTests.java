@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.apache.http.message.BasicHeader;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
@@ -56,7 +57,6 @@ import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -304,7 +304,7 @@ public class LicensingTests extends SecurityIntegTestCase {
             try {
                 Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");
                 return meta != null && expectedVersionAfterMigration.equals(meta.get(securityVersionField));
-            } catch (IOException e) {
+            } catch (ElasticsearchParseException e) {
                 return false;
             }
         }, 3, TimeUnit.SECONDS);

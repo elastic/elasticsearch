@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.history;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -70,7 +71,7 @@ public class HistoryTemplateTimeMappingsTests extends AbstractWatcherIntegration
                     assertThat(extractValue("properties.trigger_event.properties.schedule.properties.scheduled_time.type", source),
                             is((Object) "date"));
                     assertThat(extractValue("properties.result.properties.execution_time.type", source), is((Object) "date"));
-                } catch (IOException e) {
+                } catch (ElasticsearchParseException e) {
                     throw new RuntimeException(e);
                 }
             }

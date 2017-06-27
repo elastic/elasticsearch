@@ -262,7 +262,7 @@ public class IndexLifecycleManager extends AbstractComponent {
                 throw new IllegalStateException("Cannot read security-version string in index " + indexName);
             }
             return Version.fromString((String) meta.get(SECURITY_VERSION_STRING));
-        } catch (IOException e) {
+        } catch (ElasticsearchParseException e) {
             logger.error(new ParameterizedMessage(
                     "Cannot parse the mapping for index [{}]", indexName), e);
             throw new ElasticsearchException(

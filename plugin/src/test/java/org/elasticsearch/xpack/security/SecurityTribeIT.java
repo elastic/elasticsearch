@@ -155,11 +155,13 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         MockSecureSettings secureSettingsTemplate =
             (MockSecureSettings) Settings.builder().put(cluster2SettingsSource.nodeSettings(0)).getSecureSettings();
         MockSecureSettings secureSettings = new MockSecureSettings();
-        for (String settingName : secureSettingsTemplate.getSettingNames()) {
-            String settingValue = secureSettingsTemplate.getString(settingName).toString();
-            secureSettings.setString(settingName, settingValue);
-            secureSettings.setString("tribe.t1." + settingName, settingValue);
-            secureSettings.setString("tribe.t2." + settingName, settingValue);
+        if (secureSettingsTemplate != null) {
+            for (String settingName : secureSettingsTemplate.getSettingNames()) {
+                String settingValue = secureSettingsTemplate.getString(settingName).toString();
+                secureSettings.setString(settingName, settingValue);
+                secureSettings.setString("tribe.t1." + settingName, settingValue);
+                secureSettings.setString("tribe.t2." + settingName, settingValue);
+            }
         }
 
         Settings merged = Settings.builder()

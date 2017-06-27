@@ -57,16 +57,6 @@ public class EsType {
         return new EsType(index, type, mapping);
     }
 
-    static Collection<EsType> build(String index, ImmutableOpenMap<String, MappingMetaData> mapping) {
-        List<EsType> tps = new ArrayList<>();
-
-        for (ObjectObjectCursor<String, MappingMetaData> entry : mapping) {
-            tps.add(build(index, entry.key, entry.value));
-        }
-
-        return tps;
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

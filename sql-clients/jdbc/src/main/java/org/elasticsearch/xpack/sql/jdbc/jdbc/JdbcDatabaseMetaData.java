@@ -705,9 +705,9 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         if (!isDefaultCatalog(catalog) || !isDefaultSchema(schemaPattern)) {
             return emptySet(info);
         }
-        
+
         String cat = defaultCatalog();
-        List<String> tables = con.client.metaInfoTables(replaceJdbcWildcardForTables(tableNamePattern));
+        List<String> tables = con.client.metaInfoTables(sqlWildcardToSimplePattern(tableNamePattern));
         Object[][] data = new Object[tables.size()][];
         for (int i = 0; i < data.length; i++) {
             data[i] = new Object[10];
@@ -727,14 +727,21 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         return memorySet(info, data);
     }
 
-    // this one goes through the ES API
-    private static String replaceJdbcWildcardForTables(String tableName) {
-        return hasText(tableName) ? tableName.replaceAll("%", "*").replace('_', '?') : tableName;
+    /**
+     * Convert sql wildcards ({@code %} and @{code _}) into {@code Regex#simpleMatch}-style patterns. 
+     */
+    private static String sqlWildcardToSimplePattern(String pattern) {
+        // NOCOMMIT ? isn't supported by simple pattern
+        // NOCOMMIT escape *?
+        return hasText(pattern) ? pattern.replaceAll("%", "*").replace('_', '?') : pattern;
     }
 
-    // this one gets computed to Pattern matching 
-    private static String replaceJdbcWildcardForColumns(String tableName) {
-        return hasText(tableName) ? tableName.replaceAll("%", ".*").replace('_', '.') : tableName;
+    /**
+     * Convert sql wildcards ({@code %} and @{code _}) into regex style patterns.
+     */
+    private static String sqlWildcardToRegexPattern(String pattern) {
+        // NOCOMMIT escape regex bits?
+        return hasText(pattern) ? pattern.replaceAll("%", ".*").replace('_', '.') : pattern;
     }
 
     @Override
@@ -744,7 +751,6 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
                                     "TABLE_SCHEM", 
                                     "TABLE_CATALOG"), data);
     }
-    
 
     @Override
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
@@ -807,7 +813,7 @@ class JdbcDatabaseMetaData implements DatabaseMetaData, JdbcWrapper {
         }
 
         String cat = defaultCatalog();
-        List<MetaColumnInfo> columns = con.client.metaInfoColumns(replaceJdbcWildcardForTables(tableNamePattern), replaceJdbcWildcardForColumns(columnNamePattern));
+        List<MetaColumnInfo> columns = con.client.metaInfoColumns(sqlWildcardToSimplePattern(tableNamePattern), sqlWildcardToRegexPattern(columnNamePattern));
         Object[][] data = new Object[columns.size()][];
         for (int i = 0; i < data.length; i++) {
             data[i] = new Object[24];

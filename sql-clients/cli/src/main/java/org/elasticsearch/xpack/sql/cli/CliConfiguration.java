@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.sql.net.client.ConnectionConfiguration;
 
 public class CliConfiguration extends ConnectionConfiguration {
 
-    private IpAndPort ipAndPort;
+    private HostAndPort hostAndPort;
     private String originalUrl;
     private String urlFile = "/";
 
@@ -34,7 +34,6 @@ public class CliConfiguration extends ConnectionConfiguration {
         if (u.endsWith("/")) {
             u = u.substring(0, u.length() - 1);
         }
-
 
         // remove space
         u = u.trim();
@@ -58,36 +57,32 @@ public class CliConfiguration extends ConnectionConfiguration {
             }
         }
 
-        // default host
-        String host = "localhost";
-        // is there a host ?
-
         // look for port
         index = hostAndPort.indexOf(":");
         if (index > 0) {
             if (index + 1 >= hostAndPort.length()) {
                 throw new IllegalArgumentException("Invalid port specified");
             }
-            host = hostAndPort.substring(0, index);
+            String host = hostAndPort.substring(0, index);
             String port = hostAndPort.substring(index + 1);
 
-            ipAndPort = new IpAndPort(host, Integer.parseInt(port));
+            this.hostAndPort = new HostAndPort(host, Integer.parseInt(port));
         }
         else {
-            ipAndPort = new IpAndPort(u);
+            this.hostAndPort = new HostAndPort(u);
         }
     }
 
     public URL asUrl() {
         // TODO: need to assemble all the various params here
         try {
-            return new URL(isSSL() ? "https" : "http", ipAndPort.ip, port(), urlFile);
+            return new URL(isSSL() ? "https" : "http", hostAndPort.ip, port(), urlFile);
         } catch (MalformedURLException ex) {
             throw new IllegalArgumentException("Cannot connect to server " + originalUrl, ex);
         }
     }
 
     private int port() {
-        return ipAndPort.port > 0 ? ipAndPort.port : 9200;
+        return hostAndPort.port > 0 ? hostAndPort.port : 9200;
     }
 }

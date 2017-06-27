@@ -9,6 +9,7 @@ import java.util.Collection;
 
 
 public interface Catalog {
+    // NOCOMMIT make sure we need all of these methods....
 
     EsIndex getIndex(String index);
 

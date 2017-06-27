@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.sql.SQLException;
-
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
 import org.elasticsearch.xpack.sql.jdbc.util.BytesArray;
 import org.elasticsearch.xpack.sql.net.client.ClientException;
 import org.elasticsearch.xpack.sql.net.client.DataOutputConsumer;
 import org.elasticsearch.xpack.sql.net.client.jre.JreHttpUrlConnection;
+
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.sql.SQLException;
 
 // http client
 // handles nodes discovery, fail-over, errors, etc...
@@ -44,22 +46,26 @@ class HttpClient {
         }
     }
 
-    boolean head(String path) {
+    boolean head(String path) { // NOCOMMIT remove path?
         try {
-            return JreHttpUrlConnection.http(url(path), cfg, JreHttpUrlConnection::head);
+            return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
+                return JreHttpUrlConnection.http(url(path), cfg, JreHttpUrlConnection::head);
+            });
         } catch (ClientException ex) {
             throw new JdbcException(ex, "Transport failure");
         }
     }
 
     BytesArray put(DataOutputConsumer os) throws SQLException {
-        return put("sql/", os);
+        return put("_jdbc/", os);
     }
 
-    BytesArray put(String path, DataOutputConsumer os) throws SQLException {
+    BytesArray put(String path, DataOutputConsumer os) throws SQLException { // NOCOMMIT remove path?
         try {
-            return JreHttpUrlConnection.http(url(path), cfg, con -> {
-                return new BytesArray(con.put(os));
+            return AccessController.doPrivileged((PrivilegedAction<BytesArray>) () -> {    
+                return JreHttpUrlConnection.http(url(path), cfg, con -> {
+                    return new BytesArray(con.put(os));
+                });
             });
         } catch (ClientException ex) {
             throw new JdbcException(ex, "Transport failure");

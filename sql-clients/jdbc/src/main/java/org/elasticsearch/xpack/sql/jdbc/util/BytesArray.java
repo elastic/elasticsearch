@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.util;
 
-import java.io.IOException;
-import java.io.OutputStream;
-
 import org.elasticsearch.xpack.sql.net.client.util.Bytes;
 import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+
+import java.io.IOException;
+import java.io.OutputStream;
 
 public class BytesArray {
 
@@ -99,6 +99,7 @@ public class BytesArray {
 
     @Override
     public String toString() {
+        // NOCOMMIT I think we're much more likely to want this as hex....
         return StringUtils.asUTFString(bytes, offset, size);
     }
 

@@ -25,6 +25,7 @@ public class JdbcDriver implements java.sql.Driver, Closeable {
             final JdbcDriver d = new JdbcDriver();
             DriverManager.registerDriver(d, d::close);
         } catch (Exception ex) {
+            // NOCOMMIT this seems bad!
             // ignore
         }
     }

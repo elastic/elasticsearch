@@ -88,7 +88,7 @@ public class JdbcTemplate {
         return buffer;
     }
 
-    public void consume(CheckedConsumer<Connection, SQLException> c) throws Exception {
+    public void consume(CheckedConsumer<Connection, SQLException> c) throws SQLException {
         try (Connection con = conn.get()) {
             c.accept(con);
         }
@@ -229,7 +229,7 @@ public class JdbcTemplate {
             int count = metaData.getColumnCount();
             Map<String, Object> map = new LinkedHashMap<>(count);
 
-            for (int j = 0; j < count; j++) {
+            for (int j = 1; j <= count; j++) {
                 map.put(metaData.getColumnName(j), rs.getObject(j));
             }
             return map;

@@ -94,7 +94,9 @@ public abstract class ProtoUtils {
     }
 
     public static String readHeader(DataInput in) throws IOException {
-        if (MAGIC_NUMBER != in.readInt()) {
+        // NOCOMMIT why not just throw?
+        int magic = in.readInt();
+        if (MAGIC_NUMBER != magic) {
             return "Invalid protocol";
         }
         int ver = in.readInt();

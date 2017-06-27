@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
 
 import org.elasticsearch.xpack.sql.net.client.ClientException;
@@ -42,7 +43,8 @@ public class JreHttpUrlConnection implements Closeable {
         // HttpURL adds this header by default, HttpS does not
         // adding it here to be consistent
         con.setRequestProperty("Accept-Charset", "UTF-8");
-        con.setRequestProperty("Accept-Encoding", "gzip");
+        // NOCOMMIT if we're going to accept gzip then we need to transparently unzip it on the way out...
+        // con.setRequestProperty("Accept-Encoding", "gzip");
     }
 
     public boolean head() throws ClientException {
@@ -55,16 +57,26 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    public Bytes put(DataOutputConsumer doc) throws ClientException {
+    public Bytes put(DataOutputConsumer doc) throws ClientException { // NOCOMMIT why is this called put when it is a post?
         try {
             con.setRequestMethod("POST");
             con.setDoOutput(true);
+            con.setRequestProperty("Content-Type", "application/json");
             try (OutputStream out = con.getOutputStream()) {
                 doc.accept(new DataOutputStream(out));
             }
             if (con.getResponseCode() >= 400) {
-                throw new ClientException("Protocol/client error; server returned %s", con.getResponseMessage());
+                InputStream err = con.getErrorStream();
+                String response;
+                if (err == null) {
+                    response = "server did not return a response";
+                } else {
+                    // NOCOMMIT figure out why this returns weird characters. Can reproduce with unauthorized.
+                    response = new String(IOUtils.asBytes(err).bytes(), StandardCharsets.UTF_8);
+                }
+                throw new ClientException("Protocol/client error; server returned [" + con.getResponseMessage() + "]: " + response);
             }
+            // NOCOMMIT seems weird that we buffer this into a byte stream and then wrap it in a byte array input stream.....
             return IOUtils.asBytes(con.getInputStream());
         } catch (IOException ex) {
             throw new ClientException(ex, "Cannot POST address %s", url);
@@ -121,7 +133,7 @@ public class JreHttpUrlConnection implements Closeable {
     // main call class
     //
 
-    public static <R, E extends Exception> R http(URL url, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) throws E {
+    public static <R> R http(URL url, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
         try (JreHttpUrlConnection con = new JreHttpUrlConnection(url, cfg)) {
             return handler.apply(con);
         }

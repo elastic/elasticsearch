@@ -286,4 +286,12 @@ public abstract class StringUtils {
 
         return list;
     }
+
+    public static boolean parseBoolean(String input) {
+        switch(input) {
+        case "true": return true;
+        case "false": return false;
+        default: throw new IllegalArgumentException("must be [true] or [false]");
+        }
+    }
 }

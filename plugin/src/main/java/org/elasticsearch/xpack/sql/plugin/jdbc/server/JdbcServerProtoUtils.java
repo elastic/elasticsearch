@@ -22,11 +22,11 @@ public abstract class JdbcServerProtoUtils {
 
     public static BytesReference write(Response response) throws IOException {
         try (BytesStreamOutput array = new BytesStreamOutput();
-             DataOutputStream out = new DataOutputStream(array)) {
+            DataOutputStream out = new DataOutputStream(array)) {
             ProtoUtils.write(out, response);
 
             // serialize payload (if present)
-            if (response instanceof DataResponse) {
+            if (response instanceof DataResponse) { // NOCOMMIT why not implement an interface?
                 RowSetCursor cursor = (RowSetCursor) ((QueryInitResponse) response).data;
 
                 if (cursor != null) {

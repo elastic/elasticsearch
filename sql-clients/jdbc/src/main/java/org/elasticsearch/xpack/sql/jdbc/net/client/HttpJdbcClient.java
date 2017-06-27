@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
-import java.io.Closeable;
-import java.io.DataInput;
-import java.io.DataInputStream;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.sql.SQLException;
-import java.time.Instant;
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ErrorResponse;
@@ -25,6 +16,8 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaColumnResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.MetaTableResponse;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.SqlExceptionType;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ProtoUtils;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryInitResponse;
@@ -32,10 +25,17 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageResponse;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Response;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.TimeoutInfo;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.SqlExceptionType;
 import org.elasticsearch.xpack.sql.jdbc.util.BytesArray;
 import org.elasticsearch.xpack.sql.jdbc.util.FastByteArrayInputStream;
+
+import java.io.Closeable;
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.sql.SQLException;
+import java.time.Instant;
+import java.util.List;
 
 public class HttpJdbcClient implements Closeable {
     @FunctionalInterface
@@ -54,6 +54,7 @@ public class HttpJdbcClient implements Closeable {
 
     public boolean ping(long timeoutInMs) {
         long oldTimeout = http.getNetworkTimeout();
+        // NOCOMMIT this seems race condition-y
         http.setNetworkTimeout(timeoutInMs);
         try {
             return http.head("");

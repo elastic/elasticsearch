@@ -5,20 +5,22 @@
  */
 package org.elasticsearch.xpack.sql.net.client;
 
+import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
 public class ConnectionConfiguration {
 
-    public static class IpAndPort {
+    public static class HostAndPort {
         public final String ip;
         public final int port;
 
-        public IpAndPort(String ip) {
+        public HostAndPort(String ip) {
             this(ip, 0);
         }
 
-        public IpAndPort(String ip, int port) {
+        public HostAndPort(String ip, int port) {
             this.ip = ip;
             this.port = port;
         }
@@ -74,6 +76,7 @@ public class ConnectionConfiguration {
 
     static final String SSL_TRUSTSTORE_TYPE = "ssl.keystore.location";
     static final String SSL_TRUSTSTORE_TYPE_DEFAULT = "ssl.keystore.location";
+    
 
     private final Properties settings;
 
@@ -83,6 +86,7 @@ public class ConnectionConfiguration {
 
     private long pageTimeout;
     private int pageSize;
+    private final boolean ssl;
 
     public ConnectionConfiguration(Properties props) {
         settings = props != null ? new Properties(props) : new Properties();
@@ -93,6 +97,7 @@ public class ConnectionConfiguration {
         // page
         pageTimeout = Long.parseLong(settings.getProperty(PAGE_TIMEOUT, PAGE_TIMEOUT_DEFAULT));
         pageSize = Integer.parseInt(settings.getProperty(PAGE_SIZE, PAGE_SIZE_DEFAULT));
+        ssl = StringUtils.parseBoolean(settings.getProperty(SSL, SSL_DEFAULT));
     }
 
     protected Properties settings() {
@@ -100,8 +105,7 @@ public class ConnectionConfiguration {
     }
 
     protected boolean isSSL() {
-        //TODO: check params
-        return false;
+        return ssl;
     }
 
     public void setConnectTimeout(long millis) {

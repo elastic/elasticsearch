@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin.jdbc.http;
 
-import java.io.DataInputStream;
-import java.io.IOException;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
@@ -23,6 +20,9 @@ import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcRequest;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcResponse;
 import org.elasticsearch.xpack.sql.plugin.jdbc.server.JdbcServerProtoUtils;
 
+import java.io.DataInputStream;
+import java.io.IOException;
+
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -30,7 +30,7 @@ import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class HttpJdbcAction extends BaseRestHandler {
+public class HttpJdbcAction extends BaseRestHandler { // NOCOMMIT these are call RestJdbcAction even if it isn't REST.
 
     public HttpJdbcAction(Settings settings, RestController controller) {
         super(settings);
@@ -63,12 +63,13 @@ public class HttpJdbcAction extends BaseRestHandler {
         return c -> c.sendResponse(new BytesRestResponse(BAD_REQUEST, TEXT_CONTENT_TYPE, message));
     }
 
-    private static void jdbcResponse(RestChannel channel, JdbcResponse response) {
+    private void jdbcResponse(RestChannel channel, JdbcResponse response) {
         BytesRestResponse restResponse = null;
         
         try {
             restResponse = new BytesRestResponse(OK, TEXT_CONTENT_TYPE, JdbcServerProtoUtils.write(response.response()));
         } catch (IOException ex) {
+            logger.error("error building jdbc response", ex);
             restResponse = new BytesRestResponse(INTERNAL_SERVER_ERROR, TEXT_CONTENT_TYPE, StringUtils.EMPTY);
         }
 

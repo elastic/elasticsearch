@@ -176,9 +176,9 @@ public class XPackLicenseState {
 
     private static String[] logstashAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
-            case TRIAL:
+            case BASIC:
                 switch (currentMode) {
-                    case BASIC:
+                    case TRIAL:
                     case STANDARD:
                     case GOLD:
                     case PLATINUM:
@@ -429,11 +429,25 @@ public class XPackLicenseState {
     }
 
     /**
-     * Logstash is always allowed as long as there is an active license
+     * Logstash is allowed as long as there is an active license of type TRIAL, STANDARD, GOLD or PLATINUM
      * @return {@code true} as long as there is a valid license
      */
     public boolean isLogstashAllowed() {
-        return status.active;
+        Status localStatus = status;
+
+        if (localStatus.active == false) {
+            return false;
+        }
+
+        switch (localStatus.mode) {
+            case TRIAL:
+            case GOLD:
+            case PLATINUM:
+            case STANDARD:
+                return true;
+            default:
+                return false;
+        }
     }
 
     /**

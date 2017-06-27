@@ -23,7 +23,7 @@ the *directory* containing the config file.
 ==== Default path settings are removed
 
 Previous versions of Elasticsearch enabled setting `default.path.data` and
-`default.path.logs` so set the default data path and default logs path if they
+`default.path.logs` to set the default data path and default logs path if they
 were not otherwise set in the configuration file. These settings have been
 removed and now data paths and log paths can be configured via settings
 only. Related, this means that the environment variables `DATA_DIR` and

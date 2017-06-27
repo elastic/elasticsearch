@@ -496,6 +496,8 @@ task run(type: RunTask) {
  */
 Map<String, String> expansionsForDistribution(distributionType) {
   final String defaultHeapSize = "2g"
+  final String packagingPathData = "path.data: /var/lib/elasticsearch"
+  final String packagingPathLogs = "path.logs: /var/log/elasticsearch"
 
   String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
@@ -509,12 +511,22 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'integ-test-zip': '$ES_HOME/config',
       'def': '/etc/elasticsearch',
     ],
+    'path.data': [
+      'deb': packagingPathData,
+      'rpm': packagingPathData,
+      'def': '#path.data: /path/to/data'
+    ],
     'path.env': [
       'deb': '/etc/default/elasticsearch',
       'rpm': '/etc/sysconfig/elasticsearch',
       /* There isn't one of these files for tar or zip but its important to
         make an empty string here so the script can properly skip it. */
       'def': '',
+    ],
+    'path.logs': [
+      'deb': packagingPathLogs,
+      'rpm': packagingPathLogs,
+      'def': '#path.logs: /path/to/logs'
     ],
 
     'heap.min': defaultHeapSize,

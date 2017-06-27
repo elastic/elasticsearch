@@ -163,13 +163,12 @@ The Elasticsearch service can be configured prior to installation by setting the
 
   The installation directory of the desired JVM to run the service under.
 
-`LOG_DIR`::
+`SERVICE_LOG_DIR`::
 
-    Log directory, defaults to `%ES_HOME%\logs`.
-
-`DATA_DIR`::
-
-    Data directory, defaults to `%ES_HOME%\data`.
+    Service log directory, defaults to `%ES_HOME%\logs`. Note that this does
+    not control the path for the Elasticsearch logs; the path for these is set
+    via the setting `path.logs` in the `elasticsearch.yml` configuration file,
+    or on the command line.
 
 `CONF_DIR`::
 

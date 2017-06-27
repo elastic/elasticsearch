@@ -91,10 +91,11 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
         // be 0
         assertEquals(1, ((BooleanQuery) parsedQuery).getMinimumNumberShouldMatch());
     }
-    
+
     /**
      * Uses the significant terms aggregation to find the keywords in text fields
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25429")
     public void testSignificance() throws IOException {
         TextFieldType textFieldType = new TextFieldType();
         textFieldType.setName("text");

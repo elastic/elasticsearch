@@ -497,7 +497,7 @@ task run(type: RunTask) {
 Map<String, String> expansionsForDistribution(distributionType) {
   final String defaultHeapSize = "2g"
   final String packagingPathData = "path.data: /var/lib/elasticsearch"
-  final String packagingLogsData = "path.logs: /var/log/elasticsearch"
+  final String packagingPathLogs = "path.logs: /var/log/elasticsearch"
 
   String footer = "# Built for ${project.name}-${project.version} " +
       "(${distributionType})"
@@ -524,8 +524,8 @@ Map<String, String> expansionsForDistribution(distributionType) {
       'def': '',
     ],
     'path.logs': [
-      'deb': packagingLogsData,
-      'rpm': packagingLogsData,
+      'deb': packagingPathLogs,
+      'rpm': packagingPathLogs,
       'def': '#path.logs: /path/to/logs'
     ],
 

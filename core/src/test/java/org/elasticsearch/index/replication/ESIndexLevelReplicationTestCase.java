@@ -224,8 +224,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             final DiscoveryNode pNode = getDiscoveryNode(primary.routingEntry().currentNodeId());
             primary.markAsRecovering("store", new RecoveryState(primary.routingEntry(), pNode, null));
             primary.recoverFromStore();
+            HashSet<String> activeIds = new HashSet<>();
+            activeIds.addAll(activeIds());
+            activeIds.add(primary.routingEntry().allocationId().getId());
+            HashSet<String> initializingIds = new HashSet<>();
+            initializingIds.addAll(initializingIds());
+            initializingIds.remove(primary.routingEntry().allocationId().getId());
             primary.updateShardState(ShardRoutingHelper.moveToStarted(primary.routingEntry()), primary.getPrimaryTerm(), null,
-                ++clusterStateVersion, Collections.singleton(primary.routingEntry().allocationId().getId()), Collections.emptySet());
+                ++clusterStateVersion, activeIds, initializingIds);
             for (final IndexShard replica : replicas) {
                 recoverReplica(replica);
             }

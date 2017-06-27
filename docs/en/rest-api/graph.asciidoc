@@ -4,7 +4,7 @@
 
 The Graph "explore" API is accessible via the
 `/_xpack/graph/_explore` endpoint.
-See {kibana}/graph-api-explore.html[Explore API].
+See {kibana-ref}/graph-api-explore.html[Explore API].
 
 //* <<graph-api-explore>>
 

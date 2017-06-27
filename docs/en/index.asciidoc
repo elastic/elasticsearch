@@ -5,6 +5,7 @@
 :es-repo-dir:           {docdir}/../../../../elasticsearch/docs
 :es-test-dir:           {docdir}/../../../../elasticsearch/docs/src/test
 :plugins-examples-dir:  {docdir}/../../../../elasticsearch/plugins/examples
+:docs-dir:              {docdir}/../../../../docs
 
 include::{es-repo-dir}/Versions.asciidoc[]
 

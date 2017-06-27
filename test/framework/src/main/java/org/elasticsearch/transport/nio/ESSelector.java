@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 
 import java.io.Closeable;
@@ -50,6 +51,7 @@ public abstract class ESSelector implements Closeable {
     private final EventHandler eventHandler;
     private final ReentrantLock runLock = new ReentrantLock();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final PlainActionFuture<Boolean> isRunningFuture = PlainActionFuture.newFuture();
     private volatile Thread thread;
 
     ESSelector(EventHandler eventHandler) throws IOException {
@@ -67,6 +69,7 @@ public abstract class ESSelector implements Closeable {
      */
     public void runLoop() {
         if (runLock.tryLock()) {
+            isRunningFuture.onResponse(true);
             try {
                 setThread();
                 while (isOpen()) {
@@ -171,6 +174,10 @@ public abstract class ESSelector implements Closeable {
 
     public boolean isRunning() {
         return runLock.isLocked();
+    }
+
+    public PlainActionFuture<Boolean> isRunningFuture() {
+        return PlainActionFuture.newFuture();
     }
 
     private void closeChannel(NioChannel channel) {

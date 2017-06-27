@@ -67,7 +67,5 @@ public abstract class EventHandler {
         if (closeException != null) {
             logger.trace("exception while closing channel", closeException);
         }
-
-
     }
 }

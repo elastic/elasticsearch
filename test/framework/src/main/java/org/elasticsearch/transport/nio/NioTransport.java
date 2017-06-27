@@ -189,12 +189,16 @@ public class NioTransport extends TcpTransport<NioChannel> {
                 if (selector.isRunning() == false) {
                     ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX);
                     threadFactory.newThread(selector::runLoop).start();
+                    selector.isRunningFuture().actionGet();
                 }
             }
 
             for (AcceptingSelector acceptor : acceptors) {
-                ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
-                threadFactory.newThread(acceptor::runLoop).start();
+                if (acceptor.isRunning() == false) {
+                    ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
+                    threadFactory.newThread(acceptor::runLoop).start();
+                    acceptor.isRunningFuture().actionGet();
+                }
             }
 
             super.doStart();

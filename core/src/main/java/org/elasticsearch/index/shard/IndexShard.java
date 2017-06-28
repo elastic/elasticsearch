@@ -2057,6 +2057,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             assert operationPrimaryTerm > primaryTerm :
                                 "shard term already update.  op term [" + operationPrimaryTerm + "], shardTerm [" + primaryTerm + "]";
                             primaryTerm = operationPrimaryTerm;
+                            logger.trace(
+                                    "detected new primary with primary term [{}], "
+                                            + "resetting local checkpoint from [{}] to [{}], "
+                                            + "updating global checkpoint to [{}]",
+                                    operationPrimaryTerm,
+                                    getLocalCheckpoint(),
+                                    globalCheckpoint,
+                                    globalCheckpoint);
+                            getEngine().seqNoService().resetLocalCheckpoint(globalCheckpoint);
                             updateGlobalCheckpointOnReplica(globalCheckpoint);
                             getEngine().getTranslog().rollGeneration();
                         });

@@ -142,7 +142,6 @@ import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -405,26 +404,10 @@ public class IndexShardTests extends IndexShardTestCase {
 
         // most of the time this is large enough that most of the time there will be at least one gap
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
-        int max = Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED);
-        boolean gap = false;
-        for (int i = 0; i < operations; i++) {
-            if (!rarely()) {
-                final String id = Integer.toString(i);
-                SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "test", id,
-                    new BytesArray("{}"), XContentType.JSON);
-                indexShard.applyIndexOperationOnReplica(i, indexShard.getPrimaryTerm(),
-                    1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse,
-                    getMappingUpdater(indexShard, sourceToParse.type()));
-                max = i;
-            } else {
-                gap = true;
-            }
-        }
+        final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED));
 
-        final int maxSeqNo = max;
-        if (gap) {
-            assertThat(indexShard.getLocalCheckpoint(), not(equalTo(maxSeqNo)));
-        }
+        final int maxSeqNo = result.maxSeqNo;
+        final boolean gap = result.gap;
 
         // promote the replica
         final ShardRouting replicaRouting = indexShard.routingEntry();
@@ -637,6 +620,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     @Override
                     public void onResponse(Releasable releasable) {
                         assertThat(indexShard.getPrimaryTerm(), equalTo(newPrimaryTerm));
+                        assertThat(indexShard.getLocalCheckpoint(), equalTo(newGlobalCheckPoint));
                         assertThat(indexShard.getGlobalCheckpoint(), equalTo(newGlobalCheckPoint));
                         onResponse.set(true);
                         releasable.close();
@@ -697,12 +681,51 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(onResponse.get());
                     assertNull(onFailure.get());
                     assertThat(indexShard.getTranslog().getGeneration().translogFileGeneration, equalTo(translogGen + 1));
+                    assertThat(indexShard.getLocalCheckpoint(), equalTo(newGlobalCheckPoint));
                     assertThat(indexShard.getGlobalCheckpoint(), equalTo(newGlobalCheckPoint));
                 }
             }
             thread.join();
             assertEquals(0, indexShard.getActiveOperationsCount());
         }
+
+        closeShards(indexShard);
+    }
+
+    public void testThrowbackLocalCheckpointOnReplica() throws IOException, InterruptedException {
+        final IndexShard indexShard = newStartedShard(false);
+
+        // most of the time this is large enough that most of the time there will be at least one gap
+        final int operations = 1024 - scaledRandomIntBetween(0, 1024);
+        indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED));
+
+        final int globalCheckpoint =
+                randomIntBetween(
+                        Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED),
+                        Math.toIntExact(indexShard.getLocalCheckpoint()));
+        final CountDownLatch latch = new CountDownLatch(1);
+        indexShard.acquireReplicaOperationPermit(
+                indexShard.primaryTerm + 1,
+                globalCheckpoint,
+                new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+
+                    }
+                },
+                ThreadPool.Names.SAME);
+
+        latch.await();
+        assertThat(indexShard.getLocalCheckpoint(), equalTo((long) globalCheckpoint));
+
+        // ensure that after the local checkpoint throwback and indexing again, the local checkpoint advances
+        final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(indexShard.getLocalCheckpoint()));
+        assertThat(indexShard.getLocalCheckpoint(), equalTo((long) result.localCheckpoint));
 
         closeShards(indexShard);
     }
@@ -1964,6 +1987,55 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(stop.compareAndSet(false, true));
         thread.join();
         closeShards(newShard);
+    }
+
+    class Result {
+        private final int localCheckpoint;
+        private final int maxSeqNo;
+        private final boolean gap;
+
+        public Result(final int localCheckpoint, final int maxSeqNo, final boolean gap) {
+            this.localCheckpoint = localCheckpoint;
+            this.maxSeqNo = maxSeqNo;
+            this.gap = gap;
+        }
+    }
+
+    /**
+     * Index on the specified shard while introducing sequence number gaps.
+     *
+     * @param indexShard the shard
+     * @param operations the number of operations
+     * @param offset     the starting sequence number
+     * @return a pair of the maximum sequence number and whether or not a gap was introduced
+     * @throws IOException if an I/O exception occurs while indexing on the shard
+     */
+    private Result indexOnReplicaWithGaps(
+            final IndexShard indexShard,
+            final int operations,
+            final int offset) throws IOException {
+        int localCheckpoint = offset;
+        int max = offset;
+        boolean gap = false;
+        for (int i = offset + 1; i < operations; i++) {
+            if (!rarely()) {
+                final String id = Integer.toString(i);
+                SourceToParse sourceToParse = SourceToParse.source(indexShard.shardId().getIndexName(), "test", id,
+                        new BytesArray("{}"), XContentType.JSON);
+                indexShard.applyIndexOperationOnReplica(i, indexShard.getPrimaryTerm(),
+                        1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, sourceToParse,
+                        getMappingUpdater(indexShard, sourceToParse.type()));
+                if (!gap && i == localCheckpoint + 1) {
+                    localCheckpoint++;
+                }
+                max = i;
+            } else {
+                gap = true;
+            }
+        }
+        assert localCheckpoint == indexShard.getLocalCheckpoint();
+        assert !gap || (localCheckpoint != max);
+        return new Result(localCheckpoint, max, gap);
     }
 
     /** A dummy repository for testing which just needs restore overridden */

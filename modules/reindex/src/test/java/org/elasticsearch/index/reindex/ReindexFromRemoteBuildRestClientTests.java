@@ -57,7 +57,6 @@ public class ReindexFromRemoteBuildRestClientTests extends ESTestCase {
             headers.put("header" + i, Integer.toString(i));
         }
         assertEquals(headerNumbers, headers.size());
-        System.out.println(headers.toString());
         RemoteInfo remoteInfo = new RemoteInfo("https", "localhost", 9200, new BytesArray("ignored"), null, null, headers,
             RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         long taskId = randomLong();

@@ -346,6 +346,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             return toXContentSnapshot(builder, params);
         }
 
+        final boolean verbose = params.paramAsBoolean("verbose", false);
         // write snapshot info for the API and any other situations
         builder.startObject();
         builder.field(SNAPSHOT, snapshotId.getName());
@@ -359,22 +360,22 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.value(index);
         }
         builder.endArray();
-        if (state != null) {
+        if (verbose || state != null) {
             builder.field(STATE, state);
         }
         if (reason != null) {
             builder.field(REASON, reason);
         }
-        if (startTime != 0) {
+        if (verbose || startTime != 0) {
             builder.field(START_TIME, DATE_TIME_FORMATTER.printer().print(startTime));
             builder.field(START_TIME_IN_MILLIS, startTime);
         }
-        if (endTime != 0) {
+        if (verbose || endTime != 0) {
             builder.field(END_TIME, DATE_TIME_FORMATTER.printer().print(endTime));
             builder.field(END_TIME_IN_MILLIS, endTime);
             builder.timeValueField(DURATION_IN_MILLIS, DURATION, endTime - startTime);
         }
-        if (!shardFailures.isEmpty()) {
+        if (verbose || !shardFailures.isEmpty()) {
             builder.startArray(FAILURES);
             for (SnapshotShardFailure shardFailure : shardFailures) {
                 builder.startObject();
@@ -383,7 +384,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             }
             builder.endArray();
         }
-        if (totalShards != 0) {
+        if (verbose || totalShards != 0) {
             builder.startObject(SHARDS);
             builder.field(TOTAL, totalShards);
             builder.field(FAILED, failedShards());

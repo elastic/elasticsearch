@@ -20,18 +20,26 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.client.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  * Returns information about snapshot
@@ -52,10 +60,19 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         String repository = request.param("repository");
         String[] snapshots = request.paramAsStringArray("snapshot", Strings.EMPTY_ARRAY);
 
-        GetSnapshotsRequest getSnapshotsRequest = getSnapshotsRequest(repository).snapshots(snapshots);
+        final GetSnapshotsRequest getSnapshotsRequest = getSnapshotsRequest(repository).snapshots(snapshots);
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
         getSnapshotsRequest.verbose(request.paramAsBoolean("verbose", getSnapshotsRequest.verbose()));
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
-        return channel -> client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));
+        return channel -> client.admin().cluster().getSnapshots(getSnapshotsRequest,
+            new RestBuilderListener<GetSnapshotsResponse>(channel) {
+                @Override
+                public RestResponse buildResponse(GetSnapshotsResponse response, XContentBuilder builder) throws Exception {
+                    Map<String, String> params = Collections.singletonMap("verbose", Boolean.toString(getSnapshotsRequest.verbose()));
+                    ToXContent.MapParams xContentParams = new ToXContent.MapParams(params);
+                    response.toXContent(builder, xContentParams);
+                    return new BytesRestResponse(OK, builder);
+                }
+            });
     }
 }

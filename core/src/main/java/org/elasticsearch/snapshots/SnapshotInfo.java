@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -346,7 +347,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             return toXContentSnapshot(builder, params);
         }
 
-        final boolean verbose = params.paramAsBoolean("verbose", false);
+        final boolean verbose = params.paramAsBoolean("verbose", GetSnapshotsRequest.DEFAULT_VERBOSE_MODE);
         // write snapshot info for the API and any other situations
         builder.startObject();
         builder.field(SNAPSHOT, snapshotId.getName());

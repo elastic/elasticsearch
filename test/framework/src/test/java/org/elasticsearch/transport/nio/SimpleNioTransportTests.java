@@ -104,7 +104,6 @@ public class SimpleNioTransportTests extends AbstractSimpleTransportTestCase {
             assertThat(e.getMessage(), containsString("[127.0.0.1:9876]"));
             Throwable cause = e.getCause();
             assertThat(cause, instanceOf(IOException.class));
-            assertEquals("Connection refused", cause.getMessage());
         }
     }
 

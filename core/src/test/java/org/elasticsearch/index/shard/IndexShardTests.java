@@ -1994,7 +1994,7 @@ public class IndexShardTests extends IndexShardTestCase {
         private final int maxSeqNo;
         private final boolean gap;
 
-        public Result(final int localCheckpoint, final int maxSeqNo, final boolean gap) {
+        Result(final int localCheckpoint, final int maxSeqNo, final boolean gap) {
             this.localCheckpoint = localCheckpoint;
             this.maxSeqNo = maxSeqNo;
             this.gap = gap;

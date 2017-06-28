@@ -530,11 +530,11 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                         .filter(s -> replicaRouting.isSameAllocation(s.routingEntry())).findFirst().get();
                 replica.acquireReplicaOperationPermit(
                         request.primaryTerm(),
+                        globalCheckpoint,
                         new ActionListener<Releasable>() {
                             @Override
                             public void onResponse(Releasable releasable) {
                                 try {
-                                    replica.updateGlobalCheckpointOnReplica(globalCheckpoint);
                                     performOnReplica(request, replica);
                                     releasable.close();
                                     listener.onResponse(

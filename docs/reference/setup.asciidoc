@@ -34,10 +34,6 @@ refuse to start if a known-bad version of Java is used.
 The version of Java that Elasticsearch will use can be configured by setting
 the `JAVA_HOME` environment variable.
 
-NOTE: Elasticsearch ships with default configuration for running Elasticsearch on 64-bit server JVMs. If you are using a 32-bit client JVM,
-you must remove `-server` from <<jvm-options,jvm.options>> and if you are using any 32-bit JVM you should reconfigure the thread stack size
-from `-Xss1m` to `-Xss320k`.
-
 --
 
 include::setup/install.asciidoc[]

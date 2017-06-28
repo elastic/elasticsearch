@@ -31,6 +31,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -100,10 +101,11 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean isFilter;
 
     public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
-                             Function<MappedFieldType, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
-                             SimilarityService similarityService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
-                             Client client, IndexReader reader, LongSupplier nowInMillis, String clusterAlias) {
-        super(xContentRegistry, client, nowInMillis);
+            Function<MappedFieldType, IndexFieldData<?>> indexFieldDataLookup, MapperService mapperService,
+            SimilarityService similarityService, ScriptService scriptService, NamedXContentRegistry xContentRegistry,
+            NamedWriteableRegistry namedWriteableRegistry,Client client, IndexReader reader, LongSupplier nowInMillis,
+            String clusterAlias) {
+        super(xContentRegistry, namedWriteableRegistry,client, nowInMillis);
         this.shardId = shardId;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
@@ -120,8 +122,8 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
-                source.similarityService, source.scriptService, source.getXContentRegistry(), source.client,
-                source.reader, source.nowInMillis, source.clusterAlias);
+                source.similarityService, source.scriptService, source.getXContentRegistry(), source.getWriteableRegistry(),
+                source.client, source.reader, source.nowInMillis, source.clusterAlias);
         this.types = source.getTypes();
     }
 

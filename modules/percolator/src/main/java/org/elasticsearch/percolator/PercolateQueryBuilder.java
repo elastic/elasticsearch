@@ -49,6 +49,10 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -62,6 +66,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -75,7 +80,9 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -529,7 +536,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         QueryShardContext percolateShardContext = wrap(context);
 
         PercolatorFieldMapper.FieldType pft = (PercolatorFieldMapper.FieldType) fieldType;
-        PercolateQuery.QueryStore queryStore = createStore(pft, percolateShardContext, mapUnmappedFieldsAsString);
+        PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField, percolateShardContext, mapUnmappedFieldsAsString);
         return pft.percolateQuery(queryStore, document, docSearcher);
     }
 
@@ -575,32 +582,59 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
     }
 
-    private static PercolateQuery.QueryStore createStore(PercolatorFieldMapper.FieldType fieldType,
-                                                         QueryShardContext context,
-                                                         boolean mapUnmappedFieldsAsString) {
+    static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType,
+                                                 QueryShardContext context,
+                                                 boolean mapUnmappedFieldsAsString) {
+        Version indexVersion = context.indexVersionCreated();
+        NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {
             LeafReader leafReader = ctx.reader();
-            BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(fieldType.queryBuilderField.name());
+            BinaryDocValues binaryDocValues = leafReader.getBinaryDocValues(queryBuilderFieldType.name());
             if (binaryDocValues == null) {
                 return docId -> null;
             }
-
-            return docId -> {
-                if (binaryDocValues.advanceExact(docId)) {
-                    BytesRef qbSource = binaryDocValues.binaryValue();
-                    if (qbSource.length > 0) {
-                        XContent xContent = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent();
-                        try (XContentParser sourceParser = xContent.createParser(context.getXContentRegistry(), qbSource.bytes,
-                                qbSource.offset, qbSource.length)) {
-                            return parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
+            if (indexVersion.onOrAfter(Version.V_6_0_0_beta1)) {
+                return docId -> {
+                    if (binaryDocValues.advanceExact(docId)) {
+                        BytesRef qbSource = binaryDocValues.binaryValue();
+                        try (InputStream in = new ByteArrayInputStream(qbSource.bytes, qbSource.offset, qbSource.length)) {
+                            try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)) {
+                                input.setVersion(indexVersion);
+                                // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
+                                // to encode multiple binary values into a single binary doc values field.
+                                // This is the reason we need to first need to read the number of values and
+                                // then the length of the field value in bytes.
+                                int numValues = input.readVInt();
+                                assert numValues == 1;
+                                int valueLength = input.readVInt();
+                                assert valueLength > 0;
+                                QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
+                                assert in.read() == -1;
+                                return PercolatorFieldMapper.toQuery(context, mapUnmappedFieldsAsString, queryBuilder);
+                            }
                         }
                     } else {
                         return null;
                     }
-                } else {
-                    return null;
-                }
-            };
+                };
+            } else {
+                return docId -> {
+                    if (binaryDocValues.advanceExact(docId)) {
+                        BytesRef qbSource = binaryDocValues.binaryValue();
+                        if (qbSource.length > 0) {
+                            XContent xContent = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent();
+                            try (XContentParser sourceParser = xContent.createParser(context.getXContentRegistry(), qbSource.bytes,
+                                qbSource.offset, qbSource.length)) {
+                                return parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
+                            }
+                        } else {
+                            return null;
+                        }
+                    } else {
+                        return null;
+                    }
+                };
+            }
         };
     }
 

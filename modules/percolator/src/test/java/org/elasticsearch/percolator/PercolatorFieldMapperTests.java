@@ -43,15 +43,16 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -70,8 +71,10 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
+import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.join.query.HasChildQueryBuilder;
@@ -83,7 +86,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -95,7 +100,6 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -121,6 +125,11 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return pluginList(InternalSettingsPlugin.class, PercolatorPlugin.class, FoolMeScriptPlugin.class, ParentJoinPlugin.class);
+    }
+
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        return getInstanceFromNode(NamedWriteableRegistry.class);
     }
 
     @Before
@@ -542,9 +551,18 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private void assertQueryBuilder(BytesRef actual, QueryBuilder expected) throws IOException {
-        XContentParser sourceParser = createParser(PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent(),
-                new BytesArray(actual));
-        assertThat(parseInnerQueryBuilder(sourceParser), equalTo(expected));
+        try (InputStream in = new ByteArrayInputStream(actual.bytes, actual.offset, actual.length)) {
+            try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), writableRegistry())) {
+                // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
+                // to encode multiple binary values into a single binary doc values field.
+                // This is the reason we need to first need to read the number of values and
+                // then the length of the field value in bytes.
+                input.readVInt();
+                input.readVInt();
+                QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
+                assertThat(queryBuilder, equalTo(expected));
+            }
+        }
     }
 
     public void testEmptyName() throws Exception {
@@ -580,8 +598,18 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject().bytes(),
                         XContentType.JSON));
         BytesRef querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
-        Map<String, Object> parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
-        assertEquals(Script.DEFAULT_SCRIPT_LANG, XContentMapValues.extractValue("script.script.lang", parsedQuery));
+        try (InputStream in = new ByteArrayInputStream(querySource.bytes, querySource.offset, querySource.length)) {
+            try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), writableRegistry())) {
+                // Query builder's content is stored via BinaryFieldMapper, which has a custom encoding
+                // to encode multiple binary values into a single binary doc values field.
+                // This is the reason we need to first need to read the number of values and
+                // then the length of the field value in bytes.
+                input.readVInt();
+                input.readVInt();
+                ScriptQueryBuilder queryBuilder = (ScriptQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+                assertEquals(Script.DEFAULT_SCRIPT_LANG, queryBuilder.script().getLang());
+            }
+        }
 
         query = jsonBuilder();
         query.startObject();
@@ -608,9 +636,16 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         .endObject().bytes(),
                         XContentType.JSON));
         querySource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
-        parsedQuery = XContentHelper.convertToMap(new BytesArray(querySource), true).v2();
-        assertEquals(Script.DEFAULT_SCRIPT_LANG,
-                ((List) XContentMapValues.extractValue("function_score.functions.script_score.script.lang", parsedQuery)).get(0));
+        try (InputStream in = new ByteArrayInputStream(querySource.bytes, querySource.offset, querySource.length)) {
+            try (StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), writableRegistry())) {
+                input.readVInt();
+                input.readVInt();
+                FunctionScoreQueryBuilder queryBuilder = (FunctionScoreQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+                ScriptScoreFunctionBuilder function = (ScriptScoreFunctionBuilder)
+                    queryBuilder.filterFunctionBuilders()[0].getScoreFunction();
+                assertEquals(Script.DEFAULT_SCRIPT_LANG, function.getScript().getLang());
+            }
+        }
     }
 
     public void testEncodeRange() {

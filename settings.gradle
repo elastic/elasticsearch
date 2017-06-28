@@ -80,7 +80,8 @@ List projects = [
   'qa:smoke-test-tribe-node',
   'qa:vagrant',
   'qa:verify-version-constants',
-  'qa:wildfly'
+  'qa:wildfly',
+  'qa:query-builder-bwc'
 ]
 
 File examplePluginsDir = new File(rootProject.projectDir, 'plugins/examples')

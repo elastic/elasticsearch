@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,9 +38,6 @@ import java.util.Objects;
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
 public abstract class InternalAggregation implements Aggregation, ToXContent, NamedWriteable {
-
-    /** Delimiter used when prefixing aggregation names with their type using the typed_keys parameter **/
-    public static final String TYPED_KEYS_DELIMITER = "#";
 
     public static class ReduceContext {
 
@@ -132,7 +128,13 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
 
     public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
-    @Override
+    /**
+     * Get the value of specified path in the aggregation.
+     *
+     * @param path
+     *            the path to the property in the aggregation tree
+     * @return the value of the property
+     */
     public Object getProperty(String path) {
         AggregationPath aggPath = AggregationPath.parse(path);
         return getProperty(aggPath.getPathElementsAsStringList());
@@ -167,12 +169,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
         return pipelineAggregators;
     }
 
-    /**
-     * Returns a string representing the type of the aggregation. This type is added to
-     * the aggregation name in the response, so that it can later be used by REST clients
-     * to determine the internal type of the aggregation.
-     */
-    protected String getType() {
+    @Override
+    public String getType() {
         return getWriteableName();
     }
 
@@ -236,21 +234,4 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
         return this == obj;
     }
 
-    /**
-     * Common xcontent fields that are shared among addAggregation
-     */
-    public static final class CommonFields extends ParseField.CommonFields {
-        public static final ParseField META = new ParseField("meta");
-        public static final ParseField BUCKETS = new ParseField("buckets");
-        public static final ParseField VALUE = new ParseField("value");
-        public static final ParseField VALUES = new ParseField("values");
-        public static final ParseField VALUE_AS_STRING = new ParseField("value_as_string");
-        public static final ParseField DOC_COUNT = new ParseField("doc_count");
-        public static final ParseField KEY = new ParseField("key");
-        public static final ParseField KEY_AS_STRING = new ParseField("key_as_string");
-        public static final ParseField FROM = new ParseField("from");
-        public static final ParseField FROM_AS_STRING = new ParseField("from_as_string");
-        public static final ParseField TO = new ParseField("to");
-        public static final ParseField TO_AS_STRING = new ParseField("to_as_string");
-    }
 }

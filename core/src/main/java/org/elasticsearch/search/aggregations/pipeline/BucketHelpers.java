@@ -147,13 +147,13 @@ public class BucketHelpers {
      *         <code>aggPath</code>
      */
     public static Double resolveBucketValue(MultiBucketsAggregation agg,
-            InternalMultiBucketAggregation.Bucket bucket, String aggPath, GapPolicy gapPolicy) {
+            InternalMultiBucketAggregation.InternalBucket bucket, String aggPath, GapPolicy gapPolicy) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         return resolveBucketValue(agg, bucket, aggPathsList, gapPolicy);
     }
 
     public static Double resolveBucketValue(MultiBucketsAggregation agg,
-            InternalMultiBucketAggregation.Bucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
+            InternalMultiBucketAggregation.InternalBucket bucket, List<String> aggPathAsList, GapPolicy gapPolicy) {
         try {
             Object propertyValue = bucket.getProperty(agg.getName(), aggPathAsList);
             if (propertyValue == null) {

@@ -19,15 +19,18 @@
 package org.elasticsearch.search.collapse;
 
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -37,12 +40,15 @@ import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 /**
  * A builder that enables field collapsing on search request.
  */
-public class CollapseBuilder extends ToXContentToBytes implements Writeable {
+public class CollapseBuilder implements Writeable, ToXContentObject {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     public static final ParseField MAX_CONCURRENT_GROUP_REQUESTS_FIELD = new ParseField("max_concurrent_group_searches");
@@ -52,12 +58,27 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
     static {
         PARSER.declareString(CollapseBuilder::setField, FIELD_FIELD);
         PARSER.declareInt(CollapseBuilder::setMaxConcurrentGroupRequests, MAX_CONCURRENT_GROUP_REQUESTS_FIELD);
-        PARSER.declareObject(CollapseBuilder::setInnerHits,
-            (p, c) -> InnerHitBuilder.fromXContent(c), INNER_HITS_FIELD);
+        PARSER.declareField((parser, builder, context) -> {
+            XContentParser.Token currentToken = parser.currentToken();
+            if (currentToken == XContentParser.Token.START_OBJECT) {
+                builder.setInnerHits(InnerHitBuilder.fromXContent(context));
+            } else if (currentToken == XContentParser.Token.START_ARRAY) {
+                List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
+                for (currentToken = parser.nextToken(); currentToken != XContentParser.Token.END_ARRAY; currentToken = parser.nextToken()) {
+                    if (currentToken == XContentParser.Token.START_OBJECT) {
+                        innerHitBuilders.add(InnerHitBuilder.fromXContent(context));
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "Invalid token in inner_hits array");
+                    }
+                }
+
+                builder.setInnerHits(innerHitBuilders);
+            }
+        }, INNER_HITS_FIELD, ObjectParser.ValueType.OBJECT_ARRAY);
     }
 
     private String field;
-    private InnerHitBuilder innerHit;
+    private List<InnerHitBuilder> innerHits = Collections.emptyList();
     private int maxConcurrentGroupRequests = 0;
 
     private CollapseBuilder() {}
@@ -74,14 +95,31 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
     public CollapseBuilder(StreamInput in) throws IOException {
         this.field = in.readString();
         this.maxConcurrentGroupRequests = in.readVInt();
-        this.innerHit = in.readOptionalWriteable(InnerHitBuilder::new);
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
+            this.innerHits = in.readList(InnerHitBuilder::new);
+        } else {
+            InnerHitBuilder innerHitBuilder = in.readOptionalWriteable(InnerHitBuilder::new);
+            if (innerHitBuilder != null) {
+                this.innerHits = Collections.singletonList(innerHitBuilder);
+            } else {
+                this.innerHits = Collections.emptyList();
+            }
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeVInt(maxConcurrentGroupRequests);
-        out.writeOptionalWriteable(innerHit);
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
+            out.writeList(innerHits);
+        } else {
+            boolean hasInnerHit = innerHits.isEmpty() == false;
+            out.writeBoolean(hasInnerHit);
+            if (hasInnerHit) {
+                innerHits.get(0).writeToCollapseBWC(out);
+            }
+       }
     }
 
     public static CollapseBuilder fromXContent(QueryParseContext context) throws IOException {
@@ -99,7 +137,12 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
     }
 
     public CollapseBuilder setInnerHits(InnerHitBuilder innerHit) {
-        this.innerHit = innerHit;
+        this.innerHits = Collections.singletonList(innerHit);
+        return this;
+    }
+
+    public CollapseBuilder setInnerHits(List<InnerHitBuilder> innerHits) {
+        this.innerHits = innerHits;
         return this;
     }
 
@@ -121,8 +164,8 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
     /**
      * The inner hit options to expand the collapsed results
      */
-    public InnerHitBuilder getInnerHit() {
-        return this.innerHit;
+    public List<InnerHitBuilder> getInnerHits() {
+        return this.innerHits;
     }
 
     /**
@@ -145,8 +188,16 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
         if (maxConcurrentGroupRequests > 0) {
             builder.field(MAX_CONCURRENT_GROUP_REQUESTS_FIELD.getPreferredName(), maxConcurrentGroupRequests);
         }
-        if (innerHit != null) {
-            builder.field(INNER_HITS_FIELD.getPreferredName(), innerHit);
+        if (innerHits.isEmpty() == false) {
+            if (innerHits.size() == 1) {
+                builder.field(INNER_HITS_FIELD.getPreferredName(), innerHits.get(0));
+            } else {
+                builder.startArray(INNER_HITS_FIELD.getPreferredName());
+                for (InnerHitBuilder innerHit : innerHits) {
+                    innerHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                }
+                builder.endArray();
+            }
         }
     }
 
@@ -159,14 +210,12 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
 
         if (maxConcurrentGroupRequests != that.maxConcurrentGroupRequests) return false;
         if (!field.equals(that.field)) return false;
-        return innerHit != null ? innerHit.equals(that.innerHit) : that.innerHit == null;
-
+        return Objects.equals(innerHits, that.innerHits);
     }
 
     @Override
     public int hashCode() {
-        int result = field.hashCode();
-        result = 31 * result + (innerHit != null ? innerHit.hashCode() : 0);
+        int result = Objects.hash(field, innerHits);
         result = 31 * result + maxConcurrentGroupRequests;
         return result;
     }
@@ -195,10 +244,11 @@ public class CollapseBuilder extends ToXContentToBytes implements Writeable {
         if (fieldType.hasDocValues() == false) {
             throw new SearchContextException(context, "cannot collapse on field `" + field + "` without `doc_values`");
         }
-        if (fieldType.indexOptions() == IndexOptions.NONE && innerHit != null) {
+        if (fieldType.indexOptions() == IndexOptions.NONE && (innerHits != null && !innerHits.isEmpty())) {
             throw new SearchContextException(context, "cannot expand `inner_hits` for collapse field `"
                 + field + "`, " + "only indexed field can retrieve `inner_hits`");
         }
-        return new CollapseContext(fieldType, innerHit);
+
+        return new CollapseContext(fieldType, innerHits);
     }
 }

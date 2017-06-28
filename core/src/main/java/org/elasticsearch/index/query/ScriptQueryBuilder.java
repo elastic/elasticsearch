@@ -20,20 +20,21 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RandomAccessWeight;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -128,15 +129,17 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getSearchScript(script, ScriptContext.Standard.SEARCH));
+        SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.CONTEXT);
+        SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
+        return new ScriptQuery(script, searchScript);
     }
 
     static class ScriptQuery extends Query {
 
         final Script script;
-        final SearchScript searchScript;
+        final SearchScript.LeafFactory searchScript;
 
-        ScriptQuery(Script script, SearchScript searchScript) {
+        ScriptQuery(Script script, SearchScript.LeafFactory searchScript) {
             this.script = script;
             this.searchScript = searchScript;
         }
@@ -172,16 +175,18 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         }
 
         @Override
-        public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-            return new RandomAccessWeight(this) {
+        public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+            return new ConstantScoreWeight(this, boost) {
+
                 @Override
-                protected Bits getMatchingDocs(final LeafReaderContext context) throws IOException {
-                    final LeafSearchScript leafScript = searchScript.getLeafSearchScript(context);
-                    return new Bits() {
+                public Scorer scorer(LeafReaderContext context) throws IOException {
+                    DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
+                    final SearchScript leafScript = searchScript.newInstance(context);
+                    TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 
                         @Override
-                        public boolean get(int doc) {
-                            leafScript.setDocument(doc);
+                        public boolean matches() throws IOException {
+                            leafScript.setDocument(approximation.docID());
                             Object val = leafScript.run();
                             if (val == null) {
                                 return false;
@@ -196,11 +201,12 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                         }
 
                         @Override
-                        public int length() {
-                            return context.reader().maxDoc();
+                        public float matchCost() {
+                            // TODO: how can we compute this?
+                            return 1000f;
                         }
-
                     };
+                    return new ConstantScoreScorer(this, score(), twoPhase);
                 }
             };
         }

@@ -43,7 +43,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
     public static ScriptSortBuilder randomScriptSortBuilder() {
         ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
-        ScriptSortBuilder builder = new ScriptSortBuilder(new Script(randomAsciiOfLengthBetween(5, 10)),
+        ScriptSortBuilder builder = new ScriptSortBuilder(mockScript("dummy"),
                 type);
         if (randomBoolean()) {
                 builder.order(randomFrom(SortOrder.values()));
@@ -63,7 +63,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             builder.setNestedFilter(randomNestedFilter());
         }
         if (randomBoolean()) {
-            builder.setNestedPath(randomAsciiOfLengthBetween(1, 10));
+            builder.setNestedPath(randomAlphaOfLengthBetween(1, 10));
         }
         return builder;
     }
@@ -76,7 +76,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             Script script = original.script();
             ScriptSortType type = original.type();
             if (randomBoolean()) {
-                result = new ScriptSortBuilder(new Script(script.getIdOrCode() + "_suffix"), type);
+                result = new ScriptSortBuilder(mockScript(script.getIdOrCode() + "_suffix"), type);
             } else {
                 result = new ScriptSortBuilder(script, type.equals(ScriptSortType.NUMBER) ? ScriptSortType.STRING : ScriptSortType.NUMBER);
             }
@@ -158,7 +158,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 "\"_script\" : {\n" +
                     "\"type\" : \"number\",\n" +
                     "\"script\" : {\n" +
-                        "\"inline\": \"doc['field_name'].value * factor\",\n" +
+                        "\"source\": \"doc['field_name'].value * factor\",\n" +
                         "\"params\" : {\n" +
                             "\"factor\" : 1.1\n" +
                             "}\n" +
@@ -251,7 +251,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
      * script sort of type {@link ScriptSortType} does not work with {@link SortMode#AVG}, {@link SortMode#MEDIAN} or {@link SortMode#SUM}
      */
     public void testBadSortMode() throws IOException {
-        ScriptSortBuilder builder = new ScriptSortBuilder(new Script("something"), ScriptSortType.STRING);
+        ScriptSortBuilder builder = new ScriptSortBuilder(mockScript("something"), ScriptSortType.STRING);
         String sortMode = randomFrom(new String[] { "avg", "median", "sum" });
         Exception e = expectThrows(IllegalArgumentException.class, () -> builder.sortMode(SortMode.fromString(sortMode)));
         assertEquals("script sort of type [string] doesn't support mode [" + sortMode + "]", e.getMessage());

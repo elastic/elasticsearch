@@ -246,4 +246,28 @@ public class TransportActionProxyTests extends ESTestCase {
         }
     }
 
+    public void testGetAction() {
+        String action = "foo/bar";
+        String proxyAction = TransportActionProxy.getProxyAction(action);
+        assertTrue(proxyAction.endsWith(action));
+        assertEquals("internal:transport/proxy/foo/bar", proxyAction);
+    }
+
+    public void testUnwrap() {
+        TransportRequest transportRequest = TransportActionProxy.wrapRequest(nodeA, TransportService.HandshakeRequest.INSTANCE);
+        assertTrue(transportRequest instanceof TransportActionProxy.ProxyRequest);
+        assertSame(TransportService.HandshakeRequest.INSTANCE, TransportActionProxy.unwrapRequest(transportRequest));
+    }
+
+    public void testIsProxyAction() {
+        String action = "foo/bar";
+        String proxyAction = TransportActionProxy.getProxyAction(action);
+        assertTrue(TransportActionProxy.isProxyAction(proxyAction));
+        assertFalse(TransportActionProxy.isProxyAction(action));
+    }
+
+    public void testIsProxyRequest() {
+        assertTrue(TransportActionProxy.isProxyRequest(new TransportActionProxy.ProxyRequest<>(() -> null)));
+        assertFalse(TransportActionProxy.isProxyRequest(TransportRequest.Empty.INSTANCE));
+    }
 }

@@ -29,8 +29,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -45,7 +43,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends InitialSearchPhase<Result>
@@ -59,7 +57,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     /**
      * Used by subclasses to resolve node ids to DiscoveryNodes.
      **/
-    private final Function<String, Transport.Connection> nodeIdToConnection;
+    private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
     private final SearchPhaseResults<Result> results;
     private final long clusterStateVersion;
@@ -72,11 +70,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
 
     protected AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
-                                        Function<String, Transport.Connection> nodeIdToConnection,
+                                        BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                         Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
                                         Executor executor, SearchRequest request,
-                                        ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, TransportSearchAction.SearchTimeProvider timeProvider,
-                                        long clusterStateVersion, SearchTask task, SearchPhaseResults<Result> resultConsumer) {
+                                        ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
+                                        TransportSearchAction.SearchTimeProvider timeProvider, long clusterStateVersion,
+                                        SearchTask task, SearchPhaseResults<Result> resultConsumer) {
         super(name, request, shardsIts, logger);
         this.timeProvider = timeProvider;
         this.logger = logger;
@@ -131,7 +130,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else {
             if (logger.isTraceEnabled()) {
                 final String resultsFrom = results.getSuccessfulResults()
-                    .map(r -> r.shardTarget().toString()).collect(Collectors.joining(","));
+                    .map(r -> r.getSearchShardTarget().toString()).collect(Collectors.joining(","));
                 logger.trace("[{}] Moving to next phase: [{}], based on results from: {} (cluster state version: {})",
                     currentPhase.getName(), nextPhase.getName(), resultsFrom, clusterStateVersion);
             }
@@ -159,10 +158,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (shardFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
-        List<AtomicArray.Entry<ShardSearchFailure>> entries = shardFailures.asList();
+        List<ShardSearchFailure> entries = shardFailures.asList();
         ShardSearchFailure[] failures = new ShardSearchFailure[entries.size()];
         for (int i = 0; i < failures.length; i++) {
-            failures[i] = entries.get(i).value;
+            failures[i] = entries.get(i);
         }
         return failures;
     }
@@ -209,8 +208,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private void raisePhaseFailure(SearchPhaseExecutionException exception) {
         results.getSuccessfulResults().forEach((entry) -> {
             try {
-                Transport.Connection connection = nodeIdToConnection.apply(entry.shardTarget().getNodeId());
-                sendReleaseSearchContext(entry.id(), connection);
+                SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
+                Transport.Connection connection = getConnection(null, searchShardTarget.getNodeId());
+                sendReleaseSearchContext(entry.getRequestId(), connection, searchShardTarget.getOriginalIndices());
             } catch (Exception inner) {
                 inner.addSuppressed(exception);
                 logger.trace("failed to release context", inner);
@@ -220,18 +220,18 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public final void onShardSuccess(int shardIndex, Result result) {
+    public final void onShardSuccess(Result result) {
         successfulOps.incrementAndGet();
-        results.consumeResult(shardIndex, result);
+        results.consumeResult(result);
         if (logger.isTraceEnabled()) {
-            logger.trace("got first-phase result from {}", result != null ? result.shardTarget() : null);
+            logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
         }
         // clean a previous error on this shard group (note, this code will be serialized on the same shardIndex value level
         // so its ok concurrency wise to miss potentially the shard failures being created because of another failure
         // in the #addShardFailure, because by definition, it will happen on *another* shardIndex
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures != null) {
-            shardFailures.set(shardIndex, null);
+            shardFailures.set(result.getShardIndex(), null);
         }
     }
 
@@ -272,8 +272,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public final Transport.Connection getConnection(String nodeId) {
-        return nodeIdToConnection.apply(nodeId);
+    public final Transport.Connection getConnection(String clusterAlias, String nodeId) {
+        return nodeIdToConnection.apply(clusterAlias, nodeId);
     }
 
     @Override
@@ -296,11 +296,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         listener.onFailure(e);
     }
 
-    public final ShardSearchTransportRequest buildShardSearchRequest(ShardIterator shardIt, ShardRouting shard) {
-        AliasFilter filter = aliasFilter.get(shard.index().getUUID());
+    public final ShardSearchTransportRequest buildShardSearchRequest(SearchShardIterator shardIt) {
+        AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
-        float indexBoost = concreteIndexBoosts.getOrDefault(shard.index().getUUID(), DEFAULT_INDEX_BOOST);
-        return new ShardSearchTransportRequest(request, shardIt.shardId(), getNumShards(),
+        float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
+        return new ShardSearchTransportRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
             filter, indexBoost, timeProvider.getAbsoluteStartMillis());
     }
 

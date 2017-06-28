@@ -55,7 +55,7 @@ public abstract class AggregatorBase extends Aggregator {
     private DeferringBucketCollector recordingWrapper;
     private final List<PipelineAggregator> pipelineAggregators;
     private final CircuitBreakerService breakerService;
-    private boolean failed = false;
+    private long requestBytesUsed;
 
     /**
      * Constructs a new Aggregator.
@@ -105,16 +105,35 @@ public abstract class AggregatorBase extends Aggregator {
                 return false; // unreachable
             }
         };
-        try {
+        addRequestCircuitBreakerBytes(DEFAULT_WEIGHT);
+    }
+    
+    /**
+     * Increment or decrement the number of bytes that have been allocated to service
+     * this request and potentially trigger a {@link CircuitBreakingException}. The
+     * number of bytes allocated is automatically decremented with the circuit breaker
+     * service on closure of this aggregator.
+     * If memory has been returned, decrement it without tripping the breaker.
+     * For performance reasons subclasses should not call this millions of times
+     * each with small increments and instead batch up into larger allocations.
+     * 
+     * @param bytes the number of bytes to register or negative to deregister the bytes
+     * @return the cumulative size in bytes allocated by this aggregator to service this request
+     */
+    protected long addRequestCircuitBreakerBytes(long bytes) {
+        // Only use the potential to circuit break if bytes are being incremented
+        if (bytes > 0) {
             this.breakerService
                     .getBreaker(CircuitBreaker.REQUEST)
-                    .addEstimateBytesAndMaybeBreak(DEFAULT_WEIGHT, "<agg [" + name + "]>");
-        } catch (CircuitBreakingException cbe) {
-            this.failed = true;
-            throw cbe;
+                    .addEstimateBytesAndMaybeBreak(bytes, "<agg [" + name + "]>");
+        } else {
+            this.breakerService
+                    .getBreaker(CircuitBreaker.REQUEST)
+                    .addWithoutBreaking(bytes);
         }
+        this.requestBytesUsed += bytes;
+        return requestBytesUsed;
     }
-
     /**
      * Most aggregators don't need scores, make sure to extend this method if
      * your aggregator needs them.
@@ -265,9 +284,7 @@ public abstract class AggregatorBase extends Aggregator {
         try {
             doClose();
         } finally {
-            if (!this.failed) {
-                this.breakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(-DEFAULT_WEIGHT);
-            }
+            this.breakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(-this.requestBytesUsed);
         }
     }
 

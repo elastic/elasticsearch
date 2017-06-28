@@ -37,7 +37,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     /**
      * Name used in error reporting.
      */
-    private final String name;
+    protected final String name;
 
     EsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
             BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, ThreadContext contextHolder) {

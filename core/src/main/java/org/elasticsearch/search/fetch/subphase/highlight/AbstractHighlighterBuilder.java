@@ -128,14 +128,14 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         order(in.readOptionalWriteable(Order::readFromStream));
         highlightFilter(in.readOptionalBoolean());
         forceSource(in.readOptionalBoolean());
-        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
             boundaryScannerType(in.readOptionalWriteable(BoundaryScannerType::readFromStream));
         }
         boundaryMaxScan(in.readOptionalVInt());
         if (in.readBoolean()) {
             boundaryChars(in.readString().toCharArray());
         }
-        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
             if (in.readBoolean()) {
                 boundaryScannerLocale(in.readString());
             }
@@ -167,7 +167,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         out.writeOptionalWriteable(order);
         out.writeOptionalBoolean(highlightFilter);
         out.writeOptionalBoolean(forceSource);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             out.writeOptionalWriteable(boundaryScannerType);
         }
         out.writeOptionalVInt(boundaryMaxScan);
@@ -176,7 +176,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (hasBounaryChars) {
             out.writeString(String.valueOf(boundaryChars));
         }
-        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             boolean hasBoundaryScannerLocale = boundaryScannerLocale != null;
             out.writeBoolean(hasBoundaryScannerLocale);
             if (hasBoundaryScannerLocale) {
@@ -262,8 +262,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     /**
      * Set type of highlighter to use. Out of the box supported types
-     * are <tt>plain</tt>, <tt>fvh</tt> and <tt>postings</tt>.
-     * The default option selected is dependent on the mappings defined for your index.
+     * are <tt>unified</tt>, <tt>plain</tt> and <tt>fvj</tt>.
+     * Defaults to <tt>unified</tt>.
      * Details of the different highlighter types are covered in the reference guide.
      */
     @SuppressWarnings("unchecked")

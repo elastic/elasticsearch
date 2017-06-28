@@ -106,23 +106,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         return true;
     }
 
-    public void testCanDeleteIndexContent() throws IOException {
-        final IndicesService indicesService = getIndicesService();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
-                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
-                .put(IndexMetaData.SETTING_DATA_PATH, "/foo/bar")
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 4))
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 3))
-                .build());
-        assertFalse("shard on shared filesystem", indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings));
-
-        final IndexMetaData.Builder newIndexMetaData = IndexMetaData.builder(idxSettings.getIndexMetaData());
-        newIndexMetaData.state(IndexMetaData.State.CLOSE);
-        idxSettings = IndexSettingsModule.newIndexSettings(newIndexMetaData.build());
-        assertTrue("shard on shared filesystem, but closed, so it should be deletable",
-            indicesService.canDeleteIndexContents(idxSettings.getIndex(), idxSettings));
-    }
-
     public void testCanDeleteShardContent() {
         IndicesService indicesService = getIndicesService();
         IndexMetaData meta = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(

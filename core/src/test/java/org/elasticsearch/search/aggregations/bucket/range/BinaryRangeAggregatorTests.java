@@ -23,9 +23,9 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator.SortedBinaryRangeLeafCollector;
@@ -36,7 +36,7 @@ import com.carrotsearch.hppc.LongHashSet;
 
 public class BinaryRangeAggregatorTests extends ESTestCase {
 
-    private static class FakeSortedSetDocValues extends SortedSetDocValues {
+    private static class FakeSortedSetDocValues extends AbstractSortedSetDocValues {
 
         private final BytesRef[] terms;
         long[] ords;
@@ -47,8 +47,9 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         }
 
         @Override
-        public void setDocument(int docID) {
+        public boolean advanceExact(int docID) {
             i = 0;
+            return true;
         }
 
         @Override
@@ -145,6 +146,7 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
     private static class FakeSortedBinaryDocValues extends SortedBinaryDocValues {
 
         private final BytesRef[] terms;
+        int i;
         long[] ords;
 
         FakeSortedBinaryDocValues(BytesRef[] terms) {
@@ -152,18 +154,19 @@ public class BinaryRangeAggregatorTests extends ESTestCase {
         }
 
         @Override
-        public void setDocument(int docID) {
-            // no-op
+        public boolean advanceExact(int docID) {
+            i = 0;
+            return true;
         }
 
         @Override
-        public int count() {
+        public int docValueCount() {
             return ords.length;
         }
 
         @Override
-        public BytesRef valueAt(int index) {
-            return terms[(int) ords[index]];
+        public BytesRef nextValue() {
+            return terms[(int) ords[i++]];
         }
 
     }

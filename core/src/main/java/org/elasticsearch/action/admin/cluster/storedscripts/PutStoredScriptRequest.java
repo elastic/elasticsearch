@@ -38,6 +38,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
     private String id;
     private String lang;
+    private String context;
     private BytesReference content;
     private XContentType xContentType;
 
@@ -45,10 +46,11 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         super();
     }
 
-    public PutStoredScriptRequest(String id, String lang, BytesReference content, XContentType xContentType) {
+    public PutStoredScriptRequest(String id, String lang, String context, BytesReference content, XContentType xContentType) {
         super();
         this.id = id;
         this.lang = lang;
+        this.context = context;
         this.content = content;
         this.xContentType = Objects.requireNonNull(xContentType);
     }
@@ -94,6 +96,15 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return this;
     }
 
+    public String context() {
+        return context;
+    }
+
+    public PutStoredScriptRequest context(String context) {
+        this.context = context;
+        return this;
+    }
+
     public BytesReference content() {
         return content;
     }
@@ -123,10 +134,13 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
         id = in.readOptionalString();
         content = in.readBytesReference();
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType = XContentType.readFrom(in);
         } else {
             xContentType = XContentFactory.xContentType(content);
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
+            context = in.readOptionalString();
         }
     }
 
@@ -137,8 +151,11 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         out.writeString(lang == null ? "" : lang);
         out.writeOptionalString(id);
         out.writeBytesReference(content);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             xContentType.writeTo(out);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha2)) {
+            out.writeOptionalString(context);
         }
     }
 

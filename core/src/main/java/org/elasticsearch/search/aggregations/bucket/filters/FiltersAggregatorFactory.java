@@ -36,7 +36,7 @@ import java.util.Map;
 public class FiltersAggregatorFactory extends AggregatorFactory<FiltersAggregatorFactory> {
 
     private final String[] keys;
-    private final Weight[] weights;
+    final Weight[] weights;
     private final boolean keyed;
     private final boolean otherBucket;
     private final String otherBucketKey;

@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,6 +40,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Collectors;
 
 /**
@@ -54,9 +56,23 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
 
+    private final LongAdder usageCount = new LongAdder();
+
     protected BaseRestHandler(Settings settings) {
         super(settings);
     }
+
+    public final long getUsageCount() {
+        return usageCount.sum();
+    }
+
+    /**
+     * @return the name of this handler. The name should be human readable and
+     *         should describe the action that will performed when this API is
+     *         called. This name is used in the response to the
+     *         {@link RestNodesUsageAction}.
+     */
+    public abstract String getName();
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
@@ -76,6 +92,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
+        usageCount.increment();
         // execute the action
         action.accept(channel);
     }
@@ -85,12 +102,12 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
         final Set<String> invalids,
         final Set<String> candidates,
         final String detail) {
-        String message = String.format(
+        StringBuilder message = new StringBuilder(String.format(
             Locale.ROOT,
             "request [%s] contains unrecognized %s%s: ",
             request.path(),
             detail,
-            invalids.size() > 1 ? "s" : "");
+            invalids.size() > 1 ? "s" : ""));
         boolean first = true;
         for (final String invalid : invalids) {
             final LevensteinDistance ld = new LevensteinDistance();
@@ -108,17 +125,23 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
                 else return a.v2().compareTo(b.v2());
             });
             if (first == false) {
-                message += ", ";
+                message.append(", ");
             }
-            message += "[" + invalid + "]";
+            message.append("[").append(invalid).append("]");
             final List<String> keys = scoredParams.stream().map(Tuple::v2).collect(Collectors.toList());
             if (keys.isEmpty() == false) {
-                message += " -> did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]" : "any of " + keys.toString()) + "?";
+                message.append(" -> did you mean ");
+                if (keys.size() == 1) {
+                    message.append("[").append(keys.get(0)).append("]");
+                } else {
+                    message.append("any of ").append(keys.toString());
+                }
+                message.append("?");
             }
             first = false;
         }
 
-        return message;
+        return message.toString();
     }
 
     /**

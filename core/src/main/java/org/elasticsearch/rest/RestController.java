@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -72,11 +73,13 @@ public class RestController extends AbstractComponent implements HttpServerTrans
 
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<String> headersToCopy;
+    private UsageService usageService;
 
     public RestController(Settings settings, Set<String> headersToCopy, UnaryOperator<RestHandler> handlerWrapper,
-                          NodeClient client, CircuitBreakerService circuitBreakerService) {
+            NodeClient client, CircuitBreakerService circuitBreakerService, UsageService usageService) {
         super(settings);
         this.headersToCopy = headersToCopy;
+        this.usageService = usageService;
         if (handlerWrapper == null) {
             handlerWrapper = h -> h; // passthrough if no wrapper set
         }
@@ -148,6 +151,9 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         PathTrie<RestHandler> handlers = getHandlersForMethod(method);
         if (handlers != null) {
             handlers.insert(path, handler);
+            if (handler instanceof BaseRestHandler) {
+                usageService.addRestHandler((BaseRestHandler) handler);
+            }
         } else {
             throw new IllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
         }
@@ -178,8 +184,9 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 sendContentTypeErrorMessage(request, responseChannel);
             } else if (contentLength > 0 && handler != null && handler.supportsContentStream() &&
                 request.getXContentType() != XContentType.JSON && request.getXContentType() != XContentType.SMILE) {
-                responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(RestStatus.NOT_ACCEPTABLE, "Content-Type [" +
-                    request.getXContentType() + "] does not support stream parsing. Use JSON or SMILE instead"));
+                responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(responseChannel,
+                    RestStatus.NOT_ACCEPTABLE, "Content-Type [" + request.getXContentType() +
+                        "] does not support stream parsing. Use JSON or SMILE instead"));
             } else {
                 if (canTripCircuitBreaker(request)) {
                     inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
@@ -229,7 +236,8 @@ public class RestController extends AbstractComponent implements HttpServerTrans
     void dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext,
                          final RestHandler handler) throws Exception {
         if (checkRequestParameters(request, channel) == false) {
-            channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(BAD_REQUEST, "error traces in responses are disabled."));
+            channel
+                .sendResponse(BytesRestResponse.createSimpleErrorResponse(channel,BAD_REQUEST, "error traces in responses are disabled."));
         } else {
             for (String key : headersToCopy) {
                 String httpHeader = request.header(key);
@@ -283,7 +291,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 Strings.collectionToCommaDelimitedString(restRequest.getAllHeaderValues("Content-Type")) + "] is not supported";
         }
 
-        channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(NOT_ACCEPTABLE, errorMessage));
+        channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, NOT_ACCEPTABLE, errorMessage));
     }
 
     /**

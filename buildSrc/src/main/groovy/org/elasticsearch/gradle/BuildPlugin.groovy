@@ -120,6 +120,7 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JDK Version           : ${gradleJavaVersionDetails}"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
+            println "  Random Testing Seed   : ${project.testSeed}"
 
             // enforce gradle version
             GradleVersion minGradle = GradleVersion.version('3.3')
@@ -320,7 +321,6 @@ class BuildPlugin implements Plugin<Project> {
      * </ul>
      */
     private static Closure fixupDependencies(Project project) {
-        // TODO: revisit this when upgrading to Gradle 2.14+, see Javadoc comment above
         return { XmlProvider xml ->
             // first find if we have dependencies at all, and grab the node
             NodeList depsNodes = xml.asNode().get('dependencies')
@@ -341,6 +341,13 @@ class BuildPlugin implements Plugin<Project> {
                 }
                 if (depNode.scope.text() == 'runtime' && isCompileDep) {
                     depNode.scope*.value = 'compile'
+                }
+
+                // remove any exclusions added by gradle, they contain wildcards and systems like ivy have bugs with wildcards
+                // see https://github.com/elastic/elasticsearch/issues/24490
+                NodeList exclusionsNode = depNode.get('exclusions')
+                if (exclusionsNode.size() > 0) {
+                    depNode.remove(exclusionsNode.get(0))
                 }
 
                 // collect the transitive deps now that we know what this dependency is
@@ -387,8 +394,11 @@ class BuildPlugin implements Plugin<Project> {
             project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
                 // place the pom next to the jar it is for
                 t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
-                // build poms with assemble
-                project.assemble.dependsOn(t)
+                // build poms with assemble (if the assemble task exists)
+                Task assemble = project.tasks.findByName('assemble')
+                if (assemble) {
+                    assemble.dependsOn(t)
+                }
             }
         }
     }
@@ -497,11 +507,6 @@ class BuildPlugin implements Plugin<Project> {
             // TODO: why are we not passing maxmemory to junit4?
             jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')
             jvmArg '-Xms' + System.getProperty('tests.heap.size', '512m')
-            if (JavaVersion.current().isJava7()) {
-                // some tests need a large permgen, but that only exists on java 7
-                jvmArg '-XX:MaxPermSize=128m'
-            }
-            jvmArg '-XX:MaxDirectMemorySize=512m'
             jvmArg '-XX:+HeapDumpOnOutOfMemoryError'
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()
@@ -524,7 +529,12 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||
-                    property.getKey().startsWith('es.')) {
+                        property.getKey().startsWith('es.')) {
+                    if (property.getKey().equals('tests.seed')) {
+                        /* The seed is already set on the project so we
+                         * shouldn't attempt to override it. */
+                        continue;
+                    }
                     systemProperty property.getKey(), property.getValue()
                 }
             }

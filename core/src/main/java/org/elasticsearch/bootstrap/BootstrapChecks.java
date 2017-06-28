@@ -29,6 +29,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
@@ -73,7 +74,7 @@ final class BootstrapChecks {
         final List<BootstrapCheck> combinedChecks = new ArrayList<>(builtInChecks);
         combinedChecks.addAll(additionalChecks);
         check(
-                enforceLimits(boundTransportAddress),
+                enforceLimits(boundTransportAddress, DiscoveryModule.DISCOVERY_TYPE_SETTING.get(settings)),
                 Collections.unmodifiableList(combinedChecks),
                 Node.NODE_NAME_SETTING.get(settings));
     }
@@ -148,8 +149,10 @@ final class BootstrapChecks {
 
         if (!errors.isEmpty()) {
             final List<String> messages = new ArrayList<>(1 + errors.size());
-            messages.add("bootstrap checks failed");
-            messages.addAll(errors);
+            messages.add("[" + errors.size() + "] bootstrap checks failed");
+            for (int i = 0; i < errors.size(); i++) {
+                messages.add("[" + (i + 1) + "]: " + errors.get(i));
+            }
             final NodeValidationException ne = new NodeValidationException(String.join("\n", messages));
             errors.stream().map(IllegalStateException::new).forEach(ne::addSuppressed);
             throw ne;
@@ -164,13 +167,16 @@ final class BootstrapChecks {
      * Tests if the checks should be enforced.
      *
      * @param boundTransportAddress the node network bindings
+     * @param discoveryType the discovery type
      * @return {@code true} if the checks should be enforced
      */
-    static boolean enforceLimits(final BoundTransportAddress boundTransportAddress) {
-        Predicate<TransportAddress> isLoopbackOrLinkLocalAddress =
+    static boolean enforceLimits(final BoundTransportAddress boundTransportAddress, final String discoveryType) {
+        final Predicate<TransportAddress> isLoopbackOrLinkLocalAddress =
                 t -> t.address().getAddress().isLinkLocalAddress() || t.address().getAddress().isLoopbackAddress();
-        return !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
+        final boolean bound =
+                !(Arrays.stream(boundTransportAddress.boundAddresses()).allMatch(isLoopbackOrLinkLocalAddress) &&
                 isLoopbackOrLinkLocalAddress.test(boundTransportAddress.publishAddress()));
+        return bound && !"single-node".equals(discoveryType);
     }
 
     // the list of checks to execute
@@ -309,11 +315,11 @@ final class BootstrapChecks {
     static class MaxNumberOfThreadsCheck implements BootstrapCheck {
 
         // this should be plenty for machines up to 256 cores
-        private final long maxNumberOfThreadsThreshold = 1 << 12;
+        private static final long MAX_NUMBER_OF_THREADS_THRESHOLD = 1 << 12;
 
         @Override
         public boolean check() {
-            return getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < maxNumberOfThreadsThreshold;
+            return getMaxNumberOfThreads() != -1 && getMaxNumberOfThreads() < MAX_NUMBER_OF_THREADS_THRESHOLD;
         }
 
         @Override
@@ -323,7 +329,7 @@ final class BootstrapChecks {
                 "max number of threads [%d] for user [%s] is too low, increase to at least [%d]",
                 getMaxNumberOfThreads(),
                 BootstrapInfo.getSystemProperties().get("user.name"),
-                maxNumberOfThreadsThreshold);
+                MAX_NUMBER_OF_THREADS_THRESHOLD);
         }
 
         // visible for testing
@@ -363,11 +369,11 @@ final class BootstrapChecks {
 
     static class MaxMapCountCheck implements BootstrapCheck {
 
-        private final long limit = 1 << 18;
+        private static final long LIMIT = 1 << 18;
 
         @Override
         public boolean check() {
-            return getMaxMapCount() != -1 && getMaxMapCount() < limit;
+            return getMaxMapCount() != -1 && getMaxMapCount() < LIMIT;
         }
 
         @Override
@@ -376,7 +382,7 @@ final class BootstrapChecks {
                     Locale.ROOT,
                     "max virtual memory areas vm.max_map_count [%d] is too low, increase to at least [%d]",
                     getMaxMapCount(),
-                    limit);
+                    LIMIT);
         }
 
         // visible for testing

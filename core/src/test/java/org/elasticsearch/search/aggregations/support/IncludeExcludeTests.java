@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
@@ -58,13 +58,14 @@ public class IncludeExcludeTests extends ESTestCase {
     }
 
     public void testSingleTermWithOrds() throws IOException {
-        RandomAccessOrds ords = new RandomAccessOrds() {
+        SortedSetDocValues ords = new AbstractSortedSetDocValues() {
 
             boolean consumed = true;
 
             @Override
-            public void setDocument(int docID) {
+            public boolean advanceExact(int docID) {
                 consumed = false;
+                return true;
             }
 
             @Override
@@ -88,15 +89,6 @@ public class IncludeExcludeTests extends ESTestCase {
                 return 1;
             }
 
-            @Override
-            public long ordAt(int index) {
-                return 0;
-            }
-
-            @Override
-            public int cardinality() {
-                return 1;
-            }
         };
         IncludeExclude inexcl = new IncludeExclude(
                 new TreeSet<>(Collections.singleton(new BytesRef("foo"))),

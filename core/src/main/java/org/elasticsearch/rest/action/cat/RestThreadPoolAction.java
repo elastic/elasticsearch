@@ -58,6 +58,11 @@ public class RestThreadPoolAction extends AbstractCatAction {
     }
 
     @Override
+    public String getName() {
+        return "cat_threadpool_action";
+    }
+
+    @Override
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/thread_pool\n");
         sb.append("/_cat/thread_pool/{thread_pools}\n");
@@ -95,8 +100,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
-        final Set<String> responseParams = new HashSet<>();
-        responseParams.addAll(AbstractCatAction.RESPONSE_PARAMS);
+        final Set<String> responseParams = new HashSet<>(AbstractCatAction.RESPONSE_PARAMS);
         responseParams.add("thread_pool_patterns");
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }

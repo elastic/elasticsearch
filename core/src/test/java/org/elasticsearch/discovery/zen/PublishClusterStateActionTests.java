@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -64,20 +65,17 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -90,11 +88,12 @@ public class PublishClusterStateActionTests extends ESTestCase {
     protected ThreadPool threadPool;
     protected Map<String, MockNode> nodes = new HashMap<>();
 
-    public static class MockNode implements PublishClusterStateAction.NewPendingClusterStateListener, DiscoveryNodesProvider {
+    public static class MockNode implements PublishClusterStateAction.IncomingClusterStateListener {
         public final DiscoveryNode discoveryNode;
         public final MockTransportService service;
         public MockPublishAction action;
         public final ClusterStateListener listener;
+        private final PendingClusterStatesQueue pendingStatesQueue;
 
         public volatile ClusterState clusterState;
 
@@ -108,6 +107,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
             this.logger = logger;
             this.clusterState = ClusterState.builder(CLUSTER_NAME).nodes(DiscoveryNodes.builder()
                 .add(discoveryNode).localNodeId(discoveryNode.getId()).build()).build();
+            this.pendingStatesQueue = new PendingClusterStatesQueue(logger, 25);
         }
 
         public MockNode setAsMaster() {
@@ -128,21 +128,39 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
 
         @Override
-        public void onNewClusterState(String reason) {
-            ClusterState newClusterState = action.pendingStatesQueue().getNextClusterStateToProcess();
-            logger.debug("[{}] received version [{}], uuid [{}]",
-                discoveryNode.getName(), newClusterState.version(), newClusterState.stateUUID());
-            if (listener != null) {
-                ClusterChangedEvent event = new ClusterChangedEvent("", newClusterState, clusterState);
-                listener.clusterChanged(event);
-            }
-            if (clusterState.nodes().getMasterNode() == null || newClusterState.supersedes(clusterState)) {
-                clusterState = newClusterState;
-            }
-            action.pendingStatesQueue().markAsProcessed(newClusterState);
+        public void onIncomingClusterState(ClusterState incomingState) {
+            ZenDiscovery.validateIncomingState(logger, incomingState, clusterState);
+            pendingStatesQueue.addPending(incomingState);
         }
 
-        @Override
+        public void onClusterStateCommitted(String stateUUID, ActionListener<Void> processedListener) {
+            final ClusterState state = pendingStatesQueue.markAsCommitted(stateUUID,
+                new PendingClusterStatesQueue.StateProcessedListener() {
+                    @Override
+                    public void onNewClusterStateProcessed() {
+                        processedListener.onResponse(null);
+                    }
+
+                    @Override
+                    public void onNewClusterStateFailed(Exception e) {
+                        processedListener.onFailure(e);
+                    }
+                });
+            if (state != null) {
+                ClusterState newClusterState = pendingStatesQueue.getNextClusterStateToProcess();
+                logger.debug("[{}] received version [{}], uuid [{}]",
+                    discoveryNode.getName(), newClusterState.version(), newClusterState.stateUUID());
+                if (listener != null) {
+                    ClusterChangedEvent event = new ClusterChangedEvent("", newClusterState, clusterState);
+                    listener.clusterChanged(event);
+                }
+                if (clusterState.nodes().getMasterNode() == null || newClusterState.supersedes(clusterState)) {
+                    clusterState = newClusterState;
+                }
+                pendingStatesQueue.markAsProcessed(newClusterState);
+            }
+        }
+
         public DiscoveryNodes nodes() {
             return clusterState.nodes();
         }
@@ -169,7 +187,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
         MockTransportService service = buildTransportService(settings, threadPool);
         DiscoveryNode discoveryNode = service.getLocalDiscoNode();
         MockNode node = new MockNode(discoveryNode, service, listener, logger);
-        node.action = buildPublishClusterStateAction(settings, service, () -> node.clusterState, node);
+        node.action = buildPublishClusterStateAction(settings, service, node);
         final CountDownLatch latch = new CountDownLatch(nodes.size() * 2);
         TransportConnectionListener waitForConnection = new TransportConnectionListener() {
             @Override
@@ -242,8 +260,7 @@ public class PublishClusterStateActionTests extends ESTestCase {
     private static MockPublishAction buildPublishClusterStateAction(
             Settings settings,
             MockTransportService transportService,
-            Supplier<ClusterState> clusterStateSupplier,
-            PublishClusterStateAction.NewPendingClusterStateListener listener
+            PublishClusterStateAction.IncomingClusterStateListener listener
     ) {
         DiscoverySettings discoverySettings =
                 new DiscoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
@@ -252,10 +269,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
                 settings,
                 transportService,
                 namedWriteableRegistry,
-                clusterStateSupplier,
                 listener,
-                discoverySettings,
-                CLUSTER_NAME);
+                discoverySettings);
     }
 
     public void testSimpleClusterStatePublishing() throws Exception {
@@ -608,86 +623,6 @@ public class PublishClusterStateActionTests extends ESTestCase {
         }
     }
 
-    public void testIncomingClusterStateValidation() throws Exception {
-        MockNode node = createMockNode("node");
-
-        logger.info("--> testing acceptances of any master when having no master");
-        ClusterState state = ClusterState.builder(node.clusterState)
-                .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId(randomAsciiOfLength(10))).incrementVersion().build();
-        node.action.validateIncomingState(state, null);
-
-        // now set a master node
-        node.clusterState = ClusterState.builder(node.clusterState)
-            .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId("master")).build();
-        logger.info("--> testing rejection of another master");
-        try {
-            node.action.validateIncomingState(state, node.clusterState);
-            fail("node accepted state from another master");
-        } catch (IllegalStateException OK) {
-            assertThat(OK.toString(), containsString("cluster state from a different master than the current one, rejecting"));
-        }
-
-        logger.info("--> test state from the current master is accepted");
-        node.action.validateIncomingState(ClusterState.builder(node.clusterState)
-                .nodes(DiscoveryNodes.builder(node.nodes()).masterNodeId("master")).incrementVersion().build(), node.clusterState);
-
-
-        logger.info("--> testing rejection of another cluster name");
-        try {
-            node.action.validateIncomingState(ClusterState.builder(new ClusterName(randomAsciiOfLength(10)))
-                .nodes(node.nodes()).build(), node.clusterState);
-            fail("node accepted state with another cluster name");
-        } catch (IllegalStateException OK) {
-            assertThat(OK.toString(), containsString("received state from a node that is not part of the cluster"));
-        }
-
-        logger.info("--> testing rejection of a cluster state with wrong local node");
-        try {
-            state = ClusterState.builder(node.clusterState)
-                    .nodes(DiscoveryNodes.builder(node.nodes()).localNodeId("_non_existing_").build())
-                    .incrementVersion().build();
-            node.action.validateIncomingState(state, node.clusterState);
-            fail("node accepted state with non-existence local node");
-        } catch (IllegalStateException OK) {
-            assertThat(OK.toString(), containsString("received state with a local node that does not match the current local node"));
-        }
-
-        try {
-            MockNode otherNode = createMockNode("otherNode");
-            state = ClusterState.builder(node.clusterState).nodes(
-                    DiscoveryNodes.builder(node.nodes()).add(otherNode.discoveryNode).localNodeId(otherNode.discoveryNode.getId()).build()
-            ).incrementVersion().build();
-            node.action.validateIncomingState(state, node.clusterState);
-            fail("node accepted state with existent but wrong local node");
-        } catch (IllegalStateException OK) {
-            assertThat(OK.toString(), containsString("received state with a local node that does not match the current local node"));
-        }
-
-        logger.info("--> testing acceptance of an old cluster state");
-        final ClusterState incomingState = node.clusterState;
-        node.clusterState = ClusterState.builder(node.clusterState).incrementVersion().build();
-        final IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> node.action.validateIncomingState(incomingState, node.clusterState));
-        final String message = String.format(
-                Locale.ROOT,
-                "rejecting cluster state version [%d] uuid [%s] received from [%s]",
-                incomingState.version(),
-                incomingState.stateUUID(),
-                incomingState.nodes().getMasterNodeId()
-        );
-        assertThat(e, hasToString("java.lang.IllegalStateException: " + message));
-
-        // an older version from a *new* master is also OK!
-        ClusterState previousState = ClusterState.builder(node.clusterState).incrementVersion().build();
-        state = ClusterState.builder(node.clusterState)
-                .nodes(DiscoveryNodes.builder(node.clusterState.nodes()).masterNodeId("_new_master_").build())
-                .build();
-        // remove the master of the node (but still have a previous cluster state with it)!
-        node.resetMasterId();
-
-        node.action.validateIncomingState(state, previousState);
-    }
-
     public void testOutOfOrderCommitMessages() throws Throwable {
         MockNode node = createMockNode("node").setAsMaster();
         final CapturingTransportChannel channel = new CapturingTransportChannel();
@@ -875,9 +810,8 @@ public class PublishClusterStateActionTests extends ESTestCase {
         AtomicBoolean errorOnCommit = new AtomicBoolean();
 
         public MockPublishAction(Settings settings, TransportService transportService, NamedWriteableRegistry namedWriteableRegistry,
-                                 Supplier<ClusterState> clusterStateSupplier, NewPendingClusterStateListener listener,
-                                 DiscoverySettings discoverySettings, ClusterName clusterName) {
-            super(settings, transportService, namedWriteableRegistry, clusterStateSupplier, listener, discoverySettings, clusterName);
+                                 IncomingClusterStateListener listener, DiscoverySettings discoverySettings) {
+            super(settings, transportService, namedWriteableRegistry, listener, discoverySettings);
         }
 
         @Override

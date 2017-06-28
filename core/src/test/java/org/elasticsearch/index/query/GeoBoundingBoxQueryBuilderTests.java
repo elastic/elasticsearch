@@ -148,32 +148,16 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
             GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
             tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.COERCE), false);
-            except = builder.checkLatLon(true);
-            assertNull("Inner post 2.0 validation w/ coerce should ignore invalid "
-                    + tester.getClass().getName()
-                    + " coordinate: "
-                    + tester.invalidCoordinate + " ",
-                    except);
-
-            tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.COERCE), false);
-            except = builder.checkLatLon(false);
-            assertNull("Inner pre 2.0 validation w/ coerce should ignore invalid coordinate: "
+            except = builder.checkLatLon();
+            assertNull("validation w/ coerce should ignore invalid "
                     + tester.getClass().getName()
                     + " coordinate: "
                     + tester.invalidCoordinate + " ",
                     except);
 
             tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.STRICT), false);
-            except = builder.checkLatLon(true);
-            assertNull("Inner pre 2.0 validation w/o coerce should ignore invalid coordinate for old indexes: "
-                    + tester.getClass().getName()
-                    + " coordinate: "
-                    + tester.invalidCoordinate,
-                    except);
-
-            tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.STRICT), false);
-            except = builder.checkLatLon(false);
-            assertNotNull("Inner post 2.0 validation w/o coerce should detect invalid coordinate: "
+            except = builder.checkLatLon();
+            assertNotNull("validation w/o coerce should detect invalid coordinate: "
                     + tester.getClass().getName()
                     + " coordinate: "
                     + tester.invalidCoordinate,

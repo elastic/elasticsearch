@@ -20,6 +20,7 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,14 +44,13 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.elasticsearch.index.get.GetField.readGetField;
 
 public class GetResult implements Streamable, Iterable<GetField>, ToXContentObject {
 
-    private static final String _INDEX = "_index";
-    private static final String _TYPE = "_type";
-    private static final String _ID = "_id";
+    public static final String _INDEX = "_index";
+    public static final String _TYPE = "_type";
+    public static final String _ID = "_id";
     private static final String _VERSION = "_version";
     private static final String FOUND = "found";
     private static final String FIELDS = "fields";
@@ -273,7 +273,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
         String currentFieldName = parser.currentName();
         String index = null, type = null, id = null;
         long version = -1;
-        boolean found = false;
+        Boolean found = null;
         BytesReference source = null;
         Map<String, GetField> fields = new HashMap<>();
         while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -307,8 +307,10 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
                         fields.put(getField.getName(), getField);
                     }
                 } else {
-                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    parser.skipChildren(); // skip potential inner objects for forward compatibility
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                parser.skipChildren(); // skip potential inner arrays for forward compatibility
             }
         }
         return new GetResult(index, type, id, version, found, source, fields);

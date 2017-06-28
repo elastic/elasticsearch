@@ -1,6 +1,37 @@
 [[breaking_60_settings_changes]]
 === Settings changes
 
+==== Remove support for elasticsearch.json and elasticsearch.yaml configuration file
+
+The configuration file found in the Elasticsearch config directory could previously have
+a `.yml`, `.yaml` or `.json` extension. Only `elasticsearch.yml` is now supported.
+
+==== Duplicate keys in configuration file
+
+In previous versions of Elasticsearch, the configuration file was allowed to
+contain duplicate keys. For example:
+
+[source,yaml]
+--------------------------------------------------
+node:
+  name: my-node
+
+node
+  attr:
+    rack: my-rack
+--------------------------------------------------
+
+In Elasticsearch 6.0.0, this is no longer permitted. Instead, this must be
+specified in a single key as:
+
+[source,yaml]
+--------------------------------------------------
+node:
+  name: my-node
+  attr:
+    rack: my-rack
+--------------------------------------------------
+
 ==== Coercion of boolean settings
 
 Previously, Elasticsearch recognized the strings `true`, `false`, `on`, `off`, `yes`, `no`, `0`, `1` as booleans. Elasticsearch 6.0
@@ -34,3 +65,20 @@ The blocking TCP client, blocking TCP server, and blocking HTTP server have been
 As a consequence, the `network.tcp.blocking_server`, `network.tcp.blocking_client`,
 `network.tcp.blocking`,`transport.tcp.blocking_client`, `transport.tcp.blocking_server`,
 and `http.tcp.blocking_server` settings are not recognized anymore.
+
+==== Similarity settings
+
+The `base` similarity is now ignored as coords and query normalization have
+been removed. If provided, this setting will be ignored and issue a
+deprecation warning.
+
+==== Script Settings
+
+All of the existing scripting security settings have been removed.  Instead
+they are replaced with `script.allowed_types` and `script.allowed_contexts`.
+
+==== Discovery Settings
+
+The `discovery.type` settings no longer supports the values `gce`, `aws` and `ec2`.
+Integration with these platforms should be done by setting the `discovery.zen.hosts_provider` setting to
+one of those values.

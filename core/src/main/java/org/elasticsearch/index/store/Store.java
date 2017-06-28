@@ -24,7 +24,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -62,11 +61,10 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
@@ -100,6 +98,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
@@ -240,7 +239,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
      * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
      * {@link IndexShard#acquireIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
-     *
+     * @param commit the index commit to read the snapshot from or <code>null</code> if the latest snapshot should be read from the
+     *               directory
      * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                    unexpected exception when opening the index reading the segments file.
      * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
@@ -250,16 +250,47 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IndexNotFoundException     if the commit point can't be found in this store
      */
     public MetadataSnapshot getMetadata(IndexCommit commit) throws IOException {
+        return getMetadata(commit, false);
+    }
+
+    /**
+     * Returns a new MetadataSnapshot for the given commit. If the given commit is <code>null</code>
+     * the latest commit point is used.
+     *
+     * Note that this method requires the caller verify it has the right to access the store and
+     * no concurrent file changes are happening. If in doubt, you probably want to use one of the following:
+     *
+     * {@link #readMetadataSnapshot(Path, ShardId, NodeEnvironment.ShardLocker, Logger)} to read a meta data while locking
+     * {@link IndexShard#snapshotStoreMetadata()} to safely read from an existing shard
+     * {@link IndexShard#acquireIndexCommit(boolean)} to get an {@link IndexCommit} which is safe to use but has to be freed
+     *
+     * @param commit the index commit to read the snapshot from or <code>null</code> if the latest snapshot should be read from the
+     *               directory
+     * @param lockDirectory if <code>true</code> the index writer lock will be obtained before reading the snapshot. This should
+     *                      only be used if there is no started shard using this store.
+     * @throws CorruptIndexException      if the lucene index is corrupted. This can be caused by a checksum mismatch or an
+     *                                    unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException if the lucene index is too new to be opened.
+     * @throws FileNotFoundException      if one or more files referenced by a commit are not present.
+     * @throws NoSuchFileException        if one or more files referenced by a commit are not present.
+     * @throws IndexNotFoundException     if the commit point can't be found in this store
+     */
+    public MetadataSnapshot getMetadata(IndexCommit commit, boolean lockDirectory) throws IOException {
         ensureOpen();
         failIfCorrupted();
-        metadataLock.readLock().lock();
-        try {
+        assert lockDirectory ? commit == null : true : "IW lock should not be obtained if there is a commit point available";
+        // if we lock the directory we also acquire the write lock since that makes sure that nobody else tries to lock the IW
+        // on this store at the same time.
+        java.util.concurrent.locks.Lock lock = lockDirectory ? metadataLock.writeLock() : metadataLock.readLock();
+        lock.lock();
+        try (Closeable ignored = lockDirectory ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : () -> {} ) {
             return new MetadataSnapshot(commit, directory, logger);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
         } finally {
-            metadataLock.readLock().unlock();
+            lock.unlock();
         }
     }
 
@@ -379,7 +410,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             try {
                 directory.innerClose(); // this closes the distributorDirectory as well
             } finally {
-                onClose.handle(shardLock);
+                onClose.accept(shardLock);
             }
         } catch (IOException e) {
             logger.debug("failed to close directory", e);
@@ -449,7 +480,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         boolean success = false;
         try {
             assert metadata.writtenBy() != null;
-            assert metadata.writtenBy().onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION);
             output = new LuceneVerifyingIndexOutput(metadata, output);
             success = true;
         } finally {
@@ -468,7 +498,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public IndexInput openVerifyingInput(String filename, IOContext context, StoreFileMetaData metadata) throws IOException {
         assert metadata.writtenBy() != null;
-        assert metadata.writtenBy().onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION);
         return new VerifyingIndexInput(directory().openInput(filename, context));
     }
 
@@ -813,22 +842,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                         maxVersion = version;
                     }
                     for (String file : info.files()) {
-                        if (version.onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION)) {
-                            checksumFromLuceneFile(directory, file, builder, logger, version, SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)));
-                        } else {
-                            throw new IllegalStateException("version must be onOrAfter: " + StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION + " but was: " +  version);
-                        }
+                        checksumFromLuceneFile(directory, file, builder, logger, version, SEGMENT_INFO_EXTENSION.equals(IndexFileNames.getExtension(file)));
                     }
                 }
                 if (maxVersion == null) {
-                    maxVersion = StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION;
+                    maxVersion = org.elasticsearch.Version.CURRENT.minimumIndexCompatibilityVersion().luceneVersion;
                 }
                 final String segmentsFile = segmentCommitInfos.getSegmentsFileName();
-                if (maxVersion.onOrAfter(StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION)) {
-                    checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
-                } else {
-                    throw new IllegalStateException("version must be onOrAfter: " + StoreFileMetaData.FIRST_LUCENE_CHECKSUM_VERSION + " but was: " +  maxVersion);
-                }
+                checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
             } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we either know the index is corrupted or it's just not there
                 throw ex;
@@ -1348,14 +1369,14 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * A listener that is executed once the store is closed and all references to it are released
      */
-    public interface OnClose extends Callback<ShardLock> {
+    public interface OnClose extends Consumer<ShardLock> {
         OnClose EMPTY = new OnClose() {
             /**
              * This method is called while the provided {@link org.elasticsearch.env.ShardLock} is held.
              * This method is only called once after all resources for a store are released.
              */
             @Override
-            public void handle(ShardLock Lock) {
+            public void accept(ShardLock Lock) {
             }
         };
     }

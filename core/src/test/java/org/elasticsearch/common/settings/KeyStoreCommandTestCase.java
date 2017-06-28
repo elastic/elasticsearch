@@ -20,7 +20,9 @@
 package org.elasticsearch.common.settings;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -53,10 +55,10 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
 
     @Before
     public void setupEnv() throws IOException {
-        setupEnv(true); // default to posix, but tests may call setupEnv(false) to overwrite
+        env = setupEnv(true, fileSystems); // default to posix, but tests may call setupEnv(false) to overwrite
     }
 
-    void setupEnv(boolean posix) throws IOException {
+    static Environment setupEnv(boolean posix, List<FileSystem> fileSystems) throws IOException {
         final Configuration configuration;
         if (posix) {
             configuration = Configuration.unix().toBuilder().setAttributeViews("basic", "owner", "posix", "unix").build();
@@ -68,7 +70,7 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
         PathUtilsForTesting.installMock(fs); // restored by restoreFileSystem in ESTestCase
         Path home = fs.getPath("/", "test-home");
         Files.createDirectories(home.resolve("config"));
-        env = new Environment(Settings.builder().put("path.home", home).build());
+        return new Environment(Settings.builder().put("path.home", home).build());
     }
 
     KeyStoreWrapper createKeystore(String password, String... settings) throws Exception {
@@ -93,5 +95,29 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
 
     void assertSecureString(KeyStoreWrapper keystore, String setting, String value) throws Exception {
         assertEquals(value, keystore.getString(setting).toString());
+    }
+
+    void assertSecureFile(String setting, Path file) throws Exception {
+        assertSecureFile(loadKeystore(""), setting, file);
+    }
+
+    void assertSecureFile(KeyStoreWrapper keystore, String setting, Path file) throws Exception {
+        byte[] expectedBytes = Files.readAllBytes(file);
+        try (InputStream input = keystore.getFile(setting)) {
+            for (int i = 0; i < expectedBytes.length; ++i) {
+                int got = input.read();
+                int expected = Byte.toUnsignedInt(expectedBytes[i]);
+                if (got < 0) {
+                    fail("Got EOF from keystore stream at position " + i + " but expected 0x" + Integer.toHexString(expected));
+                }
+                assertEquals("Byte " + i, expected, got);
+            }
+            int eof = input.read();
+            if (eof != -1) {
+                fail("Found extra bytes in file stream from keystore, expected " + expectedBytes.length +
+                     " bytes but found 0x" + Integer.toHexString(eof));
+            }
+        }
+
     }
 }

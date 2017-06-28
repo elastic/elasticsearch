@@ -154,7 +154,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         }
         explain = in.readBoolean();
         rewrite = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
             allShards = in.readBoolean();
         }
     }
@@ -169,7 +169,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
         }
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             out.writeBoolean(allShards);
         }
     }

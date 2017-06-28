@@ -172,11 +172,6 @@ public class TransportNodesListGatewayStartedShards extends
         }
     }
 
-    @Override
-    protected boolean accumulateExceptions() {
-        return true;
-    }
-
     public static class Request extends BaseNodesRequest<Request> {
 
         private ShardId shardId;
@@ -290,7 +285,7 @@ public class TransportNodesListGatewayStartedShards extends
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            if (in.getVersion().before(Version.V_6_0_0_alpha1)) {
                 // legacy version
                 in.readLong();
             }
@@ -304,7 +299,7 @@ public class TransportNodesListGatewayStartedShards extends
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            if (out.getVersion().before(Version.V_6_0_0_alpha1)) {
                 // legacy version
                 out.writeLong(-1L);
             }

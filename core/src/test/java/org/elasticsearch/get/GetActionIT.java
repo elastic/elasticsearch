@@ -20,6 +20,7 @@
 package org.elasticsearch.get;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -35,13 +36,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -58,6 +61,11 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class GetActionIT extends ESIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
 
     public void testSimpleGet() {
         assertAcked(prepareCreate("test")
@@ -247,15 +255,55 @@ public class GetActionIT extends ESIntegTestCase {
                 .startObject("field").field("type", "text").field("store", true).endObject()
                 .endObject()
                 .endObject().endObject().string();
-        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2")
-                .startObject("properties")
-                .startObject("field").field("type", "text").field("store", true).endObject()
-                .endObject()
-                .endObject().endObject().string();
         assertAcked(prepareCreate("test")
-                .addMapping("type1", mapping1, XContentType.JSON)
-                .addMapping("type2", mapping2, XContentType.JSON)
-                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
+                .addMapping("type1", mapping1, XContentType.JSON));
+        ensureGreen();
+
+        GetResponse response = client().prepareGet("test", "type1", "1").get();
+        assertThat(response.isExists(), equalTo(false));
+        assertThat(response.isExists(), equalTo(false));
+
+        client().prepareIndex("test", "type1", "1")
+                .setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
+
+        response = client().prepareGet("test", "type1", "1").setStoredFields("field").get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        assertThat(response.getType(), equalTo("type1"));
+        Set<String> fields = new HashSet<>(response.getFields().keySet());
+        assertThat(fields, equalTo(singleton("field")));
+        assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
+        assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
+        assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
+
+        // Now test values being fetched from stored fields.
+        refresh();
+        response = client().prepareGet("test", "type1", "1").setStoredFields("field").get();
+        assertThat(response.isExists(), equalTo(true));
+        assertThat(response.getId(), equalTo("1"));
+        fields = new HashSet<>(response.getFields().keySet());
+        assertThat(fields, equalTo(singleton("field")));
+        assertThat(response.getFields().get("field").getValues().size(), equalTo(2));
+        assertThat(response.getFields().get("field").getValues().get(0).toString(), equalTo("1"));
+        assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
+    }
+
+    public void testGetDocWithMultivaluedFieldsMultiTypeBWC() throws Exception {
+        assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
+        String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
+            .startObject("properties")
+            .startObject("field").field("type", "text").field("store", true).endObject()
+            .endObject()
+            .endObject().endObject().string();
+        String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2")
+            .startObject("properties")
+            .startObject("field").field("type", "text").field("store", true).endObject()
+            .endObject()
+            .endObject().endObject().string();
+        assertAcked(prepareCreate("test")
+            .addMapping("type1", mapping1, XContentType.JSON)
+            .addMapping("type2", mapping2, XContentType.JSON)
+            .setSettings("index.refresh_interval", -1, "index.version.created", Version.V_5_6_0.id)); // multi types in 5.6
         ensureGreen();
 
         GetResponse response = client().prepareGet("test", "type1", "1").get();
@@ -264,10 +312,10 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.isExists(), equalTo(false));
 
         client().prepareIndex("test", "type1", "1")
-                .setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
+            .setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
 
         client().prepareIndex("test", "type2", "1")
-                .setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
+            .setSource(jsonBuilder().startObject().array("field", "1", "2").endObject()).get();
 
         response = client().prepareGet("test", "type1", "1").setStoredFields("field").get();
         assertThat(response.isExists(), equalTo(true));
@@ -525,12 +573,47 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[2].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
     }
 
-    public void testGetFieldsMetaData() throws Exception {
+    public void testGetFieldsMetaDataWithRouting() throws Exception {
+        assertAcked(prepareCreate("test")
+            .addMapping("doc", "field1", "type=keyword,store=true")
+            .addAlias(new Alias("alias"))
+            .setSettings("index.refresh_interval", -1,  "index.version.created", Version.V_5_6_0.id)); // multi types in 5.6
+
+        client().prepareIndex("test", "doc", "1")
+            .setRouting("1")
+            .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
+            .get();
+
+        GetResponse getResponse = client().prepareGet(indexOrAlias(), "doc", "1")
+            .setRouting("1")
+            .setStoredFields("field1")
+            .get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
+        assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
+        assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
+        assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
+
+        flush();
+
+        getResponse = client().prepareGet(indexOrAlias(), "doc", "1")
+            .setStoredFields("field1")
+            .setRouting("1")
+            .get();
+        assertThat(getResponse.isExists(), equalTo(true));
+        assertThat(getResponse.getField("field1").isMetadataField(), equalTo(false));
+        assertThat(getResponse.getField("field1").getValue().toString(), equalTo("value"));
+        assertThat(getResponse.getField("_routing").isMetadataField(), equalTo(true));
+        assertThat(getResponse.getField("_routing").getValue().toString(), equalTo("1"));
+    }
+
+    public void testGetFieldsMetaDataWithParentChild() throws Exception {
+        assertTrue("remove this multi type test", Version.CURRENT.before(Version.fromString("7.0.0")));
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("my-type1", "_parent", "type=parent", "field1", "type=keyword,store=true")
                 .addAlias(new Alias("alias"))
-                .setSettings(Settings.builder().put("index.refresh_interval", -1)));
+                .setSettings("index.refresh_interval", -1,  "index.version.created", Version.V_5_6_0.id)); // multi types in 5.6
 
         client().prepareIndex("test", "my-type1", "1")
                 .setRouting("1")
@@ -594,7 +677,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         assertAcked(prepareCreate("my-index")
-                .setSettings(Settings.builder().put("index.refresh_interval", -1))
+                .setSettings("index.refresh_interval", -1,  "index.version.created", Version.V_5_6_0.id) // multi types in 5.6
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
@@ -727,31 +810,23 @@ public class GetActionIT extends ESIntegTestCase {
                 "  \"settings\": {\n" +
                 "    \"index.translog.flush_threshold_size\": \"1pb\",\n" +
                 "    \"refresh_interval\": \"-1\"\n" +
-                "  },\n" +
-                "  \"mappings\": {\n" +
-                "    \"parentdoc\": {\n" +
-                "    },\n" +
-                "    \"doc\": {\n" +
-                "      \"_parent\": {\n" +
-                "        \"type\": \"parentdoc\"\n" +
-                "      }\n" +
-                "    }\n" +
                 "  }\n" +
                 "}";
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
+        assertAcked(prepareCreate("test")
+                .addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("test", "doc").setId("1").setSource("{}", XContentType.JSON).setParent("1").get();
+        client().prepareIndex("test", "doc", "1").setRouting("routingValue").setId("1").setSource("{}", XContentType.JSON).get();
 
-        String[] fieldsList = {"_parent"};
+        String[] fieldsList = {"_routing"};
         // before refresh - document is only in translog
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "routingValue");
         refresh();
         //after refresh - document is in translog and also indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "routingValue");
         flush();
         //after flush - document is in not anymore translog - only indexed
-        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "routingValue");
     }
 
     public void testUngeneratedFieldsNotPartOfSourceStored() throws IOException {

@@ -101,6 +101,8 @@ requests>> (which is rewritten to a `query_string` query internally):
 --------------------------------
 GET _search?q=john+smith+new+york
 --------------------------------
+// TEST[skip:_all is no longer allowed]
+// CONSOLE
 
 Other queries, such as the <<query-dsl-match-query,`match`>> and
 <<query-dsl-term-query,`term`>> queries require you to specify the `_all` field
@@ -310,8 +312,7 @@ disk space and, because it is a combination of other fields, it may result in
 odd highlighting results.
 
 The `_all` field also accepts the `term_vector` and `index_options`
-parameters, allowing the use of the fast vector highlighter and the postings
-highlighter.
+parameters, allowing highlighting to use it.
 
 [[all-highlight-fields]]
 ===== Highlight original fields

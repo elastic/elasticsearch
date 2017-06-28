@@ -105,7 +105,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         testBothCases(LongPoint.newRangeQuery(INSTANT_FIELD, asLong("2015-01-01"), asLong("2017-12-31")), dataset,
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.YEAR).field(DATE_FIELD),
                 histogram -> {
-                    List<Histogram.Bucket> buckets = histogram.getBuckets();
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(3, buckets.size());
 
                     Histogram.Bucket bucket = buckets.get(0);
@@ -128,7 +128,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 Arrays.asList("2017-01-01", "2017-02-02", "2017-02-03", "2017-03-04", "2017-03-05", "2017-03-06"),
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.MONTH).field(DATE_FIELD),
                 histogram -> {
-                    List<Histogram.Bucket> buckets = histogram.getBuckets();
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(3, buckets.size());
 
                     Histogram.Bucket bucket = buckets.get(0);
@@ -159,7 +159,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 ),
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.DAY).field(DATE_FIELD).minDocCount(1L),
                 histogram -> {
-                    List<Histogram.Bucket> buckets = histogram.getBuckets();
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(4, buckets.size());
 
                     Histogram.Bucket bucket = buckets.get(0);
@@ -197,7 +197,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 ),
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.HOUR).field(DATE_FIELD).minDocCount(1L),
                 histogram -> {
-                    List<Histogram.Bucket> buckets = histogram.getBuckets();
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(6, buckets.size());
 
                     Histogram.Bucket bucket = buckets.get(0);
@@ -238,7 +238,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 ),
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.MINUTE).field(DATE_FIELD).minDocCount(1L),
                 histogram -> {
-                    List<Histogram.Bucket> buckets = histogram.getBuckets();
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(3, buckets.size());
 
                     Histogram.Bucket bucket = buckets.get(0);
@@ -268,7 +268,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
                 ),
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.SECOND).field(DATE_FIELD).minDocCount(1L),
                 histogram -> {
-                    List<Histogram.Bucket> buckets = histogram.getBuckets();
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(3, buckets.size());
 
                     Histogram.Bucket bucket = buckets.get(0);
@@ -300,7 +300,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         testSearchAndReduceCase(query, timestamps,
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD).minDocCount(0L),
                 histogram -> {
-                    List<Histogram.Bucket> buckets = histogram.getBuckets();
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(4, buckets.size());
 
                     Histogram.Bucket bucket = buckets.get(0);
@@ -325,7 +325,7 @@ public class DateHistogramAggregatorTests extends AggregatorTestCase {
         testSearchAndReduceCase(query, timestamps,
                 aggregation -> aggregation.dateHistogramInterval(DateHistogramInterval.seconds(5)).field(DATE_FIELD).minDocCount(3L),
                 histogram -> {
-                    List<Histogram.Bucket> buckets = histogram.getBuckets();
+                    List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
                     assertEquals(1, buckets.size());
 
                     Histogram.Bucket bucket = buckets.get(0);

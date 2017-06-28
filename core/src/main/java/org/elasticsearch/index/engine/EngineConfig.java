@@ -21,12 +21,11 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -36,11 +35,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.io.IOException;
+import java.util.List;
 
 /*
  * Holds all the configuration that is used to create an {@link Engine}.
@@ -49,7 +51,6 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public final class EngineConfig {
     private final ShardId shardId;
-    private final TranslogRecoveryPerformer translogRecoveryPerformer;
     private final IndexSettings indexSettings;
     private final ByteSizeValue indexingBufferSize;
     private volatile boolean enableGcDeletes = true;
@@ -58,7 +59,6 @@ public final class EngineConfig {
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
     private final Store store;
-    private final SnapshotDeletionPolicy deletionPolicy;
     private final MergePolicy mergePolicy;
     private final Analyzer analyzer;
     private final Similarity similarity;
@@ -66,9 +66,11 @@ public final class EngineConfig {
     private final Engine.EventListener eventListener;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
-    private final long maxUnsafeAutoIdTimestamp;
     @Nullable
-    private final ReferenceManager.RefreshListener refreshListeners;
+    private final List<ReferenceManager.RefreshListener> refreshListeners;
+    @Nullable
+    private final Sort indexSort;
+    private final TranslogRecoveryRunner translogRecoveryRunner;
 
     /**
      * Index setting to change the low level lucene codec used for writing new segments.
@@ -108,12 +110,12 @@ public final class EngineConfig {
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
     public EngineConfig(OpenMode openMode, ShardId shardId, ThreadPool threadPool,
-                        IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
+                        IndexSettings indexSettings, Engine.Warmer warmer, Store store,
                         MergePolicy mergePolicy, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
-                        TranslogConfig translogConfig, TimeValue flushMergesAfter, ReferenceManager.RefreshListener refreshListeners,
-                        long maxUnsafeAutoIdTimestamp) {
+                        QueryCache queryCache, QueryCachingPolicy queryCachingPolicy,
+                        TranslogConfig translogConfig, TimeValue flushMergesAfter, List<ReferenceManager.RefreshListener> refreshListeners,
+                        Sort indexSort, TranslogRecoveryRunner translogRecoveryRunner) {
         if (openMode == null) {
             throw new IllegalArgumentException("openMode must not be null");
         }
@@ -122,7 +124,6 @@ public final class EngineConfig {
         this.threadPool = threadPool;
         this.warmer = warmer == null ? (a) -> {} : warmer;
         this.store = store;
-        this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
         this.analyzer = analyzer;
         this.similarity = similarity;
@@ -133,16 +134,14 @@ public final class EngineConfig {
         // there are not too many shards allocated to this node.  Instead, IndexingMemoryController periodically checks
         // and refreshes the most heap-consuming shards when total indexing heap usage across all shards is too high:
         indexingBufferSize = new ByteSizeValue(256, ByteSizeUnit.MB);
-        this.translogRecoveryPerformer = translogRecoveryPerformer;
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
         this.flushMergesAfter = flushMergesAfter;
         this.openMode = openMode;
         this.refreshListeners = refreshListeners;
-        assert maxUnsafeAutoIdTimestamp >= IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP :
-            "maxUnsafeAutoIdTimestamp must be >= -1 but was " + maxUnsafeAutoIdTimestamp;
-        this.maxUnsafeAutoIdTimestamp = maxUnsafeAutoIdTimestamp;
+        this.indexSort = indexSort;
+        this.translogRecoveryRunner = translogRecoveryRunner;
     }
 
     /**
@@ -216,14 +215,6 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns a {@link SnapshotDeletionPolicy} used in the engines
-     * {@link org.apache.lucene.index.IndexWriter}.
-     */
-    public SnapshotDeletionPolicy getDeletionPolicy() {
-        return deletionPolicy;
-    }
-
-    /**
      * Returns the {@link org.apache.lucene.index.MergePolicy} for the engines {@link org.apache.lucene.index.IndexWriter}
      */
     public MergePolicy getMergePolicy() {
@@ -264,15 +255,6 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the {@link org.elasticsearch.index.shard.TranslogRecoveryPerformer} for this engine. This class is used
-     * to apply transaction log operations to the engine. It encapsulates all the logic to transfer the translog entry into
-     * an indexing operation.
-     */
-    public TranslogRecoveryPerformer getTranslogRecoveryPerformer() {
-        return translogRecoveryPerformer;
-    }
-
-    /**
      * Return the cache to use for queries.
      */
     public QueryCache getQueryCache() {
@@ -307,6 +289,18 @@ public final class EngineConfig {
         return openMode;
     }
 
+    @FunctionalInterface
+    public interface TranslogRecoveryRunner {
+        int run(Engine engine, Translog.Snapshot snapshot) throws IOException;
+    }
+
+    /**
+     * Returns a runner that implements the translog recovery from the given snapshot
+     */
+    public TranslogRecoveryRunner getTranslogRecoveryRunner() {
+        return translogRecoveryRunner;
+    }
+
     /**
      * Engine open mode defines how the engine should be opened or in other words what the engine should expect
      * to recover from. We either create a brand new engine with a new index and translog or we recover from an existing index.
@@ -322,17 +316,23 @@ public final class EngineConfig {
     }
 
     /**
-     * {@linkplain ReferenceManager.RefreshListener} instance to configure.
+     * The refresh listeners to add to Lucene
      */
-    public ReferenceManager.RefreshListener getRefreshListeners() {
+    public List<ReferenceManager.RefreshListener> getRefreshListeners() {
         return refreshListeners;
     }
 
     /**
-     * Returns the max timestamp that is used to de-optimize documents with auto-generated IDs in the engine.
-     * This is used to ensure we don't add duplicate documents when we assume an append only case based on auto-generated IDs
+     * returns true if the engine is allowed to optimize indexing operations with an auto-generated ID
      */
-    public long getMaxUnsafeAutoIdTimestamp() {
-        return indexSettings.getValue(INDEX_OPTIMIZE_AUTO_GENERATED_IDS) ? maxUnsafeAutoIdTimestamp : Long.MAX_VALUE;
+    public boolean isAutoGeneratedIDsOptimizationEnabled() {
+        return indexSettings.getValue(INDEX_OPTIMIZE_AUTO_GENERATED_IDS);
+    }
+
+    /**
+     * Return the sort order of this index, or null if the index has no sort.
+     */
+    public Sort getIndexSort() {
+        return indexSort;
     }
 }

@@ -20,38 +20,22 @@
 package org.elasticsearch.indices.store;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportService;
-import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 
 public class IndicesStoreTests extends ESTestCase {
     private static final ShardRoutingState[] NOT_STARTED_STATES;
@@ -94,8 +78,8 @@ public class IndicesStoreTests extends ESTestCase {
                 if (state == ShardRoutingState.UNASSIGNED) {
                     unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
                 }
-                String relocatingNodeId = state == ShardRoutingState.RELOCATING ? randomAsciiOfLength(10) : null;
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, randomAsciiOfLength(10), relocatingNodeId, j == 0, state, unassignedInfo));
+                String relocatingNodeId = state == ShardRoutingState.RELOCATING ? randomAlphaOfLength(10) : null;
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, randomAlphaOfLength(10), relocatingNodeId, j == 0, state, unassignedInfo));
             }
         }
 
@@ -111,10 +95,10 @@ public class IndicesStoreTests extends ESTestCase {
         for (int i = 0; i < numShards; i++) {
             int localNodeIndex = randomInt(numReplicas);
             boolean primaryOnLocalNode = i == localShardId && localNodeIndex == numReplicas;
-            routingTable.addShard(TestShardRouting.newShardRouting("test", i, primaryOnLocalNode ? localNode.getId() : randomAsciiOfLength(10), true, ShardRoutingState.STARTED));
+            routingTable.addShard(TestShardRouting.newShardRouting("test", i, primaryOnLocalNode ? localNode.getId() : randomAlphaOfLength(10), true, ShardRoutingState.STARTED));
             for (int j = 0; j < numReplicas; j++) {
                 boolean replicaOnLocalNode = i == localShardId && localNodeIndex == j;
-                routingTable.addShard(TestShardRouting.newShardRouting("test", i, replicaOnLocalNode ? localNode.getId() : randomAsciiOfLength(10), false, ShardRoutingState.STARTED));
+                routingTable.addShard(TestShardRouting.newShardRouting("test", i, replicaOnLocalNode ? localNode.getId() : randomAlphaOfLength(10), false, ShardRoutingState.STARTED));
             }
         }
 

@@ -36,6 +36,11 @@ public class RestDeletePipelineAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "ingest_delete_pipeline_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         DeletePipelineRequest request = new DeletePipelineRequest(restRequest.param("id"));
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));

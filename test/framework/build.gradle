@@ -63,3 +63,13 @@ thirdPartyAudit.excludes = [
   'org.easymock.IArgumentMatcher',
   'org.jmock.core.Constraint',
 ]
+
+task namingConventionsMain(type: org.elasticsearch.gradle.precommit.NamingConventionsTask) {
+  checkForTestsInMain = true
+}
+precommit.dependsOn namingConventionsMain
+
+test.configure {
+  systemProperty 'tests.gradle_index_compat_versions', indexCompatVersions.join(',')
+  systemProperty 'tests.gradle_wire_compat_versions', wireCompatVersions.join(',')
+}

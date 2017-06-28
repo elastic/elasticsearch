@@ -8,6 +8,9 @@ index by making one mapping type the parent of another:
 --------------------------------------------------
 PUT my_index
 {
+  "settings": {
+    "mapping.single_type": false
+  },
   "mappings": {
     "my_parent": {},
     "my_child": {
@@ -84,7 +87,7 @@ GET my_index/_search
   "script_fields": {
     "parent": {
       "script": {
-         "inline": "doc['_parent']" <3>
+         "source": "doc['_parent']" <3>
       }
     }
   }
@@ -116,7 +119,7 @@ GET my_index/_search
 
 ==== Global ordinals
 
-Parent-child uses <<global-ordinals,global ordinals>> to speed up joins.
+Parent-child uses <<eager-global-ordinals,global ordinals>> to speed up joins.
 Global ordinals need to be rebuilt after any change to a shard. The more
 parent id values are stored in a shard, the longer it takes to rebuild the
 global ordinals for the `_parent` field.
@@ -137,6 +140,9 @@ make sense to disable eager loading:
 --------------------------------------------------
 PUT my_index
 {
+  "settings": {
+    "mapping.single_type": false
+  },
   "mappings": {
     "my_parent": {},
     "my_child": {

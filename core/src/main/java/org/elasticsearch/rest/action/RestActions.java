@@ -25,6 +25,7 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
@@ -45,6 +46,12 @@ import java.io.IOException;
 import java.util.List;
 
 public class RestActions {
+
+    public static final ParseField _SHARDS_FIELD = new ParseField("_shards");
+    public static final ParseField TOTAL_FIELD = new ParseField("total");
+    public static final ParseField SUCCESSFUL_FIELD = new ParseField("successful");
+    public static final ParseField FAILED_FIELD = new ParseField("failed");
+    public static final ParseField FAILURES_FIELD = new ParseField("failures");
 
     public static long parseVersion(RestRequest request) {
         if (request.hasParam("version")) {
@@ -71,12 +78,12 @@ public class RestActions {
     public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params,
                                                   int total, int successful, int failed,
                                                   ShardOperationFailedException[] shardFailures) throws IOException {
-        builder.startObject("_shards");
-        builder.field("total", total);
-        builder.field("successful", successful);
-        builder.field("failed", failed);
+        builder.startObject(_SHARDS_FIELD.getPreferredName());
+        builder.field(TOTAL_FIELD.getPreferredName(), total);
+        builder.field(SUCCESSFUL_FIELD.getPreferredName(), successful);
+        builder.field(FAILED_FIELD.getPreferredName(), failed);
         if (shardFailures != null && shardFailures.length > 0) {
-            builder.startArray("failures");
+            builder.startArray(FAILURES_FIELD.getPreferredName());
             final boolean group = params.paramAsBoolean("group_shard_failures", true); // we group by default
             for (ShardOperationFailedException shardFailure : group ? ExceptionsHelper.groupBy(shardFailures) : shardFailures) {
                 builder.startObject();

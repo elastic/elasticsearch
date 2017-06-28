@@ -35,9 +35,10 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-public class InternalAdjacencyMatrix 
-    extends InternalMultiBucketAggregation<InternalAdjacencyMatrix,InternalAdjacencyMatrix.InternalBucket> 
+public class InternalAdjacencyMatrix
+    extends InternalMultiBucketAggregation<InternalAdjacencyMatrix,InternalAdjacencyMatrix.InternalBucket>
     implements AdjacencyMatrix {
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements AdjacencyMatrix.Bucket {
 
@@ -111,12 +112,31 @@ public class InternalAdjacencyMatrix
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+            InternalBucket that = (InternalBucket) other;
+            return Objects.equals(key, that.key)
+                    && Objects.equals(docCount, that.docCount)
+                    && Objects.equals(aggregations, that.aggregations);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), key, docCount, aggregations);
+        }
     }
 
     private final List<InternalBucket> buckets;
     private Map<String, InternalBucket> bucketMap;
 
-    public InternalAdjacencyMatrix(String name, List<InternalBucket> buckets, 
+    public InternalAdjacencyMatrix(String name, List<InternalBucket> buckets,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.buckets = buckets;
@@ -193,13 +213,13 @@ public class InternalAdjacencyMatrix
         ArrayList<InternalBucket> reducedBuckets = new ArrayList<>(bucketsMap.size());
         for (List<InternalBucket> sameRangeList : bucketsMap.values()) {
             InternalBucket reducedBucket = sameRangeList.get(0).reduce(sameRangeList, reduceContext);
-            if(reducedBucket.docCount >= 1){                
+            if(reducedBucket.docCount >= 1){
                 reducedBuckets.add(reducedBucket);
             }
         }
         Collections.sort(reducedBuckets, Comparator.comparing(InternalBucket::getKey));
-        
-        InternalAdjacencyMatrix reduced = new InternalAdjacencyMatrix(name, reducedBuckets, pipelineAggregators(), 
+
+        InternalAdjacencyMatrix reduced = new InternalAdjacencyMatrix(name, reducedBuckets, pipelineAggregators(),
                 getMetaData());
 
         return reduced;
@@ -215,4 +235,14 @@ public class InternalAdjacencyMatrix
         return builder;
     }
 
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(buckets);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalAdjacencyMatrix that = (InternalAdjacencyMatrix) obj;
+        return Objects.equals(buckets, that.buckets);
+    }
 }

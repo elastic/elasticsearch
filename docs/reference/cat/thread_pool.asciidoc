@@ -4,35 +4,43 @@
 The `thread_pool` command shows cluster wide thread pool statistics per node. By default the active, queue and rejected
 statistics are returned for all thread pools.
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl 192.168.56.10:9200/_cat/thread_pool
-0EWUhXe bulk                0 0 0
-0EWUhXe fetch_shard_started 0 0 0
-0EWUhXe fetch_shard_store   0 0 0
-0EWUhXe flush               0 0 0
-0EWUhXe force_merge         0 0 0
-0EWUhXe generic             0 0 0
-0EWUhXe get                 0 0 0
-0EWUhXe index               0 0 0
-0EWUhXe listener            0 0 0
-0EWUhXe management          1 0 0
-0EWUhXe refresh             0 0 0
-0EWUhXe search              0 0 0
-0EWUhXe snapshot            0 0 0
-0EWUhXe warmer              0 0 0
+GET /_cat/thread_pool
 --------------------------------------------------
+// CONSOLE
+
+Which looks like:
+
+[source,txt]
+--------------------------------------------------
+node-0 bulk                0 0 0
+node-0 fetch_shard_started 0 0 0
+node-0 fetch_shard_store   0 0 0
+node-0 flush               0 0 0
+node-0 force_merge         0 0 0
+node-0 generic             0 0 0
+node-0 get                 0 0 0
+node-0 index               0 0 0
+node-0 listener            0 0 0
+node-0 management          1 0 0
+node-0 refresh             0 0 0
+node-0 search              0 0 0
+node-0 snapshot            0 0 0
+node-0 warmer              0 0 0
+--------------------------------------------------
+// TESTRESPONSE[s/\d+/\\d+/ _cat]
 
 The first column is the node name
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
 node_name
-0EWUhXe
+node-0
 --------------------------------------------------
 
 The second column is the thread pool name
-[source,sh]
+[source,txt]
 --------------------------------------------------
 name
 bulk
@@ -54,7 +62,7 @@ warmer
 
 The next three columns show the active, queue, and rejected statistics for each thread pool
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
 active queue rejected
      0     0        0
@@ -76,12 +84,20 @@ active queue rejected
 The cat thread pool API accepts a `thread_pool_patterns` URL parameter for specifying a
 comma-separated list of regular expressions to match thread pool names.
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/thread_pool/generic?v&h=id,name,active,rejected,completed'
+GET /_cat/thread_pool/generic?v&h=id,name,active,rejected,completed
+--------------------------------------------------
+// CONSOLE
+
+which looks like:
+
+[source,js]
+--------------------------------------------------
 id                     name    active rejected completed
 0EWUhXeBQtaVGlexUeVwMg generic      0        0        70
 --------------------------------------------------
+// TESTRESPONSE[s/0EWUhXeBQtaVGlexUeVwMg/[\\w-]+/ s/\d+/\\d+/ _cat]
 
 Here the host columns and the active, rejected and completed suggest thread pool statistics are displayed.
 

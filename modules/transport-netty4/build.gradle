@@ -34,17 +34,33 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
 
 dependencies {
     // network stack
-    compile "io.netty:netty-buffer:4.1.9.Final"
-    compile "io.netty:netty-codec:4.1.9.Final"
-    compile "io.netty:netty-codec-http:4.1.9.Final"
-    compile "io.netty:netty-common:4.1.9.Final"
-    compile "io.netty:netty-handler:4.1.9.Final"
-    compile "io.netty:netty-resolver:4.1.9.Final"
-    compile "io.netty:netty-transport:4.1.9.Final"
+    compile "io.netty:netty-buffer:4.1.11.Final"
+    compile "io.netty:netty-codec:4.1.11.Final"
+    compile "io.netty:netty-codec-http:4.1.11.Final"
+    compile "io.netty:netty-common:4.1.11.Final"
+    compile "io.netty:netty-handler:4.1.11.Final"
+    compile "io.netty:netty-resolver:4.1.11.Final"
+    compile "io.netty:netty-transport:4.1.11.Final"
 }
 
 dependencyLicenses {
   mapping from: /netty-.*/, to: 'netty'
+}
+
+test {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
+}
+
+integTestRunner {
+    /*
+     * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
+     * other if we allow them to set the number of available processors as it's set-once in Netty.
+     */
+    systemProperty 'es.set.netty.runtime.available.processors', 'false'
 }
 
 thirdPartyAudit.excludes = [
@@ -121,6 +137,7 @@ thirdPartyAudit.excludes = [
         'io.netty.internal.tcnative.CertificateRequestedCallback$KeyMaterial',
         'io.netty.internal.tcnative.CertificateVerifier',
         'io.netty.internal.tcnative.SessionTicketKey',
+        'io.netty.internal.tcnative.SniHostNameMatcher',
         'org.eclipse.jetty.alpn.ALPN$ClientProvider',
         'org.eclipse.jetty.alpn.ALPN$ServerProvider',
         'org.eclipse.jetty.alpn.ALPN',
@@ -143,4 +160,7 @@ thirdPartyAudit.excludes = [
         'io.netty.util.internal.shaded.org.jctools.util.JvmInfo',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
         'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+
+        'org.conscrypt.Conscrypt$Engines',
+        'org.conscrypt.HandshakeListener'
 ]

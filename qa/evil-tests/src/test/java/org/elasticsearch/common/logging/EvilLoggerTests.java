@@ -37,23 +37,26 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
-import javax.management.MBeanServerPermission;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessControlException;
-import java.security.Permission;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
 
 public class EvilLoggerTests extends ESTestCase {
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        LogConfigurator.registerErrorListener();
+    }
 
     @Override
     public void tearDown() throws Exception {
@@ -126,7 +129,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testPrefixLogger() throws IOException, IllegalAccessException, UserException {
         setupLogging("prefix");
 
-        final String prefix = randomBoolean() ? null : randomAsciiOfLength(16);
+        final String prefix = randomBoolean() ? null : randomAlphaOfLength(16);
         final Logger logger = Loggers.getLogger("prefix", prefix);
         logger.info("test");
         logger.info("{}", "test");
@@ -155,10 +158,23 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
+    public void testPrefixLoggerMarkersCanBeCollected() throws IOException, UserException {
+        setupLogging("prefix");
+
+        final int prefixes = 1 << 19; // to ensure enough markers that the GC should collect some when we force a GC below
+        for (int i = 0; i < prefixes; i++) {
+            Loggers.getLogger("prefix" + i, "prefix" + i); // this has the side effect of caching a marker with this prefix
+
+        }
+
+        System.gc(); // this will free the weakly referenced keys in the marker cache
+        assertThat(PrefixLogger.markersSize(), lessThan(prefixes));
+    }
+
     public void testProperties() throws IOException, UserException {
-        final Settings.Builder builder = Settings.builder().put("cluster.name", randomAsciiOfLength(16));
+        final Settings.Builder builder = Settings.builder().put("cluster.name", randomAlphaOfLength(16));
         if (randomBoolean()) {
-            builder.put("node.name", randomAsciiOfLength(16));
+            builder.put("node.name", randomAlphaOfLength(16));
         }
         final Settings settings = builder.build();
         setupLogging("minimal", settings);
@@ -178,16 +194,14 @@ public class EvilLoggerTests extends ESTestCase {
     }
 
     private void setupLogging(final String config, final Settings settings) throws IOException, UserException {
-        assert !Environment.PATH_CONF_SETTING.exists(settings);
         assert !Environment.PATH_HOME_SETTING.exists(settings);
         final Path configDir = getDataPath(config);
-        // need to set custom path.conf so we can use a custom log4j2.properties file for the test
         final Settings mergedSettings = Settings.builder()
             .put(settings)
-            .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        final Environment environment = new Environment(mergedSettings);
+        // need to use custom config path so we can use a custom log4j2.properties file for the test
+        final Environment environment = new Environment(mergedSettings, configDir);
         LogConfigurator.configure(environment);
     }
 

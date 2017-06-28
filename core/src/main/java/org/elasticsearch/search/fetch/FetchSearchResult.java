@@ -22,28 +22,25 @@ package org.elasticsearch.search.fetch;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 
 import java.io.IOException;
 
-public class FetchSearchResult extends QuerySearchResultProvider {
+public final class FetchSearchResult extends SearchPhaseResult {
 
-    private long id;
-    private SearchShardTarget shardTarget;
     private SearchHits hits;
     // client side counter
     private transient int counter;
 
     public FetchSearchResult() {
-
     }
 
     public FetchSearchResult(long id, SearchShardTarget shardTarget) {
-        this.id = id;
-        this.shardTarget = shardTarget;
+        this.requestId = id;
+        setSearchShardTarget(shardTarget);
     }
 
     @Override
@@ -54,21 +51,6 @@ public class FetchSearchResult extends QuerySearchResultProvider {
     @Override
     public FetchSearchResult fetchResult() {
         return this;
-    }
-
-    @Override
-    public long id() {
-        return this.id;
-    }
-
-    @Override
-    public SearchShardTarget shardTarget() {
-        return this.shardTarget;
-    }
-
-    @Override
-    public void shardTarget(SearchShardTarget shardTarget) {
-        this.shardTarget = shardTarget;
     }
 
     public void hits(SearchHits hits) {
@@ -105,14 +87,14 @@ public class FetchSearchResult extends QuerySearchResultProvider {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        id = in.readLong();
+        requestId = in.readLong();
         hits = SearchHits.readSearchHits(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        out.writeLong(requestId);
         hits.writeTo(out);
     }
 }

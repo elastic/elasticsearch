@@ -44,6 +44,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
 public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetRequest.Item>, CompositeIndicesRequest, RealtimeRequest {
 
@@ -319,6 +320,14 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
             boolean allowExplicitIndex) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
+        if ((token = parser.nextToken()) != XContentParser.Token.START_OBJECT) {
+            final String message = String.format(
+                    Locale.ROOT,
+                    "unexpected token [%s], expected [%s]",
+                    token,
+                    XContentParser.Token.START_OBJECT);
+            throw new ParsingException(parser.getTokenLocation(), message);
+        }
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -327,7 +336,22 @@ public class MultiGetRequest extends ActionRequest implements Iterable<MultiGetR
                     parseDocuments(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting, allowExplicitIndex);
                 } else if ("ids".equals(currentFieldName)) {
                     parseIds(parser, this.items, defaultIndex, defaultType, defaultFields, defaultFetchSource, defaultRouting);
+                } else {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "unknown key [%s] for a %s, expected [docs] or [ids]",
+                            currentFieldName,
+                            token);
+                    throw new ParsingException(parser.getTokenLocation(), message);
                 }
+            } else {
+                final String message = String.format(
+                        Locale.ROOT,
+                        "unexpected token [%s], expected [%s] or [%s]",
+                        token,
+                        XContentParser.Token.FIELD_NAME,
+                        XContentParser.Token.START_ARRAY);
+                throw new ParsingException(parser.getTokenLocation(), message);
             }
         }
         return this;

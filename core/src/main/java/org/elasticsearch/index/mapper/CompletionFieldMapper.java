@@ -528,14 +528,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                                 if (currentToken == XContentParser.Token.FIELD_NAME) {
                                     fieldName = parser.currentName();
                                     contextMapping = contextMappings.get(fieldName);
-                                } else if (currentToken == XContentParser.Token.VALUE_STRING
-                                        || currentToken == XContentParser.Token.START_ARRAY
-                                        || currentToken == XContentParser.Token.START_OBJECT) {
+                                } else {
                                     assert fieldName != null;
                                     assert !contextsMap.containsKey(fieldName);
                                     contextsMap.put(fieldName, contextMapping.parseContext(parseContext, parser));
-                                } else {
-                                    throw new IllegalArgumentException("contexts must be an object or an array , but was [" + currentToken + "]");
                                 }
                             }
                         } else {

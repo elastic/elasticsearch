@@ -24,6 +24,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -40,10 +41,8 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
-public final class QuerySearchResult extends QuerySearchResultProvider {
+public final class QuerySearchResult extends SearchPhaseResult {
 
-    private long id;
-    private SearchShardTarget shardTarget;
     private int from;
     private int size;
     private TopDocs topDocs;
@@ -56,13 +55,16 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
     private Boolean terminatedEarly = null;
     private ProfileShardResult profileShardResults;
     private boolean hasProfileResults;
+    private boolean hasScoreDocs;
+    private long totalHits;
+    private float maxScore;
 
     public QuerySearchResult() {
     }
 
     public QuerySearchResult(long id, SearchShardTarget shardTarget) {
-        this.id = id;
-        this.shardTarget = shardTarget;
+        this.requestId = id;
+        setSearchShardTarget(shardTarget);
     }
 
     @Override
@@ -70,20 +72,6 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
-    @Override
-    public long id() {
-        return this.id;
-    }
-
-    @Override
-    public SearchShardTarget shardTarget() {
-        return shardTarget;
-    }
-
-    @Override
-    public void shardTarget(SearchShardTarget shardTarget) {
-        this.shardTarget = shardTarget;
-    }
 
     public void searchTimedOut(boolean searchTimedOut) {
         this.searchTimedOut = searchTimedOut;
@@ -102,11 +90,34 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public TopDocs topDocs() {
+        if (topDocs == null) {
+            throw new IllegalStateException("topDocs already consumed");
+        }
+        return topDocs;
+    }
+
+    /**
+     * Returns <code>true</code> iff the top docs have already been consumed.
+     */
+    public boolean hasConsumedTopDocs() {
+        return topDocs == null;
+    }
+
+    /**
+     * Returns and nulls out the top docs for this search results. This allows to free up memory once the top docs are consumed.
+     * @throws IllegalStateException if the top docs have already been consumed.
+     */
+    public TopDocs consumeTopDocs() {
+        TopDocs topDocs = this.topDocs;
+        if (topDocs == null) {
+            throw new IllegalStateException("topDocs already consumed");
+        }
+        this.topDocs = null;
         return topDocs;
     }
 
     public void topDocs(TopDocs topDocs, DocValueFormat[] sortValueFormats) {
-        this.topDocs = topDocs;
+        setTopDocs(topDocs);
         if (topDocs.scoreDocs.length > 0 && topDocs.scoreDocs[0] instanceof FieldDoc) {
             int numFields = ((FieldDoc) topDocs.scoreDocs[0]).fields.length;
             if (numFields != sortValueFormats.length) {
@@ -117,12 +128,19 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
         this.sortValueFormats = sortValueFormats;
     }
 
+    private void setTopDocs(TopDocs topDocs) {
+        this.topDocs = topDocs;
+        hasScoreDocs = topDocs.scoreDocs.length > 0;
+        this.totalHits = topDocs.totalHits;
+        this.maxScore = topDocs.getMaxScore();
+    }
+
     public DocValueFormat[] sortValueFormats() {
         return sortValueFormats;
     }
 
     /**
-     * Retruns <code>true</code> if this query result has unconsumed aggregations
+     * Returns <code>true</code> if this query result has unconsumed aggregations
      */
     public boolean hasAggs() {
         return hasAggs;
@@ -210,10 +228,15 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
-    /** Returns true iff the result has hits */
-    public boolean hasHits() {
-        return (topDocs != null && topDocs.scoreDocs.length > 0) ||
-            (suggest != null && suggest.hasScoreDocs());
+    /**
+     * Returns <code>true</code> if this result has any suggest score docs
+     */
+    public boolean hasSuggestHits() {
+      return (suggest != null && suggest.hasScoreDocs());
+    }
+
+    public boolean hasSearchContext() {
+        return hasScoreDocs || hasSuggestHits();
     }
 
     public static QuerySearchResult readQuerySearchResult(StreamInput in) throws IOException {
@@ -230,7 +253,7 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public void readFromWithId(long id, StreamInput in) throws IOException {
-        this.id = id;
+        this.requestId = id;
         from = in.readVInt();
         size = in.readVInt();
         int numSortFieldsPlus1 = in.readVInt();
@@ -242,7 +265,7 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
                 sortValueFormats[i] = in.readNamedWriteable(DocValueFormat.class);
             }
         }
-        topDocs = readTopDocs(in);
+        setTopDocs(readTopDocs(in));
         if (hasAggs = in.readBoolean()) {
             aggregations = InternalAggregations.readAggregations(in);
         }
@@ -260,7 +283,7 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeLong(id);
+        out.writeLong(requestId);
         writeToNoId(out);
     }
 
@@ -292,5 +315,13 @@ public final class QuerySearchResult extends QuerySearchResultProvider {
         out.writeBoolean(searchTimedOut);
         out.writeOptionalBoolean(terminatedEarly);
         out.writeOptionalWriteable(profileShardResults);
+    }
+
+    public long getTotalHits() {
+        return totalHits;
+    }
+
+    public float getMaxScore() {
+        return maxScore;
     }
 }

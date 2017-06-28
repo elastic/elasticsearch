@@ -82,10 +82,10 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     public static void setCommonPropertiesOnRandomBuilder(SuggestionBuilder<?> randomSuggestion) {
-        randomSuggestion.text(randomAsciiOfLengthBetween(2, 20)); // have to set the text because we don't know if the global text was set
-        maybeSet(randomSuggestion::prefix, randomAsciiOfLengthBetween(2, 20));
-        maybeSet(randomSuggestion::regex, randomAsciiOfLengthBetween(2, 20));
-        maybeSet(randomSuggestion::analyzer, randomAsciiOfLengthBetween(2, 20));
+        randomSuggestion.text(randomAlphaOfLengthBetween(2, 20)); // have to set the text because we don't know if the global text was set
+        maybeSet(randomSuggestion::prefix, randomAlphaOfLengthBetween(2, 20));
+        maybeSet(randomSuggestion::regex, randomAlphaOfLengthBetween(2, 20));
+        maybeSet(randomSuggestion::analyzer, randomAlphaOfLengthBetween(2, 20));
         maybeSet(randomSuggestion::size, randomIntBetween(1, 20));
         maybeSet(randomSuggestion::shardSize, randomIntBetween(1, 20));
     }
@@ -146,16 +146,16 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         if (randomBoolean()) {
             switch (randomIntBetween(0, 5)) {
             case 0:
-                mutation.text(randomValueOtherThan(mutation.text(), () -> randomAsciiOfLengthBetween(2, 20)));
+                mutation.text(randomValueOtherThan(mutation.text(), () -> randomAlphaOfLengthBetween(2, 20)));
                 break;
             case 1:
-                mutation.prefix(randomValueOtherThan(mutation.prefix(), () -> randomAsciiOfLengthBetween(2, 20)));
+                mutation.prefix(randomValueOtherThan(mutation.prefix(), () -> randomAlphaOfLengthBetween(2, 20)));
                 break;
             case 2:
-                mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAsciiOfLengthBetween(2, 20)));
+                mutation.regex(randomValueOtherThan(mutation.regex(), () -> randomAlphaOfLengthBetween(2, 20)));
                 break;
             case 3:
-                mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAsciiOfLengthBetween(2, 20)));
+                mutation.analyzer(randomValueOtherThan(mutation.analyzer(), () -> randomAlphaOfLengthBetween(2, 20)));
                 break;
             case 4:
                 mutation.size(randomValueOtherThan(mutation.size(), () -> randomIntBetween(1, 20)));

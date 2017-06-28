@@ -165,14 +165,10 @@ Type name: `LMJelinekMercer`
 
 [float]
 [[default-base]]
-==== Default and Base Similarities
+==== Default Similarity
 
 By default, Elasticsearch will use whatever similarity is configured as
-`default`. However, the similarity functions `queryNorm()` and `coord()`
-are not per-field. Consequently, for expert users wanting to change the
-implementation used for these two methods, while not changing the
-`default`, it is possible to configure a similarity with the name
-`base`. This similarity will then be used for the two methods.
+`default`.
 
 You can change the default similarity for all fields in an index when
 it is <<indices-create-index,created>>:
@@ -185,7 +181,7 @@ PUT /my_index
     "index": {
       "similarity": {
         "default": {
-          "type": "classic"
+          "type": "boolean"
         }
       }
     }
@@ -205,7 +201,7 @@ PUT /my_index/_settings
     "index": {
       "similarity": {
         "default": {
-          "type": "classic"
+          "type": "boolean"
         }
       }
     }

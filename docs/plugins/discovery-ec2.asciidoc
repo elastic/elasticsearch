@@ -5,35 +5,8 @@ The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] f
 
 *If you are looking for a hosted solution of Elasticsearch on AWS, please visit http://www.elastic.co/cloud.*
 
-[[discovery-ec2-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install discovery-ec2
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/discovery-ec2/discovery-ec2-{version}.zip.
-
-[[discovery-ec2-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove discovery-ec2
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: discovery-ec2
+include::install_remove.asciidoc[]
 
 [[discovery-ec2-usage]]
 ==== Getting started with AWS

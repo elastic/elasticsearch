@@ -163,7 +163,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
-        List<GeoPoint> shell = new ArrayList<GeoPoint>();
+        List<GeoPoint> shell = new ArrayList<>(this.shell.size());
         for (GeoPoint geoPoint : this.shell) {
             shell.add(new GeoPoint(geoPoint));
         }

@@ -19,6 +19,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -33,10 +34,8 @@ public interface RecoveryTargetHandler {
      * Prepares the target to receive translog operations, after all file have been copied
      *
      * @param totalTranslogOps total translog operations expected to be sent
-     * @param maxUnsafeAutoIdTimestamp the max timestamp that is used to de-optimize documents with auto-generated IDs in the engine.
-     * This is used to ensure we don't add duplicate documents when we assume an append only case based on auto-generated IDs
      */
-    void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException;
+    void prepareForTranslogOperations(int totalTranslogOps) throws IOException;
 
     /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
@@ -52,11 +51,20 @@ public interface RecoveryTargetHandler {
     void ensureClusterStateVersion(long clusterStateVersion);
 
     /**
+     * Handoff the primary context between the relocation source and the relocation target.
+     *
+     * @param primaryContext the primary context from the relocation source
+     */
+    void handoffPrimaryContext(PrimaryContext primaryContext);
+
+    /**
      * Index a set of translog operations on the target
      * @param operations operations to index
      * @param totalTranslogOps current number of total operations expected to be indexed
+     *
+     * @return the local checkpoint on the target shard
      */
-    void indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps);
+    long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException;
 
     /**
      * Notifies the target of the files it is going to receive
@@ -78,10 +86,5 @@ public interface RecoveryTargetHandler {
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                         boolean lastChunk, int totalTranslogOps) throws IOException;
-
-    /***
-     * @return the allocation id of the target shard.
-     */
-    String getTargetAllocationId();
 
 }

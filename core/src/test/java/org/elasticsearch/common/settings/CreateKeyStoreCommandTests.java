@@ -34,7 +34,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new CreateKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Terminal terminal, Map<String, String> settings) {
+            protected Environment createEnv(Terminal terminal, Map<String, String> settings, Path configPath) {
                 return env;
             }
         };
@@ -47,7 +47,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testNotPosix() throws Exception {
-        setupEnv(false);
+        env = setupEnv(false, fileSystems);
         execute();
         Path configDir = env.configFile();
         assertNotNull(KeyStoreWrapper.load(configDir));

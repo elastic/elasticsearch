@@ -20,6 +20,8 @@
 package org.elasticsearch.index.search;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
+import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
@@ -49,6 +51,7 @@ import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -320,6 +323,32 @@ public class MatchQuery {
             return blendTermsQuery(terms, mapper);
         }
 
+        /**
+         * Checks if graph analysis should be enabled for the field depending
+         * on the provided {@link Analyzer}
+         */
+        protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
+                                         String queryText, boolean quoted, int phraseSlop) {
+            assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
+
+            // Use the analyzer to get all the tokens, and then build an appropriate
+            // query based on the analysis chain.
+            try (TokenStream source = analyzer.tokenStream(field, queryText)) {
+                if (source.hasAttribute(DisableGraphAttribute.class)) {
+                    /**
+                     * A {@link TokenFilter} in this {@link TokenStream} disabled the graph analysis to avoid
+                     * paths explosion. See {@link ShingleTokenFilterFactory} for details.
+                     */
+                    setEnableGraphQueries(false);
+                }
+                Query query = super.createFieldQuery(source, operator, field, quoted, phraseSlop);
+                setEnableGraphQueries(true);
+                return query;
+            } catch (IOException e) {
+                throw new RuntimeException("Error analyzing query text", e);
+            }
+        }
+
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
             final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
             return toMultiPhrasePrefix(query, phraseSlop, maxExpansions);
@@ -405,7 +434,7 @@ public class MatchQuery {
         private Query boolToExtendedCommonTermsQuery(BooleanQuery bq, Occur highFreqOccur, Occur lowFreqOccur, float
             maxTermFrequency, MappedFieldType fieldType) {
             ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency,
-                bq.isCoordDisabled(), fieldType);
+                fieldType);
             for (BooleanClause clause : bq.clauses()) {
                 if (!(clause.getQuery() instanceof TermQuery)) {
                     return bq;

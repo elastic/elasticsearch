@@ -30,7 +30,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BackoffPolicy;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource;
+import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
@@ -87,7 +87,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         lookupRemoteVersion(version -> {
             remoteVersion = version;
             execute("POST", initialSearchPath(searchRequest), initialSearchParams(searchRequest, version),
-                    initialSearchEntity(searchRequest, query), RESPONSE_PARSER, r -> onStartResponse(onResponse, r));
+                    initialSearchEntity(searchRequest, query, remoteVersion), RESPONSE_PARSER, r -> onStartResponse(onResponse, r));
         });
     }
 
@@ -106,13 +106,15 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
 
     @Override
     protected void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse) {
-        execute("POST", scrollPath(), scrollParams(timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos())),
-                scrollEntity(scrollId), RESPONSE_PARSER, onResponse);
+        Map<String, String> scrollParams = scrollParams(
+                timeValueNanos(searchRequest.scroll().keepAlive().nanos() + extraKeepAlive.nanos()),
+                remoteVersion);
+        execute("POST", scrollPath(), scrollParams, scrollEntity(scrollId, remoteVersion), RESPONSE_PARSER, onResponse);
     }
 
     @Override
     protected void clearScroll(String scrollId, Runnable onCompletion) {
-        client.performRequestAsync("DELETE", scrollPath(), emptyMap(), clearScrollEntity(scrollId), new ResponseListener() {
+        client.performRequestAsync("DELETE", scrollPath(), emptyMap(), clearScrollEntity(scrollId, remoteVersion), new ResponseListener() {
             @Override
             public void onSuccess(org.elasticsearch.client.Response response) {
                 logger.debug("Successfully cleared [{}]", scrollId);
@@ -128,7 +130,8 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             private void logFailure(Exception e) {
                 if (e instanceof ResponseException) {
                     ResponseException re = (ResponseException) e;
-                    if (remoteVersion.before(Version.V_2_0_0) && re.getResponse().getStatusLine().getStatusCode() == 404) {
+                            if (remoteVersion.before(Version.fromId(2000099))
+                                    && re.getResponse().getStatusLine().getStatusCode() == 404) {
                         logger.debug((Supplier<?>) () -> new ParameterizedMessage(
                                 "Failed to clear scroll [{}] from pre-2.0 Elasticsearch. This is normal if the request terminated "
                                         + "normally as the scroll has already been cleared automatically.", scrollId), e);

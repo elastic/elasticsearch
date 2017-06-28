@@ -280,13 +280,14 @@ Ordering the buckets alphabetically by their terms in an ascending manner:
         "genres" : {
             "terms" : {
                 "field" : "genre",
-                "order" : { "_term" : "asc" }
+                "order" : { "_key" : "asc" }
             }
         }
     }
 }
 --------------------------------------------------
 
+deprecated[6.0.0, Use `_key` instead of `_term` to order buckets by their term]
 
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
 
@@ -459,7 +460,7 @@ Generating the terms using a script:
         "genres" : {
             "terms" : {
                 "script" : {
-                    "inline": "doc['genre'].value",
+                    "source": "doc['genre'].value",
                     "lang": "painless"
                 }
             }
@@ -468,7 +469,7 @@ Generating the terms using a script:
 }
 --------------------------------------------------
 
-This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a file script use the following syntax:
+This will interpret the `script` parameter as an `inline` script with the default script language and no script parameters. To use a stored script use the following syntax:
 
 [source,js]
 --------------------------------------------------
@@ -477,7 +478,7 @@ This will interpret the `script` parameter as an `inline` script with the defaul
         "genres" : {
             "terms" : {
                 "script" : {
-                    "file": "my_script",
+                    "id": "my_script",
                     "params": {
                         "field": "genre"
                     }
@@ -487,9 +488,6 @@ This will interpret the `script` parameter as an `inline` script with the defaul
     }
 }
 --------------------------------------------------
-
-TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
-
 
 ==== Value Script
 
@@ -501,7 +499,7 @@ TIP: for indexed scripts replace the `file` parameter with an `id` parameter.
             "terms" : {
                 "field" : "gender",
                 "script" : {
-                    "inline" : "'Genre: ' +_value"
+                    "source" : "'Genre: ' +_value"
                     "lang" : "painless"
                 }
             }

@@ -236,6 +236,15 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         @Override
         protected BytesRef indexedValueForSearch(Object value) {
+            if (searchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
+                // keyword analyzer with the default attribute source which encodes terms using UTF8
+                // in that case we skip normalization, which may be slow if there many terms need to
+                // parse (eg. large terms query) since Analyzer.normalize involves things like creating
+                // attributes through reflection
+                // This if statement will be used whenever a normalizer is NOT configured
+                return super.indexedValueForSearch(value);
+            }
+
             if (value == null) {
                 return null;
             }

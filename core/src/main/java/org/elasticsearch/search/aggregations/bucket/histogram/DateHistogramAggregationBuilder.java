@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.DateTimeUnit;
@@ -28,10 +27,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -44,6 +45,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -113,8 +115,8 @@ public class DateHistogramAggregationBuilder
         PARSER.declareField(DateHistogramAggregationBuilder::extendedBounds, parser -> ExtendedBounds.PARSER.apply(parser, null),
                 ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
 
-        PARSER.declareField(DateHistogramAggregationBuilder::order, DateHistogramAggregationBuilder::parseOrder,
-                Histogram.ORDER_FIELD, ObjectParser.ValueType.OBJECT);
+        PARSER.declareObjectArray(DateHistogramAggregationBuilder::order, InternalOrder.Parser::parseOrderParam,
+                Histogram.ORDER_FIELD);
     }
 
     public static DateHistogramAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
@@ -125,7 +127,7 @@ public class DateHistogramAggregationBuilder
     private DateHistogramInterval dateHistogramInterval;
     private long offset = 0;
     private ExtendedBounds extendedBounds;
-    private InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
+    private BucketOrder order = BucketOrder.key(true);
     private boolean keyed = false;
     private long minDocCount = 0;
 
@@ -137,9 +139,7 @@ public class DateHistogramAggregationBuilder
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
         super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
-        if (in.readBoolean()) {
-            order = InternalOrder.Streams.readOrder(in);
-        }
+        order = InternalOrder.Streams.readHistogramOrder(in, true);
         keyed = in.readBoolean();
         minDocCount = in.readVLong();
         interval = in.readLong();
@@ -150,11 +150,7 @@ public class DateHistogramAggregationBuilder
 
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
-        boolean hasOrder = order != null;
-        out.writeBoolean(hasOrder);
-        if (hasOrder) {
-            InternalOrder.Streams.writeOrder(order, out);
-        }
+        InternalOrder.Streams.writeHistogramOrder(order, out, true);
         out.writeBoolean(keyed);
         out.writeVLong(minDocCount);
         out.writeLong(interval);
@@ -164,7 +160,7 @@ public class DateHistogramAggregationBuilder
     }
 
     /** Get the current interval in milliseconds that is set on this builder. */
-    public double interval() {
+    public long interval() {
         return interval;
     }
 
@@ -196,7 +192,7 @@ public class DateHistogramAggregationBuilder
     }
 
     /** Get the offset to use when rounding, which is a number of milliseconds. */
-    public double offset() {
+    public long offset() {
         return offset;
     }
 
@@ -244,17 +240,34 @@ public class DateHistogramAggregationBuilder
     }
 
     /** Return the order to use to sort buckets of this histogram. */
-    public Histogram.Order order() {
+    public BucketOrder order() {
         return order;
     }
 
     /** Set a new order on this builder and return the builder so that calls
-     *  can be chained. */
-    public DateHistogramAggregationBuilder order(Histogram.Order order) {
+     *  can be chained. A tie-breaker may be added to avoid non-deterministic ordering. */
+    public DateHistogramAggregationBuilder order(BucketOrder order) {
         if (order == null) {
             throw new IllegalArgumentException("[order] must not be null: [" + name + "]");
         }
-        this.order = (InternalOrder) order;
+        if(order instanceof CompoundOrder || InternalOrder.isKeyOrder(order)) {
+            this.order = order; // if order already contains a tie-breaker we are good to go
+        } else { // otherwise add a tie-breaker by using a compound order
+            this.order = BucketOrder.compound(order);
+        }
+        return this;
+    }
+
+    /**
+     * Sets the order in which the buckets will be returned. A tie-breaker may be added to avoid non-deterministic
+     * ordering.
+     */
+    public DateHistogramAggregationBuilder order(List<BucketOrder> orders) {
+        if (orders == null) {
+            throw new IllegalArgumentException("[orders] must not be null: [" + name + "]");
+        }
+        // if the list only contains one order use that to avoid inconsistent xcontent
+        order(orders.size() > 1 ? BucketOrder.compound(orders) : orders.get(0));
         return this;
     }
 
@@ -369,36 +382,5 @@ public class DateHistogramAggregationBuilder
                 && Objects.equals(dateHistogramInterval, other.dateHistogramInterval)
                 && Objects.equals(offset, other.offset)
                 && Objects.equals(extendedBounds, other.extendedBounds);
-    }
-
-    // similar to the parsing oh histogram orders, but also accepts _time as an alias for _key
-    private static InternalOrder parseOrder(XContentParser parser, QueryParseContext context) throws IOException {
-        InternalOrder order = null;
-        Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                String dir = parser.text();
-                boolean asc = "asc".equals(dir);
-                if (!asc && !"desc".equals(dir)) {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown order direction: [" + dir
-                            + "]. Should be either [asc] or [desc]");
-                }
-                order = resolveOrder(currentFieldName, asc);
-            }
-        }
-        return order;
-    }
-
-    static InternalOrder resolveOrder(String key, boolean asc) {
-        if ("_key".equals(key) || "_time".equals(key)) {
-            return (InternalOrder) (asc ? InternalOrder.KEY_ASC : InternalOrder.KEY_DESC);
-        }
-        if ("_count".equals(key)) {
-            return (InternalOrder) (asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC);
-        }
-        return new InternalOrder.Aggregation(key, asc);
     }
 }

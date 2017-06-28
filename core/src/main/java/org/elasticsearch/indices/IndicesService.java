@@ -55,7 +55,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -63,7 +62,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -121,7 +119,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -183,7 +180,7 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
-                          ClusterSettings clusterSettings, AnalysisRegistry analysisRegistry,
+                          AnalysisRegistry analysisRegistry,
                           IndexNameExpressionResolver indexNameExpressionResolver,
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry,
                           ThreadPool threadPool, IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService,
@@ -374,7 +371,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * @throws ResourceAlreadyExistsException if the index already exists.
      */
     @Override
-    public synchronized IndexService createIndex(IndexMetaData indexMetaData, List<IndexEventListener> builtInListeners, Consumer<ShardId> globalCheckpointSyncer) throws IOException {
+    public synchronized IndexService createIndex(IndexMetaData indexMetaData, List<IndexEventListener> builtInListeners) throws IOException {
         ensureChangesAllowed();
         if (indexMetaData.getIndexUUID().equals(IndexMetaData.INDEX_UUID_NA_VALUE)) {
             throw new IllegalArgumentException("index must have a real UUID found value: [" + indexMetaData.getIndexUUID() + "]");
@@ -399,8 +396,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 indicesQueryCache,
                 indicesFieldDataCache,
                 finalListeners,
-                globalCheckpointSyncer,
-                indexingMemoryController);
+                    indexingMemoryController);
         boolean success = false;
         try {
             indexService.getIndexEventListener().afterIndexCreated(indexService);
@@ -421,15 +417,13 @@ public class IndicesService extends AbstractLifecycleComponent
                                                          IndexMetaData indexMetaData, IndicesQueryCache indicesQueryCache,
                                                          IndicesFieldDataCache indicesFieldDataCache,
                                                          List<IndexEventListener> builtInListeners,
-                                                         Consumer<ShardId> globalCheckpointSyncer,
                                                          IndexingOperationListener... indexingOperationListeners) throws IOException {
-        final Index index = indexMetaData.getIndex();
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopeSetting);
-        logger.debug("creating Index [{}], shards [{}]/[{}{}] - reason [{}]",
+        logger.debug("creating Index [{}], shards [{}]/[{}] - reason [{}]",
             indexMetaData.getIndex(),
             idxSettings.getNumberOfShards(),
             idxSettings.getNumberOfReplicas(),
-            idxSettings.isShadowReplicaIndex() ? "s" : "", reason);
+            reason);
 
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
@@ -440,19 +434,17 @@ public class IndicesService extends AbstractLifecycleComponent
             indexModule.addIndexEventListener(listener);
         }
         return indexModule.newIndexService(
-            nodeEnv,
-            xContentRegistry,
-            this,
-            circuitBreakerService,
-            bigArrays,
-            threadPool,
-            scriptService,
-            clusterService,
-            client,
-            indicesQueryCache,
-            mapperRegistry,
-            globalCheckpointSyncer,
-            indicesFieldDataCache);
+                nodeEnv,
+                xContentRegistry,
+                this,
+                circuitBreakerService,
+                bigArrays,
+                threadPool,
+                scriptService,
+                client,
+                indicesQueryCache,
+                mapperRegistry,
+                indicesFieldDataCache);
     }
 
     /**
@@ -483,7 +475,7 @@ public class IndicesService extends AbstractLifecycleComponent
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service =
-                createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache, emptyList(), s -> {});
+                createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache, emptyList());
             closeables.add(() -> service.close("metadata verification", false));
             service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
             if (metaData.equals(metaDataUpdate) == false) {
@@ -497,7 +489,7 @@ public class IndicesService extends AbstractLifecycleComponent
     @Override
     public IndexShard createShard(ShardRouting shardRouting, RecoveryState recoveryState, PeerRecoveryTargetService recoveryTargetService,
                                   PeerRecoveryTargetService.RecoveryListener recoveryListener, RepositoriesService repositoriesService,
-                                  Callback<IndexShard.ShardFailure> onShardFailure) throws IOException {
+                                  Consumer<IndexShard.ShardFailure> onShardFailure) throws IOException {
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         IndexShard indexShard = indexService.createShard(shardRouting);
@@ -733,16 +725,11 @@ public class IndicesService extends AbstractLifecycleComponent
      * @return true if the index can be deleted on this node
      */
     public boolean canDeleteIndexContents(Index index, IndexSettings indexSettings) {
-        // index contents can be deleted if the index is not on a shared file system,
-        // or if its on a shared file system but its an already closed index (so all
-        // its resources have already been relinquished)
-        if (indexSettings.isOnSharedFilesystem() == false || indexSettings.getIndexMetaData().getState() == IndexMetaData.State.CLOSE) {
-            final IndexService indexService = indexService(index);
-            if (indexService == null && nodeEnv.hasNodeFile()) {
-                return true;
-            }
-        } else {
-            logger.trace("{} skipping index directory deletion due to shadow replicas", index);
+        // index contents can be deleted if its an already closed index (so all its resources have
+        // already been relinquished)
+        final IndexService indexService = indexService(index);
+        if (indexService == null && nodeEnv.hasNodeFile()) {
+            return true;
         }
         return false;
     }
@@ -790,7 +777,6 @@ public class IndicesService extends AbstractLifecycleComponent
         FOLDER_FOUND_CAN_DELETE, // shard data exists and can be deleted
         STILL_ALLOCATED, // the shard is still allocated / active on this node
         NO_FOLDER_FOUND, // the shards data locations do not exist
-        SHARED_FILE_SYSTEM, // the shard is located on shared and should not be deleted
         NO_LOCAL_STORAGE // node does not have local storage (see DiscoveryNode.nodeRequiresLocalStorage)
     }
 
@@ -803,30 +789,25 @@ public class IndicesService extends AbstractLifecycleComponent
     public ShardDeletionCheckResult canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
         assert shardId.getIndex().equals(indexSettings.getIndex());
         final IndexService indexService = indexService(shardId.getIndex());
-        if (indexSettings.isOnSharedFilesystem() == false) {
-           if (nodeEnv.hasNodeFile()) {
-                final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
-                if (isAllocated) {
-                    return ShardDeletionCheckResult.STILL_ALLOCATED; // we are allocated - can't delete the shard
-                } else if (indexSettings.hasCustomDataPath()) {
-                    // lets see if it's on a custom path (return false if the shared doesn't exist)
-                    // we don't need to delete anything that is not there
-                    return Files.exists(nodeEnv.resolveCustomLocation(indexSettings, shardId)) ?
+        if (nodeEnv.hasNodeFile()) {
+            final boolean isAllocated = indexService != null && indexService.hasShard(shardId.id());
+            if (isAllocated) {
+                return ShardDeletionCheckResult.STILL_ALLOCATED; // we are allocated - can't delete the shard
+            } else if (indexSettings.hasCustomDataPath()) {
+                // lets see if it's on a custom path (return false if the shared doesn't exist)
+                // we don't need to delete anything that is not there
+                return Files.exists(nodeEnv.resolveCustomLocation(indexSettings, shardId)) ?
                         ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
                         ShardDeletionCheckResult.NO_FOLDER_FOUND;
-                } else {
-                    // lets see if it's path is available (return false if the shared doesn't exist)
-                    // we don't need to delete anything that is not there
-                    return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)) ?
-                        ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
-                        ShardDeletionCheckResult.NO_FOLDER_FOUND;
-                }
             } else {
-               return ShardDeletionCheckResult.NO_LOCAL_STORAGE;
-           }
+                // lets see if it's path is available (return false if the shared doesn't exist)
+                // we don't need to delete anything that is not there
+                return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId)) ?
+                        ShardDeletionCheckResult.FOLDER_FOUND_CAN_DELETE :
+                        ShardDeletionCheckResult.NO_FOLDER_FOUND;
+            }
         } else {
-            logger.trace("{} skipping shard directory deletion due to shadow replicas", shardId);
-            return ShardDeletionCheckResult.SHARED_FILE_SYSTEM;
+            return ShardDeletionCheckResult.NO_LOCAL_STORAGE;
         }
     }
 
@@ -1145,7 +1126,7 @@ public class IndicesService extends AbstractLifecycleComponent
             final QuerySearchResult result = context.queryResult();
             StreamInput in = new NamedWriteableAwareStreamInput(bytesReference.streamInput(), namedWriteableRegistry);
             result.readFromWithId(context.id(), in);
-            result.shardTarget(context.shardTarget());
+            result.setSearchShardTarget(context.shardTarget());
         } else if (context.queryResult().searchTimedOut()) {
             // we have to invalidate the cache entry if we cached a query result form a request that timed out.
             // we can't really throw exceptions in the loading part to signal a timed out search to the outside world since if there are

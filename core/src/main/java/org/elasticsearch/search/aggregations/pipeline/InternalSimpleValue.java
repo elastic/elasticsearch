@@ -25,15 +25,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
-import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalSimpleValue extends InternalNumericMetricsAggregation.SingleValue implements SimpleValue {
     public static final String NAME = "simple_value";
-    private final double value;
+    protected final double value;
 
     public InternalSimpleValue(String name, double value, DocValueFormat formatter, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) {
@@ -72,7 +72,7 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
     }
 
     @Override
-    public InternalMax doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalSimpleValue doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 
@@ -84,5 +84,16 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value));
         }
         return builder;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(value);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalSimpleValue other = (InternalSimpleValue) obj;
+        return Objects.equals(value, other.value);
     }
 }

@@ -36,15 +36,16 @@ import java.util.Date;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class MainResponseTests extends ESTestCase {
 
     public static MainResponse createTestItem() {
-        String clusterUuid = randomAsciiOfLength(10);
-        ClusterName clusterName = new ClusterName(randomAsciiOfLength(10));
-        String nodeName = randomAsciiOfLength(10);
-        Build build = new Build(randomAsciiOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
+        String clusterUuid = randomAlphaOfLength(10);
+        ClusterName clusterName = new ClusterName(randomAlphaOfLength(10));
+        String nodeName = randomAlphaOfLength(10);
+        Build build = new Build(randomAlphaOfLength(8), new Date(randomNonNegativeLong()).toString(), randomBoolean());
         Version version = VersionUtils.randomVersion(random());
         boolean available = randomBoolean();
         return new MainResponse(nodeName, version, clusterName, clusterUuid , build, available);
@@ -54,9 +55,11 @@ public class MainResponseTests extends ESTestCase {
         MainResponse mainResponse = createTestItem();
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(mainResponse, xContentType, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(mainResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        // we add a few random fields to check that parser is lenient on new fields
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, null, random());
         MainResponse parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             parsed = MainResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
@@ -72,7 +75,7 @@ public class MainResponseTests extends ESTestCase {
 
     public void testToXContent() throws IOException {
         Build build = new Build("buildHash", "2016-11-15".toString(), true);
-        Version version = Version.V_2_4_5;
+        Version version = Version.CURRENT;
         MainResponse response = new MainResponse("nodeName", version, new ClusterName("clusterName"), "clusterUuid", build, true);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -81,11 +84,11 @@ public class MainResponseTests extends ESTestCase {
                 + "\"cluster_name\":\"clusterName\","
                 + "\"cluster_uuid\":\"clusterUuid\","
                 + "\"version\":{"
-                    + "\"number\":\"2.4.5\","
+                    + "\"number\":\"" + version.toString() + "\","
                     + "\"build_hash\":\"buildHash\","
                     + "\"build_date\":\"2016-11-15\","
                     + "\"build_snapshot\":true,"
-                    + "\"lucene_version\":\"5.5.2\"},"
+                    + "\"lucene_version\":\"" + version.luceneVersion.toString() + "\"},"
                 + "\"tagline\":\"You Know, for Search\""
           + "}", builder.string());
     }
@@ -108,10 +111,10 @@ public class MainResponseTests extends ESTestCase {
         ClusterName clusterName = o.getClusterName();
         switch (randomIntBetween(0, 5)) {
         case 0:
-            clusterUuid = clusterUuid + randomAsciiOfLength(5);
+            clusterUuid = clusterUuid + randomAlphaOfLength(5);
             break;
         case 1:
-            nodeName = nodeName + randomAsciiOfLength(5);
+            nodeName = nodeName + randomAlphaOfLength(5);
             break;
         case 2:
             available = !available;
@@ -124,7 +127,7 @@ public class MainResponseTests extends ESTestCase {
             version = randomValueOtherThan(version, () -> VersionUtils.randomVersion(random()));
             break;
         case 5:
-            clusterName = new ClusterName(clusterName + randomAsciiOfLength(5));
+            clusterName = new ClusterName(clusterName + randomAlphaOfLength(5));
             break;
         }
         return new MainResponse(nodeName, version, clusterName, clusterUuid, build, available);

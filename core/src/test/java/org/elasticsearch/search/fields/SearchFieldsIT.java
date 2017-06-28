@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fields;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -43,6 +44,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
@@ -81,7 +83,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(CustomScriptPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -639,10 +641,10 @@ public class SearchFieldsIT extends ESIntegTestCase {
 
     public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
-                .setSettings(Settings.builder().put("index.refresh_interval", -1))
-                .addMapping("my-type2", jsonBuilder()
+                .setSettings("index.refresh_interval", -1)
+                .addMapping("doc", jsonBuilder()
                         .startObject()
-                            .startObject("my-type2")
+                            .startObject("doc")
                                 .startObject("properties")
                                     .startObject("field1")
                                         .field("type", "object")
@@ -691,19 +693,12 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .endArray()
                 .endObject().bytes();
 
-        client().prepareIndex("my-index", "my-type1", "1").setSource(source, XContentType.JSON).get();
-        client().prepareIndex("my-index", "my-type2", "1").setRefreshPolicy(IMMEDIATE).setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index", "doc", "1").setRefreshPolicy(IMMEDIATE).setSource(source, XContentType.JSON).get();
 
 
         String field = "field1.field2.field3.field4";
-        SearchResponse searchResponse = client().prepareSearch("my-index").setTypes("my-type1").addStoredField(field).get();
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
-        assertThat(searchResponse.getHits().getAt(0).field(field).isMetadataField(), equalTo(false));
-        assertThat(searchResponse.getHits().getAt(0).field(field).getValues().size(), equalTo(2));
-        assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(0).toString(), equalTo("value1"));
-        assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(1).toString(), equalTo("value2"));
 
-        searchResponse = client().prepareSearch("my-index").setTypes("my-type2").addStoredField(field).get();
+        SearchResponse searchResponse = client().prepareSearch("my-index").addStoredField(field).get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         assertThat(searchResponse.getHits().getAt(0).field(field).isMetadataField(), equalTo(false));
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().size(), equalTo(2));
@@ -870,14 +865,11 @@ public class SearchFieldsIT extends ESIntegTestCase {
     }
 
     public void testLoadMetadata() throws Exception {
-        assertAcked(prepareCreate("test")
-                .addMapping("parent")
-                .addMapping("my-type1", "_parent", "type=parent"));
+        assertAcked(prepareCreate("test"));
 
         indexRandom(true,
-                client().prepareIndex("test", "my-type1", "1")
+                client().prepareIndex("test", "doc", "1")
                         .setRouting("1")
-                        .setParent("parent_1")
                         .setSource(jsonBuilder().startObject().field("field1", "value").endObject()));
 
         SearchResponse response = client().prepareSearch("test").addStoredField("field1").get();
@@ -889,7 +881,5 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(fields.get("field1"), nullValue());
         assertThat(fields.get("_routing").isMetadataField(), equalTo(true));
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
-        assertThat(fields.get("_parent").isMetadataField(), equalTo(true));
-        assertThat(fields.get("_parent").getValue().toString(), equalTo("parent_1"));
     }
 }

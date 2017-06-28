@@ -52,4 +52,14 @@ integTestCluster {
   setting 'tribe.two.http.enabled', 'true'
   setting 'tribe.two.http.port', '40250-40299'
   setting 'tribe.two.transport.tcp.port', '40250-40399'
+
+  waitCondition = { node, ant ->
+    File tmpFile = new File(node.cwd, 'wait.success')
+    // 5 nodes: tribe + clusterOne (1 node + tribe internal node) + clusterTwo (1 node + tribe internal node)
+    ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=5&wait_for_status=yellow",
+            dest: tmpFile.toString(),
+            ignoreerrors: true,
+            retries: 10)
+    return tmpFile.exists()
+  }
 }

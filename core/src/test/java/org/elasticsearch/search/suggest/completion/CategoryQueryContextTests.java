@@ -28,7 +28,7 @@ public class CategoryQueryContextTests extends QueryContextTestCase<CategoryQuer
 
     public static CategoryQueryContext randomCategoryQueryContext() {
         final CategoryQueryContext.Builder builder = CategoryQueryContext.builder();
-        builder.setCategory(randomAsciiOfLength(10));
+        builder.setCategory(randomAlphaOfLength(10));
         maybeSet(builder::setBoost, randomIntBetween(1, 10));
         maybeSet(builder::setPrefix, randomBoolean());
         return builder.build();

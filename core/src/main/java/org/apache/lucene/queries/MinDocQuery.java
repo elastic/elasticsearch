@@ -57,8 +57,8 @@ public final class MinDocQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
-        return new ConstantScoreWeight(this) {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores, float boost) throws IOException {
+        return new ConstantScoreWeight(this, boost) {
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
@@ -66,45 +66,53 @@ public final class MinDocQuery extends Query {
                     return null;
                 }
                 final int segmentMinDoc = Math.max(0, minDoc - context.docBase);
-                final DocIdSetIterator disi = new DocIdSetIterator() {
-
-                    int doc = -1;
-
-                    @Override
-                    public int docID() {
-                        return doc;
-                    }
-
-                    @Override
-                    public int nextDoc() throws IOException {
-                        return advance(doc + 1);
-                    }
-
-                    @Override
-                    public int advance(int target) throws IOException {
-                        assert target > doc;
-                        if (doc == -1) {
-                            // skip directly to minDoc
-                            doc = Math.max(target, segmentMinDoc);
-                        } else {
-                            doc = target;
-                        }
-                        if (doc >= maxDoc) {
-                            doc = NO_MORE_DOCS;
-                        }
-                        return doc;
-                    }
-
-                    @Override
-                    public long cost() {
-                        return maxDoc - segmentMinDoc;
-                    }
-
-                };
+                final DocIdSetIterator disi = new MinDocIterator(segmentMinDoc, maxDoc);
                 return new ConstantScoreScorer(this, score(), disi);
             }
         };
     }
+
+    static class MinDocIterator extends DocIdSetIterator {
+        final int segmentMinDoc;
+        final int maxDoc;
+        int doc = -1;
+
+        MinDocIterator(int segmentMinDoc, int maxDoc) {
+            this.segmentMinDoc = segmentMinDoc;
+            this.maxDoc = maxDoc;
+        }
+
+        @Override
+        public int docID() {
+            return doc;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return advance(doc + 1);
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            assert target > doc;
+            if (doc == -1) {
+                // skip directly to minDoc
+                doc = Math.max(target, segmentMinDoc);
+            } else {
+                doc = target;
+            }
+            if (doc >= maxDoc) {
+                doc = NO_MORE_DOCS;
+            }
+            return doc;
+        }
+
+        @Override
+        public long cost() {
+            return maxDoc - segmentMinDoc;
+        }
+    }
+
 
     @Override
     public String toString(String field) {

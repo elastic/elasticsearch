@@ -63,7 +63,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         assertParseSearchSource(testSearchSourceBuilder, createParser(builder));
     }
 
-    private void assertParseSearchSource(SearchSourceBuilder testBuilder, XContentParser parser) throws IOException {
+    private static void assertParseSearchSource(SearchSourceBuilder testBuilder, XContentParser parser) throws IOException {
         QueryParseContext parseContext = new QueryParseContext(parser);
         if (randomBoolean()) {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to

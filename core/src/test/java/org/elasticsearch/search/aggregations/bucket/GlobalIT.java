@@ -22,6 +22,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -82,11 +83,11 @@ public class GlobalIT extends ESIntegTestCase {
         assertThat(global, notNullValue());
         assertThat(global.getName(), equalTo("global"));
         assertThat(global.getDocCount(), equalTo((long) numDocs));
-        assertThat((long) global.getProperty("_count"), equalTo((long) numDocs));
+        assertThat((long) ((InternalAggregation)global).getProperty("_count"), equalTo((long) numDocs));
         assertThat(global.getAggregations().asList().isEmpty(), is(false));
 
         Stats stats = global.getAggregations().get("value_stats");
-        assertThat((Stats) global.getProperty("value_stats"), sameInstance(stats));
+        assertThat((Stats) ((InternalAggregation)global).getProperty("value_stats"), sameInstance(stats));
         assertThat(stats, notNullValue());
         assertThat(stats.getName(), equalTo("value_stats"));
         long sum = 0;

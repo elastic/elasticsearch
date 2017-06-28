@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -140,7 +140,7 @@ public class ActiveShardsObserverIT extends ESIntegTestCase {
                                 .build();
 
         logger.info("--> start the index creation process");
-        ListenableActionFuture<CreateIndexResponse> responseListener =
+        ActionFuture<CreateIndexResponse> responseListener =
             prepareCreate(indexName)
                 .setSettings(settings)
                 .setWaitForActiveShards(ActiveShardCount.ALL)

@@ -31,6 +31,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -41,6 +42,8 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -51,13 +54,18 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
@@ -78,7 +86,6 @@ public class RecoverySourceHandler {
     protected final Logger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
-    private final String indexName;
     private final int shardId;
     // Request containing source and target node information
     private final StartRecoveryRequest request;
@@ -116,11 +123,14 @@ public class RecoverySourceHandler {
         this.request = request;
         this.currentClusterStateVersionSupplier = currentClusterStateVersionSupplier;
         this.delayNewRecoveries = delayNewRecoveries;
-        this.indexName = this.request.shardId().getIndex().getName();
         this.shardId = this.request.shardId().id();
         this.logger = Loggers.getLogger(getClass(), nodeSettings, request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.response = new RecoveryResponse();
+    }
+
+    public StartRecoveryRequest getRequest() {
+        return request;
     }
 
     /**
@@ -128,28 +138,33 @@ public class RecoverySourceHandler {
      */
     public RecoveryResponse recoverToTarget() throws IOException {
         try (Translog.View translogView = shard.acquireTranslogView()) {
-            logger.trace("captured translog id [{}] for recovery", translogView.minTranslogGeneration());
 
+            final long startingSeqNo;
             boolean isSequenceNumberBasedRecoveryPossible = request.startingSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO &&
                 isTranslogReadyForSequenceNumberBasedRecovery(translogView);
 
             if (isSequenceNumberBasedRecoveryPossible) {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
+                startingSeqNo = request.startingSeqNo();
             } else {
-                final IndexCommit phase1Snapshot;
+                final Engine.IndexCommitRef phase1Snapshot;
                 try {
                     phase1Snapshot = shard.acquireIndexCommit(false);
                 } catch (final Exception e) {
                     IOUtils.closeWhileHandlingException(translogView);
                     throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
                 }
+                // we set this to unassigned to create a translog roughly according to the retention policy
+                // on the target
+                startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+
                 try {
-                    phase1(phase1Snapshot, translogView);
+                    phase1(phase1Snapshot.getIndexCommit(), translogView, startingSeqNo);
                 } catch (final Exception e) {
                     throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
                 } finally {
                     try {
-                        shard.releaseIndexCommit(phase1Snapshot);
+                        IOUtils.close(phase1Snapshot);
                     } catch (final IOException ex) {
                         logger.warn("releasing snapshot caused exception", ex);
                     }
@@ -157,7 +172,7 @@ public class RecoverySourceHandler {
             }
 
             try {
-                prepareTargetForTranslog(translogView.totalOperations(), shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp());
+                prepareTargetForTranslog(translogView.estimateTotalOperations(startingSeqNo));
             } catch (final Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e);
             }
@@ -180,15 +195,15 @@ public class RecoverySourceHandler {
                 throw new IndexShardRelocatedException(request.shardId());
             }
 
-            logger.trace("snapshot translog for recovery; current size is [{}]", translogView.totalOperations());
+            logger.trace("snapshot translog for recovery; current size is [{}]", translogView.estimateTotalOperations(startingSeqNo));
+            final long targetLocalCheckpoint;
             try {
-                phase2(isSequenceNumberBasedRecoveryPossible ? request.startingSeqNo() : SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                    translogView.snapshot());
+                targetLocalCheckpoint = phase2(startingSeqNo, translogView.snapshot(startingSeqNo));
             } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
             }
 
-            finalizeRecovery();
+            finalizeRecovery(targetLocalCheckpoint);
         }
         return response;
     }
@@ -217,7 +232,7 @@ public class RecoverySourceHandler {
             logger.trace("all operations up to [{}] completed, checking translog content", endingSeqNo);
 
             final LocalCheckpointTracker tracker = new LocalCheckpointTracker(shard.indexSettings(), startingSeqNo, startingSeqNo - 1);
-            final Translog.Snapshot snapshot = translogView.snapshot();
+            final Translog.Snapshot snapshot = translogView.snapshot(startingSeqNo);
             Translog.Operation operation;
             while ((operation = snapshot.next()) != null) {
                 if (operation.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
@@ -242,7 +257,7 @@ public class RecoverySourceHandler {
      * segments that are missing. Only segments that have the same size and
      * checksum can be reused
      */
-    public void phase1(final IndexCommit snapshot, final Translog.View translogView) {
+    public void phase1(final IndexCommit snapshot, final Translog.View translogView, final long startSeqNo) {
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
@@ -320,10 +335,10 @@ public class RecoverySourceHandler {
                         new ByteSizeValue(totalSize), response.phase1ExistingFileNames.size(), new ByteSizeValue(existingTotalSize));
                 cancellableThreads.execute(() ->
                         recoveryTarget.receiveFileInfo(response.phase1FileNames, response.phase1FileSizes, response.phase1ExistingFileNames,
-                                response.phase1ExistingFileSizes, translogView.totalOperations()));
+                                response.phase1ExistingFileSizes, translogView.estimateTotalOperations(startSeqNo)));
                 // How many bytes we've copied since we last called RateLimiter.pause
                 final Function<StoreFileMetaData, OutputStream> outputStreamFactories =
-                        md -> new BufferedOutputStream(new RecoveryOutputStream(md, translogView), chunkSizeInBytes);
+                        md -> new BufferedOutputStream(new RecoveryOutputStream(md, translogView, startSeqNo), chunkSizeInBytes);
                 sendFiles(store, phase1Files.toArray(new StoreFileMetaData[phase1Files.size()]), outputStreamFactories);
                 // Send the CLEAN_FILES request, which takes all of the files that
                 // were transferred and renames them from their temporary file
@@ -334,7 +349,8 @@ public class RecoverySourceHandler {
                 // related to this recovery (out of date segments, for example)
                 // are deleted
                 try {
-                    cancellableThreads.executeIO(() -> recoveryTarget.cleanFiles(translogView.totalOperations(), recoverySourceMetadata));
+                    cancellableThreads.executeIO(() ->
+                        recoveryTarget.cleanFiles(translogView.estimateTotalOperations(startSeqNo), recoverySourceMetadata));
                 } catch (RemoteTransportException | IOException targetException) {
                     final IOException corruptIndexException;
                     // we realized that after the index was copied and we wanted to finalize the recovery
@@ -345,11 +361,8 @@ public class RecoverySourceHandler {
                         try {
                             final Store.MetadataSnapshot recoverySourceMetadata1 = store.getMetadata(snapshot);
                             StoreFileMetaData[] metadata =
-                                    StreamSupport.stream(recoverySourceMetadata1.spliterator(), false).toArray(size -> new
-                                            StoreFileMetaData[size]);
-                            ArrayUtil.timSort(metadata, (o1, o2) -> {
-                                return Long.compare(o1.length(), o2.length()); // check small files first
-                            });
+                                    StreamSupport.stream(recoverySourceMetadata1.spliterator(), false).toArray(StoreFileMetaData[]::new);
+                            ArrayUtil.timSort(metadata, Comparator.comparingLong(StoreFileMetaData::length)); // check small files first
                             for (StoreFileMetaData md : metadata) {
                                 cancellableThreads.checkForCancel();
                                 logger.debug("checking integrity for file {} after remove corruption exception", md);
@@ -389,13 +402,13 @@ public class RecoverySourceHandler {
         }
     }
 
-    void prepareTargetForTranslog(final int totalTranslogOps, final long maxUnsafeAutoIdTimestamp) throws IOException {
+    void prepareTargetForTranslog(final int totalTranslogOps) throws IOException {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("recovery [phase1]: prepare remote engine for translog");
         final long startEngineStart = stopWatch.totalTime().millis();
         // Send a request preparing the new shard's translog to receive operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes.
-        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp));
+        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps));
         stopWatch.stop();
 
         response.startTime = stopWatch.totalTime().millis() - startEngineStart;
@@ -412,8 +425,10 @@ public class RecoverySourceHandler {
      * @param startingSeqNo the sequence number to start recovery from, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if all
      *                      ops should be sent
      * @param snapshot      a snapshot of the translog
+     *
+     * @return the local checkpoint on the target
      */
-    void phase2(final long startingSeqNo, final Translog.Snapshot snapshot) throws IOException {
+    long phase2(final long startingSeqNo, final Translog.Snapshot snapshot) throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -424,18 +439,19 @@ public class RecoverySourceHandler {
         logger.trace("recovery [phase2]: sending transaction log operations");
 
         // send all the snapshot's translog operations to the target
-        final int totalOperations = sendSnapshot(startingSeqNo, snapshot);
+        final SendSnapshotResult result = sendSnapshot(startingSeqNo, snapshot);
 
         stopWatch.stop();
         logger.trace("recovery [phase2]: took [{}]", stopWatch.totalTime());
         response.phase2Time = stopWatch.totalTime().millis();
-        response.phase2Operations = totalOperations;
+        response.phase2Operations = result.totalOperations;
+        return result.targetLocalCheckpoint;
     }
 
     /*
      * finalizes the recovery process
      */
-    public void finalizeRecovery() {
+    public void finalizeRecovery(final long targetLocalCheckpoint) {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -443,7 +459,21 @@ public class RecoverySourceHandler {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("finalizing recovery");
         cancellableThreads.execute(() -> {
-            shard.markAllocationIdAsInSync(recoveryTarget.getTargetAllocationId());
+            /*
+             * Before marking the shard as in-sync we acquire an operation permit. We do this so that there is a barrier between marking a
+             * shard as in-sync and relocating a shard. If we acquire the permit then no relocation handoff can complete before we are done
+             * marking the shard as in-sync. If the relocation handoff holds all the permits then after the handoff completes and we acquire
+             * the permit then the state of the shard will be relocated and this recovery will fail.
+             */
+            final PlainActionFuture<Releasable> onAcquired = new PlainActionFuture<>();
+            shard.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME);
+            try (Releasable ignored = onAcquired.actionGet()) {
+                if (shard.state() == IndexShardState.RELOCATED) {
+                    throw new IndexShardRelocatedException(shard.shardId());
+                }
+                shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint);
+            }
+
             recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint());
         });
 
@@ -458,7 +488,7 @@ public class RecoverySourceHandler {
                 cancellableThreads.execute(() -> recoveryTarget.ensureClusterStateVersion(currentClusterStateVersion));
 
                 logger.trace("performing relocation hand-off");
-                cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode()));
+                cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode(), recoveryTarget::handoffPrimaryContext));
             }
             /*
              * if the recovery process fails after setting the shard state to RELOCATED, both relocation source and
@@ -469,6 +499,18 @@ public class RecoverySourceHandler {
         logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
     }
 
+    static class SendSnapshotResult {
+
+        final long targetLocalCheckpoint;
+        final int totalOperations;
+
+        SendSnapshotResult(final long targetLocalCheckpoint, final int totalOperations) {
+            this.targetLocalCheckpoint = targetLocalCheckpoint;
+            this.totalOperations = totalOperations;
+        }
+
+    }
+
     /**
      * Send the given snapshot's operations with a sequence number greater than the specified staring sequence number to this handler's
      * target node.
@@ -477,18 +519,24 @@ public class RecoverySourceHandler {
      *
      * @param startingSeqNo the sequence number for which only operations with a sequence number greater than this will be sent
      * @param snapshot      the translog snapshot to replay operations from
-     * @return the total number of translog operations that were sent
+     * @return the local checkpoint on the target and the total number of operations sent
      * @throws IOException if an I/O exception occurred reading the translog snapshot
      */
-    protected int sendSnapshot(final long startingSeqNo, final Translog.Snapshot snapshot) throws IOException {
+    protected SendSnapshotResult sendSnapshot(final long startingSeqNo, final Translog.Snapshot snapshot) throws IOException {
         int ops = 0;
         long size = 0;
-        int totalOperations = 0;
+        int skippedOps = 0;
+        int totalSentOps = 0;
+        final AtomicLong targetLocalCheckpoint = new AtomicLong(SequenceNumbersService.UNASSIGNED_SEQ_NO);
         final List<Translog.Operation> operations = new ArrayList<>();
 
-        if (snapshot.totalOperations() == 0) {
+        final int expectedTotalOps = snapshot.totalOperations();
+        if (expectedTotalOps == 0) {
             logger.trace("no translog operations to send");
         }
+
+        final CancellableThreads.IOInterruptable sendBatch =
+                () -> targetLocalCheckpoint.set(recoveryTarget.indexTranslogOperations(operations, expectedTotalOps));
 
         // send operations in batches
         Translog.Operation operation;
@@ -497,39 +545,41 @@ public class RecoverySourceHandler {
                 throw new IndexShardClosedException(request.shardId());
             }
             cancellableThreads.checkForCancel();
-            // if we are doing a sequence-number-based recovery, we have to skip older ops for which no sequence number was assigned, and
-            // any ops before the starting sequence number
+            /*
+             * If we are doing a sequence-number-based recovery, we have to skip older ops for which no sequence number was assigned, and
+             * any ops before the starting sequence number.
+             */
             final long seqNo = operation.seqNo();
-            if (startingSeqNo >= 0 && (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) continue;
+            if (startingSeqNo >= 0 && (seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO || seqNo < startingSeqNo)) {
+                skippedOps++;
+                continue;
+            }
             operations.add(operation);
             ops++;
             size += operation.estimateSize();
-            totalOperations++;
+            totalSentOps++;
 
             // check if this request is past bytes threshold, and if so, send it off
             if (size >= chunkSizeInBytes) {
-                cancellableThreads.execute(() -> recoveryTarget.indexTranslogOperations(operations, snapshot.totalOperations()));
-                if (logger.isTraceEnabled()) {
-                    logger.trace("sent batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size),
-                        snapshot.totalOperations());
-                }
+                cancellableThreads.executeIO(sendBatch);
+                logger.trace("sent batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size), expectedTotalOps);
                 ops = 0;
                 size = 0;
                 operations.clear();
             }
         }
 
-        // send the leftover operations
-        if (!operations.isEmpty()) {
-            cancellableThreads.execute(() -> recoveryTarget.indexTranslogOperations(operations, snapshot.totalOperations()));
+        if (!operations.isEmpty() || totalSentOps == 0) {
+            // send the leftover operations or if no operations were sent, request the target to respond with its local checkpoint
+            cancellableThreads.executeIO(sendBatch);
         }
 
-        if (logger.isTraceEnabled()) {
-            logger.trace("sent final batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size),
-                snapshot.totalOperations());
-        }
+        assert expectedTotalOps == skippedOps + totalSentOps
+                : "expected total [" + expectedTotalOps + "], skipped [" + skippedOps + "], total sent [" + totalSentOps + "]";
 
-        return totalOperations;
+        logger.trace("sent final batch of [{}][{}] (total: [{}]) translog operations", ops, new ByteSizeValue(size), expectedTotalOps);
+
+        return new SendSnapshotResult(targetLocalCheckpoint.get(), totalSentOps);
     }
 
     /**
@@ -552,11 +602,13 @@ public class RecoverySourceHandler {
     final class RecoveryOutputStream extends OutputStream {
         private final StoreFileMetaData md;
         private final Translog.View translogView;
+        private final long startSeqNp;
         private long position = 0;
 
-        RecoveryOutputStream(StoreFileMetaData md, Translog.View translogView) {
+        RecoveryOutputStream(StoreFileMetaData md, Translog.View translogView, long startSeqNp) {
             this.md = md;
             this.translogView = translogView;
+            this.startSeqNp = startSeqNp;
         }
 
         @Override
@@ -574,7 +626,7 @@ public class RecoverySourceHandler {
         private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {
             // Actually send the file chunk to the target node, waiting for it to complete
             cancellableThreads.executeIO(() ->
-                    recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogView.totalOperations())
+                    recoveryTarget.writeFileChunk(md, position, content, lastChunk, translogView.estimateTotalOperations(startSeqNp))
             );
             if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
                 throw new IndexShardClosedException(request.shardId());
@@ -585,7 +637,7 @@ public class RecoverySourceHandler {
     void sendFiles(Store store, StoreFileMetaData[] files, Function<StoreFileMetaData, OutputStream> outputStreamFactory) throws Exception {
         store.incRef();
         try {
-            ArrayUtil.timSort(files, (a, b) -> Long.compare(a.length(), b.length())); // send smallest first
+            ArrayUtil.timSort(files, Comparator.comparingLong(StoreFileMetaData::length)); // send smallest first
             for (int i = 0; i < files.length; i++) {
                 final StoreFileMetaData md = files[i];
                 try (IndexInput indexInput = store.directory().openInput(md.name(), IOContext.READONCE)) {

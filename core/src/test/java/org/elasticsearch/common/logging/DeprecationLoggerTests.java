@@ -58,7 +58,7 @@ public class DeprecationLoggerTests extends ESTestCase {
         try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
             final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
-            final String param = randomAsciiOfLengthBetween(1, 5);
+            final String param = randomAlphaOfLengthBetween(1, 5);
             logger.deprecated(threadContexts, "A simple message [{}]", param);
 
             final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
@@ -75,9 +75,9 @@ public class DeprecationLoggerTests extends ESTestCase {
         try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
             final Set<ThreadContext> threadContexts = Collections.singleton(threadContext);
 
-            final String param = randomAsciiOfLengthBetween(1, 5);
+            final String param = randomAlphaOfLengthBetween(1, 5);
             logger.deprecated(threadContexts, "A simple message [{}]", param);
-            final String second = randomAsciiOfLengthBetween(1, 10);
+            final String second = randomAlphaOfLengthBetween(1, 10);
             logger.deprecated(threadContexts, second);
 
             final Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
@@ -167,7 +167,7 @@ public class DeprecationLoggerTests extends ESTestCase {
     }
 
     public void testWarningValueFromWarningHeader() throws InterruptedException {
-        final String s = randomAsciiOfLength(16);
+        final String s = randomAlphaOfLength(16);
         final String first = DeprecationLogger.formatWarning(s);
         assertThat(DeprecationLogger.extractWarningValueFromWarningHeader(first), equalTo(s));
     }

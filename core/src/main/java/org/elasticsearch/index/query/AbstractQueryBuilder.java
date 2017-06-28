@@ -250,8 +250,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     protected static final List<QueryBuilder> readQueries(StreamInput in) throws IOException {
-        List<QueryBuilder> queries = new ArrayList<>();
         int size = in.readVInt();
+        List<QueryBuilder> queries = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             queries.add(in.readNamedWriteable(QueryBuilder.class));
         }
@@ -283,7 +283,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Extracts the inner hits from the query tree.
      * While it extracts inner hits, child inner hits are inlined into the inner hit builder they belong to.
      */
-    protected void extractInnerHitBuilders(Map<String, InnerHitBuilder> innerHits) {
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
     }
 
     // Like Objects.requireNotNull(...) but instead throws a IllegalArgumentException

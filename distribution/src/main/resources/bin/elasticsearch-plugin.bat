@@ -3,11 +3,11 @@
 SETLOCAL enabledelayedexpansion
 
 IF DEFINED JAVA_HOME (
-  set JAVA=%JAVA_HOME%\bin\java.exe
+  set JAVA="%JAVA_HOME%\bin\java.exe"
 ) ELSE (
   FOR %%I IN (java.exe) DO set JAVA=%%~$PATH:I
 )
-IF NOT EXIST "%JAVA%" (
+IF NOT EXIST %JAVA% (
   ECHO Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME 1>&2
   EXIT /B 1
 )
@@ -25,6 +25,6 @@ IF DEFINED CONF_DIR (
 SET args=%*
 SET HOSTNAME=%COMPUTERNAME%
 
-"%JAVA%" %ES_JAVA_OPTS% !path_props! -cp "%ES_HOME%/lib/*;" "org.elasticsearch.plugins.PluginCli" !args!
+%JAVA% %ES_JAVA_OPTS% !path_props! -cp "%ES_HOME%/lib/*;" "org.elasticsearch.plugins.PluginCli" !args!
 
 ENDLOCAL

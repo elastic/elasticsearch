@@ -20,6 +20,7 @@ A `extended_stats_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`extended_stats_bucket` Parameters
 |===
@@ -32,7 +33,7 @@ A `extended_stats_bucket` aggregation looks like this in isolation:
 |`sigma` |The number of standard deviations above/below the mean to display |Optional | 2
 |===
 
-The following snippet calculates the sum of all the total monthly `sales` buckets:
+The following snippet calculates the extended stats for monthly `sales` bucket:
 
 [source,js]
 --------------------------------------------------

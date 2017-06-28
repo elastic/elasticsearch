@@ -24,11 +24,20 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.index.translog.TranslogWriter;
+
+import java.io.IOException;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,17 +45,23 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
 
     public void testGetStartingSeqNo() throws Exception {
         IndexShard replica = newShard(false);
-        RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null);
+        final AtomicReference<Path> translogLocation = new AtomicReference<>();
+        RecoveryTarget recoveryTarget = new RecoveryTarget(replica, null, null, null) {
+            @Override
+            Path translogLocation() {
+                return translogLocation.get();
+            }
+        };
         try {
             recoveryEmptyReplica(replica);
             int docs = randomIntBetween(1, 10);
             final String index = replica.shardId().getIndexName();
             long seqNo = 0;
             for (int i = 0; i < docs; i++) {
-                Engine.Index indexOp = replica.prepareIndexOnReplica(
-                    SourceToParse.source(SourceToParse.Origin.REPLICA, index, "type", "doc_" + i, new BytesArray("{}"), XContentType.JSON),
-                    seqNo++, 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
-                replica.index(indexOp);
+                replica.applyIndexOperationOnReplica(seqNo++, replica.getPrimaryTerm(), 1, VersionType.EXTERNAL,
+                    IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false,
+                    SourceToParse.source(index, "type", "doc_" + i, new BytesArray("{}"), XContentType.JSON),
+                    update -> {});
                 if (rarely()) {
                     // insert a gap
                     seqNo++;
@@ -56,27 +71,52 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
             final long maxSeqNo = replica.seqNoStats().getMaxSeqNo();
             final long localCheckpoint = replica.getLocalCheckpoint();
 
+            translogLocation.set(replica.getTranslog().location());
+
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
-            replica.updateGlobalCheckpointOnReplica(maxSeqNo - 1);
-            replica.getTranslog().sync();
+            final Translog translog = replica.getTranslog();
+            translogLocation.set(
+                    writeTranslog(replica.shardId(), translog.getTranslogUUID(), translog.currentFileGeneration(), maxSeqNo - 1));
 
-            // commit is enough, global checkpoint is below max *committed* which is NO_OPS_PERFORMED
+            // commit is good, global checkpoint is at least max *committed* which is NO_OPS_PERFORMED
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(0L));
 
             replica.flush(new FlushRequest());
 
-            // commit is still not good enough, global checkpoint is below max
+            translogLocation.set(replica.getTranslog().location());
+
+            // commit is not good, global checkpoint is below max
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
-            replica.updateGlobalCheckpointOnReplica(maxSeqNo);
-            replica.getTranslog().sync();
-            // commit is enough, global checkpoint is below max
+            translogLocation.set(
+                    writeTranslog(replica.shardId(), translog.getTranslogUUID(), translog.currentFileGeneration(), maxSeqNo));
+
+            // commit is good, global checkpoint is above max
             assertThat(PeerRecoveryTargetService.getStartingSeqNo(recoveryTarget), equalTo(localCheckpoint + 1));
         } finally {
             closeShards(replica);
             recoveryTarget.decRef();
         }
+    }
+
+    private Path writeTranslog(
+            final ShardId shardId,
+            final String translogUUID,
+            final long generation,
+            final long globalCheckpoint
+            ) throws IOException {
+        final Path tempDir = createTempDir();
+        final Path resolve = tempDir.resolve(Translog.getFilename(generation));
+        Files.createFile(tempDir.resolve(Translog.CHECKPOINT_FILE_NAME));
+        try (TranslogWriter ignored = TranslogWriter.create(
+                shardId,
+                translogUUID,
+                generation,
+                resolve,
+                FileChannel::open,
+                TranslogConfig.DEFAULT_BUFFER_SIZE, () -> globalCheckpoint, generation, () -> generation)) {}
+        return tempDir;
     }
 
 }

@@ -32,7 +32,9 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -194,9 +196,14 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
             throw new IllegalArgumentException("field " + field + " not found");
         }
 
+        String field = this.field;
         boolean useTermQuery = false;
         if (UidFieldMapper.NAME.equals(field)) {
-           useTermQuery = true;
+            if (context.getIndexSettings().isSingleType()) {
+                // on new indices, the _id acts as a _uid
+                field = IdFieldMapper.NAME;
+            }
+            useTermQuery = true;
         } else if (type.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot load numeric doc values on " + field);
         } else {

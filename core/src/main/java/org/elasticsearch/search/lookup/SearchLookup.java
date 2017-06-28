@@ -42,9 +42,7 @@ public class SearchLookup {
         return new LeafSearchLookup(context,
                 docMap.getLeafDocLookup(context),
                 sourceLookup,
-                fieldsLookup.getLeafFieldsLookup(context),
-                IndexLookup.getLeafIndexLookup(context),
-                IndexLookup.NAMES);
+                fieldsLookup.getLeafFieldsLookup(context));
     }
 
     public DocLookup doc() {

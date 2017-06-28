@@ -19,6 +19,7 @@ A `max_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
 .`max_bucket` Parameters
 |===

@@ -50,20 +50,15 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineRegistry;
+import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptServiceTests.TestEngineService;
-import org.elasticsearch.script.ScriptSettings;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -71,6 +66,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -85,22 +81,12 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     @BeforeClass
     public static void init() throws IOException {
-        Path genericConfigFolder = createTempDir();
         Settings baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
-        Environment environment = new Environment(baseSettings);
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());
-        ScriptEngineRegistry scriptEngineRegistry = new ScriptEngineRegistry(Collections.singletonList(new TestEngineService()));
-        ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
-        scriptService = new ScriptService(baseSettings, environment,
-                new ResourceWatcherService(baseSettings, null), scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
-            @Override
-            public CompiledScript compile(Script script, ScriptContext scriptContext) {
-                return new CompiledScript(ScriptType.INLINE, "mockName", "test", script);
-            }
-        };
+        Map<String, Function<Map<String, Object>, Object>> scripts = Collections.singletonMap("dummy", p -> null);
+        ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);
+        scriptService = new ScriptService(baseSettings, Collections.singletonMap(engine.getType(), engine), ScriptModule.CORE_CONTEXTS);
 
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
@@ -191,7 +177,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     }
 
     protected QueryShardContext createMockShardContext() {
-        Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
+        Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
             Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         IndicesFieldDataCache cache = new IndicesFieldDataCache(Settings.EMPTY, null);
@@ -245,7 +231,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             case 0: return (new MatchAllQueryBuilder()).boost(randomFloat());
             case 1: return (new IdsQueryBuilder()).boost(randomFloat());
             case 2: return (new TermQueryBuilder(
-                    randomAsciiOfLengthBetween(1, 10),
+                    randomAlphaOfLengthBetween(1, 10),
                     randomDouble()).boost(randomFloat()));
             default: throw new IllegalStateException("Only three query builders supported for testing sort");
         }

@@ -1,0 +1,570 @@
+## Smoke tests for token filters included in the analysis-common module
+
+"asciifolding":
+    - do:
+        indices.analyze:
+          body:
+            text:      Musée d'Orsay
+            tokenizer: keyword
+            filter:    [asciifolding]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: Musee d'Orsay }
+
+    - do:
+        indices.analyze:
+          body:
+            text:      Musée d'Orsay
+            tokenizer: keyword
+            filter:
+              - type: asciifolding
+                preserve_original: true
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: Musee d'Orsay }
+    - match:  { tokens.1.token: Musée d'Orsay }
+
+---
+"lowercase":
+    - do:
+        indices.analyze:
+          body:
+            text:      Foo Bar!
+            tokenizer: keyword
+            filter:    [lowercase]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo bar! }
+
+---
+"porterstem":
+    - do:
+        indices.analyze:
+          body:
+            text:      This is troubled
+            tokenizer: standard
+            filter:    [porter_stem]
+    - length: { tokens: 3 }
+    - match:  { tokens.2.token: troubl }
+    - match:  { tokens.2.position: 2 }
+
+---
+"keywordmarker":
+    - do:
+        indices.analyze:
+          body:
+            text:      This is troubled
+            tokenizer: standard
+            filter:
+              - type: keyword_marker
+                keywords: troubled
+              - type: porter_stem
+    - length: { tokens: 3 }
+    - match:  { tokens.2.token: troubled }
+    - match:  { tokens.2.position: 2 }
+
+---
+"snowball":
+    - do:
+        indices.analyze:
+          body:
+            text:      This is troubled
+            tokenizer: standard
+            filter:    [snowball]
+    - length: { tokens: 3 }
+    - match:  { tokens.2.token: troubl }
+    - match:  { tokens.2.position: 2 }
+
+    - do:
+        indices.analyze:
+          body:
+            explain:   true
+            text:      This is troubled
+            tokenizer: standard
+            filter:    [snowball]
+    - length: { detail.tokenfilters.0.tokens: 3 }
+    - match:  { detail.tokenfilters.0.tokens.2.token: troubl }
+    - match:  { detail.tokenfilters.0.tokens.2.position: 2 }
+    - is_true: detail.tokenfilters.0.tokens.2.bytes
+    - match: { detail.tokenfilters.0.tokens.2.positionLength: 1 }
+    - match: { detail.tokenfilters.0.tokens.2.keyword: false }
+
+---
+"trim":
+    - do:
+        indices.analyze:
+          body:
+            text:      Foo Bar !
+            tokenizer: keyword
+            filter:    [trim]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: Foo Bar !  }
+
+---
+"word_delimiter":
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:    [word_delimiter]
+    - length: { tokens: 6 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu }
+    - match:  { tokens.2.token: "1" }
+    - match:  { tokens.3.token: ck }
+    - match:  { tokens.4.token: brown }
+    - match:  { tokens.5.token: fox }
+
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:
+              - type: word_delimiter
+                split_on_numerics: false
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu1ck }
+    - match:  { tokens.2.token: brown }
+    - match:  { tokens.3.token: fox }
+
+---
+"word_delimiter_graph":
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:    [word_delimiter_graph]
+    - length: { tokens: 6 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu }
+    - match:  { tokens.2.token: "1" }
+    - match:  { tokens.3.token: ck }
+    - match:  { tokens.4.token: brown }
+    - match:  { tokens.5.token: fox }
+
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            tokenizer: standard
+            filter:
+              - type: word_delimiter_graph
+                split_on_numerics: false
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: the }
+    - match:  { tokens.1.token: qu1ck }
+    - match:  { tokens.2.token: brown }
+    - match:  { tokens.3.token: fox }
+
+    - do:
+        indices.analyze:
+          body:
+            text:      the qu1ck brown fox
+            explain:   true
+            tokenizer: standard
+            filter:    [word_delimiter_graph]
+    - match:  { detail.custom_analyzer: true }
+    - match:  { detail.tokenizer.name: standard }
+    - length: { detail.tokenizer.tokens: 4 }
+    - match:  { detail.tokenizer.tokens.0.token: the }
+    - match:  { detail.tokenizer.tokens.0.start_offset: 0 }
+    - match:  { detail.tokenizer.tokens.0.end_offset: 3 }
+    - match:  { detail.tokenizer.tokens.0.position: 0 }
+    - match:  { detail.tokenizer.tokens.1.token: qu1ck }
+    - match:  { detail.tokenizer.tokens.1.start_offset: 4 }
+    - match:  { detail.tokenizer.tokens.1.end_offset: 9 }
+    - match:  { detail.tokenizer.tokens.1.position: 1 }
+    - match:  { detail.tokenizer.tokens.2.token: brown }
+    - match:  { detail.tokenizer.tokens.2.start_offset: 10 }
+    - match:  { detail.tokenizer.tokens.2.end_offset: 15 }
+    - match:  { detail.tokenizer.tokens.2.position: 2 }
+    - match:  { detail.tokenizer.tokens.3.token: fox }
+    - match:  { detail.tokenizer.tokens.3.start_offset: 16 }
+    - match:  { detail.tokenizer.tokens.3.end_offset: 19 }
+    - match:  { detail.tokenizer.tokens.3.position: 3 }
+    - length: { detail.tokenfilters: 1 }
+    - match:  { detail.tokenfilters.0.name: word_delimiter_graph }
+    - length: { detail.tokenfilters.0.tokens: 6 }
+    - match:  { detail.tokenfilters.0.tokens.0.token: the }
+    - match:  { detail.tokenfilters.0.tokens.0.start_offset: 0 }
+    - match:  { detail.tokenfilters.0.tokens.0.end_offset: 3 }
+    - match:  { detail.tokenfilters.0.tokens.0.position: 0 }
+    - match:  { detail.tokenfilters.0.tokens.1.token: qu }
+    - match:  { detail.tokenfilters.0.tokens.1.start_offset: 4 }
+    - match:  { detail.tokenfilters.0.tokens.1.end_offset: 6 }
+    - match:  { detail.tokenfilters.0.tokens.1.position: 1 }
+    - match:  { detail.tokenfilters.0.tokens.2.token: "1" }
+    - match:  { detail.tokenfilters.0.tokens.2.start_offset: 6 }
+    - match:  { detail.tokenfilters.0.tokens.2.end_offset: 7 }
+    - match:  { detail.tokenfilters.0.tokens.2.position: 2 }
+    - match:  { detail.tokenfilters.0.tokens.3.token: ck }
+    - match:  { detail.tokenfilters.0.tokens.3.start_offset: 7 }
+    - match:  { detail.tokenfilters.0.tokens.3.end_offset: 9 }
+    - match:  { detail.tokenfilters.0.tokens.3.position: 3 }
+    - match:  { detail.tokenfilters.0.tokens.4.token: brown }
+    - match:  { detail.tokenfilters.0.tokens.4.start_offset: 10 }
+    - match:  { detail.tokenfilters.0.tokens.4.end_offset: 15 }
+    - match:  { detail.tokenfilters.0.tokens.4.position: 4 }
+    - match:  { detail.tokenfilters.0.tokens.5.token: fox }
+    - match:  { detail.tokenfilters.0.tokens.5.start_offset: 16 }
+    - match:  { detail.tokenfilters.0.tokens.5.end_offset: 19 }
+    - match:  { detail.tokenfilters.0.tokens.5.position: 5 }
+
+---
+"unique":
+    - do:
+        indices.analyze:
+          body:
+            text:      Foo Foo Bar!
+            tokenizer: whitespace
+            filter:    [unique]
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: Foo }
+    - match:  { tokens.1.token: Bar! }
+
+---
+"synonym_graph and flatten_graph":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_synonym_graph:
+                    type: synonym_graph
+                    synonyms: ["automatic teller machine,atm,cash point"]
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: this automatic teller machine is down
+            tokenizer: whitespace
+            filter: [my_synonym_graph]
+    - length: { tokens: 9 }
+    - match:  { tokens.0.token: this }
+    - match:  { tokens.0.position: 0 }
+    - is_false: tokens.0.positionLength
+    - match:  { tokens.1.token: atm }
+    - match:  { tokens.1.position: 1 }
+    - match:  { tokens.1.positionLength: 4 }
+    - match:  { tokens.2.token: cash }
+    - match:  { tokens.2.position: 1 }
+    - is_false: tokens.2.positionLength
+    - match:  { tokens.3.token: automatic }
+    - match:  { tokens.3.position: 1 }
+    - match:  { tokens.3.positionLength: 2 }
+    - match:  { tokens.4.token: point }
+    - match:  { tokens.4.position: 2 }
+    - match:  { tokens.4.positionLength: 3 }
+    - match:  { tokens.5.token: teller }
+    - match:  { tokens.5.position: 3 }
+    - is_false: tokens.5.positionLength
+    - match:  { tokens.6.token: machine }
+    - match:  { tokens.6.position: 4 }
+    - is_false: tokens.6.positionLength
+    - match:  { tokens.7.token: is }
+    - match:  { tokens.7.position: 5 }
+    - is_false: tokens.7.positionLength
+    - match:  { tokens.8.token: down }
+    - match:  { tokens.8.position: 6 }
+    - is_false: tokens.8.positionLength
+
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text: this automatic teller machine is down
+            tokenizer: whitespace
+            filter: [my_synonym_graph,flatten_graph]
+    - length: { tokens: 9 }
+    - match:  { tokens.0.token: this }
+    - match:  { tokens.0.position: 0 }
+    - is_false: tokens.0.positionLength
+    - match:  { tokens.1.token: atm }
+    - match:  { tokens.1.position: 1 }
+    - match:  { tokens.1.positionLength: 3 }
+    - match:  { tokens.2.token: cash }
+    - match:  { tokens.2.position: 1 }
+    - is_false: tokens.2.positionLength
+    - match:  { tokens.3.token: automatic }
+    - match:  { tokens.3.position: 1 }
+    - is_false: tokens.3.positionLength
+    - match:  { tokens.4.token: point }
+    - match:  { tokens.4.position: 2 }
+    - match:  { tokens.4.positionLength: 2 }
+    - match:  { tokens.5.token: teller }
+    - match:  { tokens.5.position: 2 }
+    - is_false: tokens.5.positionLength
+    - match:  { tokens.6.token: machine }
+    - match:  { tokens.6.position: 3 }
+    - is_false: tokens.6.positionLength
+    - match:  { tokens.7.token: is }
+    - match:  { tokens.7.position: 4 }
+    - is_false: tokens.7.positionLength
+    - match:  { tokens.8.token: down }
+    - match:  { tokens.8.position: 5 }
+    - is_false: tokens.8.positionLength
+
+---
+"length":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_length:
+                    type: length
+                    min: 6
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foo bar foobar
+            tokenizer: whitespace
+            filter:    [my_length]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foobar }
+
+---
+"uppercase":
+    - do:
+        indices.analyze:
+          body:
+            text:      foobar
+            tokenizer: keyword
+            filter:    [uppercase]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: FOOBAR }
+
+---
+"ngram":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_ngram:
+                    type: ngram
+                    min_gram: 3
+                    max_gram: 3
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foobar
+            tokenizer: keyword
+            filter:    [my_ngram]
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: oob }
+    - match:  { tokens.2.token: oba }
+    - match:  { tokens.3.token: bar }
+
+---
+"edge_ngram":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_edge_ngram:
+                    type: edge_ngram
+                    min_gram: 3
+                    max_gram: 6
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foobar
+            tokenizer: keyword
+            filter:    [my_edge_ngram]
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: foob }
+    - match:  { tokens.2.token: fooba }
+    - match:  { tokens.3.token: foobar }
+
+---
+"kstem":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_kstem:
+                    type: kstem
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      bricks
+            tokenizer: keyword
+            filter:    [my_kstem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: brick }
+
+    # use preconfigured token filter:
+    - do:
+        indices.analyze:
+          body:
+            text:      bricks
+            tokenizer: keyword
+            filter:    [kstem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: brick }
+
+---
+"reverse":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_reverse:
+                    type: reverse
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foobar
+            tokenizer: keyword
+            filter:    [my_reverse]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: raboof }
+
+    # use preconfigured token filter:
+    - do:
+        indices.analyze:
+          body:
+            text:      foobar
+            tokenizer: keyword
+            filter:    [reverse]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: raboof }
+
+---
+"elision":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_elision:
+                    type: elision
+                    articles: ["l", "m", "t", "qu", "n", "s", "j"]
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      "l'avion"
+            tokenizer: keyword
+            filter:    [my_elision]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: avion }
+
+---
+"stemmer":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_stemmer:
+                    type: stemmer
+                    language: dutch
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      zoeken
+            tokenizer: keyword
+            filter:    [my_stemmer]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: zoek }
+---
+"stemmer_override":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_stemmer:
+                    type: stemmer
+                    language: dutch
+                  my_stemmer_override:
+                    type: stemmer_override
+                    rules: ["zoeken => override"]
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      zoeken
+            tokenizer: keyword
+            filter:    [my_stemmer_override, my_stemmer]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: override }
+
+---
+"decompounder":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_decompounder:
+                    type: dictionary_decompounder
+                    word_list: [foo, bar]
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foobar
+            tokenizer: keyword
+            filter:    [my_decompounder]
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: foobar }
+    - match:  { tokens.1.token: foo }
+    - match:  { tokens.2.token: bar }
+
+---
+"truncate":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_truncate:
+                    type: truncate
+                    length: 3
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foobar
+            tokenizer: keyword
+            filter:    [my_truncate]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo }

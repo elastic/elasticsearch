@@ -31,7 +31,6 @@ import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.transport.RemoteTransportException;
 import org.hamcrest.Matchers;
 
 import java.util.List;
@@ -201,7 +200,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                         values.add(randomDouble());
                         break;
                     case 6:
-                        values.add(randomAsciiOfLengthBetween(5, 20));
+                        values.add(randomAlphaOfLengthBetween(5, 20));
                         break;
                 }
             }

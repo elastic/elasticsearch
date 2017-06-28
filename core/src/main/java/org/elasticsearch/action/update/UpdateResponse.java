@@ -47,11 +47,12 @@ public class UpdateResponse extends DocWriteResponse {
      * For example: update script with operation set to none
      */
     public UpdateResponse(ShardId shardId, String type, String id, long version, Result result) {
-        this(new ShardInfo(0, 0), shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, result);
+        this(new ShardInfo(0, 0), shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, version, result);
     }
 
-    public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String type, String id, long seqNo, long version, Result result) {
-        super(shardId, type, id, seqNo, version, result);
+    public UpdateResponse(
+            ShardInfo shardInfo, ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
+        super(shardId, type, id, seqNo, primaryTerm, version, result);
         setShardInfo(shardInfo);
     }
 
@@ -106,6 +107,8 @@ public class UpdateResponse extends DocWriteResponse {
         builder.append(",type=").append(getType());
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
+        builder.append(",seqNo=").append(getSeqNo());
+        builder.append(",primaryTerm=").append(getPrimaryTerm());
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",shards=").append(getShardInfo());
         return builder.append("]").toString();
@@ -154,7 +157,7 @@ public class UpdateResponse extends DocWriteResponse {
         public UpdateResponse build() {
             UpdateResponse update;
             if (shardInfo != null && seqNo != null) {
-                update = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
+                update = new UpdateResponse(shardInfo, shardId, type, id, seqNo, primaryTerm, version, result);
             } else {
                 update = new UpdateResponse(shardId, type, id, version, result);
             }

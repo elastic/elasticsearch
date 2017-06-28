@@ -284,7 +284,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             }
         }
 
-        List<SnapshotFiles> snapshots = new ArrayList<>();
+        List<SnapshotFiles> snapshots = new ArrayList<>(snapshotsMap.size());
         for (Map.Entry<String, List<String>> entry : snapshotsMap.entrySet()) {
             List<FileInfo> fileInfosBuilder = new ArrayList<>();
             for (String file : entry.getValue()) {

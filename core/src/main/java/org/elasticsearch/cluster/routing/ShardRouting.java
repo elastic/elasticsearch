@@ -394,6 +394,17 @@ public final class ShardRouting implements Writeable, ToXContent {
     }
 
     /**
+     * Reinitializes a replica shard, giving it a fresh allocation id
+     */
+    public ShardRouting reinitializeReplicaShard() {
+        assert state == ShardRoutingState.INITIALIZING : this;
+        assert primary == false : this;
+        assert isRelocationTarget() == false : this;
+        return new ShardRouting(shardId, currentNodeId, null, primary, ShardRoutingState.INITIALIZING,
+            recoverySource, unassignedInfo, AllocationId.newInitializing(), expectedShardSize);
+    }
+
+    /**
      * Set the shards state to <code>STARTED</code>. The shards state must be
      * <code>INITIALIZING</code> or <code>RELOCATING</code>. Any relocation will be
      * canceled.

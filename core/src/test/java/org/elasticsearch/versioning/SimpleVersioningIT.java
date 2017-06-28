@@ -325,7 +325,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 ids = new IDSource() {
                     @Override
                     public String next() {
-                        return TestUtil.randomSimpleString(random);
+                        return TestUtil.randomSimpleString(random, 1, 10);
                     }
                 };
                 break;
@@ -335,7 +335,7 @@ public class SimpleVersioningIT extends ESIntegTestCase {
                 ids = new IDSource() {
                     @Override
                     public String next() {
-                        return TestUtil.randomRealisticUnicodeString(random);
+                        return TestUtil.randomRealisticUnicodeString(random, 1, 20);
                     }
                 };
                 break;

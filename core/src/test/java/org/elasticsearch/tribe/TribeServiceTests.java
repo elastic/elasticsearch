@@ -19,16 +19,23 @@
 
 package org.elasticsearch.tribe;
 
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.MockNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetaData;
+import org.elasticsearch.transport.MockTcpTransportPlugin;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -61,13 +68,9 @@ public class TribeServiceTests extends ESTestCase {
         Settings globalSettings = Settings.builder()
             .put("node.name", "nodename")
             .put("path.home", "some/path")
-            .put("path.conf", "conf/path")
-            .put("path.scripts", "scripts/path")
             .put("path.logs", "logs/path").build();
         Settings clientSettings = TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, Settings.EMPTY);
         assertEquals("some/path", clientSettings.get("path.home"));
-        assertEquals("conf/path", clientSettings.get("path.conf"));
-        assertEquals("scripts/path", clientSettings.get("path.scripts"));
         assertEquals("logs/path", clientSettings.get("path.logs"));
 
         Settings tribeSettings = Settings.builder()
@@ -177,6 +180,28 @@ public class TribeServiceTests extends ESTestCase {
         assertNotNull(mergedCustom);
         assertThat(mergedCustom, instanceOf(MergableCustomMetaData2.class));
         assertEquals(mergedCustom.getData(), "data2"+String.valueOf(n));
+    }
+
+    public void testTribeNodeDeprecation() throws IOException {
+        final Path tempDir = createTempDir();
+        Settings.Builder settings = Settings.builder()
+            .put("node.name", "test-node")
+            .put("path.home", tempDir)
+            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
+            .put(NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), "mock-socket-network");
+
+        final boolean tribeServiceEnable = randomBoolean();
+        if (tribeServiceEnable) {
+            String clusterName = "single-node-cluster";
+            String tribeSetting = "tribe." + clusterName + ".";
+            settings.put(tribeSetting + ClusterName.CLUSTER_NAME_SETTING.getKey(), clusterName)
+                .put(tribeSetting + NetworkModule.TRANSPORT_TYPE_SETTING.getKey(), "mock-socket-network");
+        }
+        try (Node node = new MockNode(settings.build(),Collections.singleton(MockTcpTransportPlugin.class) )) {
+            if (tribeServiceEnable) {
+                assertWarnings("tribe nodes are deprecated in favor of cross-cluster search and will be removed in Elasticsearch 7.0.0");
+            }
+        }
     }
 
     static class MergableCustomMetaData1 extends TestCustomMetaData

@@ -24,15 +24,19 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiFields;
+import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.PrefixCodedTerms.TermIterator;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.joda.DateMathParser;
@@ -313,14 +317,14 @@ public abstract class MappedFieldType extends FieldType {
     /** Returns true if the field is searchable.
      *
      */
-    protected boolean isSearchable() {
+    public boolean isSearchable() {
         return indexOptions() != IndexOptions.NONE;
     }
 
     /** Returns true if the field is aggregatable.
      *
      */
-    protected boolean isAggregatable() {
+    public boolean isAggregatable() {
         try {
             fielddataBuilder();
             return true;
@@ -472,6 +476,15 @@ public abstract class MappedFieldType extends FieldType {
         } else if (termQuery instanceof TypeFieldMapper.TypesQuery) {
             assert ((TypeFieldMapper.TypesQuery) termQuery).getTerms().length == 1;
             return new Term(TypeFieldMapper.NAME, ((TypeFieldMapper.TypesQuery) termQuery).getTerms()[0]);
+        }
+        if (termQuery instanceof TermInSetQuery) {
+            TermInSetQuery tisQuery = (TermInSetQuery) termQuery;
+            PrefixCodedTerms terms = tisQuery.getTermData();
+            if (terms.size() == 1) {
+                TermIterator it = terms.iterator();
+                BytesRef term = it.next();
+                return new Term(it.field(), term);
+            }
         }
         if (termQuery instanceof TermQuery == false) {
             throw new IllegalArgumentException("Cannot extract a term from a query of type "

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.fieldstats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
@@ -200,9 +199,7 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
             out.writeByte(indexConstraint.getProperty().getId());
             out.writeByte(indexConstraint.getComparison().getId());
             out.writeString(indexConstraint.getValue());
-            if (out.getVersion().onOrAfter(Version.V_2_0_1)) {
-                out.writeOptionalString(indexConstraint.getOptionalFormat());
-            }
+            out.writeOptionalString(indexConstraint.getOptionalFormat());
         }
         out.writeString(level);
         out.writeBoolean(useCache);

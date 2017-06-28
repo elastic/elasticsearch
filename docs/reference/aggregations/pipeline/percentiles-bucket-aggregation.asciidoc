@@ -18,11 +18,12 @@ A `percentiles_bucket` aggregation looks like this in isolation:
     }
 }
 --------------------------------------------------
+// NOTCONSOLE
 
-.`sum_bucket` Parameters
+.`percentiles_bucket` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
-|`buckets_path` |The path to the buckets we wish to find the sum for (see <<buckets-path-syntax>> for more
+|`buckets_path` |The path to the buckets we wish to find the percentiles for (see <<buckets-path-syntax>> for more
  details) |Required |
 |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional | `skip`
@@ -30,7 +31,7 @@ A `percentiles_bucket` aggregation looks like this in isolation:
 |`percents` |The list of percentiles to calculate |Optional | `[ 1, 5, 25, 50, 75, 95, 99 ]`
 |===
 
-The following snippet calculates the sum of all the total monthly `sales` buckets:
+The following snippet calculates the percentiles for the total monthly `sales` buckets:
 
 [source,js]
 --------------------------------------------------

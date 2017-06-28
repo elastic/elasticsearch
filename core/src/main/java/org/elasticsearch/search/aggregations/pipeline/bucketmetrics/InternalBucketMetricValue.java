@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -28,11 +29,14 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-public class InternalBucketMetricValue extends InternalNumericMetricsAggregation.SingleValue {
+public class InternalBucketMetricValue extends InternalNumericMetricsAggregation.SingleValue implements BucketMetricValue {
     public static final String NAME = "bucket_metric_value";
+    static final ParseField KEYS_FIELD = new ParseField("keys");
 
     private double value;
     private String[] keys;
@@ -72,6 +76,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         return value;
     }
 
+    @Override
     public String[] keys() {
         return keys;
     }
@@ -87,7 +92,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
             return this;
         } else if (path.size() == 1 && "value".equals(path.get(0))) {
             return value();
-        } else if (path.size() == 1 && "keys".equals(path.get(0))) {
+        } else if (path.size() == 1 && KEYS_FIELD.getPreferredName().equals(path.get(0))) {
             return keys();
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
@@ -101,7 +106,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         if (hasValue && format != DocValueFormat.RAW) {
             builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value));
         }
-        builder.startArray("keys");
+        builder.startArray(KEYS_FIELD.getPreferredName());
         for (String key : keys) {
             builder.value(key);
         }
@@ -109,4 +114,15 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
         return builder;
     }
 
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(value, Arrays.hashCode(keys));
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalBucketMetricValue other = (InternalBucketMetricValue) obj;
+        return Objects.equals(value, other.value)
+                && Arrays.equals(keys, other.keys);
+    }
 }

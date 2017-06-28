@@ -125,8 +125,17 @@ public class HighlightBuilderTests extends ESTestCase {
             if (randomBoolean()) {
                 builder.prettyPrint();
             }
-            highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentBuilder shuffled = shuffleXContent(builder);
+
+            XContentBuilder shuffled;
+            if (randomBoolean()) {
+                //this way `fields` is printed out as a json array
+                highlightBuilder.useExplicitFieldOrder(true);
+                highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                shuffled = shuffleXContent(builder);
+            } else {
+                highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                shuffled = shuffleXContent(builder, "fields");
+            }
 
             XContentParser parser = createParser(shuffled);
             QueryParseContext context = new QueryParseContext(parser);
@@ -262,7 +271,7 @@ public class HighlightBuilderTests extends ESTestCase {
     public void testBuildSearchContextHighlight() throws IOException {
         Settings indexSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
+        Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
@@ -496,7 +505,7 @@ public class HighlightBuilderTests extends ESTestCase {
         }
         int numberOfFields = randomIntBetween(1,5);
         for (int i = 0; i < numberOfFields; i++) {
-            Field field = new Field(i + "_" + randomAsciiOfLengthBetween(1, 10));
+            Field field = new Field(i + "_" + randomAlphaOfLengthBetween(1, 10));
             setRandomCommonOptions(field);
             if (randomBoolean()) {
                 field.fragmentOffset(randomIntBetween(1, 100));
@@ -523,10 +532,10 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.numOfFragments(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
-            highlightBuilder.highlighterType(randomAsciiOfLengthBetween(1, 10));
+            highlightBuilder.highlighterType(randomAlphaOfLengthBetween(1, 10));
         }
         if (randomBoolean()) {
-            highlightBuilder.fragmenter(randomAsciiOfLengthBetween(1, 10));
+            highlightBuilder.fragmenter(randomAlphaOfLengthBetween(1, 10));
         }
         if (randomBoolean()) {
             QueryBuilder highlightQuery;
@@ -539,7 +548,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 break;
             default:
             case 2:
-                highlightQuery = new TermQueryBuilder(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+                highlightQuery = new TermQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
                 break;
             }
             highlightQuery.boost((float) randomDoubleBetween(0, 10, false));
@@ -571,7 +580,7 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.boundaryMaxScan(randomIntBetween(0, 10));
         }
         if (randomBoolean()) {
-            highlightBuilder.boundaryChars(randomAsciiOfLengthBetween(1, 10).toCharArray());
+            highlightBuilder.boundaryChars(randomAlphaOfLengthBetween(1, 10).toCharArray());
         }
         if (randomBoolean()) {
             highlightBuilder.boundaryScannerLocale(randomLocale(random()).toLanguageTag());
@@ -589,7 +598,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 Object value = null;
                 switch (randomInt(2)) {
                 case 0:
-                    value = randomAsciiOfLengthBetween(1, 10);
+                    value = randomAlphaOfLengthBetween(1, 10);
                     break;
                 case 1:
                     value = new Integer(randomInt(1000));
@@ -598,7 +607,7 @@ public class HighlightBuilderTests extends ESTestCase {
                     value = new Boolean(randomBoolean());
                     break;
                 }
-                options.put(randomAsciiOfLengthBetween(1, 10), value);
+                options.put(randomAlphaOfLengthBetween(1, 10), value);
             }
         }
         if (randomBoolean()) {
@@ -622,13 +631,13 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.numOfFragments(randomIntBetween(11, 20));
             break;
         case 5:
-            highlightBuilder.highlighterType(randomAsciiOfLengthBetween(11, 20));
+            highlightBuilder.highlighterType(randomAlphaOfLengthBetween(11, 20));
             break;
         case 6:
-            highlightBuilder.fragmenter(randomAsciiOfLengthBetween(11, 20));
+            highlightBuilder.fragmenter(randomAlphaOfLengthBetween(11, 20));
             break;
         case 7:
-            highlightBuilder.highlightQuery(new TermQueryBuilder(randomAsciiOfLengthBetween(11, 20), randomAsciiOfLengthBetween(11, 20)));
+            highlightBuilder.highlightQuery(new TermQueryBuilder(randomAlphaOfLengthBetween(11, 20), randomAlphaOfLengthBetween(11, 20)));
             break;
         case 8:
             if (highlightBuilder.order() == Order.NONE) {
@@ -647,7 +656,7 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.boundaryMaxScan(randomIntBetween(11, 20));
             break;
         case 12:
-            highlightBuilder.boundaryChars(randomAsciiOfLengthBetween(11, 20).toCharArray());
+            highlightBuilder.boundaryChars(randomAlphaOfLengthBetween(11, 20).toCharArray());
             break;
         case 13:
             highlightBuilder.noMatchSize(randomIntBetween(11, 20));
@@ -659,7 +668,7 @@ public class HighlightBuilderTests extends ESTestCase {
             int items = 6;
             Map<String, Object> options = new HashMap<>(items);
             for (int i = 0; i < items; i++) {
-                options.put(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+                options.put(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
             }
             highlightBuilder.options(options);
             break;
@@ -685,7 +694,7 @@ public class HighlightBuilderTests extends ESTestCase {
         int size = randomIntBetween(minSize, maxSize);
         Set<String> randomStrings = new HashSet<>(size);
         for (int f = 0; f < size; f++) {
-            randomStrings.add(randomAsciiOfLengthBetween(3, 10));
+            randomStrings.add(randomAlphaOfLengthBetween(3, 10));
         }
         return randomStrings.toArray(new String[randomStrings.size()]);
     }
@@ -703,11 +712,11 @@ public class HighlightBuilderTests extends ESTestCase {
                 case 0:
                     mutation.useExplicitFieldOrder(!original.useExplicitFieldOrder()); break;
                 case 1:
-                    mutation.encoder(original.encoder() + randomAsciiOfLength(2)); break;
+                    mutation.encoder(original.encoder() + randomAlphaOfLength(2)); break;
                 case 2:
                     if (randomBoolean()) {
                         // add another field
-                        mutation.field(new Field(randomAsciiOfLength(10)));
+                        mutation.field(new Field(randomAlphaOfLength(10)));
                     } else {
                         // change existing fields
                         List<Field> originalFields = original.fields();

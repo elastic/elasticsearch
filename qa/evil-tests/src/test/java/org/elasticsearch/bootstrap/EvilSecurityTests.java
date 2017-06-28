@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +34,9 @@ import java.nio.file.Path;
 import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
 
 @SuppressForbidden(reason = "modifies system properties and attempts to create symbolic links intentionally")
 public class EvilSecurityTests extends ESTestCase {
@@ -76,8 +80,6 @@ public class EvilSecurityTests extends ESTestCase {
 
         Settings.Builder settingsBuilder = Settings.builder();
         settingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), esHome.resolve("home").toString());
-        settingsBuilder.put(Environment.PATH_CONF_SETTING.getKey(), esHome.resolve("conf").toString());
-        settingsBuilder.put(Environment.PATH_SCRIPTS_SETTING.getKey(), esHome.resolve("scripts").toString());
         settingsBuilder.putArray(Environment.PATH_DATA_SETTING.getKey(), esHome.resolve("data1").toString(),
                 esHome.resolve("data2").toString());
         settingsBuilder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), esHome.resolve("custom").toString());
@@ -91,7 +93,7 @@ public class EvilSecurityTests extends ESTestCase {
         Environment environment;
         try {
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
-            environment = new Environment(settings);
+            environment = new Environment(settings, esHome.resolve("conf"));
             permissions = Security.createPermissions(environment);
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);
@@ -116,8 +118,6 @@ public class EvilSecurityTests extends ESTestCase {
         assertExactPermissions(new FilePermission(environment.modulesFile().toString(), "read,readlink"), permissions);
         // config file: ro
         assertExactPermissions(new FilePermission(environment.configFile().toString(), "read,readlink"), permissions);
-        // scripts file: ro
-        assertExactPermissions(new FilePermission(environment.scriptsFile().toString(), "read,readlink"), permissions);
         // plugins: ro
         assertExactPermissions(new FilePermission(environment.pluginsFile().toString(), "read,readlink"), permissions);
 
@@ -135,6 +135,30 @@ public class EvilSecurityTests extends ESTestCase {
         assertExactPermissions(new FilePermission(fakeTmpDir.toString(), "read,readlink,write,delete"), permissions);
         // PID file: delete only (for the shutdown hook)
         assertExactPermissions(new FilePermission(environment.pidFile().toString(), "delete"), permissions);
+    }
+
+    public void testDuplicateDataPaths() throws IOException {
+        final Path path = createTempDir();
+        final Path home = path.resolve("home");
+        final Path data = path.resolve("data");
+        final Path duplicate;
+        if (randomBoolean()) {
+            duplicate = data;
+        } else {
+            duplicate = createTempDir().toAbsolutePath().resolve("link");
+            Files.createSymbolicLink(duplicate, data);
+        }
+
+        final Settings settings =
+                Settings
+                        .builder()
+                        .put(Environment.PATH_HOME_SETTING.getKey(), home.toString())
+                        .putArray(Environment.PATH_DATA_SETTING.getKey(), data.toString(), duplicate.toString())
+                        .build();
+
+        final Environment environment = new Environment(settings);
+        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Security.createPermissions(environment));
+        assertThat(e, hasToString(containsString("path [" + duplicate.toRealPath() + "] is duplicated by [" + duplicate + "]")));
     }
 
     public void testEnsureSymlink() throws IOException {

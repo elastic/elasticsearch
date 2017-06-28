@@ -329,14 +329,14 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
             // Split the id to find the language then use StoredScriptSource to parse the
             // expected BytesReference after which a new StoredScriptSource is created
             // with the appropriate language and options.
-            if (in.getVersion().before(Version.V_5_3_0_UNRELEASED)) {
+            if (in.getVersion().before(Version.V_5_3_0)) {
                 int split = id.indexOf('#');
 
                 if (split == -1) {
                     throw new IllegalArgumentException("illegal stored script id [" + id + "], does not contain lang");
                 } else {
                     source = new StoredScriptSource(in);
-                    source = new StoredScriptSource(id.substring(0, split), source.getCode(), Collections.emptyMap());
+                    source = new StoredScriptSource(id.substring(0, split), source.getSource(), Collections.emptyMap());
                 }
             // Version 5.3+ can just be parsed normally using StoredScriptSource.
             } else {
@@ -353,7 +353,7 @@ public final class ScriptMetaData implements MetaData.Custom, Writeable, ToXCont
     public void writeTo(StreamOutput out) throws IOException {
         // Version 5.3+ will output the contents of the scripts' Map using
         // StoredScriptSource to stored the language, code, and options.
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeVInt(scripts.size());
 
             for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {

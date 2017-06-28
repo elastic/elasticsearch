@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -63,11 +64,24 @@ public abstract class AggregationBuilder
     @Override
     public abstract AggregationBuilder setMetaData(Map<String, Object> metaData);
 
+    /** Return any associated metadata with this {@link AggregationBuilder}. */
+    public abstract Map<String, Object> getMetaData();
+
     /** Add a sub aggregation to this builder. */
     public abstract AggregationBuilder subAggregation(AggregationBuilder aggregation);
 
     /** Add a sub aggregation to this builder. */
     public abstract AggregationBuilder subAggregation(PipelineAggregationBuilder aggregation);
+
+    /** Return the configured set of subaggregations **/
+    public List<AggregationBuilder> getSubAggregations() {
+        return factoriesBuilder.getAggregatorFactories();
+    }
+
+    /** Return the configured set of pipeline aggregations **/
+    public List<PipelineAggregationBuilder> getPipelineAggregations() {
+        return factoriesBuilder.getPipelineAggregatorFactories();
+    }
 
     /**
      * Internal: Registers sub-factories with this factory. The sub-factory will be

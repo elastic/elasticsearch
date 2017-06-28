@@ -51,7 +51,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
         }
     }
 
-    private void assertParsedInstance(XContentType xContentType, BytesReference instanceAsBytes, T expectedInstance)
+    protected void assertParsedInstance(XContentType xContentType, BytesReference instanceAsBytes, T expectedInstance)
             throws IOException {
 
         XContentParser parser = createParser(XContentFactory.xContent(xContentType), instanceAsBytes);
@@ -61,7 +61,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
     }
 
-    private T parseInstance(XContentParser parser) throws IOException {
+    protected T parseInstance(XContentParser parser) throws IOException {
         T parsedInstance = doParseInstance(parser);
         assertNull(parser.nextToken());
         return parsedInstance;

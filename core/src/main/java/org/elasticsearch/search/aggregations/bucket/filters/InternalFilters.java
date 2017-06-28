@@ -33,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalFilters extends InternalMultiBucketAggregation<InternalFilters, InternalFilters.InternalBucket> implements Filters {
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements Filters.Bucket {
@@ -113,13 +114,35 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+            InternalBucket that = (InternalBucket) other;
+            return Objects.equals(key, that.key)
+                    && Objects.equals(keyed,  keyed)
+                    && Objects.equals(docCount, that.docCount)
+                    && Objects.equals(aggregations, that.aggregations);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClass(), key, keyed, docCount, aggregations);
+        }
     }
 
     private final List<InternalBucket> buckets;
     private final boolean keyed;
-    private Map<String, InternalBucket> bucketMap;
+    // bucketMap gets lazily initialized from buckets in getBucketByKey()
+    private transient Map<String, InternalBucket> bucketMap;
 
-    public InternalFilters(String name, List<InternalBucket> buckets, boolean keyed, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    public InternalFilters(String name, List<InternalBucket> buckets, boolean keyed, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.buckets = buckets;
         this.keyed = keyed;
@@ -200,7 +223,8 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             }
         }
 
-        InternalFilters reduced = new InternalFilters(name, new ArrayList<InternalBucket>(bucketsList.size()), keyed, pipelineAggregators(), getMetaData());
+        InternalFilters reduced = new InternalFilters(name, new ArrayList<InternalBucket>(bucketsList.size()), keyed, pipelineAggregators(),
+                getMetaData());
         for (List<InternalBucket> sameRangeList : bucketsList) {
             reduced.buckets.add((sameRangeList.get(0)).reduce(sameRangeList, reduceContext));
         }
@@ -223,6 +247,18 @@ public class InternalFilters extends InternalMultiBucketAggregation<InternalFilt
             builder.endArray();
         }
         return builder;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(buckets, keyed);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalFilters that = (InternalFilters) obj;
+        return Objects.equals(buckets, that.buckets)
+                && Objects.equals(keyed, that.keyed);
     }
 
 }

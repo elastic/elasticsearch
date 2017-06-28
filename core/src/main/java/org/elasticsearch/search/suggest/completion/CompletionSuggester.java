@@ -83,7 +83,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     private static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
         query = (CompletionQuery) query.rewrite(searcher.getIndexReader());
-        Weight weight = query.createWeight(searcher, collector.needsScores());
+        Weight weight = query.createWeight(searcher, collector.needsScores(), 1f);
         for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
             BulkScorer scorer = weight.bulkScorer(context);
             if (scorer != null) {
@@ -185,7 +185,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         private final Map<Integer, SuggestDoc> scoreDocMap;
 
         // TODO: expose dup removal
-        
+
         TopDocumentsCollector(int num) {
             super(1, false); // TODO hack, we don't use the underlying pq, so we allocate a size of 1
             this.num = num;

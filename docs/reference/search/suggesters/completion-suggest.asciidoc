@@ -130,7 +130,7 @@ PUT music/song/1?refresh
 // TEST[continued]
 
 You can use the following shorthand form. Note that you can not specify
-a weight with suggestion(s).
+a weight with suggestion(s) in the shorthand form.
 
 [source,js]
 --------------------------------------------------

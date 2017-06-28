@@ -44,7 +44,7 @@ public class BuildTests extends ESTestCase {
         assertEquals(build, another);
         assertEquals(build.hashCode(), another.hashCode());
 
-        Build differentHash = new Build(randomAsciiOfLengthBetween(3, 10), build.date(), build.isSnapshot());
+        Build differentHash = new Build(randomAlphaOfLengthBetween(3, 10), build.date(), build.isSnapshot());
         assertNotEquals(build, differentHash);
 
         Build differentDate = new Build(build.shortHash(), "1970-01-01", build.isSnapshot());

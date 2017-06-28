@@ -44,6 +44,8 @@ public final class AliasFilter implements Writeable {
     private final QueryBuilder filter;
     private final boolean reparseAliases;
 
+    public static final AliasFilter EMPTY = new AliasFilter(null, Strings.EMPTY_ARRAY);
+
     public AliasFilter(QueryBuilder filter, String... aliases) {
         this.aliases = aliases == null ? Strings.EMPTY_ARRAY : aliases;
         this.filter = filter;
@@ -52,7 +54,7 @@ public final class AliasFilter implements Writeable {
 
     public AliasFilter(StreamInput input) throws IOException {
         aliases = input.readStringArray();
-        if (input.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (input.getVersion().onOrAfter(Version.V_5_1_1)) {
             filter = input.readOptionalNamedWriteable(QueryBuilder.class);
             reparseAliases = false;
         } else {
@@ -88,7 +90,7 @@ public final class AliasFilter implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(aliases);
-        if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             out.writeOptionalNamedWriteable(filter);
         }
     }
@@ -126,7 +128,7 @@ public final class AliasFilter implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(aliases, filter, reparseAliases);
+        return Objects.hash(reparseAliases, Arrays.hashCode(aliases), filter);
     }
 
     @Override

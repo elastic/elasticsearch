@@ -33,6 +33,10 @@ dependencyLicenses {
   mapping from: /asm-.*/, to: 'asm'
 }
 
+test {
+  jvmArg '-XX:-OmitStackTraceInFastThrow'
+}
+
 integTestCluster {
   setting 'script.max_compilations_per_minute', '1000'
 }
@@ -146,5 +150,3 @@ task regen {
     }
   }
 }
-
-

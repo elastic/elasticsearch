@@ -32,7 +32,8 @@ import java.util.Base64;
 public class PutStoredScriptRequestTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        PutStoredScriptRequest storedScriptRequest = new PutStoredScriptRequest("foo", "bar", new BytesArray("{}"), XContentType.JSON);
+        PutStoredScriptRequest storedScriptRequest =
+            new PutStoredScriptRequest("foo", "bar", "context", new BytesArray("{}"), XContentType.JSON);
 
         assertEquals(XContentType.JSON, storedScriptRequest.xContentType());
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -44,6 +45,7 @@ public class PutStoredScriptRequestTests extends ESTestCase {
                 assertEquals(XContentType.JSON, serialized.xContentType());
                 assertEquals(storedScriptRequest.lang(), serialized.lang());
                 assertEquals(storedScriptRequest.id(), serialized.id());
+                assertEquals(storedScriptRequest.context(), serialized.context());
             }
         }
     }
@@ -51,7 +53,7 @@ public class PutStoredScriptRequestTests extends ESTestCase {
     public void testSerializationBwc() throws IOException {
         final byte[] rawStreamBytes = Base64.getDecoder().decode("ADwDCG11c3RhY2hlAQZzY3JpcHQCe30A");
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
         try (StreamInput in = StreamInput.wrap(rawStreamBytes)) {
             in.setVersion(version);
             PutStoredScriptRequest serialized = new PutStoredScriptRequest();

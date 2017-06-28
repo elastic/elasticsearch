@@ -47,3 +47,24 @@ requests.
 Refresh requests that are broadcast to multiple shards that can have one or more
 shards fail during the request now return a 500 response instead of a 200
 response in the event there is at least one failure.
+
+==== Delete by Query API requires an explicit query
+
+In previous versions of Elasticsearch, delete by query requests without an explicit query
+were accepted, match_all was used as the default query and all documents were deleted
+as a result. From version 6.0.0, delete by query requests require an explicit query.
+
+=== DELETE document calls now implicitly create the type
+
+Running `DELETE index/type/id` now implicitly creates `type` with a default
+mapping if it did not exist yet.
+
+==== Indices information APIs
+
+Previously it was possible to execute `GET /_aliases,_mappings` or `GET
+/myindex/_settings,_alias` by separating mulitple types of requests with commas
+in order to retrieve multiple types of information about one or more indices.
+This comma-separation for retrieving multiple pieces of information has been
+removed.. `GET /_all` can be used to retrieve all aliases, settings, and
+mappings for all indices. In order to retrieve only the mappings for an index,
+`GET /myindex/_mappings` (or `_aliases`, or `_settings`).

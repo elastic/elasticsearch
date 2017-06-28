@@ -38,7 +38,8 @@ public class BulkItemRequest implements Streamable {
 
     }
 
-    protected BulkItemRequest(int id, DocWriteRequest request) {
+    // NOTE: public for testing only
+    public BulkItemRequest(int id, DocWriteRequest request) {
         this.id = id;
         this.request = request;
     }
@@ -56,13 +57,11 @@ public class BulkItemRequest implements Streamable {
         return request.indices()[0];
     }
 
-    // NOTE: protected for testing only
-    protected BulkItemResponse getPrimaryResponse() {
+    BulkItemResponse getPrimaryResponse() {
         return primaryResponse;
     }
 
-    // NOTE: protected for testing only
-    protected void setPrimaryResponse(BulkItemResponse primaryResponse) {
+    void setPrimaryResponse(BulkItemResponse primaryResponse) {
         this.primaryResponse = primaryResponse;
     }
 
@@ -79,7 +78,7 @@ public class BulkItemRequest implements Streamable {
         if (in.readBoolean()) {
             primaryResponse = BulkItemResponse.readBulkItem(in);
         }
-        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
+        if (in.getVersion().before(Version.V_6_0_0_alpha1)) { // TODO remove once backported
             boolean ignoreOnReplica = in.readBoolean();
             if (ignoreOnReplica == false && primaryResponse != null) {
                 assert primaryResponse.isFailed() == false : "expected no failure on the primary response";
@@ -90,7 +89,7 @@ public class BulkItemRequest implements Streamable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
+        if (out.getVersion().before(Version.V_6_0_0_alpha1)) { // TODO remove once backported
             // old nodes expect updated version and version type on the request
             if (primaryResponse != null) {
                 request.version(primaryResponse.getVersion());
@@ -103,7 +102,7 @@ public class BulkItemRequest implements Streamable {
             DocWriteRequest.writeDocumentRequest(out, request);
         }
         out.writeOptionalStreamable(primaryResponse);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
+        if (out.getVersion().before(Version.V_6_0_0_alpha1)) { // TODO remove once backported
             if (primaryResponse != null) {
                 out.writeBoolean(primaryResponse.isFailed()
                         || primaryResponse.getResponse().getResult() == DocWriteResponse.Result.NOOP);

@@ -20,7 +20,6 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -198,8 +197,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             builder.startObject().field("template", "code").endObject();
 
             StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", "code",
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
+            StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
@@ -214,8 +212,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             }
 
             StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", code,
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
+            StoredScriptSource source = new StoredScriptSource("lang", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
@@ -230,8 +227,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             }
 
             StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", code,
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
+            StoredScriptSource source = new StoredScriptSource("lang", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
@@ -246,13 +242,22 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
             }
 
             StoredScriptSource parsed = StoredScriptSource.parse("lang", builder.bytes(), XContentType.JSON);
-            StoredScriptSource source = new StoredScriptSource("lang", code,
-                Collections.singletonMap(Script.CONTENT_TYPE_OPTION, builder.contentType().mediaType()));
+            StoredScriptSource source = new StoredScriptSource("lang", code, Collections.emptyMap());
 
             assertThat(parsed, equalTo(source));
         }
 
         // complex script with script object
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject().field("script").startObject().field("lang", "lang").field("source", "code").endObject().endObject();
+
+            StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
+            StoredScriptSource source = new StoredScriptSource("lang", "code", Collections.emptyMap());
+
+            assertThat(parsed, equalTo(source));
+        }
+
+        // complex script using "code" backcompat
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code").endObject().endObject();
 
@@ -261,10 +266,11 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             assertThat(parsed, equalTo(source));
         }
+        assertWarnings("Deprecated field [code] used, expected [source] instead");
 
         // complex script with script object and empty options
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code")
+            builder.startObject().field("script").startObject().field("lang", "lang").field("source", "code")
                 .field("options").startObject().endObject().endObject().endObject();
 
             StoredScriptSource parsed = StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON);
@@ -275,7 +281,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
         // complex script with embedded template
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("lang", "lang").startObject("code").field("query", "code")
+            builder.startObject().field("script").startObject().field("lang", "lang").startObject("source").field("query", "code")
                 .endObject().startObject("options").endObject().endObject().endObject().string();
             String code;
 
@@ -303,48 +309,38 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
         // check for missing lang parameter when parsing a script
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("code", "code").endObject().endObject();
+            builder.startObject().field("script").startObject().field("source", "code").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
                 StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
             assertThat(iae.getMessage(), equalTo("must specify lang for stored script"));
         }
 
-        // check for missing code parameter when parsing a script
+        // check for missing source parameter when parsing a script
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject().field("script").startObject().field("lang", "lang").endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
                 StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
-            assertThat(iae.getMessage(), equalTo("must specify code for stored script"));
+            assertThat(iae.getMessage(), equalTo("must specify source for stored script"));
         }
 
         // check for illegal options parameter when parsing a script
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code")
+            builder.startObject().field("script").startObject().field("lang", "lang").field("source", "code")
                 .startObject("options").field("option", "option").endObject().endObject().endObject();
 
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () ->
                 StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
             assertThat(iae.getMessage(), equalTo("illegal compiler options [{option=option}] specified"));
         }
-
-        // check for illegal use of content type option
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject().field("script").startObject().field("lang", "lang").field("code", "code")
-                .startObject("options").field("content_type", "option").endObject().endObject().endObject();
-
-            ParsingException pe = expectThrows(ParsingException.class, () ->
-                StoredScriptSource.parse(null, builder.bytes(), XContentType.JSON));
-            assertThat(pe.getRootCause().getMessage(), equalTo("content_type cannot be user-specified"));
-        }
     }
 
     @Override
     protected StoredScriptSource createTestInstance() {
         return new StoredScriptSource(
-            randomAsciiOfLength(randomIntBetween(4, 32)),
-            randomAsciiOfLength(randomIntBetween(4, 16383)),
+            randomAlphaOfLength(randomIntBetween(4, 32)),
+            randomAlphaOfLength(randomIntBetween(4, 16383)),
             Collections.emptyMap());
     }
 

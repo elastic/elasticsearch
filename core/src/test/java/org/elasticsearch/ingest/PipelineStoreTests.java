@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -49,6 +50,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class PipelineStoreTests extends ESTestCase {
 
+    private ClusterSettings clusterSettings;
     private PipelineStore store;
 
     @Before
@@ -93,7 +95,8 @@ public class PipelineStoreTests extends ESTestCase {
                 }
             };
         });
-        store = new PipelineStore(Settings.EMPTY, processorFactories);
+        clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        store = new PipelineStore(clusterSettings, Settings.EMPTY, processorFactories);
     }
 
     public void testUpdatePipelines() {
@@ -369,4 +372,11 @@ public class PipelineStoreTests extends ESTestCase {
         store.validatePipeline(Collections.singletonMap(discoveryNode, ingestInfo), putRequest);
     }
 
+    public void testUpdateIngestNewDateFormatSetting() throws Exception {
+        assertFalse(store.isNewIngestDateFormat());
+        clusterSettings.applySettings(Settings.builder().put(IngestService.NEW_INGEST_DATE_FORMAT.getKey(), true).build());
+        assertTrue(store.isNewIngestDateFormat());
+        assertWarnings("[ingest.new_date_format] setting was deprecated in Elasticsearch and will be " +
+            "removed in a future release! See the breaking changes documentation for the next major version.");
+    }
 }

@@ -32,7 +32,7 @@ public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricA
 
     @Override
     protected ScriptedMetricAggregationBuilder createTestAggregatorBuilder() {
-        ScriptedMetricAggregationBuilder factory = new ScriptedMetricAggregationBuilder(randomAsciiOfLengthBetween(1, 20));
+        ScriptedMetricAggregationBuilder factory = new ScriptedMetricAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             factory.initScript(randomScript("initScript"));
         }
@@ -53,7 +53,7 @@ public class ScriptedMetricTests extends BaseAggregationTestCase<ScriptedMetricA
 
     private Script randomScript(String script) {
         if (randomBoolean()) {
-            return new Script(script);
+            return mockScript(script);
         } else {
             ScriptType type = randomFrom(ScriptType.values());
             return new Script(

@@ -20,10 +20,10 @@
 package org.elasticsearch.index.reindex.remote;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.BasicHit;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Hit;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.Response;
-import org.elasticsearch.action.bulk.byscroll.ScrollableHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.ScrollableHitSource.BasicHit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
+import org.elasticsearch.index.reindex.ScrollableHitSource.Response;
+import org.elasticsearch.index.reindex.ScrollableHitSource.SearchFailure;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.collect.Tuple;

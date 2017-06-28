@@ -120,13 +120,11 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
                 ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name", valueType);
                 aggregationBuilder.field(FIELD_NAME);
 
-                try (ValueCountAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType)) {
-                    aggregator.preCollection();
-                    indexSearcher.search(query, aggregator);
-                    aggregator.postCollection();
-
-                    verify.accept((ValueCount) aggregator.buildAggregation(0L));
-                }
+                ValueCountAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
+                aggregator.preCollection();
+                indexSearcher.search(query, aggregator);
+                aggregator.postCollection();
+                verify.accept((ValueCount) aggregator.buildAggregation(0L));
             }
         }
     }

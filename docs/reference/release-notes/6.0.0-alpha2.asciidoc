@@ -1,0 +1,180 @@
+[[release-notes-6.0.0-alpha2]]
+== 6.0.0-alpha2 Release Notes
+
+Also see <<breaking-changes-6.0>>.
+
+[[breaking-6.0.0-alpha2]]
+[float]
+=== Breaking changes
+
+CRUD::
+* Deleting a document from a non-existing index creates the indexIf the index does not exist, delete document will not auto create it {pull}24518[#24518] (issue: {issue}15425[#15425])
+
+Plugin Analysis ICU::
+* Upgrade icu4j to latest version {pull}24821[#24821]
+
+Plugin Repository S3::
+* Remove deprecated S3 settings {pull}24445[#24445]
+
+Scripting::
+* Remove script access to term statistics {pull}19462[#19462] (issue: {issue}19359[#19359])
+
+
+
+[[breaking-java-6.0.0-alpha2]]
+[float]
+=== Breaking Java changes
+
+Aggregations::
+* Make Terms.Bucket an interface rather than an abstract class {pull}24492[#24492]
+* Compound order for histogram aggregations  {pull}22343[#22343] (issues: {issue}14771[#14771], {issue}20003[#20003], {issue}23613[#23613])
+
+Plugins::
+* Drop name from TokenizerFactory {pull}24869[#24869]
+
+
+
+[[deprecation-6.0.0-alpha2]]
+[float]
+=== Deprecations
+
+Settings::
+* Deprecate settings in .yml and .json {pull}24059[#24059] (issue: {issue}19391[#19391])
+
+
+
+[[feature-6.0.0-alpha2]]
+[float]
+=== New features
+
+Aggregations::
+* SignificantText aggregation - like significant_terms, but for text {pull}24432[#24432] (issue: {issue}23674[#23674])
+
+Internal::
+* Automatically adjust search threadpool queue_size {pull}23884[#23884] (issue: {issue}3890[#3890])
+
+Mapping::
+* Add new ip_range field type {pull}24433[#24433]
+
+Plugin Analysis ICU::
+* Add ICUCollationFieldMapper {pull}24126[#24126]
+
+
+
+[[enhancement-6.0.0-alpha2]]
+[float]
+=== Enhancements
+
+Core::
+* Improve bootstrap checks error messages {pull}24548[#24548]
+
+Engine::
+* Move the IndexDeletionPolicy to be engine internal {pull}24930[#24930] (issue: {issue}10708[#10708])
+
+Internal::
+* Add assertions enabled helper {pull}24834[#24834]
+
+Java High Level REST Client::
+* Add doc_count to ParsedMatrixStats {pull}24952[#24952] (issue: {issue}24776[#24776])
+* Add fromXContent method to ClearScrollResponse {pull}24909[#24909]
+* ClearScrollRequest to implement ToXContentObject {pull}24907[#24907]
+* SearchScrollRequest to implement ToXContentObject {pull}24906[#24906] (issue: {issue}3889[#3889])
+* Add aggs parsers for high level REST Client {pull}24824[#24824] (issues: {issue}23965[#23965], {issue}23973[#23973], {issue}23974[#23974], {issue}24085[#24085], {issue}24160[#24160], {issue}24162[#24162], {issue}24182[#24182], {issue}24183[#24183], {issue}24208[#24208], {issue}24213[#24213], {issue}24239[#24239], {issue}24284[#24284], {issue}24312[#24312], {issue}24330[#24330], {issue}24365[#24365], {issue}24371[#24371], {issue}24442[#24442], {issue}24521[#24521], {issue}24524[#24524], {issue}24564[#24564], {issue}24583[#24583], {issue}24589[#24589], {issue}24648[#24648], {issue}24667[#24667], {issue}24675[#24675], {issue}24682[#24682], {issue}24700[#24700], {issue}24706[#24706], {issue}24717[#24717], {issue}24720[#24720], {issue}24738[#24738], {issue}24746[#24746], {issue}24789[#24789], {issue}24791[#24791], {issue}24794[#24794], {issue}24796[#24796], {issue}24822[#24822])
+
+Mapping::
+* Identify documents by their `_id`. {pull}24460[#24460]
+
+Packaging::
+* Set number of processes in systemd unit file {pull}24970[#24970] (issue: {issue}20874[#20874])
+
+Plugin Lang Painless::
+* Make Painless Compiler Use an Instance Per Context {pull}24972[#24972]
+* Make PainlessScript An Interface {pull}24966[#24966]
+
+Recovery::
+* Introduce primary context {pull}25031[#25031] (issue: {issue}10708[#10708])
+
+Scripting::
+* Add StatefulFactoryType as optional intermediate factory in script contexts {pull}24974[#24974] (issue: {issue}20426[#20426])
+* Make contexts available to ScriptEngine construction {pull}24896[#24896]
+* Make ScriptEngine.compile generic on the script context {pull}24873[#24873]
+* Add instance and compiled classes to script contexts {pull}24868[#24868]
+
+Search::
+* Eliminate array access in tight loops when profiling is enabled. {pull}24959[#24959]
+* Support Multiple Inner Hits on a Field Collapse Request {pull}24517[#24517]
+* Expand cross cluster search indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
+
+Search Templates::
+* Add max concurrent searches to multi template search {pull}24255[#24255] (issues: {issue}20912[#20912], {issue}21907[#21907])
+
+Sequence IDs::
+* Fill gaps on primary promotion {pull}24945[#24945] (issue: {issue}10708[#10708])
+* Introduce clean transition on primary promotion {pull}24925[#24925] (issue: {issue}10708[#10708])
+* Guarantee that translog generations are seqNo conflict free {pull}24825[#24825] (issues: {issue}10708[#10708], {issue}24779[#24779])
+* Inline global checkpoints {pull}24513[#24513] (issue: {issue}10708[#10708])
+
+Snapshot/Restore::
+* Enhances get snapshots API to allow retrieving repository index only {pull}24477[#24477] (issue: {issue}24288[#24288])
+
+
+
+[[bug-6.0.0-alpha2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Terms aggregation should remap global ordinal buckets when a sub-aggregator is used to sort the terms {pull}24941[#24941] (issue: {issue}24788[#24788])
+* Correctly set doc_count when MovAvg "predicts" values on existing buckets {pull}24892[#24892] (issue: {issue}24327[#24327])
+* DateHistogram: Fix `extended_bounds` with `offset` {pull}23789[#23789] (issue: {issue}23776[#23776])
+* Fix ArrayIndexOutOfBoundsException when no ranges are specified in the query {pull}23241[#23241] (issue: {issue}22881[#22881])
+
+Analysis::
+* PatternAnalyzer should lowercase wildcard queries when `lowercase` is true. {pull}24967[#24967]
+
+Cache::
+* fix bug of weight computation {pull}24856[#24856]
+
+Core::
+* Fix cache expire after access {pull}24546[#24546]
+
+Index APIs::
+* Validates updated settings on closed indices {pull}24487[#24487] (issue: {issue}23787[#23787])
+
+Ingest::
+* Fix floating-point error when DateProcessor parses UNIX {pull}24947[#24947]
+* add option for _ingest.timestamp to use new ZonedDateTime (5.x backport) {pull}24030[#24030] (issues: {issue}23168[#23168], {issue}23174[#23174])
+
+Inner Hits::
+* Fix Source filtering in new field collapsing feature {pull}24068[#24068] (issue: {issue}24063[#24063])
+
+Internal::
+* Ensure remote cluster is connected before fetching `_field_caps` {pull}24845[#24845] (issue: {issue}24763[#24763])
+
+Network::
+* Fix error message if an incompatible node connects {pull}24884[#24884]
+
+Plugins::
+* Fix plugin installation permissions {pull}24527[#24527] (issue: {issue}24480[#24480])
+
+Scroll::
+* Fix single shard scroll within a cluster with nodes in version `>= 5.3` and `<= 5.3` {pull}24512[#24512]
+
+Search::
+* Fix script field sort returning Double.MAX_VALUE for all documents {pull}24942[#24942] (issue: {issue}24940[#24940])
+* Compute the took time of the query after the expand phase of field collapsing {pull}24902[#24902] (issue: {issue}24900[#24900])
+
+Sequence IDs::
+* Handle primary failure handling replica response {pull}24926[#24926] (issue: {issue}24935[#24935])
+
+Snapshot/Restore::
+* Fix inefficient (worst case exponential) loading of snapshot repository {pull}24510[#24510] (issue: {issue}24509[#24509])
+
+Stats::
+* Avoid double decrement on current query counter {pull}24922[#24922] (issues: {issue}22996[#22996], {issue}24872[#24872])
+* Adjust available and free bytes to be non-negative on huge FSes {pull}24911[#24911] (issues: {issue}23093[#23093], {issue}24453[#24453])
+
+Suggesters::
+* Fix context suggester to read values from keyword type field {pull}24200[#24200] (issue: {issue}24129[#24129])
+
+

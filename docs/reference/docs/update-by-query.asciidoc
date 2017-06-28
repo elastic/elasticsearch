@@ -1,8 +1,6 @@
 [[docs-update-by-query]]
 == Update By Query API
 
-experimental[The update-by-query API is new and should still be considered experimental.  The API may change in ways that are not backwards compatible]
-
 The simplest usage of `_update_by_query` just performs an update on every
 document in the index without changing the source. This is useful to
 <<picking-up-a-new-property,pick up a new property>> or some other online
@@ -108,7 +106,7 @@ will increment the `likes` field on all of kimchy's tweets:
 POST twitter/_update_by_query
 {
   "script": {
-    "inline": "ctx._source.likes++",
+    "source": "ctx._source.likes++",
     "lang": "painless"
   },
   "query": {
@@ -420,7 +418,7 @@ POST twitter/_update_by_query
     "max": 2
   },
   "script": {
-    "inline": "ctx._source['extra'] = 'test'"
+    "source": "ctx._source['extra'] = 'test'"
   }
 }
 POST twitter/_update_by_query
@@ -430,7 +428,7 @@ POST twitter/_update_by_query
     "max": 2
   },
   "script": {
-    "inline": "ctx._source['extra'] = 'test'"
+    "source": "ctx._source['extra'] = 'test'"
   }
 }
 ----------------------------------------------------------------
@@ -471,7 +469,7 @@ You can also let update-by-query automatically parallelize using
 POST twitter/_update_by_query?refresh&slices=5
 {
   "script": {
-    "inline": "ctx._source['extra'] = 'test'"
+    "source": "ctx._source['extra'] = 'test'"
   }
 }
 ----------------------------------------------------------------

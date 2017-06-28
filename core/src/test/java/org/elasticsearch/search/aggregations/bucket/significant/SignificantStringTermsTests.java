@@ -22,13 +22,10 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -36,45 +33,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.search.aggregations.InternalAggregations.EMPTY;
-
 public class SignificantStringTermsTests extends InternalSignificantTermsTestCase {
-
-    private SignificanceHeuristic significanceHeuristic;
-
-    @Before
-    public void setUpSignificanceHeuristic() {
-        significanceHeuristic = randomSignificanceHeuristic();
-    }
 
     @Override
     protected InternalSignificantTerms createTestInstance(String name,
                                                           List<PipelineAggregator> pipelineAggregators,
-                                                          Map<String, Object> metaData) {
+                                                          Map<String, Object> metaData,
+                                                          InternalAggregations aggs,
+                                                          int requiredSize, int numBuckets,
+                                                          long subsetSize, int[] subsetDfs,
+                                                          long supersetSize, int[] supersetDfs,
+                                                          SignificanceHeuristic significanceHeuristic) {
         DocValueFormat format = DocValueFormat.RAW;
-        int requiredSize = randomIntBetween(1, 5);
-        int shardSize = requiredSize + 2;
-        final int numBuckets = randomInt(shardSize);
-
-        long globalSubsetSize = 0;
-        long globalSupersetSize = 0;
-
         List<SignificantStringTerms.Bucket> buckets = new ArrayList<>(numBuckets);
         Set<BytesRef> terms = new HashSet<>();
         for (int i = 0; i < numBuckets; ++i) {
-            BytesRef term = randomValueOtherThanMany(b -> terms.add(b) == false, () -> new BytesRef(randomAsciiOfLength(10)));
-
-            int subsetDf = randomIntBetween(1, 10);
-            int supersetDf = randomIntBetween(subsetDf, 20);
-            int supersetSize = randomIntBetween(supersetDf, 30);
-
-            globalSubsetSize += subsetDf;
-            globalSupersetSize += supersetSize;
-
-            buckets.add(new SignificantStringTerms.Bucket(term, subsetDf, subsetDf, supersetDf, supersetSize, EMPTY, format));
+            BytesRef term = randomValueOtherThanMany(b -> terms.add(b) == false, () -> new BytesRef(randomAlphaOfLength(10)));
+            buckets.add(new SignificantStringTerms.Bucket(term, subsetDfs[i], subsetSize, supersetDfs[i], supersetSize, aggs, format));
         }
-        return new SignificantStringTerms(name, requiredSize, 1L, pipelineAggregators, metaData, format, globalSubsetSize,
-                globalSupersetSize, significanceHeuristic, buckets);
+        return new SignificantStringTerms(name, requiredSize, 1L, pipelineAggregators, metaData, format, subsetSize,
+                supersetSize, significanceHeuristic, buckets);
     }
 
     @Override
@@ -82,11 +60,8 @@ public class SignificantStringTermsTests extends InternalSignificantTermsTestCas
         return SignificantStringTerms::new;
     }
 
-    private static SignificanceHeuristic randomSignificanceHeuristic() {
-        return randomFrom(
-                new JLHScore(),
-                new MutualInformation(randomBoolean(), randomBoolean()),
-                new GND(randomBoolean()),
-                new ChiSquare(randomBoolean(), randomBoolean()));
+    @Override
+    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+        return ParsedSignificantStringTerms.class;
     }
 }

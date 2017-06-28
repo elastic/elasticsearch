@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -32,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.AllFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.node.Node;
 
@@ -99,11 +99,11 @@ public final class IndexSettings {
             Setting.intSetting("index.max_rescore_window", MAX_RESULT_WINDOW_SETTING, 1, Property.Dynamic, Property.IndexScope);
     /**
      * Index setting describing the maximum number of filters clauses that can be used
-     * in an adjacency_matrix aggregation. The max number of buckets produced by  
+     * in an adjacency_matrix aggregation. The max number of buckets produced by
      * N filters is (N*N)/2 so a limit of 100 filters is imposed by default.
      */
     public static final Setting<Integer> MAX_ADJACENCY_MATRIX_FILTERS_SETTING =
-        Setting.intSetting("index.max_adjacency_matrix_filters", 100, 2, Property.Dynamic, Property.IndexScope);    
+        Setting.intSetting("index.max_adjacency_matrix_filters", 100, 2, Property.Dynamic, Property.IndexScope);
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING =
         Setting.timeSetting("index.refresh_interval", DEFAULT_REFRESH_INTERVAL, new TimeValue(-1, TimeUnit.MILLISECONDS),
@@ -112,9 +112,42 @@ public final class IndexSettings {
         Setting.byteSizeSetting("index.translog.flush_threshold_size", new ByteSizeValue(512, ByteSizeUnit.MB), Property.Dynamic,
             Property.IndexScope);
 
-    public static final Setting<TimeValue> INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL =
-        Setting.timeSetting("index.seq_no.checkpoint_sync_interval", new TimeValue(30, TimeUnit.SECONDS),
-            new TimeValue(-1, TimeUnit.MILLISECONDS), Property.Dynamic, Property.IndexScope);
+    /**
+     * Controls how long translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted. A longer retention policy is useful to increase
+     * the chance of ops based recoveries.
+     **/
+    public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
+        Setting.timeSetting("index.translog.retention.age", TimeValue.timeValueHours(12), TimeValue.timeValueMillis(-1), Property.Dynamic,
+            Property.IndexScope);
+
+    /**
+     * Controls how many translog files that are no longer needed for persistence reasons
+     * will be kept around before being deleted. Keeping more files is useful to increase
+     * the chance of ops based recoveries.
+     **/
+    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
+        Setting.byteSizeSetting("index.translog.retention.size", new ByteSizeValue(512, ByteSizeUnit.MB), Property.Dynamic,
+            Property.IndexScope);
+
+    /**
+     * The maximum size of a translog generation. This is independent of the maximum size of
+     * translog operations that have not been flushed.
+     */
+    public static final Setting<ByteSizeValue> INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING =
+            Setting.byteSizeSetting(
+                    "index.translog.generation_threshold_size",
+                    new ByteSizeValue(64, ByteSizeUnit.MB),
+                    /*
+                     * An empty translog occupies 43 bytes on disk. If the generation threshold is
+                     * below this, the flush thread can get stuck in an infinite loop repeatedly
+                     * rolling the generation as every new generation will already exceed the
+                     * generation threshold. However, small thresholds are useful for testing so we
+                     * do not add a large lower bound here.
+                     */
+                    new ByteSizeValue(64, ByteSizeUnit.BYTES),
+                    new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
+                    new Property[]{Property.Dynamic, Property.IndexScope});
 
     /**
      * Index setting to enable / disable deletes garbage collection.
@@ -142,7 +175,6 @@ public final class IndexSettings {
     private final String nodeName;
     private final Settings nodeSettings;
     private final int numberOfShards;
-    private final boolean isShadowReplicaIndex;
     // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
     private volatile Settings settings;
     private volatile IndexMetaData indexMetaData;
@@ -154,10 +186,13 @@ public final class IndexSettings {
     private volatile Translog.Durability durability;
     private final TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
-    private final TimeValue globalCheckpointInterval;
     private volatile ByteSizeValue flushThresholdSize;
+    private volatile TimeValue translogRetentionAge;
+    private volatile ByteSizeValue translogRetentionSize;
+    private volatile ByteSizeValue generationThresholdSize;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final MergePolicyConfig mergePolicyConfig;
+    private final IndexSortConfig indexSortConfig;
     private final IndexScopedSettings scopedSettings;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean warmerEnabled;
@@ -173,7 +208,10 @@ public final class IndexSettings {
      * The maximum number of slices allowed in a scroll request.
      */
     private volatile int maxSlicesPerScroll;
-
+    /**
+     * Whether the index is required to have at most one type.
+     */
+    private final boolean singleType;
 
     /**
      * Returns the default search field for this index.
@@ -238,7 +276,6 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetaData = indexMetaData;
         numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
-        isShadowReplicaIndex = indexMetaData.isIndexUsingShadowReplicas(settings);
 
         this.defaultField = DEFAULT_FIELD_SETTING.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
@@ -248,8 +285,10 @@ public final class IndexSettings {
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
-        globalCheckpointInterval = scopedSettings.get(INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL);
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
+        translogRetentionAge = scopedSettings.get(INDEX_TRANSLOG_RETENTION_AGE_SETTING);
+        translogRetentionSize = scopedSettings.get(INDEX_TRANSLOG_RETENTION_SIZE_SETTING);
+        generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
@@ -260,6 +299,8 @@ public final class IndexSettings {
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
+        this.indexSortConfig = new IndexSortConfig(this);
+        singleType = scopedSettings.get(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);
@@ -281,6 +322,11 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_WARMER_ENABLED_SETTING, this::setEnableWarmer);
         scopedSettings.addSettingsUpdateConsumer(INDEX_GC_DELETES_SETTING, this::setGCDeletes);
         scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING, this::setTranslogFlushThresholdSize);
+        scopedSettings.addSettingsUpdateConsumer(
+                INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
+                this::setGenerationThresholdSize);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_AGE_SETTING, this::setTranslogRetentionAge);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_TRANSLOG_RETENTION_SIZE_SETTING, this::setTranslogRetentionSize);
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
@@ -288,6 +334,18 @@ public final class IndexSettings {
 
     private void setTranslogFlushThresholdSize(ByteSizeValue byteSizeValue) {
         this.flushThresholdSize = byteSizeValue;
+    }
+
+    private void setTranslogRetentionSize(ByteSizeValue byteSizeValue) {
+        this.translogRetentionSize = byteSizeValue;
+    }
+
+    private void setTranslogRetentionAge(TimeValue age) {
+        this.translogRetentionAge = age;
+    }
+
+    private void setGenerationThresholdSize(final ByteSizeValue generationThresholdSize) {
+        this.generationThresholdSize = generationThresholdSize;
     }
 
     private void setGCDeletes(TimeValue timeValue) {
@@ -333,15 +391,6 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns <code>true</code> iff the given settings indicate that the index
-     * associated with these settings allocates it's shards on a shared
-     * filesystem.
-     */
-    public boolean isOnSharedFilesystem() {
-        return indexMetaData.isOnSharedFilesystem(getSettings());
-    }
-
-    /**
      * Returns the version the index was created on.
      * @see Version#indexCreated(Settings)
      */
@@ -374,10 +423,9 @@ public final class IndexSettings {
     public int getNumberOfReplicas() { return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null); }
 
     /**
-     * Returns <code>true</code> iff this index uses shadow replicas.
-     * @see IndexMetaData#isIndexUsingShadowReplicas(Settings)
+     * Returns whether the index enforces at most one type.
      */
-    public boolean isShadowReplicaIndex() { return isShadowReplicaIndex; }
+    public boolean isSingleType() { return singleType; }
 
     /**
      * Returns the node settings. The settings returned from {@link #getSettings()} are a merged version of the
@@ -450,16 +498,32 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns this interval in which the primary shards of this index should check and advance the global checkpoint
-     */
-    public TimeValue getGlobalCheckpointInterval() {
-        return globalCheckpointInterval;
-    }
-
-    /**
      * Returns the transaction log threshold size when to forcefully flush the index and clear the transaction log.
      */
     public ByteSizeValue getFlushThresholdSize() { return flushThresholdSize; }
+
+    /**
+     * Returns the transaction log retention size which controls how much of the translog is kept around to allow for ops based recoveries
+     */
+    public ByteSizeValue getTranslogRetentionSize() { return translogRetentionSize; }
+
+    /**
+     * Returns the transaction log retention age which controls the maximum age (time from creation) that translog files will be kept around
+     */
+    public TimeValue getTranslogRetentionAge() { return translogRetentionAge; }
+
+    /**
+     * Returns the generation threshold size. As sequence numbers can cause multiple generations to
+     * be preserved for rollback purposes, we want to keep the size of individual generations from
+     * growing too large to avoid excessive disk space consumption. Therefore, the translog is
+     * automatically rolled to a new generation when the current generation exceeds this generation
+     * threshold size.
+     *
+     * @return the generation threshold size
+     */
+    public ByteSizeValue getGenerationThresholdSize() {
+        return generationThresholdSize;
+    }
 
     /**
      * Returns the {@link MergeSchedulerConfig}
@@ -476,7 +540,7 @@ public final class IndexSettings {
     private void setMaxResultWindow(int maxResultWindow) {
         this.maxResultWindow = maxResultWindow;
     }
-    
+
     /**
      * Returns the max number of filters in adjacency_matrix aggregation search requests
      */
@@ -486,7 +550,7 @@ public final class IndexSettings {
 
     private void setMaxAdjacencyMatrixFilters(int maxAdjacencyFilters) {
         this.maxAdjacencyMatrixFilters = maxAdjacencyFilters;
-    }    
+    }
 
     /**
      * Returns the maximum rescore window for search requests.
@@ -549,6 +613,13 @@ public final class IndexSettings {
 
     private void setMaxSlicesPerScroll(int value) {
         this.maxSlicesPerScroll = value;
+    }
+
+    /**
+     * Returns the index sort config that should be used for this index.
+     */
+    public IndexSortConfig getIndexSortConfig() {
+        return indexSortConfig;
     }
 
     public IndexScopedSettings getScopedSettings() { return scopedSettings;}

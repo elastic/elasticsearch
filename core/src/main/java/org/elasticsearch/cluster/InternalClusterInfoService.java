@@ -383,13 +383,6 @@ public class InternalClusterInfoService extends AbstractComponent
             if (logger.isTraceEnabled()) {
                 logger.trace("shard: {} size: {}", sid, size);
             }
-            if (indexMeta != null && indexMeta.isIndexUsingShadowReplicas()) {
-                // Shards on a shared filesystem should be considered of size 0
-                if (logger.isTraceEnabled()) {
-                    logger.trace("shard: {} is using shadow replicas and will be treated as size 0", sid);
-                }
-                size = 0;
-            }
             newShardSizes.put(sid, size);
         }
     }

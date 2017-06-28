@@ -9,6 +9,8 @@ The following range types are supported:
 `long_range`::      A range of signed 64-bit integers with a minimum value of +-2^63^+ and maximum of +2^63^-1+.
 `double_range`::    A range of double-precision 64-bit IEEE 754 floating point values.
 `date_range`::      A range of date values represented as unsigned 64-bit integer milliseconds elapsed since system epoch.
+`ip_range` ::       A range of ip values supporting either https://en.wikipedia.org/wiki/IPv4[IPv4] or
+                    https://en.wikipedia.org/wiki/IPv6[IPv6] (or mixed) addresses.
 
 Below is an example of configuring a mapping with various range fields followed by an example that indexes several range types.
 

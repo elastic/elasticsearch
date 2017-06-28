@@ -49,6 +49,11 @@ public class RestSyncedFlushAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "synced_flush_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.lenientExpandOpen());
         SyncedFlushRequest syncedFlushRequest = new SyncedFlushRequest(Strings.splitStringByCommaToArray(request.param("index")));

@@ -26,10 +26,8 @@ import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
 
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.containsString;
 
 public class RegexTests extends ScriptTestCase {
     @Override
@@ -264,8 +262,9 @@ public class RegexTests extends ScriptTestCase {
         assertEquals("Error compiling regex: Illegal Unicode escape sequence", e.getCause().getMessage());
 
         // And make sure the location of the error points to the offset inside the pattern
-        assertEquals("/\\ujjjj/", e.getScriptStack().get(0));
-        assertEquals("   ^---- HERE", e.getScriptStack().get(1));
+        assertScriptStack(e,
+                "/\\ujjjj/",
+                "   ^---- HERE");
     }
 
     public void testRegexAgainstNumber() {

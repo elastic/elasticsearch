@@ -56,7 +56,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.CustomHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
-import org.elasticsearch.search.fetch.subphase.highlight.PostingsHighlighter;
+import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.CustomSuggesterSearchIT.CustomSuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
@@ -204,7 +204,7 @@ public class SearchModuleTests extends ModuleTestCase {
         Map<String, Highlighter> highlighters = module.getHighlighters();
         assertEquals(FastVectorHighlighter.class, highlighters.get("fvh").getClass());
         assertEquals(PlainHighlighter.class, highlighters.get("plain").getClass());
-        assertEquals(PostingsHighlighter.class, highlighters.get("postings").getClass());
+        assertEquals(UnifiedHighlighter.class, highlighters.get("unified").getClass());
         assertSame(highlighters.get("custom"), customHighlighter);
     }
 
@@ -270,8 +270,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "geo_distance",
             "geo_polygon",
             "geo_shape",
-            "has_child",
-            "has_parent",
             "ids",
             "match",
             "match_all",
@@ -281,7 +279,6 @@ public class SearchModuleTests extends ModuleTestCase {
             "more_like_this",
             "multi_match",
             "nested",
-            "parent_id",
             "prefix",
             "query_string",
             "range",

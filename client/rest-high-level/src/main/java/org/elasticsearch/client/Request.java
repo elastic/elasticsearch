@@ -33,7 +33,11 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
@@ -42,11 +46,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.ByteArrayOutputStream;
@@ -59,7 +65,7 @@ import java.util.StringJoiner;
 
 final class Request {
 
-    private static final String DELIMITER = "/";
+    static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
     final String method;
     final String endpoint;
@@ -79,6 +85,7 @@ final class Request {
                 "method='" + method + '\'' +
                 ", endpoint='" + endpoint + '\'' +
                 ", params=" + params +
+                ", hasBody=" + (entity != null) +
                 '}';
     }
 
@@ -307,23 +314,58 @@ final class Request {
             xContentType = Requests.INDEX_CONTENT_TYPE;
         }
 
-        BytesRef source = XContentHelper.toXContent(updateRequest, xContentType, false).toBytesRef();
-        HttpEntity entity = new ByteArrayEntity(source.bytes, source.offset, source.length, ContentType.create(xContentType.mediaType()));
-
+        HttpEntity entity = createEntity(updateRequest, xContentType);
         return new Request(HttpPost.METHOD_NAME, endpoint, parameters.getParams(), entity);
+    }
+
+    static Request search(SearchRequest searchRequest) throws IOException {
+        String endpoint = endpoint(searchRequest.indices(), searchRequest.types(), "_search");
+        Params params = Params.builder();
+        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
+        params.withRouting(searchRequest.routing());
+        params.withPreference(searchRequest.preference());
+        params.withIndicesOptions(searchRequest.indicesOptions());
+        params.putParam("search_type", searchRequest.searchType().name().toLowerCase(Locale.ROOT));
+        if (searchRequest.requestCache() != null) {
+            params.putParam("request_cache", Boolean.toString(searchRequest.requestCache()));
+        }
+        params.putParam("batched_reduce_size", Integer.toString(searchRequest.getBatchedReduceSize()));
+        if (searchRequest.scroll() != null) {
+            params.putParam("scroll", searchRequest.scroll().keepAlive());
+        }
+        HttpEntity entity = null;
+        if (searchRequest.source() != null) {
+            entity = createEntity(searchRequest.source(), REQUEST_BODY_CONTENT_TYPE);
+        }
+        return new Request(HttpGet.METHOD_NAME, endpoint, params.getParams(), entity);
+    }
+
+    static Request searchScroll(SearchScrollRequest searchScrollRequest) throws IOException {
+        HttpEntity entity = createEntity(searchScrollRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request("GET", "/_search/scroll", Collections.emptyMap(), entity);
+    }
+
+    static Request clearScroll(ClearScrollRequest clearScrollRequest) throws IOException {
+        HttpEntity entity = createEntity(clearScrollRequest, REQUEST_BODY_CONTENT_TYPE);
+        return new Request("DELETE", "/_search/scroll", Collections.emptyMap(), entity);
+    }
+
+    private static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType) throws IOException {
+        BytesRef source = XContentHelper.toXContent(toXContent, xContentType, false).toBytesRef();
+        return new ByteArrayEntity(source.bytes, source.offset, source.length, ContentType.create(xContentType.mediaType()));
+    }
+
+    static String endpoint(String[] indices, String[] types, String endpoint) {
+        return endpoint(String.join(",", indices), String.join(",", types), endpoint);
     }
 
     /**
      * Utility method to build request's endpoint.
      */
     static String endpoint(String... parts) {
-        if (parts == null || parts.length == 0) {
-            return DELIMITER;
-        }
-
-        StringJoiner joiner = new StringJoiner(DELIMITER, DELIMITER, "");
+        StringJoiner joiner = new StringJoiner("/", "/", "");
         for (String part : parts) {
-            if (part != null) {
+            if (Strings.hasLength(part)) {
                 joiner.add(part);
             }
         }
@@ -450,6 +492,26 @@ final class Request {
             if (activeShardCount != null && activeShardCount != ActiveShardCount.DEFAULT) {
                 return putParam("wait_for_active_shards", activeShardCount.toString().toLowerCase(Locale.ROOT));
             }
+            return this;
+        }
+
+        Params withIndicesOptions(IndicesOptions indicesOptions) {
+            putParam("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));
+            putParam("allow_no_indices", Boolean.toString(indicesOptions.allowNoIndices()));
+            String expandWildcards;
+            if (indicesOptions.expandWildcardsOpen() == false && indicesOptions.expandWildcardsClosed() == false) {
+                expandWildcards = "none";
+            } else {
+                StringJoiner joiner  = new StringJoiner(",");
+                if (indicesOptions.expandWildcardsOpen()) {
+                    joiner.add("open");
+                }
+                if (indicesOptions.expandWildcardsClosed()) {
+                    joiner.add("closed");
+                }
+                expandWildcards = joiner.toString();
+            }
+            putParam("expand_wildcards", expandWildcards);
             return this;
         }
 

@@ -70,25 +70,25 @@ public class DoubleIndexingDocTests extends ESSingleNodeTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         TopDocs topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field1").fieldType().termQuery("value1", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field2").fieldType().termQuery("1", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field3").fieldType().termQuery("1.1", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field4").fieldType().termQuery("2010-01-01", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field5").fieldType().termQuery("1", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field5").fieldType().termQuery("2", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
 
         topDocs = searcher.search(mapper.mappers().smartNameFieldMapper("field5").fieldType().termQuery("3", context), 10);
-        assertThat(topDocs.totalHits, equalTo(2));
+        assertThat(topDocs.totalHits, equalTo(2L));
         writer.close();
         reader.close();
         dir.close();

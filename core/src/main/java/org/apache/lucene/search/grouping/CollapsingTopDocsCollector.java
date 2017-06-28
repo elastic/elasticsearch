@@ -18,13 +18,11 @@
  */
 package org.apache.lucene.search.grouping;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -37,7 +35,7 @@ import static org.apache.lucene.search.SortField.Type.SCORE;
  * output. The collapsing is done in a single pass by selecting only the top sorted document per collapse key.
  * The value used for the collapse key of each group can be found in {@link CollapseTopFieldDocs#collapseValues}.
  */
-public abstract class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollector<T> {
+public final class CollapsingTopDocsCollector<T> extends FirstPassGroupingCollector<T> {
     protected final String collapseField;
 
     protected final Sort sort;
@@ -47,9 +45,9 @@ public abstract class CollapsingTopDocsCollector<T> extends FirstPassGroupingCol
     private float maxScore;
     private final boolean trackMaxScore;
 
-    private CollapsingTopDocsCollector(String collapseField, Sort sort,
-                                       int topN, boolean trackMaxScore) throws IOException {
-        super(sort, topN);
+    CollapsingTopDocsCollector(GroupSelector<T> groupSelector, String collapseField, Sort sort,
+                                       int topN, boolean trackMaxScore) {
+        super(groupSelector, sort, topN);
         this.collapseField = collapseField;
         this.trackMaxScore = trackMaxScore;
         if (trackMaxScore) {
@@ -62,10 +60,10 @@ public abstract class CollapsingTopDocsCollector<T> extends FirstPassGroupingCol
 
     /**
      * Transform {@link FirstPassGroupingCollector#getTopGroups(int, boolean)} output in
-     * {@link CollapseTopFieldDocs}. The collapsing needs only one pass so we can create the final top docs at the end
+     * {@link CollapseTopFieldDocs}. The collapsing needs only one pass so we can get the final top docs at the end
      * of the first pass.
      */
-    public CollapseTopFieldDocs getTopDocs() {
+    public CollapseTopFieldDocs getTopDocs() throws IOException {
         Collection<SearchGroup<T>> groups = super.getTopGroups(0, true);
         if (groups == null) {
             return new CollapseTopFieldDocs(collapseField, totalHitCount, new ScoreDoc[0],
@@ -121,57 +119,6 @@ public abstract class CollapsingTopDocsCollector<T> extends FirstPassGroupingCol
         totalHitCount++;
     }
 
-    private static class Numeric extends CollapsingTopDocsCollector<Long> {
-        private final CollapsingDocValuesSource.Numeric source;
-
-        private Numeric(String collapseField, Sort sort, int topN, boolean trackMaxScore) throws IOException {
-            super(collapseField, sort, topN, trackMaxScore);
-            source = new CollapsingDocValuesSource.Numeric(collapseField);
-        }
-
-        @Override
-        protected void doSetNextReader(LeafReaderContext readerContext) throws IOException {
-            super.doSetNextReader(readerContext);
-            source.setNextReader(readerContext.reader());
-        }
-
-        @Override
-        protected Long getDocGroupValue(int doc) {
-            return source.get(doc);
-        }
-
-        @Override
-        protected Long copyDocGroupValue(Long groupValue, Long reuse) {
-            return source.copy(groupValue, reuse);
-        }
-    }
-
-    private static class Keyword extends CollapsingTopDocsCollector<BytesRef> {
-        private final CollapsingDocValuesSource.Keyword source;
-
-        private Keyword(String collapseField, Sort sort, int topN, boolean trackMaxScore) throws IOException {
-            super(collapseField, sort, topN, trackMaxScore);
-            source = new CollapsingDocValuesSource.Keyword(collapseField);
-
-        }
-
-        @Override
-        protected void doSetNextReader(LeafReaderContext readerContext) throws IOException {
-            super.doSetNextReader(readerContext);
-            source.setNextReader(readerContext.reader());
-        }
-
-        @Override
-        protected BytesRef getDocGroupValue(int doc) {
-            return source.get(doc);
-        }
-
-        @Override
-        protected BytesRef copyDocGroupValue(BytesRef groupValue, BytesRef reuse) {
-            return source.copy(groupValue, reuse);
-        }
-    }
-
     /**
      * Create a collapsing top docs collector on a {@link org.apache.lucene.index.NumericDocValues} field.
      * It accepts also {@link org.apache.lucene.index.SortedNumericDocValues} field but
@@ -185,11 +132,11 @@ public abstract class CollapsingTopDocsCollector<T> extends FirstPassGroupingCol
      *                      This must be non-null, ie, if you want to groupSort by relevance
      *                      use Sort.RELEVANCE.
      * @param topN          How many top groups to keep.
-     * @throws IOException When I/O related errors occur
      */
     public static CollapsingTopDocsCollector<?> createNumeric(String collapseField, Sort sort,
-                                                              int topN, boolean trackMaxScore) throws IOException {
-        return new Numeric(collapseField, sort, topN, trackMaxScore);
+                                                              int topN, boolean trackMaxScore)  {
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Numeric(collapseField),
+                collapseField, sort, topN, trackMaxScore);
     }
 
     /**
@@ -204,11 +151,10 @@ public abstract class CollapsingTopDocsCollector<T> extends FirstPassGroupingCol
      *                      document per collapsed key.
      *                      This must be non-null, ie, if you want to groupSort by relevance use Sort.RELEVANCE.
      * @param topN          How many top groups to keep.
-     * @throws IOException When I/O related errors occur
      */
     public static CollapsingTopDocsCollector<?> createKeyword(String collapseField, Sort sort,
-                                                              int topN, boolean trackMaxScore) throws IOException {
-        return new Keyword(collapseField, sort, topN, trackMaxScore);
+                                                              int topN, boolean trackMaxScore)  {
+        return new CollapsingTopDocsCollector<>(new CollapsingDocValuesSource.Keyword(collapseField),
+                collapseField, sort, topN, trackMaxScore);
     }
 }
-

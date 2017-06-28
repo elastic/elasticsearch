@@ -32,6 +32,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -69,7 +70,7 @@ import java.util.Objects;
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
-public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable {
+public final class SearchSourceBuilder extends ToXContentToBytes implements Writeable, ToXContentObject {
     private static final DeprecationLogger DEPRECATION_LOGGER =
         new DeprecationLogger(Loggers.getLogger(SearchSourceBuilder.class));
 
@@ -91,6 +92,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure");
     public static final ParseField SORT_FIELD = new ParseField("sort");
     public static final ParseField TRACK_SCORES_FIELD = new ParseField("track_scores");
+    public static final ParseField TRACK_TOTAL_HITS_FIELD = new ParseField("track_total_hits");
     public static final ParseField INDICES_BOOST_FIELD = new ParseField("indices_boost");
     public static final ParseField AGGREGATIONS_FIELD = new ParseField("aggregations");
     public static final ParseField AGGS_FIELD = new ParseField("aggs");
@@ -140,6 +142,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     private List<SortBuilder<?>> sorts;
 
     private boolean trackScores = false;
+
+    private boolean trackTotalHits = true;
 
     private SearchAfterBuilder searchAfterBuilder;
 
@@ -220,8 +224,13 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         profile = in.readBoolean();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             collapse = in.readOptionalWriteable(CollapseBuilder::new);
+        }
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+            trackTotalHits = in.readBoolean();
+        } else {
+            trackTotalHits = true;
         }
     }
 
@@ -271,8 +280,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         out.writeBoolean(profile);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             out.writeOptionalWriteable(collapse);
+        }
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+            out.writeBoolean(trackTotalHits);
         }
     }
 
@@ -488,6 +500,17 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return trackScores;
     }
 
+    /**
+     * Indicates if the total hit count for the query should be tracked.
+     */
+    public boolean trackTotalHits() {
+        return trackTotalHits;
+    }
+
+    public SearchSourceBuilder trackTotalHits(boolean trackTotalHits) {
+        this.trackTotalHits = trackTotalHits;
+        return this;
+    }
 
     /**
      * The sort values that indicates which docs this request should "search after".
@@ -925,6 +948,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         rewrittenBuilder.terminateAfter = terminateAfter;
         rewrittenBuilder.timeout = timeout;
         rewrittenBuilder.trackScores = trackScores;
+        rewrittenBuilder.trackTotalHits = trackTotalHits;
         rewrittenBuilder.version = version;
         rewrittenBuilder.collapse = collapse;
         return rewrittenBuilder;
@@ -963,6 +987,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     explain = parser.booleanValue();
                 } else if (TRACK_SCORES_FIELD.match(currentFieldName)) {
                     trackScores = parser.booleanValue();
+                } else if (TRACK_TOTAL_HITS_FIELD.match(currentFieldName)) {
+                    trackTotalHits = parser.booleanValue();
                 } else if (_SOURCE_FIELD.match(currentFieldName)) {
                     fetchSourceContext = FetchSourceContext.fromXContent(context.parser());
                 } else if (STORED_FIELDS_FIELD.match(currentFieldName)) {
@@ -1098,12 +1124,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        innerToXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    public void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (from != -1) {
             builder.field(FROM_FIELD.getPreferredName(), from);
         }
@@ -1179,6 +1199,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.field(TRACK_SCORES_FIELD.getPreferredName(), true);
         }
 
+        if (trackTotalHits == false) {
+            builder.field(TRACK_TOTAL_HITS_FIELD.getPreferredName(), false);
+        }
+
         if (searchAfterBuilder != null) {
             builder.array(SEARCH_AFTER.getPreferredName(), searchAfterBuilder.getSortValues());
         }
@@ -1199,7 +1223,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         if (aggregations != null) {
             builder.field(AGGREGATIONS_FIELD.getPreferredName(), aggregations);
-            }
+        }
 
         if (highlightBuilder != null) {
             builder.field(HIGHLIGHT_FIELD.getPreferredName(), highlightBuilder);
@@ -1232,6 +1256,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (collapse != null) {
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
+        builder.endObject();
+        return builder;
     }
 
     public static class IndexBoost implements Writeable, ToXContent {
@@ -1436,7 +1462,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
                 indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
                 sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
-                profile, extBuilders, collapse);
+                profile, extBuilders, collapse, trackTotalHits);
     }
 
     @Override
@@ -1473,6 +1499,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(version, other.version)
                 && Objects.equals(profile, other.profile)
                 && Objects.equals(extBuilders, other.extBuilders)
-                && Objects.equals(collapse, other.collapse);
+                && Objects.equals(collapse, other.collapse)
+                && Objects.equals(trackTotalHits, other.trackTotalHits);
     }
 }

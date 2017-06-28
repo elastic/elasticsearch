@@ -34,13 +34,14 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class CollectorResultTests extends ESTestCase {
 
     public static CollectorResult createTestItem(int depth) {
-        String name = randomAsciiOfLengthBetween(5, 10);
-        String reason = randomAsciiOfLengthBetween(5, 10);
+        String name = randomAlphaOfLengthBetween(5, 10);
+        String reason = randomAlphaOfLengthBetween(5, 10);
         long time = randomNonNegativeLong();
         if (randomBoolean()) {
             // also often use relatively "small" values, otherwise we will mostly test huge longs
@@ -57,18 +58,30 @@ public class CollectorResultTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
         CollectorResult collectorResult = createTestItem(1);
         XContentType xContentType = randomFrom(XContentType.values());
         boolean humanReadable = randomBoolean();
-        BytesReference originalBytes = toXContent(collectorResult, xContentType, humanReadable);
-
-        CollectorResult parsed;
-        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
-            parsed = CollectorResult.fromXContent(parser);
-            assertNull(parser.nextToken());
+        BytesReference originalBytes = toShuffledXContent(collectorResult, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference mutated;
+        if (addRandomFields) {
+            mutated = insertRandomFields(xContentType, originalBytes, null, random());
+        } else {
+            mutated = originalBytes;
         }
-        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            CollectorResult parsed = CollectorResult.fromXContent(parser);
+            assertNull(parser.nextToken());
+            assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+        }
     }
 
     public void testToXContent() throws IOException {

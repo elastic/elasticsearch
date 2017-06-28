@@ -1,12 +1,4 @@
 [horizontal]
-`ES_USER`::
-
-  The user to run as, defaults to `elasticsearch`.
-
-`ES_GROUP`::
-
-  The group to run as, defaults to `elasticsearch`.
-
 `JAVA_HOME`::
 
   Set a custom Java path to be used.
@@ -28,14 +20,6 @@
     https://github.com/torvalds/linux/blob/master/Documentation/sysctl/vm.txt[linux kernel documentation]
     about `max_map_count`. This is set via `sysctl` before starting
     elasticsearch. Defaults to `262144`.
-
-`LOG_DIR`::
-
-    Log directory, defaults to `/var/log/elasticsearch`.
-
-`DATA_DIR`::
-
-    Data directory, defaults to `/var/lib/elasticsearch`.
 
 `CONF_DIR`::
 

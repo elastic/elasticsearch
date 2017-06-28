@@ -19,87 +19,91 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.Strings;
+import java.lang.reflect.Method;
 
 /**
- * Context of an operation that uses scripts as part of its execution.
+ * The information necessary to compile and run a script.
+ *
+ * A {@link ScriptContext} contains the information related to a single use case and the interfaces
+ * and methods necessary for a {@link ScriptEngine} to implement.
+ * <p>
+ * There are at least two (and optionally a third) related classes which must be defined.
+ * <p>
+ * The <i>InstanceType</i> is a class which users of the script api call to execute a script. It
+ * may be stateful. Instances of
+ * the <i>InstanceType</i> may be executed multiple times by a caller with different arguments. This
+ * class must have an abstract method named {@code execute} which {@link ScriptEngine} implementations
+ * will define.
+ * <p>
+ * The <i>FactoryType</i> is a factory class returned by the {@link ScriptService} when compiling
+ * a script. This class must be stateless so it is cacheable by the {@link ScriptService}. It must
+ * have one of the following:
+ * <ul>
+ *     <li>An abstract method named {@code newInstance} which returns an instance of <i>InstanceType</i></li>
+ *     <li>An abstract method named {@code newFactory} which returns an instance of <i>StatefulFactoryType</i></li>
+ * </ul>
+ * <p>
+ * The <i>StatefulFactoryType</i> is an optional class which allows a stateful factory from the
+ * stateless factory type required by the {@link ScriptService}. If defined, the <i>StatefulFactoryType</i>
+ * must have a method named {@code newInstance} which returns an instance of <i>InstanceType</i>.
+ * <p>
+ * Both the <i>FactoryType</i> and <i>StatefulFactoryType</i> may have abstract methods to indicate
+ * whether a variable is used in a script. These method should return a {@code boolean} and their name
+ * should start with {@code needs}, followed by the variable name, with the first letter uppercased.
+ * For example, to check if a variable {@code doc} is used, a method {@code boolean needsDoc()} should be added.
+ * If the variable name starts with an underscore, for example, {@code _score}, the needs method would
+ * be {@code boolean needs_score()}.
  */
-public interface ScriptContext {
+public final class ScriptContext<FactoryType> {
 
-    /**
-     * @return the name of the operation
-     */
-    String getKey();
+    /** A unique identifier for this context. */
+    public final String name;
 
-    /**
-     * Standard operations that make use of scripts as part of their execution.
-     * Note that the suggest api is considered part of search for simplicity, as well as the percolate api.
-     */
-    enum Standard implements ScriptContext {
+    /** A factory class for constructing script or stateful factory instances. */
+    public final Class<FactoryType> factoryClazz;
 
-        AGGS("aggs"), SEARCH("search"), UPDATE("update"), INGEST("ingest");
+    /** A factory class for construct script instances. */
+    public final Class<?> statefulFactoryClazz;
 
-        private final String key;
+    /** A class that is an instance of a script. */
+    public final Class<?> instanceClazz;
 
-        Standard(String key) {
-            this.key = key;
+    /** Construct a context with the related instance and compiled classes. */
+    public ScriptContext(String name, Class<FactoryType> factoryClazz) {
+        this.name = name;
+        this.factoryClazz = factoryClazz;
+        Method newInstanceMethod = findMethod("FactoryType", factoryClazz, "newInstance");
+        Method newFactoryMethod = findMethod("FactoryType", factoryClazz, "newFactory");
+        if (newFactoryMethod != null) {
+            assert newInstanceMethod == null;
+            statefulFactoryClazz = newFactoryMethod.getReturnType();
+            newInstanceMethod = findMethod("StatefulFactoryType", statefulFactoryClazz, "newInstance");
+            if (newInstanceMethod == null) {
+                throw new IllegalArgumentException("Could not find method newInstance StatefulFactoryType class ["
+                    + statefulFactoryClazz.getName() + "] for script context [" + name + "]");
+            }
+        } else if (newInstanceMethod != null) {
+            assert newFactoryMethod == null;
+            statefulFactoryClazz = null;
+        } else {
+            throw new IllegalArgumentException("Could not find method newInstance or method newFactory on FactoryType class ["
+                + factoryClazz.getName() + "] for script context [" + name + "]");
         }
-
-        @Override
-        public String getKey() {
-            return key;
-        }
-
-        @Override
-        public String toString() {
-            return getKey();
-        }
+        instanceClazz = newInstanceMethod.getReturnType();
     }
 
-    /**
-     * Custom operation exposed via plugin, which makes use of scripts as part of its execution
-     */
-    final class Plugin implements ScriptContext {
-
-        private final String pluginName;
-        private final String operation;
-        private final String key;
-
-        /**
-         * Creates a new custom scripts based operation exposed via plugin.
-         * The name of the plugin combined with the operation name can be used to enable/disable scripts via fine-grained settings.
-         *
-         * @param pluginName the name of the plugin
-         * @param operation the name of the operation
-         */
-        public Plugin(String pluginName, String operation) {
-            if (Strings.hasLength(pluginName) == false) {
-                throw new IllegalArgumentException("plugin name cannot be empty when registering a custom script context");
+    /** Returns a method with the given name, or throws an exception if multiple are found. */
+    private Method findMethod(String type, Class<?> clazz, String methodName) {
+        Method foundMethod = null;
+        for (Method method : clazz.getMethods()) {
+            if (method.getName().equals(methodName)) {
+                if (foundMethod != null) {
+                    throw new IllegalArgumentException("Cannot have multiple " + methodName + " methods on " + type + " class ["
+                        + clazz.getName() + "] for script context [" + name + "]");
+                }
+                foundMethod = method;
             }
-            if (Strings.hasLength(operation) == false) {
-                throw new IllegalArgumentException("operation name cannot be empty when registering a custom script context");
-            }
-            this.pluginName = pluginName;
-            this.operation = operation;
-            this.key = pluginName + "_" + operation;
         }
-
-        public String getPluginName() {
-            return pluginName;
-        }
-
-        public String getOperation() {
-            return operation;
-        }
-
-        @Override
-        public String getKey() {
-            return key;
-        }
-
-        @Override
-        public String toString() {
-            return getKey();
-        }
+        return foundMethod;
     }
 }

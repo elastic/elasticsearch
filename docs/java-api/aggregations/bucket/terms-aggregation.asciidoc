@@ -39,7 +39,14 @@ for (Terms.Bucket entry : genders.getBuckets()) {
 }
 --------------------------------------------------
 
-==== Order
+===== Order
+
+Import bucket ordering strategy classes:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.search.aggregations.BucketOrder;
+--------------------------------------------------
 
 Ordering the buckets by their `doc_count` in an ascending manner:
 
@@ -48,7 +55,7 @@ Ordering the buckets by their `doc_count` in an ascending manner:
 AggregationBuilders
     .terms("genders")
     .field("gender")
-    .order(Terms.Order.count(true))
+    .order(BucketOrder.count(true))
 --------------------------------------------------
 
 Ordering the buckets alphabetically by their terms in an ascending manner:
@@ -58,7 +65,7 @@ Ordering the buckets alphabetically by their terms in an ascending manner:
 AggregationBuilders
     .terms("genders")
     .field("gender")
-    .order(Terms.Order.term(true))
+    .order(BucketOrder.key(true))
 --------------------------------------------------
 
 Ordering the buckets by single value metrics sub-aggregation (identified by the aggregation name):
@@ -68,7 +75,22 @@ Ordering the buckets by single value metrics sub-aggregation (identified by the 
 AggregationBuilders
     .terms("genders")
     .field("gender")
-    .order(Terms.Order.aggregation("avg_height", false))
+    .order(BucketOrder.aggregation("avg_height", false))
+    .subAggregation(
+        AggregationBuilders.avg("avg_height").field("height")
+    )
+--------------------------------------------------
+
+Ordering the buckets by multiple criteria:
+
+[source,java]
+--------------------------------------------------
+AggregationBuilders
+    .terms("genders")
+    .field("gender")
+    .order(BucketOrder.compound( // in order of priority:
+        BucketOrder.aggregation("avg_height", false), // sort by sub-aggregation first
+        BucketOrder.count(true))) // then bucket count as a tie-breaker
     .subAggregation(
         AggregationBuilders.avg("avg_height").field("height")
     )

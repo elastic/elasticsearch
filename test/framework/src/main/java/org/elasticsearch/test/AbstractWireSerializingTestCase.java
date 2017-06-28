@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -93,18 +94,28 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
      * Serialize the given instance and asserts that both are equal
      */
     protected T assertSerialization(T testInstance) throws IOException {
-        T deserializedInstance = copyInstance(testInstance);
+        return assertSerialization(testInstance, Version.CURRENT);
+    }
+
+    protected T assertSerialization(T testInstance, Version version) throws IOException {
+        T deserializedInstance = copyInstance(testInstance, version);
         assertEquals(testInstance, deserializedInstance);
         assertEquals(testInstance.hashCode(), deserializedInstance.hashCode());
         assertNotSame(testInstance, deserializedInstance);
         return deserializedInstance;
     }
 
-    private T copyInstance(T instance) throws IOException {
+    protected T copyInstance(T instance) throws IOException {
+        return copyInstance(instance, Version.CURRENT);
+    }
+
+    protected T copyInstance(T instance, Version version) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(version);
             instance.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
                     getNamedWriteableRegistry())) {
+                in.setVersion(version);
                 return instanceReader().read(in);
             }
         }
@@ -112,9 +123,9 @@ public abstract class AbstractWireSerializingTestCase<T extends Writeable> exten
 
     /**
      * Get the {@link NamedWriteableRegistry} to use when de-serializing the object.
-     * 
+     *
      * Override this method if you need to register {@link NamedWriteable}s for the test object to de-serialize.
-     * 
+     *
      * By default this will return a {@link NamedWriteableRegistry} with no registered {@link NamedWriteable}s
      */
     protected NamedWriteableRegistry getNamedWriteableRegistry() {

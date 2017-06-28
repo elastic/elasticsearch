@@ -552,12 +552,15 @@ public class SettingTests extends ESTestCase {
      * We can't have Null properties
      */
     public void testRejectNullProperties() {
-        try {
-            Setting.simpleString("foo.bar", (Property[]) null);
-            fail();
-        } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), containsString("properties cannot be null for setting"));
-        }
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", (Property[]) null));
+        assertThat(ex.getMessage(), containsString("properties cannot be null for setting"));
+    }
+
+    public void testRejectConflictProperties() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+            () -> Setting.simpleString("foo.bar", Property.Final, Property.Dynamic));
+        assertThat(ex.getMessage(), containsString("final setting [foo.bar] cannot be dynamic"));
     }
 
     public void testTimeValue() {

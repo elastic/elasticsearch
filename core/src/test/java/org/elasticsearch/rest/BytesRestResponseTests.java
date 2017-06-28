@@ -302,8 +302,8 @@ public class BytesRestResponseTests extends ESTestCase {
                 expected.addMetadata("es.metadata_0", "0");
             }
             if (randomBoolean()) {
-                String resourceType = randomAsciiOfLength(5);
-                String resourceId = randomAsciiOfLength(5);
+                String resourceType = randomAlphaOfLength(5);
+                String resourceId = randomAlphaOfLength(5);
                 originalException.setResources(resourceType, resourceId);
                 expected.setResources(resourceType, resourceId);
             }

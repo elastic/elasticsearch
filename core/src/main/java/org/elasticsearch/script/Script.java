@@ -74,15 +74,6 @@ import java.util.Objects;
  * <li> {@link Script#params}   - {@link Map} of user-defined parameters; must not be {@code null},
  *                                use an empty {@link Map} to specify no params
  * </ul>
- * <li> {@link ScriptType#FILE}
- * <ul>
- * <li> {@link Script#lang}     - specifies the language for look up, defaults to {@link Script#DEFAULT_SCRIPT_LANG}
- * <li> {@link Script#idOrCode} - specifies the id of the file script to be looked up, must not be {@code null}
- * <li> {@link Script#options}  - compiler options will be specified when a file script is loaded,
- *                                so they have no meaning here and must be {@code null}
- * <li> {@link Script#params}   - {@link Map} of user-defined parameters; must not be {@code null},
- *                                use an empty {@link Map} to specify no params
- * </ul>
  * </ul>
  */
 public final class Script implements ToXContentObject, Writeable {
@@ -121,6 +112,11 @@ public final class Script implements ToXContentObject, Writeable {
      * Standard {@link ParseField} for outer level of script queries.
      */
     public static final ParseField SCRIPT_PARSE_FIELD = new ParseField("script");
+
+    /**
+     * Standard {@link ParseField} for source on the inner level.
+     */
+    public static final ParseField SOURCE_PARSE_FIELD = new ParseField("source");
 
     /**
      * Standard {@link ParseField} for lang on the inner level.
@@ -194,25 +190,12 @@ public final class Script implements ToXContentObject, Writeable {
         }
 
         /**
-         * Set both the id and the type of the file script.
-         */
-        private void setFile(String idOrCode) {
-            if (type != null) {
-                throwOnlyOneOfType();
-            }
-
-            type = ScriptType.FILE;
-            this.idOrCode = idOrCode;
-        }
-
-        /**
          * Helper method to throw an exception if more than one type of {@link Script} is specified.
          */
         private void throwOnlyOneOfType() {
             throw new IllegalArgumentException("must only use one of [" +
-                ScriptType.INLINE.getParseField().getPreferredName() + " + , " +
-                ScriptType.STORED.getParseField().getPreferredName() + " + , " +
-                ScriptType.FILE.getParseField().getPreferredName() + "]" +
+                ScriptType.INLINE.getParseField().getPreferredName() + ", " +
+                ScriptType.STORED.getParseField().getPreferredName() + "]" +
                 " when specifying a script");
         }
 
@@ -240,10 +223,7 @@ public final class Script implements ToXContentObject, Writeable {
          */
         private Script build(String defaultLang) {
             if (type == null) {
-                throw new IllegalArgumentException(
-                    "must specify either code for an [" + ScriptType.INLINE.getParseField().getPreferredName() + "] script " +
-                        "or an id for a [" + ScriptType.STORED.getParseField().getPreferredName() + "] script " +
-                        "or [" + ScriptType.FILE.getParseField().getPreferredName() + "] script");
+                throw new IllegalArgumentException("must specify either [source] for an inline script or [id] for a stored script");
             }
 
             if (type == ScriptType.INLINE) {
@@ -283,22 +263,6 @@ public final class Script implements ToXContentObject, Writeable {
                     throw new IllegalArgumentException("field [" + OPTIONS_PARSE_FIELD.getPreferredName() + "] " +
                         "cannot be specified using a [" + ScriptType.STORED.getParseField().getPreferredName() + "] script");
                 }
-            } else if (type == ScriptType.FILE) {
-                if (lang == null) {
-                    lang = defaultLang;
-                }
-
-                if (idOrCode == null) {
-                    throw new IllegalArgumentException(
-                        "must specify <code> for an [" + ScriptType.FILE.getParseField().getPreferredName() + "] script");
-                }
-
-                if (options.isEmpty()) {
-                    options = null;
-                } else {
-                    throw new IllegalArgumentException("field [" + OPTIONS_PARSE_FIELD.getPreferredName() + "] " +
-                        "cannot be specified using a [" + ScriptType.FILE.getParseField().getPreferredName() + "] script");
-                }
             }
 
             return new Script(type, lang, idOrCode, options, params);
@@ -311,7 +275,6 @@ public final class Script implements ToXContentObject, Writeable {
         // Defines the fields necessary to parse a Script as XContent using an ObjectParser.
         PARSER.declareField(Builder::setInline, parser -> parser, ScriptType.INLINE.getParseField(), ValueType.OBJECT_OR_STRING);
         PARSER.declareString(Builder::setStored, ScriptType.STORED.getParseField());
-        PARSER.declareString(Builder::setFile, ScriptType.FILE.getParseField());
         PARSER.declareString(Builder::setLang, LANG_PARSE_FIELD);
         PARSER.declareField(Builder::setOptions, XContentParser::mapStrings, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
         PARSER.declareField(Builder::setParams, XContentParser::map, PARAMS_PARSE_FIELD, ValueType.OBJECT);
@@ -339,7 +302,10 @@ public final class Script implements ToXContentObject, Writeable {
      *
      * {@code
      * {
-     *     "<type (inline, stored, file)>" : "<idOrCode>",
+     *     // Exactly one of "id" or "source" must be specified
+     *     "id" : "<id>",
+     *     // OR
+     *     "source": "<source>",
      *     "lang" : "<lang>",
      *     "options" : {
      *         "option0" : "<option0>",
@@ -357,7 +323,7 @@ public final class Script implements ToXContentObject, Writeable {
      * Example:
      * {@code
      * {
-     *     "inline" : "return Math.log(doc.popularity) * params.multiplier",
+     *     "source" : "return Math.log(doc.popularity) * params.multiplier",
      *     "lang" : "painless",
      *     "params" : {
      *         "multiplier" : 100.0
@@ -370,7 +336,7 @@ public final class Script implements ToXContentObject, Writeable {
      *
      * {@code
      * {
-     *     "inline" : { "query" : ... },
+     *     "source" : { "query" : ... },
      *     "lang" : "<lang>",
      *     "options" : {
      *         "option0" : "<option0>",
@@ -425,10 +391,10 @@ public final class Script implements ToXContentObject, Writeable {
     /**
      * Constructor for a script that does not need to use compiler options.
      * @param type     The {@link ScriptType}.
-     * @param lang     The language for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE} or
-     *                 {@link ScriptType#FILE}.  For {@link ScriptType#STORED} scripts this should be null, but can
+     * @param lang     The language for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE}.
+     *                 For {@link ScriptType#STORED} scripts this should be null, but can
      *                 be specified to access scripts stored as part of the stored scripts deprecated API.
-     * @param idOrCode The id for this {@link Script} if the {@link ScriptType} is {@link ScriptType#FILE} or {@link ScriptType#STORED}.
+     * @param idOrCode The id for this {@link Script} if the {@link ScriptType} is {@link ScriptType#STORED}.
      *                 The code for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE}.
      * @param params   The user-defined params to be bound for script execution.
      */
@@ -439,10 +405,10 @@ public final class Script implements ToXContentObject, Writeable {
     /**
      * Constructor for a script that requires the use of compiler options.
      * @param type     The {@link ScriptType}.
-     * @param lang     The language for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE} or
-     *                 {@link ScriptType#FILE}.  For {@link ScriptType#STORED} scripts this should be null, but can
+     * @param lang     The language for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE}.
+     *                 For {@link ScriptType#STORED} scripts this should be null, but can
      *                 be specified to access scripts stored as part of the stored scripts deprecated API.
-     * @param idOrCode The id for this {@link Script} if the {@link ScriptType} is {@link ScriptType#FILE} or {@link ScriptType#STORED}.
+     * @param idOrCode The id for this {@link Script} if the {@link ScriptType} is {@link ScriptType#STORED}.
      *                 The code for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE}.
      * @param options  The map of compiler options for this {@link Script} if the {@link ScriptType}
      *                 is {@link ScriptType#INLINE}, {@code null} otherwise.
@@ -465,15 +431,6 @@ public final class Script implements ToXContentObject, Writeable {
             }
 
             this.options = null;
-        } else if (type == ScriptType.FILE) {
-            this.lang = Objects.requireNonNull(lang);
-
-            if (options != null) {
-                throw new IllegalStateException(
-                    "options must be null for [" + ScriptType.FILE.getParseField().getPreferredName() + "] scripts");
-            }
-
-            this.options = null;
         } else {
             throw new IllegalStateException("unknown script type [" + type.getName() + "]");
         }
@@ -485,7 +442,7 @@ public final class Script implements ToXContentObject, Writeable {
     public Script(StreamInput in) throws IOException {
         // Version 5.3 allows lang to be an optional parameter for stored scripts and expects
         // options to be null for stored and file scripts.
-        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_3_0)) {
             this.type = ScriptType.readFrom(in);
             this.lang = in.readOptionalString();
             this.idOrCode = in.readString();
@@ -496,7 +453,7 @@ public final class Script implements ToXContentObject, Writeable {
         // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the read in contents to be in
         // same order as the constructor.
-        } else if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        } else if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             this.type = ScriptType.readFrom(in);
             this.lang = in.readString();
 
@@ -554,7 +511,7 @@ public final class Script implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         // Version 5.3+ allows lang to be an optional parameter for stored scripts and expects
         // options to be null for stored and file scripts.
-        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_3_0)) {
             type.writeTo(out);
             out.writeOptionalString(lang);
             out.writeString(idOrCode);
@@ -565,7 +522,7 @@ public final class Script implements ToXContentObject, Writeable {
         // Version 5.1 to 5.3 (exclusive) requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the written out contents to be in
         // same order as the constructor.
-        } else if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
+        } else if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             type.writeTo(out);
 
             if (lang == null) {
@@ -616,7 +573,7 @@ public final class Script implements ToXContentObject, Writeable {
      *
      * {@code
      * {
-     *     "<type (inline, stored, file)>" : "<idOrCode>",
+     *     "<(id, source)>" : "<idOrCode>",
      *     "lang" : "<lang>",
      *     "options" : {
      *         "option0" : "<option0>",
@@ -634,7 +591,7 @@ public final class Script implements ToXContentObject, Writeable {
      * Example:
      * {@code
      * {
-     *     "inline" : "return Math.log(doc.popularity) * params.multiplier;",
+     *     "source" : "return Math.log(doc.popularity) * params.multiplier;",
      *     "lang" : "painless",
      *     "params" : {
      *         "multiplier" : 100.0
@@ -649,7 +606,7 @@ public final class Script implements ToXContentObject, Writeable {
      *
      * {@code
      * {
-     *     "inline" : { "query" : ... },
+     *     "source" : { "query" : ... },
      *     "lang" : "<lang>",
      *     "options" : {
      *         "option0" : "<option0>",
@@ -670,10 +627,14 @@ public final class Script implements ToXContentObject, Writeable {
 
         String contentType = options == null ? null : options.get(CONTENT_TYPE_OPTION);
 
-        if (type == ScriptType.INLINE && contentType != null && builder.contentType().mediaType().equals(contentType)) {
-            builder.rawField(type.getParseField().getPreferredName(), new BytesArray(idOrCode));
+        if (type == ScriptType.INLINE) {
+            if (contentType != null && builder.contentType().mediaType().equals(contentType)) {
+                builder.rawField(SOURCE_PARSE_FIELD.getPreferredName(), new BytesArray(idOrCode));
+            } else {
+                builder.field(SOURCE_PARSE_FIELD.getPreferredName(), idOrCode);
+            }
         } else {
-            builder.field(type.getParseField().getPreferredName(), idOrCode);
+            builder.field("id", idOrCode);
         }
 
         if (lang != null) {
@@ -701,8 +662,8 @@ public final class Script implements ToXContentObject, Writeable {
     }
 
     /**
-     * @return The language for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE} or
-     *         {@link ScriptType#FILE}.  For {@link ScriptType#STORED} scripts this should be null, but can
+     * @return The language for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE}.
+     *         For {@link ScriptType#STORED} scripts this should be null, but can
      *         be specified to access scripts stored as part of the stored scripts deprecated API.
      */
     public String getLang() {
@@ -710,7 +671,7 @@ public final class Script implements ToXContentObject, Writeable {
     }
 
     /**
-     * @return The id for this {@link Script} if the {@link ScriptType} is {@link ScriptType#FILE} or {@link ScriptType#STORED}.
+     * @return The id for this {@link Script} if the {@link ScriptType} is {@link ScriptType#STORED}.
      *         The code for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE}.
      */
     public String getIdOrCode() {

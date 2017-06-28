@@ -153,6 +153,9 @@ index, as follows:
 ---------------------------------------
 PUT my_index <1>
 {
+  "settings": {
+    "mapping.single_type": false
+  },
   "mappings": {
     "user": { <2>
       "properties": { <3>

@@ -43,6 +43,11 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "delete_stored_script_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
         String lang = request.param("lang");

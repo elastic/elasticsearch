@@ -21,7 +21,8 @@ package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.InternalSingleBucketAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.ParsedSingleBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.util.List;
@@ -44,4 +45,8 @@ public class InternalMissingTests extends InternalSingleBucketAggregationTestCas
         return InternalMissing::new;
     }
 
+    @Override
+    protected Class<? extends ParsedSingleBucketAggregation> implementationClass() {
+        return ParsedMissing.class;
+    }
 }

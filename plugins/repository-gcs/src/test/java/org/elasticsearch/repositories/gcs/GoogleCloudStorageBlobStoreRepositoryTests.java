@@ -21,13 +21,11 @@ package org.elasticsearch.repositories.gcs;
 
 import com.google.api.services.storage.Storage;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.blobstore.gcs.MockHttpTransport;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.plugin.repository.gcs.GoogleCloudStoragePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.junit.BeforeClass;
@@ -69,6 +67,9 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
     }
 
     public static class MockGoogleCloudStoragePlugin extends GoogleCloudStoragePlugin {
+        public MockGoogleCloudStoragePlugin() {
+            super(Settings.EMPTY);
+        }
         @Override
         protected GoogleCloudStorageService createStorageService(Environment environment) {
             return new MockGoogleCloudStorageService();
@@ -77,8 +78,8 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
 
     public static class MockGoogleCloudStorageService implements GoogleCloudStorageService {
         @Override
-        public Storage createClient(String serviceAccount, String application, TimeValue connectTimeout, TimeValue readTimeout) throws
-                Exception {
+        public Storage createClient(String accountName, String application,
+                                    TimeValue connectTimeout, TimeValue readTimeout) throws Exception {
             return storage.get();
         }
     }

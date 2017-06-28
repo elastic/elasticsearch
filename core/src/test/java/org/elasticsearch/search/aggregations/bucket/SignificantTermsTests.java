@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
@@ -34,6 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Scrip
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+
 import java.util.SortedSet;
 import java.util.TreeSet;
 
@@ -51,24 +51,11 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
 
     @Override
     protected SignificantTermsAggregationBuilder createTestAggregatorBuilder() {
-        String name = randomAsciiOfLengthBetween(3, 20);
+        String name = randomAlphaOfLengthBetween(3, 20);
         SignificantTermsAggregationBuilder factory = new SignificantTermsAggregationBuilder(name, null);
-        String field = randomAsciiOfLengthBetween(3, 20);
-        int randomFieldBranch = randomInt(2);
-        switch (randomFieldBranch) {
-        case 0:
-            factory.field(field);
-            break;
-        case 1:
-            factory.field(field);
-            factory.script(new Script("_value + 1"));
-            break;
-        case 2:
-            factory.script(new Script("doc[" + field + "] + 1"));
-            break;
-        default:
-            fail();
-        }
+        String field = randomAlphaOfLengthBetween(3, 20);
+        randomFieldOrScript(factory, field);
+
         if (randomBoolean()) {
             factory.missing("MISSING");
         }
@@ -116,83 +103,93 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
             factory.format("###.##");
         }
         if (randomBoolean()) {
-            IncludeExclude incExc = null;
-            switch (randomInt(5)) {
-            case 0:
-                incExc = new IncludeExclude(new RegExp("foobar"), null);
-                break;
-            case 1:
-                incExc = new IncludeExclude(null, new RegExp("foobaz"));
-                break;
-            case 2:
-                incExc = new IncludeExclude(new RegExp("foobar"), new RegExp("foobaz"));
-                break;
-            case 3:
-                SortedSet<BytesRef> includeValues = new TreeSet<>();
-                int numIncs = randomIntBetween(1, 20);
-                for (int i = 0; i < numIncs; i++) {
-                    includeValues.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
-                }
-                SortedSet<BytesRef> excludeValues = null;
-                incExc = new IncludeExclude(includeValues, excludeValues);
-                break;
-            case 4:
-                SortedSet<BytesRef> includeValues2 = null;
-                SortedSet<BytesRef> excludeValues2 = new TreeSet<>();
-                int numExcs2 = randomIntBetween(1, 20);
-                for (int i = 0; i < numExcs2; i++) {
-                    excludeValues2.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
-                }
-                incExc = new IncludeExclude(includeValues2, excludeValues2);
-                break;
-            case 5:
-                SortedSet<BytesRef> includeValues3 = new TreeSet<>();
-                int numIncs3 = randomIntBetween(1, 20);
-                for (int i = 0; i < numIncs3; i++) {
-                    includeValues3.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
-                }
-                SortedSet<BytesRef> excludeValues3 = new TreeSet<>();
-                int numExcs3 = randomIntBetween(1, 20);
-                for (int i = 0; i < numExcs3; i++) {
-                    excludeValues3.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
-                }
-                incExc = new IncludeExclude(includeValues3, excludeValues3);
-                break;
-            default:
-                fail();
-            }
+            IncludeExclude incExc = getIncludeExclude();
             factory.includeExclude(incExc);
         }
         if (randomBoolean()) {
-            SignificanceHeuristic significanceHeuristic = null;
-            switch (randomInt(5)) {
-            case 0:
-                significanceHeuristic = new PercentageScore();
-                break;
-            case 1:
-                significanceHeuristic = new ChiSquare(randomBoolean(), randomBoolean());
-                break;
-            case 2:
-                significanceHeuristic = new GND(randomBoolean());
-                break;
-            case 3:
-                significanceHeuristic = new MutualInformation(randomBoolean(), randomBoolean());
-                break;
-            case 4:
-                significanceHeuristic = new ScriptHeuristic(new Script("foo"));
-                break;
-            case 5:
-                significanceHeuristic = new JLHScore();
-                break;
-            default:
-                fail();
-            }
+            SignificanceHeuristic significanceHeuristic = getSignificanceHeuristic();
             factory.significanceHeuristic(significanceHeuristic);
         }
         if (randomBoolean()) {
             factory.backgroundFilter(QueryBuilders.termsQuery("foo", "bar"));
         }
         return factory;
+    }
+
+    static SignificanceHeuristic getSignificanceHeuristic() {
+        SignificanceHeuristic significanceHeuristic = null;
+        switch (randomInt(5)) {
+        case 0:
+            significanceHeuristic = new PercentageScore();
+            break;
+        case 1:
+            significanceHeuristic = new ChiSquare(randomBoolean(), randomBoolean());
+            break;
+        case 2:
+            significanceHeuristic = new GND(randomBoolean());
+            break;
+        case 3:
+            significanceHeuristic = new MutualInformation(randomBoolean(), randomBoolean());
+            break;
+        case 4:
+            significanceHeuristic = new ScriptHeuristic(mockScript("foo"));
+            break;
+        case 5:
+            significanceHeuristic = new JLHScore();
+            break;
+        default:
+            fail();
+        }
+        return significanceHeuristic;
+    }
+
+    static IncludeExclude getIncludeExclude() {
+        IncludeExclude incExc = null;
+        switch (randomInt(5)) {
+        case 0:
+            incExc = new IncludeExclude(new RegExp("foobar"), null);
+            break;
+        case 1:
+            incExc = new IncludeExclude(null, new RegExp("foobaz"));
+            break;
+        case 2:
+            incExc = new IncludeExclude(new RegExp("foobar"), new RegExp("foobaz"));
+            break;
+        case 3:
+            SortedSet<BytesRef> includeValues = new TreeSet<>();
+            int numIncs = randomIntBetween(1, 20);
+            for (int i = 0; i < numIncs; i++) {
+                includeValues.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+            }
+            SortedSet<BytesRef> excludeValues = null;
+            incExc = new IncludeExclude(includeValues, excludeValues);
+            break;
+        case 4:
+            SortedSet<BytesRef> includeValues2 = null;
+            SortedSet<BytesRef> excludeValues2 = new TreeSet<>();
+            int numExcs2 = randomIntBetween(1, 20);
+            for (int i = 0; i < numExcs2; i++) {
+                excludeValues2.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+            }
+            incExc = new IncludeExclude(includeValues2, excludeValues2);
+            break;
+        case 5:
+            SortedSet<BytesRef> includeValues3 = new TreeSet<>();
+            int numIncs3 = randomIntBetween(1, 20);
+            for (int i = 0; i < numIncs3; i++) {
+                includeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+            }
+            SortedSet<BytesRef> excludeValues3 = new TreeSet<>();
+            int numExcs3 = randomIntBetween(1, 20);
+            for (int i = 0; i < numExcs3; i++) {
+                excludeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+            }
+            incExc = new IncludeExclude(includeValues3, excludeValues3);
+            break;
+        default:
+            fail();
+        }
+        return incExc;
     }
 
 }

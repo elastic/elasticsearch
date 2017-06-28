@@ -226,10 +226,41 @@ public class DeprecationLogger {
      * @return the extracted warning value
      */
     public static String extractWarningValueFromWarningHeader(final String s) {
+        /*
+         * We know the exact format of the warning header, so to extract the warning value we can skip forward from the front to the first
+         * quote, and skip backwards from the end to the penultimate quote:
+         *
+         *   299 Elasticsearch-6.0.0 "warning value" "Sat, 25, Feb 2017 10:27:43 GMT"
+         *                           ^               ^                              ^
+         *                           firstQuote      penultimateQuote               lastQuote
+         *
+         * We do it this way rather than seeking forward after the first quote because there could be escaped quotes in the warning value
+         * but since there are none in the warning date, we can skip backwards to find the quote that closes the quoted warning value.
+         *
+         * We parse this manually rather than using the capturing regular expression because the regular expression involves a lot of
+         * backtracking and carries a performance penalty. However, when assertions are enabled, we still use the regular expression to
+         * verify that we are maintaining the warning header format.
+         */
+        final int firstQuote = s.indexOf('\"');
+        final int lastQuote = s.lastIndexOf('\"');
+        final int penultimateQuote = s.lastIndexOf('\"', lastQuote - 1);
+        final String warningValue = s.substring(firstQuote + 1, penultimateQuote - 2);
+        assert assertWarningValue(s, warningValue);
+        return warningValue;
+    }
+
+    /**
+     * Assert that the specified string has the warning value equal to the provided warning value.
+     *
+     * @param s            the string representing a full warning header
+     * @param warningValue the expected warning header
+     * @return {@code true} if the specified string has the expected warning value
+     */
+    private static boolean assertWarningValue(final String s, final String warningValue) {
         final Matcher matcher = WARNING_HEADER_PATTERN.matcher(s);
         final boolean matches = matcher.matches();
         assert matches;
-        return matcher.group(1);
+        return matcher.group(1).equals(warningValue);
     }
 
     /**
@@ -280,7 +311,7 @@ public class DeprecationLogger {
      * @return the escaped string
      */
     public static String escape(String s) {
-        return s.replaceAll("(\\\\|\")", "\\\\$1");
+        return s.replaceAll("([\"\\\\])", "\\\\$1");
     }
 
 }

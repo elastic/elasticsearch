@@ -3,14 +3,10 @@
 
 See {ref}/query-dsl-has-parent-query.html[Has Parent]
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-QueryBuilder qb = hasParentQuery(
-    "blog",                         <1>
-    termQuery("tag","something"),   <2>
-    false                           <3>
-);
+include-tagged::{query-dsl-test}[has_parent]
 --------------------------------------------------
 <1> parent type to query against
 <2> query
-<3> whether the score from the parent hit should propogate to the child hit
+<3> whether the score from the parent hit should propagate to the child hit

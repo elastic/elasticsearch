@@ -22,6 +22,7 @@ package org.elasticsearch.bootstrap;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.SecureSM;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -100,18 +101,6 @@ public class BootstrapForTesting {
                 // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();
                 Security.addClasspathPermissions(perms);
-                // crazy jython
-                for (URL url : JarHell.parseClassPath()) {
-                    Path path = PathUtils.get(url.toURI());
-
-                    // crazy jython...
-                    String filename = path.getFileName().toString();
-                    if (filename.contains("jython") && filename.endsWith(".jar")) {
-                        // just enough so it won't fail when it does not exist
-                        perms.add(new FilePermission(path.getParent().toString(), "read,readlink"));
-                        perms.add(new FilePermission(path.getParent().resolve("Lib").toString(), "read,readlink"));
-                    }
-                }
                 // java.io.tmpdir
                 Security.addPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete");
                 // custom test config file
@@ -119,7 +108,9 @@ public class BootstrapForTesting {
                     perms.add(new FilePermission(System.getProperty("tests.config"), "read,readlink"));
                 }
                 // jacoco coverage output file
-                if (Boolean.getBoolean("tests.coverage")) {
+                final boolean testsCoverage =
+                        Booleans.parseBoolean(System.getProperty("tests.coverage", "false"));
+                if (testsCoverage) {
                     Path coverageDir = PathUtils.get(System.getProperty("tests.coverage.dir"));
                     perms.add(new FilePermission(coverageDir.resolve("jacoco.exec").toString(), "read,write"));
                     // in case we get fancy and use the -integration goals later:
@@ -198,7 +189,7 @@ public class BootstrapForTesting {
         codebases.removeAll(excluded);
 
         // parse each policy file, with codebase substitution from the classpath
-        final List<Policy> policies = new ArrayList<>();
+        final List<Policy> policies = new ArrayList<>(pluginPolicies.size());
         for (URL policyFile : pluginPolicies) {
             policies.add(Security.readPolicy(policyFile, codebases));
         }

@@ -76,6 +76,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -113,6 +114,7 @@ final class DefaultSearchContext extends SearchContext {
     private SortAndFormats sort;
     private Float minimumScore;
     private boolean trackScores = false; // when sorting, track scores as well...
+    private boolean trackTotalHits = true;
     private FieldDoc searchAfter;
     private CollapseContext collapse;
     private boolean lowLevelCancellation;
@@ -290,13 +292,13 @@ final class DefaultSearchContext extends SearchContext {
         }
     }
 
-    private static Query createTypeFilter(String[] types) {
+    private Query createTypeFilter(String[] types) {
         if (types != null && types.length >= 1) {
-            BytesRef[] typesBytes = new BytesRef[types.length];
-            for (int i = 0; i < typesBytes.length; i++) {
-                typesBytes[i] = new BytesRef(types[i]);
+            MappedFieldType ft = mapperService().fullName(TypeFieldMapper.NAME);
+            if (ft != null) {
+                // ft might be null if no documents have been indexed yet
+                return ft.termsQuery(Arrays.asList(types), queryShardContext);
             }
-            return new TypeFieldMapper.TypesQuery(typesBytes);
         }
         return null;
     }
@@ -545,6 +547,17 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public boolean trackScores() {
         return this.trackScores;
+    }
+
+    @Override
+    public SearchContext trackTotalHits(boolean trackTotalHits) {
+        this.trackTotalHits = trackTotalHits;
+        return this;
+    }
+
+    @Override
+    public boolean trackTotalHits() {
+        return trackTotalHits;
     }
 
     @Override

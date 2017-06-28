@@ -46,7 +46,7 @@ public class PainlessExplainError extends Error {
     /**
      * Headers to be added to the {@link ScriptException} for structured rendering.
      */
-    public Map<String, List<String>> getHeaders() {
+    public Map<String, List<String>> getHeaders(Definition definition) {
         Map<String, List<String>> headers = new TreeMap<>();
         String toString = "null";
         String javaClassName = null;
@@ -54,7 +54,7 @@ public class PainlessExplainError extends Error {
         if (objectToExplain != null) {
             toString = objectToExplain.toString();
             javaClassName = objectToExplain.getClass().getName();
-            Definition.RuntimeClass runtimeClass = Definition.getRuntimeClass(objectToExplain.getClass());
+            Definition.RuntimeClass runtimeClass = definition.getRuntimeClass(objectToExplain.getClass());
             if (runtimeClass != null) {
                 painlessClassName = runtimeClass.getStruct().name;
             }

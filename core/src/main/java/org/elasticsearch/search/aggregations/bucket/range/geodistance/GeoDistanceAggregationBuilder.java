@@ -384,6 +384,9 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             ValuesSourceConfig<ValuesSource.GeoPoint> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
                     throws IOException {
         Range[] ranges = this.ranges.toArray(new Range[this.range().size()]);
+        if (ranges.length == 0) {
+            throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
+        }
         return new GeoDistanceRangeAggregatorFactory(name, config, origin, ranges, unit, distanceType, keyed, context, parent,
                 subFactoriesBuilder, metaData);
     }

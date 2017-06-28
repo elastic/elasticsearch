@@ -21,19 +21,22 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregationTestCase;
+import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.max.ParsedMax;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.List;
 import java.util.Map;
 
 public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
+
     @Override
     protected InternalMax createTestInstance(String name, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
-        return new InternalMax(name, randomDouble(),
-                randomFrom(DocValueFormat.BOOLEAN, DocValueFormat.GEOHASH, DocValueFormat.IP, DocValueFormat.RAW), pipelineAggregators,
-                metaData);
+        double value = frequently() ? randomDouble() : randomFrom(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY);
+        DocValueFormat formatter = randomNumericDocValueFormat();
+        return new InternalMax(name, value, formatter, pipelineAggregators, metaData);
     }
 
     @Override
@@ -44,5 +47,18 @@ public class InternalMaxTests extends InternalAggregationTestCase<InternalMax> {
     @Override
     protected void assertReduced(InternalMax reduced, List<InternalMax> inputs) {
         assertEquals(inputs.stream().mapToDouble(InternalMax::value).max().getAsDouble(), reduced.value(), 0);
+    }
+
+    @Override
+    protected void assertFromXContent(InternalMax max, ParsedAggregation parsedAggregation) {
+        ParsedMax parsed = ((ParsedMax) parsedAggregation);
+        if (Double.isInfinite(max.getValue()) == false) {
+            assertEquals(max.getValue(), parsed.getValue(), Double.MIN_VALUE);
+            assertEquals(max.getValueAsString(), parsed.getValueAsString());
+        } else {
+            // we write Double.NEGATIVE_INFINITY and Double.POSITIVE_INFINITY to xContent as 'null', so we
+            // cannot differentiate between them. Also we cannot recreate the exact String representation
+            assertEquals(parsed.getValue(), Double.NEGATIVE_INFINITY, 0);
+        }
     }
 }

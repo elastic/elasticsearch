@@ -75,11 +75,6 @@ public interface Transport extends LifecycleComponent {
      */
     void disconnectFromNode(DiscoveryNode node);
 
-    /**
-     * Returns count of currently open connections
-     */
-    long serverOpen();
-
     List<String> getLocalAddresses();
 
     default CircuitBreaker getInFlightRequestBreaker() {
@@ -110,6 +105,8 @@ public interface Transport extends LifecycleComponent {
      */
     Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException;
 
+    TransportStats getStats();
+
     /**
      * A unidirectional connection to a {@link DiscoveryNode}
      */
@@ -131,6 +128,14 @@ public interface Transport extends LifecycleComponent {
          */
         default Version getVersion() {
             return getNode().getVersion();
+        }
+
+        /**
+         * Returns a key that this connection can be cached on. Delegating subclasses must delegate method call to
+         * the original connection.
+         */
+        default Object getCacheKey() {
+            return this;
         }
     }
 }

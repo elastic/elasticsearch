@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -42,6 +43,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -53,6 +55,8 @@ import static org.elasticsearch.action.DocWriteRequest.OpType;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.test.InternalSettingsPlugin;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -66,7 +70,7 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(CustomScriptPlugin.class);
+        return Arrays.asList(InternalSettingsPlugin.class, CustomScriptPlugin.class);
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -450,161 +454,16 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
         assertHitCount(countResponse, numDocs);
     }
 
-    /*
-    Test for https://github.com/elastic/elasticsearch/issues/3444
-     */
-    public void testBulkUpdateDocAsUpsertWithParent() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
-                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON)
-                .execute().actionGet();
-        ensureGreen();
 
-        BulkRequestBuilder builder = client().prepareBulk();
-
-        // It's important to use JSON parsing here and request objects: issue 3444 is related to incomplete option parsing
-        byte[] addParent = new BytesArray(
-                "{" +
-                "  \"index\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"parent\"," +
-                "    \"_id\"    : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"field1\" : \"value1\"" +
-                "}" +
-                "\n").array();
-
-        byte[] addChild = new BytesArray(
-                "{" +
-                "  \"update\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"child\"," +
-                "    \"_id\"    : \"child1\"," +
-                "    \"parent\" : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"doc\" : {" +
-                "    \"field1\" : \"value1\"" +
-                "  }," +
-                "  \"doc_as_upsert\" : \"true\"" +
-                "}" +
-                "\n").array();
-
-        builder.add(addParent, 0, addParent.length, XContentType.JSON);
-        builder.add(addChild, 0, addChild.length, XContentType.JSON);
-
-        BulkResponse bulkResponse = builder.get();
-        assertThat(bulkResponse.getItems().length, equalTo(2));
-        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
-
-        client().admin().indices().prepareRefresh("test").get();
-
-        //we check that the _parent field was set on the child document by using the has parent query
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery(), false))
-                .get();
-
-        assertNoFailures(searchResponse);
-        assertSearchHits(searchResponse, "child1");
-    }
-
-    /*
-    Test for https://github.com/elastic/elasticsearch/issues/3444
-     */
-    public void testBulkUpdateUpsertWithParent() throws Exception {
-        assertAcked(prepareCreate("test")
-                .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
-                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
-        ensureGreen();
-
-        BulkRequestBuilder builder = client().prepareBulk();
-
-        byte[] addParent = new BytesArray(
-                "{" +
-                "  \"index\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"parent\"," +
-                "    \"_id\"    : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"field1\" : \"value1\"" +
-                "}" +
-                "\n").array();
-
-        byte[] addChild1 = new BytesArray(
-                "{" +
-                "  \"update\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"child\"," +
-                "    \"_id\"    : \"child1\"," +
-                "    \"parent\" : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"script\" : {" +
-                "    \"inline\" : \"ctx._source.field2 = 'value2'\"" +
-                "  }," +
-                "  \"lang\" : \"" + CustomScriptPlugin.NAME + "\"," +
-                "  \"upsert\" : {" +
-                "    \"field1\" : \"value1'\"" +
-                "  }" +
-                "}" +
-                "\n").array();
-
-        byte[] addChild2 = new BytesArray(
-                "{" +
-                "  \"update\" : {" +
-                "    \"_index\" : \"test\"," +
-                "    \"_type\"  : \"child\"," +
-                "    \"_id\"    : \"child1\"," +
-                "    \"parent\" : \"parent1\"" +
-                "  }" +
-                "}" +
-                "\n" +
-                "{" +
-                "  \"script\" : \"ctx._source.field2 = 'value2'\"," +
-                "  \"upsert\" : {" +
-                "    \"field1\" : \"value1'\"" +
-                "  }" +
-                "}" +
-                "\n").array();
-
-        builder.add(addParent, 0, addParent.length, XContentType.JSON);
-        builder.add(addChild1, 0, addChild1.length, XContentType.JSON);
-        builder.add(addChild2, 0, addChild2.length, XContentType.JSON);
-
-        BulkResponse bulkResponse = builder.get();
-        assertThat(bulkResponse.getItems().length, equalTo(3));
-        assertThat(bulkResponse.getItems()[0].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[1].isFailed(), equalTo(false));
-        assertThat(bulkResponse.getItems()[2].isFailed(), equalTo(true));
-        assertThat(bulkResponse.getItems()[2].getFailure().getCause().getCause().getMessage(),
-                equalTo("script_lang not supported [painless]"));
-
-        client().admin().indices().prepareRefresh("test").get();
-
-        SearchResponse searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.hasParentQuery("parent", QueryBuilders.matchAllQuery(), false))
-                .get();
-
-        assertSearchHits(searchResponse, "child1");
-    }
 
     /*
      * Test for https://github.com/elastic/elasticsearch/issues/8365
      */
     public void testBulkUpdateChildMissingParentRouting() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
-            .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
+        assertAcked(prepareCreate("test")
+                .setSettings("index.version.created", Version.V_5_6_0.id) // allows for multiple types
+                .addMapping("parent", "{\"parent\":{}}", XContentType.JSON)
+                .addMapping("child", "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}", XContentType.JSON));
         ensureGreen();
 
         BulkRequestBuilder builder = client().prepareBulk();

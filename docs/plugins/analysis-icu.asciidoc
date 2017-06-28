@@ -23,36 +23,8 @@ characters.
 
 ================================================
 
-
-[[analysis-icu-install]]
-[float]
-==== Installation
-
-This plugin can be installed using the plugin manager:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin install analysis-icu
-----------------------------------------------------------------
-
-The plugin must be installed on every node in the cluster, and each node must
-be restarted after installation.
-
-This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
-{plugin_url}/analysis-icu/analysis-icu-{version}.zip.
-
-[[analysis-icu-remove]]
-[float]
-==== Removal
-
-The plugin can be removed with the following command:
-
-[source,sh]
-----------------------------------------------------------------
-sudo bin/elasticsearch-plugin remove analysis-icu
-----------------------------------------------------------------
-
-The node must be stopped before removing the plugin.
+:plugin_name: analysis-icu
+include::install_remove.asciidoc[]
 
 [[analysis-icu-normalization-charfilter]]
 ==== ICU Normalization Character Filter
@@ -64,6 +36,10 @@ available to all indices without any further configuration. The type of
 normalization can be specified with the `name` parameter, which accepts `nfc`,
 `nfkc`, and `nfkc_cf` (default).  Set the `mode` parameter to `decompose` to
 convert `nfc` to `nfd` or `nfkc` to `nfkd` respectively:
+
+Which letters are normalized can be controlled by specifying the
+`unicodeSetFilter` parameter, which accepts a
+http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
 
 Here are two examples, the default usage and a customised character filter:
 
@@ -217,6 +193,10 @@ without any further configuration. The type of normalization can be specified
 with the `name` parameter, which accepts `nfc`, `nfkc`, and `nfkc_cf`
 (default).
 
+Which letters are normalized can be controlled by specifying the
+`unicodeSetFilter` parameter, which accepts a
+http://icu-project.org/apiref/icu4j/com/ibm/icu/text/UnicodeSet.html[UnicodeSet].
+
 You should probably prefer the <<analysis-icu-normalization-charfilter,Normalization character filter>>.
 
 Here are two examples, the default usage and a customised token filter:
@@ -330,50 +310,46 @@ PUT icu_sample
 --------------------------------------------------
 // CONSOLE
 
+
 [[analysis-icu-collation]]
 ==== ICU Collation Token Filter
 
+[WARNING]
+======
+This token filter has been deprecated since Lucene 5.0.  Please use
+<<analysis-icu-collation-keyword-field, ICU Collation Keyword Field>>.
+======
+
+[[analysis-icu-collation-keyword-field]]
+==== ICU Collation Keyword Field
+
 Collations are used for sorting documents in a language-specific word order.
-The `icu_collation` token filter is available to all indices and defaults to
-using the
-{defguide}/sorting-collations.html#uca[DUCET collation],
+The `icu_collation_keyword` field type is available to all indices and will encode
+the terms directly as bytes in a doc values field and a single indexed token just
+like a standard {ref}/keyword.html[Keyword Field].
+
+Defaults to using {defguide}/sorting-collations.html#uca[DUCET collation],
 which is a best-effort attempt at language-neutral sorting.
 
 Below is an example of how to set up a field for sorting German names in
 ``phonebook'' order:
 
 [source,js]
---------------------------------------------------
-PUT /my_index
+--------------------------
+PUT my_index
 {
-  "settings": {
-    "analysis": {
-      "filter": {
-        "german_phonebook": {
-          "type":     "icu_collation",
-          "language": "de",
-          "country":  "DE",
-          "variant":  "@collation=phonebook"
-        }
-      },
-      "analyzer": {
-        "german_phonebook": {
-          "tokenizer": "keyword",
-          "filter":  [ "german_phonebook" ]
-        }
-      }
-    }
-  },
   "mappings": {
     "user": {
       "properties": {
-        "name": { <1>
+        "name": {   <1>
           "type": "text",
           "fields": {
-            "sort": { <2>
-              "type":      "text",
-              "fielddata": true,
-              "analyzer":  "german_phonebook"
+            "sort": {  <2>
+              "type": "icu_collation_keyword",
+              "index": false,
+              "language": "de",
+              "country": "DE",
+              "variant": "@collation=phonebook"
             }
           }
         }
@@ -392,14 +368,46 @@ GET _search <3>
   "sort": "name.sort"
 }
 
---------------------------------------------------
+--------------------------
 // CONSOLE
 
 <1> The `name` field uses the `standard` analyzer, and so support full text queries.
-<2> The `name.sort` field uses the `keyword` analyzer to preserve the name as
-    a single token, and applies the `german_phonebook` token filter to index
-    the value in German phonebook sort order.
+<2> The `name.sort` field is an `icu_collation_keyword` field that will preserve the name as
+    a single token doc values, and applies the German ``phonebook'' order.
 <3> An example query which searches the `name` field and sorts on the `name.sort` field.
+
+==== Parameters for ICU Collation Keyword Fields
+
+The following parameters are accepted by `icu_collation_keyword` fields:
+
+[horizontal]
+
+`doc_values`::
+
+    Should the field be stored on disk in a column-stride fashion, so that it
+    can later be used for sorting, aggregations, or scripting? Accepts `true`
+    (default) or `false`.
+
+`index`::
+
+    Should the field be searchable? Accepts `true` (default) or `false`.
+
+`null_value`::
+
+    Accepts a string value which is substituted for any explicit `null`
+    values.  Defaults to `null`, which means the field is treated as missing.
+
+`store`::
+
+    Whether the field value should be stored and retrievable separately from
+    the {ref}/mapping-source-field.html[`_source`] field. Accepts `true` or `false`
+    (default).
+
+`fields`::
+
+    Multi-fields allow the same string value to be indexed in multiple ways for
+    different purposes, such as one field for search and a multi-field for
+    sorting and aggregations.
 
 ===== Collation options
 
@@ -432,14 +440,14 @@ Possible values: `shifted` or `non-ignorable`. Sets the alternate handling for
 strength `quaternary` to be either shifted or non-ignorable. Which boils down
 to ignoring punctuation and whitespace.
 
-`caseLevel`::
+`case_level`::
 
 Possible values: `true` or `false` (default). Whether case level sorting is
 required. When strength is set to `primary` this will ignore accent
 differences.
 
 
-`caseFirst`::
+`case_first`::
 
 Possible values: `lower` or `upper`. Useful to control which case is sorted
 first when case is not ignored for strength `tertiary`. The default depends on
@@ -452,11 +460,11 @@ according to their numeric representation. For example the value `egg-9` is
 sorted before the value `egg-21`.
 
 
-`variableTop`::
+`variable_top`::
 
 Single character or contraction. Controls what is variable for `alternate`.
 
-`hiraganaQuaternaryMode`::
+`hiragana_quaternary_mode`::
 
 Possible values: `true` or `false`.  Distinguishing between Katakana and
 Hiragana characters in `quaternary` strength.

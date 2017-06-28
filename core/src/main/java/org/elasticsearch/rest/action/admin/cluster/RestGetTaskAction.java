@@ -40,6 +40,11 @@ public class RestGetTaskAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "get_task_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TaskId taskId = new TaskId(request.param("taskId"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);

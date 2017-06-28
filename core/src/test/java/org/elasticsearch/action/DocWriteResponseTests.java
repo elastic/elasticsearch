@@ -43,6 +43,7 @@ public class DocWriteResponseTests extends ESTestCase {
                         "type",
                         "id",
                         SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        17,
                         0,
                         Result.CREATED) {};
         assertEquals("/index/type/id", response.getLocation(null));
@@ -56,6 +57,7 @@ public class DocWriteResponseTests extends ESTestCase {
                         "type",
                         "❤",
                         SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        17,
                         0,
                         Result.CREATED) {};
         assertEquals("/index/type/%E2%9D%A4", response.getLocation(null));
@@ -69,6 +71,7 @@ public class DocWriteResponseTests extends ESTestCase {
                         "type",
                         "a b",
                         SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        17,
                         0,
                         Result.CREATED) {};
         assertEquals("/index/type/a+b", response.getLocation(null));
@@ -86,6 +89,7 @@ public class DocWriteResponseTests extends ESTestCase {
                 "type",
                 "id",
                 SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                17,
                 0,
                 Result.CREATED) {
                 // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.

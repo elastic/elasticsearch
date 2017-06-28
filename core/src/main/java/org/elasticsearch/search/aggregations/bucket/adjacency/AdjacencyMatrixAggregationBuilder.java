@@ -197,7 +197,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
                             + "] index level setting.");
         }
 
-        List<KeyedFilter> rewrittenFilters = new ArrayList<>();
+        List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         for (KeyedFilter kf : filters) {
             rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(), context.getQueryShardContext())));
         }

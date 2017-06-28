@@ -76,7 +76,7 @@ public class QueryExplanation  implements Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         index = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_4_0)) {
             shard = in.readInt();
         } else {
             shard = RANDOM_SHARD;
@@ -89,7 +89,7 @@ public class QueryExplanation  implements Streamable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(index);
-        if (out.getVersion().onOrAfter(Version.V_5_4_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_4_0)) {
             out.writeInt(shard);
         }
         out.writeBoolean(valid);

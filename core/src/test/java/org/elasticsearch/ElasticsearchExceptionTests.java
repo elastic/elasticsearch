@@ -21,6 +21,7 @@ package org.elasticsearch;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -58,7 +59,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.hamcrest.Matcher;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -427,6 +427,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                                                         .field("stack_trace", "...")
                                                     .endObject();
 
+        builder = shuffleXContent(builder);
         ElasticsearchException parsed;
         try (XContentParser parser = createParser(xContent, builder.bytes())) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -447,6 +448,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         final XContent xContent = randomFrom(XContentType.values()).xContent();
         XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(e).endObject();
+        builder = shuffleXContent(builder);
 
         ElasticsearchException parsed;
         try (XContentParser parser = createParser(builder)) {
@@ -491,6 +493,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
         final XContent xContent = randomFrom(XContentType.values()).xContent();
         XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(foo).endObject();
+        builder = shuffleXContent(builder);
 
         ElasticsearchException parsed;
         try (XContentParser parser = createParser(builder)) {
@@ -570,8 +573,9 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                         .field("object_field", "value")
                     .endObject()
             .endObject();
-
-            originalBytes = builder.bytes();
+            try (XContentBuilder shuffledBuilder = shuffleXContent(builder)) {
+                originalBytes = shuffledBuilder.bytes();
+            }
         }
 
         ElasticsearchException parsedException;
@@ -597,10 +601,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         final Tuple<Throwable, ElasticsearchException> exceptions = randomExceptions();
         final Throwable throwable = exceptions.v1();
 
-        BytesReference throwableBytes = XContentHelper.toXContent((builder, params) -> {
+        BytesReference throwableBytes = toShuffledXContent((builder, params) -> {
             ElasticsearchException.generateThrowableXContent(builder, params, throwable);
             return builder;
-        }, xContent.type(), randomBoolean());
+        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         ElasticsearchException parsedException;
         try (XContentParser parser = createParser(xContent, throwableBytes)) {
@@ -615,11 +619,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testUnknownFailureToAndFromXContent() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
 
-        BytesReference failureBytes = XContentHelper.toXContent((builder, params) -> {
+        BytesReference failureBytes = toShuffledXContent((builder, params) -> {
             // Prints a null failure using generateFailureXContent()
             ElasticsearchException.generateFailureXContent(builder, params, null, randomBoolean());
             return builder;
-        }, xContent.type(), randomBoolean());
+        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         ElasticsearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
@@ -640,10 +644,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
 
         final Exception failure = (Exception) randomExceptions().v1();
-        BytesReference failureBytes = XContentHelper.toXContent((builder, params) -> {
+        BytesReference failureBytes = toShuffledXContent((builder, params) -> {
             ElasticsearchException.generateFailureXContent(builder, params, failure, false);
             return builder;
-        }, xContent.type(), randomBoolean());
+        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             failureBytes = shuffleXContent(parser, randomBoolean()).bytes();
@@ -755,10 +759,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 failureCause = new NoShardAvailableActionException(new ShardId("_index_g", "_uuid_g", 6), "node_g", failureCause);
                 ShardSearchFailure[] shardFailures = new ShardSearchFailure[]{
                         new ShardSearchFailure(new ParsingException(0, 0, "Parsing g", null),
-                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61))),
-                        new ShardSearchFailure(new RepositoryException("repository_g", "Repo"),
-                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62))),
-                        new ShardSearchFailure(new SearchContextMissingException(0L), null)
+                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 61), null,
+                                    OriginalIndices.NONE)), new ShardSearchFailure(new RepositoryException("repository_g", "Repo"),
+                                new SearchShardTarget("node_g", new ShardId(new Index("_index_g", "_uuid_g"), 62), null,
+                                    OriginalIndices.NONE)), new ShardSearchFailure(new SearchContextMissingException(0L), null)
                 };
                 failure = new SearchPhaseExecutionException("phase_g", "G", failureCause, shardFailures);
 
@@ -785,10 +789,10 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         Exception finalFailure = failure;
-        BytesReference failureBytes = XContentHelper.toXContent((builder, params) -> {
+        BytesReference failureBytes = toShuffledXContent((builder, params) -> {
             ElasticsearchException.generateFailureXContent(builder, params, finalFailure, true);
             return builder;
-        }, xContent.type(), randomBoolean());
+        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             failureBytes = shuffleXContent(parser, randomBoolean()).bytes();
@@ -807,7 +811,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     }
 
     /**
-     * Builds a {@link ToXContent} using a JSON XContentBuilder and check the resulting string with the given {@link Matcher}.
+     * Builds a {@link ToXContent} using a JSON XContentBuilder and compares the result to the given json in string format.
      *
      * By default, the stack trace of the exception is not rendered. The parameter `errorTrace` forces the stack trace to
      * be rendered like the REST API does when the "error_trace" parameter is set to true.
@@ -918,7 +922,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
                     int nbValues = randomIntBetween(1, 3);
                     for (int j = 0; j < nbValues; j++) {
-                        values.add(frequently() ? randomAsciiOfLength(5) : "");
+                        values.add(frequently() ? randomAlphaOfLength(5) : "");
                     }
                     randomHeaders.put("header_" + i, values);
                 }
@@ -943,7 +947,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
                     int nbValues = randomIntBetween(1, 3);
                     for (int j = 0; j < nbValues; j++) {
-                        values.add(frequently() ? randomAsciiOfLength(5) : "");
+                        values.add(frequently() ? randomAlphaOfLength(5) : "");
                     }
                     randomMetadata.put("es.metadata_" + i, values);
                 }
@@ -965,7 +969,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                     String resourceType = "type_" + i;
                     String[] resourceIds = new String[randomIntBetween(1, 3)];
                     for (int j = 0; j < resourceIds.length; j++) {
-                        resourceIds[j] = frequently() ? randomAsciiOfLength(5) : "";
+                        resourceIds[j] = frequently() ? randomAlphaOfLength(5) : "";
                     }
                     actualException.setResources(resourceType, resourceIds);
                     expected.setResources(resourceType, resourceIds);

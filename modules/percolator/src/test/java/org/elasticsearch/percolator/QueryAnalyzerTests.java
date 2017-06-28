@@ -276,7 +276,7 @@ public class QueryAnalyzerTests extends ESTestCase {
 
     public void testExtractQueryMetadata_blendedTermQuery() {
         Term[] termsArr = new Term[]{new Term("_field", "_term1"), new Term("_field", "_term2")};
-        BlendedTermQuery commonTermsQuery = BlendedTermQuery.booleanBlendedQuery(termsArr, false);
+        BlendedTermQuery commonTermsQuery = BlendedTermQuery.dismaxBlendedQuery(termsArr, 1.0f);
         Result result = analyze(commonTermsQuery);
         assertThat(result.verified, is(true));
         List<Term> terms = new ArrayList<>(result.terms);
@@ -536,7 +536,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         while (sumTermLength > 0) {
             int length = randomInt(sumTermLength);
             shortestTerms1Length = Math.min(shortestTerms1Length, length);
-            terms1.add(new Term("field", randomAsciiOfLength(length)));
+            terms1.add(new Term("field", randomAlphaOfLength(length)));
             sumTermLength -= length;
         }
 
@@ -546,7 +546,7 @@ public class QueryAnalyzerTests extends ESTestCase {
         while (sumTermLength > 0) {
             int length = randomInt(sumTermLength);
             shortestTerms2Length = Math.min(shortestTerms2Length, length);
-            terms2.add(new Term("field", randomAsciiOfLength(length)));
+            terms2.add(new Term("field", randomAlphaOfLength(length)));
             sumTermLength -= length;
         }
 

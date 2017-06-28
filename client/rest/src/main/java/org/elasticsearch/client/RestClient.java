@@ -553,7 +553,7 @@ public class RestClient implements Closeable {
         return httpRequest;
     }
 
-    private static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
+    static URI buildUri(String pathPrefix, String path, Map<String, String> params) {
         Objects.requireNonNull(path, "path must not be null");
         try {
             String fullPath;

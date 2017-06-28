@@ -90,19 +90,19 @@ public class IndexRequestTests extends ESTestCase {
     }
 
     public void testIndexingRejectsLongIds() {
-        String id = randomAsciiOfLength(511);
+        String id = randomAlphaOfLength(511);
         IndexRequest request = new IndexRequest("index", "type", id);
         request.source("{}", XContentType.JSON);
         ActionRequestValidationException validate = request.validate();
         assertNull(validate);
 
-        id = randomAsciiOfLength(512);
+        id = randomAlphaOfLength(512);
         request = new IndexRequest("index", "type", id);
         request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertNull(validate);
 
-        id = randomAsciiOfLength(513);
+        id = randomAlphaOfLength(513);
         request = new IndexRequest("index", "type", id);
         request.source("{}", XContentType.JSON);
         validate = request.validate();
@@ -130,12 +130,12 @@ public class IndexRequestTests extends ESTestCase {
     }
 
     public void testIndexResponse() {
-        ShardId shardId = new ShardId(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10), randomIntBetween(0, 1000));
-        String type = randomAsciiOfLengthBetween(3, 10);
-        String id = randomAsciiOfLengthBetween(3, 10);
+        ShardId shardId = new ShardId(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomIntBetween(0, 1000));
+        String type = randomAlphaOfLengthBetween(3, 10);
+        String id = randomAlphaOfLengthBetween(3, 10);
         long version = randomLong();
         boolean created = randomBoolean();
-        IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, created);
+        IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, version, created);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
         ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(total, successful);
@@ -156,6 +156,7 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",type=" + type + ",id="+ id +
                 ",version=" + version + ",result=" + (created ? "created" : "updated") +
                 ",seqNo=" + SequenceNumbersService.UNASSIGNED_SEQ_NO +
+                ",primaryTerm=" + 0 +
                 ",shards={\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}]",
                 indexResponse.toString());
     }
@@ -177,7 +178,7 @@ public class IndexRequestTests extends ESTestCase {
     public void testIndexRequestXContentSerializationBwc() throws IOException {
         final byte[] data = Base64.getDecoder().decode("AAD////+AgQDZm9vAAAAAQNiYXIBATEAAAAAAnt9AP/////////9AAAA//////////8AAAAAAAA=");
         final Version version = randomFrom(Version.V_5_0_0, Version.V_5_0_1, Version.V_5_0_2,
-            Version.V_5_0_3_UNRELEASED, Version.V_5_1_1_UNRELEASED, Version.V_5_1_2_UNRELEASED, Version.V_5_2_0_UNRELEASED);
+            Version.V_5_1_1, Version.V_5_1_2, Version.V_5_2_0);
         try (StreamInput in = StreamInput.wrap(data)) {
             in.setVersion(version);
             IndexRequest serialized = new IndexRequest();

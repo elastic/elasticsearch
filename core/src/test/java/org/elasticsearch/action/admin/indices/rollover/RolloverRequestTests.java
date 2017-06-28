@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class RolloverRequestTests extends ESTestCase {
 
     public void testConditionsParsing() throws Exception {
-        final RolloverRequest request = new RolloverRequest(randomAsciiOfLength(10), randomAsciiOfLength(10));
+        final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
         final XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("conditions")
@@ -56,7 +56,7 @@ public class RolloverRequestTests extends ESTestCase {
     }
 
     public void testParsingWithIndexSettings() throws Exception {
-        final RolloverRequest request = new RolloverRequest(randomAsciiOfLength(10), randomAsciiOfLength(10));
+        final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
         final XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
                 .startObject("conditions")

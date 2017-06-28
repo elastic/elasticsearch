@@ -227,13 +227,13 @@ Response:
       "index": "twitter",
       "shard": 0,
       "valid": true,
-      "explanation": "+MatchNoDocsQuery(\"empty BooleanQuery\") #ConstantScore(MatchNoDocsQuery(\"empty BooleanQuery\"))"
+      "explanation": "user:kimchy~2"
     },
     {
       "index": "twitter",
       "shard": 1,
       "valid": true,
-      "explanation": "+MatchNoDocsQuery(\"empty BooleanQuery\") #ConstantScore(MatchNoDocsQuery(\"empty BooleanQuery\"))"
+      "explanation": "user:kimchy~2"
     },
     {
       "index": "twitter",
@@ -251,7 +251,7 @@ Response:
       "index": "twitter",
       "shard": 4,
       "valid": true,
-      "explanation": "+MatchNoDocsQuery(\"empty BooleanQuery\") #ConstantScore(MatchNoDocsQuery(\"empty BooleanQuery\"))"
+      "explanation": "user:kimchy~2"
     }
   ]
 }

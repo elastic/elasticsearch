@@ -25,10 +25,10 @@ import org.apache.lucene.document.StringField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 
+import java.io.IOException;
+
 import static org.elasticsearch.test.geo.RandomShapeGenerator.randomPoint;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -71,23 +71,20 @@ public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImpl
         assumeFalse("Only test on non geo_point fields", getFieldDataType().equals("geo_point"));
     }
 
-    protected void assertValues(MultiGeoPointValues values, int docId) {
+    protected void assertValues(MultiGeoPointValues values, int docId) throws IOException {
         assertValues(values, docId, false);
     }
 
-    protected void assertMissing(MultiGeoPointValues values, int docId) {
+    protected void assertMissing(MultiGeoPointValues values, int docId) throws IOException {
         assertValues(values, docId, true);
     }
 
-    private void assertValues(MultiGeoPointValues values, int docId, boolean missing) {
-        values.setDocument(docId);
-        int docCount = values.count();
-        if (missing) {
-            assertThat(docCount, equalTo(0));
-        } else {
-            assertThat(docCount, greaterThan(0));
+    private void assertValues(MultiGeoPointValues values, int docId, boolean missing) throws IOException {
+        assertEquals(missing == false, values.advanceExact(docId));
+        if (missing == false) {
+            final int docCount = values.docValueCount();
             for (int i = 0; i < docCount; ++i) {
-                final GeoPoint point = values.valueAt(i);
+                final GeoPoint point = values.nextValue();
                 assertThat(point.lat(), allOf(greaterThanOrEqualTo(GeoUtils.MIN_LAT), lessThanOrEqualTo(GeoUtils.MAX_LAT)));
                 assertThat(point.lon(), allOf(greaterThanOrEqualTo(GeoUtils.MIN_LON), lessThanOrEqualTo(GeoUtils.MAX_LON)));
             }

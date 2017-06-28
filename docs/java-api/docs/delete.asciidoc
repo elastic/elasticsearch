@@ -44,7 +44,7 @@ the result of a query:
 
 [source,java]
 --------------------------------------------------
-BulkIndexByScrollResponse response =
+BulkByScrollResponse response =
     DeleteByQueryAction.INSTANCE.newRequestBuilder(client)
         .filter(QueryBuilders.matchQuery("gender", "male")) <1>
         .source("persons")                                  <2>

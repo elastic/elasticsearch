@@ -334,10 +334,6 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         return new TimeValue(tookInMillis);
     }
 
-    public long getTookInMillis() {
-        return tookInMillis;
-    }
-
     private void buildScore(XContentBuilder builder, BoostAttribute boostAtt) throws IOException {
         if (hasScores) {
             builder.field(FieldStrings.SCORE, boostAtt.getBoost());

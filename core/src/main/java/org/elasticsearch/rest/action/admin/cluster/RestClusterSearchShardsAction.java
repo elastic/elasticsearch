@@ -45,6 +45,11 @@ public class RestClusterSearchShardsAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "cluster_search_shards_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final ClusterSearchShardsRequest clusterSearchShardsRequest = Requests.clusterSearchShardsRequest(indices);

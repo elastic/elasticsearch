@@ -51,8 +51,6 @@ public class RestIntegTestTask extends DefaultTask {
     boolean includePackaged = false
 
     public RestIntegTestTask() {
-        description = 'Runs rest tests against an elasticsearch cluster.'
-        group = JavaBasePlugin.VERIFICATION_GROUP
         runner = project.tasks.create("${name}Runner", RandomizedTestingTask.class)
         super.dependsOn(runner)
         clusterInit = project.tasks.create(name: "${name}Cluster#init", dependsOn: project.testClasses)
@@ -129,7 +127,7 @@ public class RestIntegTestTask extends DefaultTask {
         runner.dependsOn(dependencies)
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture)dependency).stopTask)
+                runner.finalizedBy(((Fixture)dependency).getStopTask())
             }
         }
         return this
@@ -140,7 +138,7 @@ public class RestIntegTestTask extends DefaultTask {
         runner.setDependsOn(dependencies)
         for (Object dependency : dependencies) {
             if (dependency instanceof Fixture) {
-                runner.finalizedBy(((Fixture)dependency).stopTask)
+                runner.finalizedBy(((Fixture)dependency).getStopTask())
             }
         }
     }

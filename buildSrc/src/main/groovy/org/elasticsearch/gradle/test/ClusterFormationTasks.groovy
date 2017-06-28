@@ -54,14 +54,24 @@ class ClusterFormationTasks {
      */
     static List<NodeInfo> setup(Project project, String prefix, Task runner, ClusterConfiguration config) {
         File sharedDir = new File(project.buildDir, "cluster/shared")
-        // first we remove everything in the shared cluster directory to ensure there are no leftovers in repos or anything
-        // in theory this should not be necessary but repositories are only deleted in the cluster-state and not on-disk
-        // such that snapshots survive failures / test runs and there is no simple way today to fix that.
-        Task cleanup = project.tasks.create(name: "${prefix}#prepareCluster.cleanShared", type: Delete, dependsOn: runner.dependsOn.collect()) {
-            delete sharedDir
-            doLast {
-                sharedDir.mkdirs()
-            }
+        Object startDependencies = config.dependencies
+        /* First, if we want a clean environment, we remove everything in the
+         * shared cluster directory to ensure there are no leftovers in repos
+         * or anything in theory this should not be necessary but repositories
+         * are only deleted in the cluster-state and not on-disk such that
+         * snapshots survive failures / test runs and there is no simple way
+         * today to fix that. */
+        if (config.cleanShared) {
+          Task cleanup = project.tasks.create(
+            name: "${prefix}#prepareCluster.cleanShared",
+            type: Delete,
+            dependsOn: startDependencies) {
+              delete sharedDir
+              doLast {
+                  sharedDir.mkdirs()
+              }
+          }
+          startDependencies = cleanup
         }
         List<Task> startTasks = []
         List<NodeInfo> nodes = []
@@ -72,25 +82,25 @@ class ClusterFormationTasks {
             throw new GradleException("bwcVersion must not be null if numBwcNodes is > 0")
         }
         // this is our current version distribution configuration we use for all kinds of REST tests etc.
-        String distroConfigName = "${prefix}_elasticsearchDistro"
-        Configuration currentDistro = project.configurations.create(distroConfigName)
+        Configuration currentDistro = project.configurations.create("${prefix}_elasticsearchDistro")
+        Configuration bwcDistro = project.configurations.create("${prefix}_elasticsearchBwcDistro")
+        Configuration bwcPlugins = project.configurations.create("${prefix}_elasticsearchBwcPlugins")
         configureDistributionDependency(project, config.distribution, currentDistro, VersionProperties.elasticsearch)
-        if (config.bwcVersion != null && config.numBwcNodes > 0) {
+        if (config.numBwcNodes > 0) {
+            if (config.bwcVersion == null) {
+                throw new IllegalArgumentException("Must specify bwcVersion when numBwcNodes > 0")
+            }
             // if we have a cluster that has a BWC cluster we also need to configure a dependency on the BWC version
             // this version uses the same distribution etc. and only differs in the version we depend on.
             // from here on everything else works the same as if it's the current version, we fetch the BWC version
             // from mirrors using gradles built-in mechanism etc.
-            project.configurations {
-                elasticsearchBwcDistro
-                elasticsearchBwcPlugins
-            }
-            configureDistributionDependency(project, config.distribution, project.configurations.elasticsearchBwcDistro, config.bwcVersion)
+
+            configureDistributionDependency(project, config.distribution, bwcDistro, config.bwcVersion)
             for (Map.Entry<String, Project> entry : config.plugins.entrySet()) {
-                configureBwcPluginDependency("${prefix}_elasticsearchBwcPlugins", project, entry.getValue(),
-                        project.configurations.elasticsearchBwcPlugins, config.bwcVersion)
+                configureBwcPluginDependency("${prefix}_elasticsearchBwcPlugins", project, entry.getValue(), bwcPlugins, config.bwcVersion)
             }
-            project.configurations.elasticsearchBwcDistro.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
-            project.configurations.elasticsearchBwcPlugins.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
+            bwcDistro.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
+            bwcPlugins.resolutionStrategy.cacheChangingModulesFor(0, TimeUnit.SECONDS)
         }
         for (int i = 0; i < config.numNodes; i++) {
             // we start N nodes and out of these N nodes there might be M bwc nodes.
@@ -99,12 +109,12 @@ class ClusterFormationTasks {
             Configuration distro = currentDistro
             if (i < config.numBwcNodes) {
                 elasticsearchVersion = config.bwcVersion
-                distro = project.configurations.elasticsearchBwcDistro
+                distro = bwcDistro
             }
             NodeInfo node = new NodeInfo(config, i, project, prefix, elasticsearchVersion, sharedDir)
             nodes.add(node)
-            Task dependsOn = startTasks.empty ? cleanup : startTasks.get(0)
-            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, distro, nodes.get(0)))
+            Object dependsOn = startTasks.empty ? startDependencies : startTasks.get(0)
+            startTasks.add(configureNode(project, prefix, runner, dependsOn, node, config, distro, nodes.get(0)))
         }
 
         Task wait = configureWaitTask("${prefix}#wait", project, nodes, startTasks)
@@ -148,7 +158,8 @@ class ClusterFormationTasks {
      *
      * @return a task which starts the node.
      */
-    static Task configureNode(Project project, String prefix, Task runner, Object dependsOn, NodeInfo node, Configuration configuration, NodeInfo seedNode) {
+    static Task configureNode(Project project, String prefix, Task runner, Object dependsOn, NodeInfo node, ClusterConfiguration config,
+                              Configuration distribution, NodeInfo seedNode) {
 
         // tasks are chained so their execution order is maintained
         Task setup = project.tasks.create(name: taskName(prefix, node, 'clean'), type: Delete, dependsOn: dependsOn) {
@@ -161,16 +172,16 @@ class ClusterFormationTasks {
 
         setup = configureCheckPreviousTask(taskName(prefix, node, 'checkPrevious'), project, setup, node)
         setup = configureStopTask(taskName(prefix, node, 'stopPrevious'), project, setup, node)
-        setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, configuration)
+        setup = configureExtractTask(taskName(prefix, node, 'extract'), project, setup, node, distribution)
         setup = configureWriteConfigTask(taskName(prefix, node, 'configure'), project, setup, node, seedNode)
         setup = configureCreateKeystoreTask(taskName(prefix, node, 'createKeystore'), project, setup, node)
         setup = configureAddKeystoreSettingTasks(prefix, project, setup, node)
 
         if (node.config.plugins.isEmpty() == false) {
             if (node.nodeVersion == VersionProperties.elasticsearch) {
-                setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node)
+                setup = configureCopyPluginsTask(taskName(prefix, node, 'copyPlugins'), project, setup, node, prefix)
             } else {
-                setup = configureCopyBwcPluginsTask(taskName(prefix, node, 'copyBwcPlugins'), project, setup, node)
+                setup = configureCopyBwcPluginsTask(taskName(prefix, node, 'copyBwcPlugins'), project, setup, node, prefix)
             }
         }
 
@@ -183,7 +194,7 @@ class ClusterFormationTasks {
         // install plugins
         for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
             String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
-            setup = configureInstallPluginTask(taskName(prefix, node, actionName), project, setup, node, plugin.getValue())
+            setup = configureInstallPluginTask(taskName(prefix, node, actionName), project, setup, node, plugin.getValue(), prefix)
         }
 
         // sets up any extra config files that need to be copied over to the ES instance;
@@ -205,6 +216,13 @@ class ClusterFormationTasks {
             // if we are running in the background, make sure to stop the server when the task completes
             runner.finalizedBy(stop)
             start.finalizedBy(stop)
+            for (Object dependency : config.dependencies) {
+                if (dependency instanceof Fixture) {
+                    def depStop = ((Fixture)dependency).stopTask
+                    runner.finalizedBy(depStop)
+                    start.finalizedBy(depStop)
+                }
+            }
         }
         return start
     }
@@ -371,7 +389,7 @@ class ClusterFormationTasks {
      * For each plugin, if the plugin has rest spec apis in its tests, those api files are also copied
      * to the test resources for this project.
      */
-    static Task configureCopyPluginsTask(String name, Project project, Task setup, NodeInfo node) {
+    static Task configureCopyPluginsTask(String name, Project project, Task setup, NodeInfo node, String prefix) {
         Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup)
 
         List<FileCollection> pluginFiles = []
@@ -379,7 +397,7 @@ class ClusterFormationTasks {
 
             Project pluginProject = plugin.getValue()
             verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
-            String configurationName = "_plugin_${pluginProject.path}"
+            String configurationName = "_plugin_${prefix}_${pluginProject.path}"
             Configuration configuration = project.configurations.findByName(configurationName)
             if (configuration == null) {
                 configuration = project.configurations.create(configurationName)
@@ -409,25 +427,27 @@ class ClusterFormationTasks {
     }
 
     /** Configures task to copy a plugin based on a zip file resolved using dependencies for an older version */
-    static Task configureCopyBwcPluginsTask(String name, Project project, Task setup, NodeInfo node) {
+    static Task configureCopyBwcPluginsTask(String name, Project project, Task setup, NodeInfo node, String prefix) {
+        Configuration bwcPlugins = project.configurations.getByName("${prefix}_elasticsearchBwcPlugins")
         for (Map.Entry<String, Project> plugin : node.config.plugins.entrySet()) {
             Project pluginProject = plugin.getValue()
             verifyProjectHasBuildPlugin(name, node.nodeVersion, project, pluginProject)
-            String configurationName = "_plugin_bwc_${pluginProject.path}"
+            String configurationName = "_plugin_bwc_${prefix}_${pluginProject.path}"
             Configuration configuration = project.configurations.findByName(configurationName)
             if (configuration == null) {
                 configuration = project.configurations.create(configurationName)
             }
 
             final String depName = pluginProject.extensions.findByName('esplugin').name
-            Dependency dep = project.configurations.elasticsearchBwcPlugins.dependencies.find {
+
+            Dependency dep = bwcPlugins.dependencies.find {
                 it.name == depName
             }
             configuration.dependencies.add(dep)
         }
 
         Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup) {
-            from project.configurations.elasticsearchBwcPlugins
+            from bwcPlugins
             into node.pluginsTmpDir
         }
         return copyPlugins
@@ -447,12 +467,12 @@ class ClusterFormationTasks {
         return installModule
     }
 
-    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin) {
+    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Project plugin, String prefix) {
         final FileCollection pluginZip;
         if (node.nodeVersion != VersionProperties.elasticsearch) {
-            pluginZip = project.configurations.getByName("_plugin_bwc_${plugin.path}")
+            pluginZip = project.configurations.getByName("_plugin_bwc_${prefix}_${plugin.path}")
         } else {
-            pluginZip = project.configurations.getByName("_plugin_${plugin.path}")
+            pluginZip = project.configurations.getByName("_plugin_${prefix}_${plugin.path}")
         }
         // delay reading the file location until execution time by wrapping in a closure within a GString
         Object file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
@@ -568,7 +588,7 @@ class ClusterFormationTasks {
                 anyNodeFailed |= node.failedMarker.exists()
             }
             if (ant.properties.containsKey("failed${name}".toString()) || anyNodeFailed) {
-                waitFailed(nodes, logger, 'Failed to start elasticsearch')
+                waitFailed(project, nodes, logger, 'Failed to start elasticsearch')
             }
 
             // go through each node checking the wait condition
@@ -585,14 +605,14 @@ class ClusterFormationTasks {
                 }
 
                 if (success == false) {
-                    waitFailed(nodes, logger, 'Elasticsearch cluster failed to pass wait condition')
+                    waitFailed(project, nodes, logger, 'Elasticsearch cluster failed to pass wait condition')
                 }
             }
         }
         return wait
     }
 
-    static void waitFailed(List<NodeInfo> nodes, Logger logger, String msg) {
+    static void waitFailed(Project project, List<NodeInfo> nodes, Logger logger, String msg) {
         for (NodeInfo node : nodes) {
             if (logger.isInfoEnabled() == false) {
                 // We already log the command at info level. No need to do it twice.
@@ -611,6 +631,17 @@ class ClusterFormationTasks {
             if (node.startLog.exists()) {
                 logger.error("|\n|  [log]")
                 node.startLog.eachLine { line -> logger.error("|    ${line}") }
+            }
+            if (node.pidFile.exists() && node.failedMarker.exists() == false &&
+                (node.httpPortsFile.exists() == false || node.transportPortsFile.exists() == false)) {
+                logger.error("|\n|  [jstack]")
+                String pid = node.pidFile.getText('UTF-8')
+                ByteArrayOutputStream output = new ByteArrayOutputStream()
+                project.exec {
+                    commandLine = ["${project.javaHome}/bin/jstack", pid]
+                    standardOutput = output
+                }
+                output.toString('UTF-8').eachLine { line -> logger.error("|    ${line}") }
             }
             logger.error("|-----------------------------------------")
         }
@@ -636,11 +667,11 @@ class ClusterFormationTasks {
             standardOutput = new ByteArrayOutputStream()
             doLast {
                 String out = standardOutput.toString()
-                if (out.contains("${pid} org.elasticsearch.bootstrap.Elasticsearch") == false) {
+                if (out.contains("${ext.pid} org.elasticsearch.bootstrap.Elasticsearch") == false) {
                     logger.error('jps -l')
                     logger.error(out)
-                    logger.error("pid file: ${pidFile}")
-                    logger.error("pid: ${pid}")
+                    logger.error("pid file: ${node.pidFile}")
+                    logger.error("pid: ${ext.pid}")
                     throw new GradleException("jps -l did not report any process with org.elasticsearch.bootstrap.Elasticsearch\n" +
                             "Did you run gradle clean? Maybe an old pid file is still lying around.")
                 } else {

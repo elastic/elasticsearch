@@ -195,19 +195,19 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             assertEquals(fielddata.getNumericType(), IndexNumericFieldData.NumericType.DOUBLE);
             AtomicNumericFieldData leafFieldData = fielddata.load(reader.leaves().get(0));
             SortedNumericDoubleValues values = leafFieldData.getDoubleValues();
-            values.setDocument(0);
-            assertEquals(1, values.count());
-            assertEquals(10/ft.getScalingFactor(), values.valueAt(0), 10e-5);
+            assertTrue(values.advanceExact(0));
+            assertEquals(1, values.docValueCount());
+            assertEquals(10/ft.getScalingFactor(), values.nextValue(), 10e-5);
 
             // multi-valued
             ft.setName("scaled_float2");
             fielddata = (IndexNumericFieldData) ft.fielddataBuilder().build(indexSettings, ft, null, null, null);
             leafFieldData = fielddata.load(reader.leaves().get(0));
             values = leafFieldData.getDoubleValues();
-            values.setDocument(0);
-            assertEquals(2, values.count());
-            assertEquals(5/ft.getScalingFactor(), values.valueAt(0), 10e-5);
-            assertEquals(12/ft.getScalingFactor(), values.valueAt(1), 10e-5);
+            assertTrue(values.advanceExact(0));
+            assertEquals(2, values.docValueCount());
+            assertEquals(5/ft.getScalingFactor(), values.nextValue(), 10e-5);
+            assertEquals(12/ft.getScalingFactor(), values.nextValue(), 10e-5);
         }
         IOUtils.close(w, dir);
     }

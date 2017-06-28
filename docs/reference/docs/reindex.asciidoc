@@ -263,7 +263,7 @@ POST _reindex
     "version_type": "external"
   },
   "script": {
-    "inline": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}",
+    "source": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}",
     "lang": "painless"
   }
 }
@@ -748,7 +748,7 @@ POST _reindex
     "index": "test2"
   },
   "script": {
-    "inline": "ctx._source.tag = ctx._source.remove(\"flag\")"
+    "source": "ctx._source.tag = ctx._source.remove(\"flag\")"
   }
 }
 --------------------------------------------------
@@ -965,7 +965,7 @@ POST _reindex
   },
   "script": {
     "lang": "painless",
-    "inline": "ctx._index = 'metricbeat-' + (ctx._index.substring('metricbeat-'.length(), ctx._index.length())) + '-1'"
+    "source": "ctx._index = 'metricbeat-' + (ctx._index.substring('metricbeat-'.length(), ctx._index.length())) + '-1'"
   }
 }
 ----------------------------------------------------------------

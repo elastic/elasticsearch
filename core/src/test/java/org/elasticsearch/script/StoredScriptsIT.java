@@ -55,7 +55,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
                 .setId("foobar")
                 .setContent(new BytesArray("{\"script\":\"1\"}"), XContentType.JSON));
         String script = client().admin().cluster().prepareGetStoredScript(LANG, "foobar")
-                .get().getSource().getCode();
+                .get().getSource().getSource();
         assertNotNull(script);
         assertEquals("1", script);
 
@@ -79,7 +79,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
                 .setLang(LANG)
                 .setId("foobar")
-                .setContent(new BytesArray(randomAsciiOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)), XContentType.JSON)
+                .setContent(new BytesArray(randomAlphaOfLength(SCRIPT_MAX_SIZE_IN_BYTES + 1)), XContentType.JSON)
                 .get()
         );
         assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());

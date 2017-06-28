@@ -58,7 +58,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
      * Creates a random TermSuggestionBuilder
      */
     public static TermSuggestionBuilder randomTermSuggestionBuilder() {
-        TermSuggestionBuilder testBuilder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        TermSuggestionBuilder testBuilder = new TermSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
         maybeSet(testBuilder::suggestMode, randomSuggestMode());
         maybeSet(testBuilder::accuracy, randomFloat());
@@ -151,7 +151,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         e = expectThrows(IllegalArgumentException.class, () -> new TermSuggestionBuilder(""));
         assertEquals("suggestion field name is empty", e.getMessage());
 
-        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
 
         // test invalid accuracy values
         expectThrows(IllegalArgumentException.class, () -> builder.accuracy(-0.5f));
@@ -193,7 +193,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
     }
 
     public void testDefaultValuesSet() {
-        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAsciiOfLengthBetween(2, 20));
+        TermSuggestionBuilder builder = new TermSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         assertEquals(DEFAULT_ACCURACY, builder.accuracy(), Float.MIN_VALUE);
         assertEquals(DEFAULT_MAX_EDITS, builder.maxEdits());
         assertEquals(DEFAULT_MAX_INSPECTIONS, builder.maxInspections());

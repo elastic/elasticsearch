@@ -140,6 +140,9 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed before we make the decision of whether to cache the request
         Range[] ranges = processRanges(context, config);
+        if (ranges.length == 0) {
+            throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
+        }
         return new RangeAggregatorFactory(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder,
                 metaData);
     }

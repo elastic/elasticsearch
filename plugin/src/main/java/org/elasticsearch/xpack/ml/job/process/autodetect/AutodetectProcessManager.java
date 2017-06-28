@@ -39,7 +39,7 @@ import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
@@ -198,10 +198,10 @@ public class AutodetectProcessManager extends AbstractComponent {
      * sitting in buffers.
      *
      * @param jobTask   The job task
-     * @param params    Parameters about whether interim results calculation
-     *                  should occur and for which period of time
+     * @param params Parameters describing the controls that will accompany the flushing
+     *               (e.g. calculating interim results, time control, etc.)
      */
-    public void flushJob(JobTask jobTask, InterimResultsParams params, Consumer<Exception> handler) {
+    public void flushJob(JobTask jobTask, FlushJobParams params, Consumer<Exception> handler) {
         logger.debug("Flushing job {}", jobTask.getJobId());
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
         if (communicator == null) {

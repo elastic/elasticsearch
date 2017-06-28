@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -72,7 +72,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutoDetectResultProcessor processor = mock(AutoDetectResultProcessor.class);
         when(processor.waitForFlushAcknowledgement(anyString(), any())).thenReturn(true);
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, processor)) {
-            InterimResultsParams params = InterimResultsParams.builder().build();
+            FlushJobParams params = FlushJobParams.builder().build();
             communicator.flushJob(params, (aVoid, e) -> {});
             Mockito.verify(process).flushJob(params);
         }
@@ -93,7 +93,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(process.isProcessAlive()).thenReturn(false);
         when(process.readError()).thenReturn("Mock process is dead");
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, mock(AutoDetectResultProcessor.class));
-        InterimResultsParams params = InterimResultsParams.builder().build();
+        FlushJobParams params = FlushJobParams.builder().build();
         Exception[] holder = new ElasticsearchException[1];
         communicator.flushJob(params, (aVoid, e1) -> holder[0] = e1);
         assertEquals("[foo] Unexpected death of autodetect: Mock process is dead", holder[0].getMessage());
@@ -105,7 +105,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutoDetectResultProcessor autoDetectResultProcessor = Mockito.mock(AutoDetectResultProcessor.class);
         when(autoDetectResultProcessor.waitForFlushAcknowledgement(anyString(), eq(Duration.ofSeconds(1))))
                 .thenReturn(false).thenReturn(true);
-        InterimResultsParams params = InterimResultsParams.builder().build();
+        FlushJobParams params = FlushJobParams.builder().build();
 
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, autoDetectResultProcessor)) {
             communicator.flushJob(params, (aVoid, e) -> {});

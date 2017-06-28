@@ -28,7 +28,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 
 import java.io.IOException;
@@ -256,7 +256,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
 
         @Override
         protected void taskOperation(Request request, OpenJobAction.JobTask task, ActionListener<Response> listener) {
-            InterimResultsParams.Builder paramsBuilder = InterimResultsParams.builder();
+            FlushJobParams.Builder paramsBuilder = FlushJobParams.builder();
             paramsBuilder.calcInterim(request.getCalcInterim());
             if (request.getAdvanceTime() != null) {
                 paramsBuilder.advanceTime(request.getAdvanceTime());

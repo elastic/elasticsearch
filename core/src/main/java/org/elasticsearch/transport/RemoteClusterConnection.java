@@ -698,6 +698,9 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         private synchronized void ensureIteratorAvailable() {
             if (currentIterator == null) {
                 currentIterator = nodeSet.iterator();
+            } else if (currentIterator.hasNext() == false && nodeSet.isEmpty() == false) {
+                // iterator rollover
+                currentIterator = nodeSet.iterator();
             }
         }
     }

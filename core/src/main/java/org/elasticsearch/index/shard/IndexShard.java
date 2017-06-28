@@ -377,7 +377,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 if (engine != null) {
                     final SequenceNumbersService seqNoService = engine.seqNoService();
                     seqNoService.updateAllocationIdsFromMaster(applyingClusterStateVersion, activeAllocationIds, initializingAllocationIds);
-                    if (currentState == IndexShardState.POST_RECOVERY && state == IndexShardState.STARTED) {
+                    if ((currentState == IndexShardState.POST_RECOVERY && state == IndexShardState.STARTED) ||
+                            recoveryState.getRecoverySource().getType().equals(RecoverySource.Type.PEER)) {
                         updateLocalCheckpointForShard(shardRouting.allocationId().getId(), seqNoService.getLocalCheckpoint());
                     }
                 }

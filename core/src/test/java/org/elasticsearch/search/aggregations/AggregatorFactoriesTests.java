@@ -26,8 +26,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -96,9 +94,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Found two aggregation type definitions in [in_stock]: [filter] and [terms]"));
     }
 
@@ -129,9 +126,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Found two sub aggregation definitions under [by_date]"));
     }
 
@@ -164,9 +160,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Invalid aggregation name [" + name + "]"));
     }
 
@@ -188,9 +183,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Two sibling aggregations cannot have the same name: [" + name + "]"));
     }
 
@@ -213,9 +207,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Expected [START_OBJECT] under [field], but got a [VALUE_STRING] in [cardinality]"));
     }
 
@@ -238,9 +231,8 @@ public class AggregatorFactoriesTests extends ESTestCase {
                     .endObject()
                 .endObject();
         XContentParser parser = createParser(source);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parseContext));
+        Exception e = expectThrows(ParsingException.class, () -> AggregatorFactories.parseAggregators(parser));
         assertThat(e.toString(), containsString("Expected [START_OBJECT] under [field], but got a [VALUE_STRING] in [tag_count]"));
     }
 

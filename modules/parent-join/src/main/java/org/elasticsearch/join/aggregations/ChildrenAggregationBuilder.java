@@ -29,7 +29,6 @@ import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.join.mapper.ParentIdFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -146,12 +145,11 @@ public class ChildrenAggregationBuilder
         return builder;
     }
 
-    public static ChildrenAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+    public static ChildrenAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         String childType = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
-        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
@@ -50,24 +49,18 @@ public class AggregatorFactories {
     public static final Pattern VALID_AGG_NAME = Pattern.compile("[^\\[\\]>]+");
 
     /**
-     * Parses the aggregation request recursively generating aggregator factories in turn.
-     *
-     * @param parseContext   The parse context.
-     *
-     * @return          The parsed aggregator factories.
-     *
-     * @throws IOException When parsing fails for unknown reasons.
+     * Parses the aggregation request recursively generating aggregator
+     * factories in turn.
      */
-    public static AggregatorFactories.Builder parseAggregators(QueryParseContext parseContext) throws IOException {
-        return parseAggregators(parseContext, 0);
+    public static AggregatorFactories.Builder parseAggregators(XContentParser parser) throws IOException {
+        return parseAggregators(parser, 0);
     }
 
-    private static AggregatorFactories.Builder parseAggregators(QueryParseContext parseContext, int level) throws IOException {
+    private static AggregatorFactories.Builder parseAggregators(XContentParser parser, int level) throws IOException {
         Matcher validAggMatcher = VALID_AGG_NAME.matcher("");
         AggregatorFactories.Builder factories = new AggregatorFactories.Builder();
 
         XContentParser.Token token = null;
-        XContentParser parser = parseContext.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token != XContentParser.Token.FIELD_NAME) {
                 throw new ParsingException(parser.getTokenLocation(),
@@ -111,7 +104,7 @@ public class AggregatorFactories {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "Found two sub aggregation definitions under [" + aggregationName + "]");
                         }
-                        subFactories = parseAggregators(parseContext, level + 1);
+                        subFactories = parseAggregators(parser, level + 1);
                         break;
                     default:
                         if (aggBuilder != null) {
@@ -120,7 +113,7 @@ public class AggregatorFactories {
                         }
 
                         aggBuilder = parser.namedObject(BaseAggregationBuilder.class, fieldName,
-                                new AggParseContext(aggregationName, parseContext));
+                                new AggParseContext(aggregationName));
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.START_OBJECT + "] under ["
@@ -156,11 +149,9 @@ public class AggregatorFactories {
      */
     public static final class AggParseContext {
         public final String name;
-        public final QueryParseContext queryParseContext;
 
-        public AggParseContext(String name, QueryParseContext queryParseContext) {
+        public AggParseContext(String name) {
             this.name = name;
-            this.queryParseContext = queryParseContext;
         }
     }
 

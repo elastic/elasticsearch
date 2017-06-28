@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -202,9 +201,8 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         return builder;
     }
 
-    public static FiltersAggregationBuilder parse(String aggregationName, QueryParseContext context)
+    public static FiltersAggregationBuilder parse(String aggregationName, XContentParser parser)
             throws IOException {
-        XContentParser parser = context.parser();
 
         List<FiltersAggregator.KeyedFilter> keyedFilters = null;
         List<QueryBuilder> nonKeyedFilters = null;
@@ -238,7 +236,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                         if (token == XContentParser.Token.FIELD_NAME) {
                             key = parser.currentName();
                         } else {
-                            QueryBuilder filter = parseInnerQueryBuilder(context.parser());
+                            QueryBuilder filter = parseInnerQueryBuilder(parser);
                             keyedFilters.add(new FiltersAggregator.KeyedFilter(key, filter));
                         }
                     }
@@ -250,7 +248,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                 if (FILTERS_FIELD.match(currentFieldName)) {
                     nonKeyedFilters = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        QueryBuilder filter = parseInnerQueryBuilder(context.parser());
+                        QueryBuilder filter = parseInnerQueryBuilder(parser);
                         nonKeyedFilters.add(filter);
                     }
                 } else {

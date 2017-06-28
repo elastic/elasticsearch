@@ -82,7 +82,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public static final String PREPARE_TRANSLOG = "internal:index/shard/recovery/prepare_translog";
         public static final String FINALIZE = "internal:index/shard/recovery/finalize";
         public static final String WAIT_CLUSTERSTATE = "internal:index/shard/recovery/wait_clusterstate";
-        public static final String HANDOFF_PRIMARY_CONTEXT = "internal:index/shard/recovery/hand_off_primary_context";
+        public static final String HANDOFF_PRIMARY_CONTEXT = "internal:index/shard/recovery/handoff_primary_context";
     }
 
     private final ThreadPool threadPool;

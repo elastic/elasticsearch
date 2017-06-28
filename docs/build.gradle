@@ -91,6 +91,7 @@ buildRestTests.expectedUnconvertedCandidates = [
         'en/rest-api/ml/validate-job.asciidoc',
         'en/rest-api/security/authenticate.asciidoc',
         'en/rest-api/watcher/stats.asciidoc',
+        'en/rest-api/info.asciidoc',
         'en/security/authorization.asciidoc',
         'en/security/tribe-clients-integrations/logstash.asciidoc',
         'en/watcher/actions.asciidoc',

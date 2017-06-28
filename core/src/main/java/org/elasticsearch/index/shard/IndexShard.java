@@ -366,6 +366,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final ShardRouting currentRouting;
         synchronized (mutex) {
             currentRouting = this.shardRouting;
+            final IndexShardState currentState = state;
             updateRoutingEntry(newRouting);
 
             if (shardRouting.primary()) {
@@ -374,8 +375,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final Engine engine = getEngineOrNull();
                 // if the engine is not yet started, we are not ready yet and can just ignore this
                 if (engine != null) {
-                    engine.seqNoService().updateAllocationIdsFromMaster(
-                            applyingClusterStateVersion, activeAllocationIds, initializingAllocationIds);
+                    final SequenceNumbersService seqNoService = engine.seqNoService();
+                    seqNoService.updateAllocationIdsFromMaster(applyingClusterStateVersion, activeAllocationIds, initializingAllocationIds);
+                    if ((currentState == IndexShardState.POST_RECOVERY && state == IndexShardState.STARTED) ||
+                            recoveryState.getRecoverySource().getType().equals(RecoverySource.Type.PEER)) {
+                        updateLocalCheckpointForShard(shardRouting.allocationId().getId(), seqNoService.getLocalCheckpoint());
+                    }
                 }
             }
         }
@@ -1704,7 +1709,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
         final Engine engine = getEngineOrNull();
         if (engine != null) {
-            engine.seqNoService().updateAllocationIdsFromPrimaryContext(primaryContext);
+            engine.seqNoService().updateAllocationIdsFromPrimaryContext(shardRouting.allocationId().getId(), primaryContext);
         }
     }
 

@@ -42,8 +42,10 @@ import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.security.authc.ContainerSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.User.Fields;
@@ -75,12 +77,15 @@ public class NativeUsersStore extends AbstractComponent {
     private final boolean isTribeNode;
 
     private volatile SecurityLifecycleService securityLifecycleService;
+    private final ContainerSettings containerSettings;
 
-    public NativeUsersStore(Settings settings, InternalClient client, SecurityLifecycleService securityLifecycleService) {
+    public NativeUsersStore(Settings settings, InternalClient client, SecurityLifecycleService securityLifecycleService,
+                            ContainerSettings containerSettings) {
         super(settings);
         this.client = client;
         this.isTribeNode = XPackPlugin.isTribeNode(settings);
         this.securityLifecycleService = securityLifecycleService;
+        this.containerSettings = containerSettings;
     }
 
     /**
@@ -540,6 +545,8 @@ public class NativeUsersStore extends AbstractComponent {
                                 listener.onFailure(new IllegalStateException("password hash must not be null!"));
                             } else if (enabled == null) {
                                 listener.onFailure(new IllegalStateException("enabled must not be null!"));
+                            } else if (password.isEmpty() && containerSettings.inContainer() && username.equals(ElasticUser.NAME)) {
+                                listener.onResponse(new ReservedUserInfo(containerSettings.getPasswordHash(), enabled, false));
                             } else if (password.isEmpty()) {
                                 listener.onResponse(new ReservedUserInfo(ReservedRealm.DEFAULT_PASSWORD_HASH, enabled, true));
                             } else {
@@ -595,6 +602,10 @@ public class NativeUsersStore extends AbstractComponent {
                             } else if (enabled == null) {
                                 listener.onFailure(new IllegalStateException("enabled must not be null!"));
                                 return;
+                            } else if (password.isEmpty() && containerSettings.inContainer() &&
+                                    ElasticUser.NAME.equals(searchHit.getId())) {
+                                char[] passwordHash = containerSettings.getPasswordHash();
+                                userInfos.put(searchHit.getId(), new ReservedUserInfo(passwordHash, enabled, false));
                             } else if (password.isEmpty()) {
                                 userInfos.put(username, new ReservedUserInfo(ReservedRealm.DEFAULT_PASSWORD_HASH, enabled, true));
                             } else {

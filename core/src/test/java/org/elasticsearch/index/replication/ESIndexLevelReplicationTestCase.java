@@ -284,13 +284,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             assertTrue(replicas.remove(replica));
             closeShards(primary);
             primary = replica;
+            assert primary.routingEntry().active() : "only active replicas can be promoted to primary: " + primary.routingEntry();
             PlainActionFuture<PrimaryReplicaSyncer.ResyncTask> fut = new PlainActionFuture<>();
-            HashSet<String> activeIds = new HashSet<>();
-            activeIds.addAll(activeIds());
-            activeIds.add(replica.routingEntry().allocationId().getId());
-            HashSet<String> initializingIds = new HashSet<>();
-            initializingIds.addAll(initializingIds());
-            initializingIds.remove(replica.routingEntry().allocationId().getId());
             primary.updateShardState(replica.routingEntry().moveActiveReplicaToPrimary(),
                 newTerm, (shard, listener) -> primaryReplicaSyncer.resync(shard,
                     new ActionListener<PrimaryReplicaSyncer.ResyncTask>() {
@@ -305,7 +300,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                             listener.onFailure(e);
                             fut.onFailure(e);
                         }
-                    }), ++clusterStateVersion, activeIds, initializingIds);
+                    }), ++clusterStateVersion, activeIds(), initializingIds());
 
             return fut;
         }
@@ -538,8 +533,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                                     performOnReplica(request, replica);
                                     releasable.close();
                                     listener.onResponse(
-                                            new ReplicaResponse(
-                                                    replica.routingEntry().allocationId().getId(), replica.getLocalCheckpoint()));
+                                            new ReplicaResponse(replica.getLocalCheckpoint()));
                                 } catch (final Exception e) {
                                     Releasables.closeWhileHandlingException(releasable);
                                     listener.onFailure(e);

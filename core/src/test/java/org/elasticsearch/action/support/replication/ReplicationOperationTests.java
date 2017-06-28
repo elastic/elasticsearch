@@ -464,22 +464,15 @@ public class ReplicationOperationTests extends ESTestCase {
     }
 
     static class ReplicaResponse implements ReplicationOperation.ReplicaResponse {
-        final String allocationId;
         final long localCheckpoint;
 
-        ReplicaResponse(String allocationId, long localCheckpoint) {
-            this.allocationId = allocationId;
+        ReplicaResponse(long localCheckpoint) {
             this.localCheckpoint = localCheckpoint;
         }
 
         @Override
         public long localCheckpoint() {
             return localCheckpoint;
-        }
-
-        @Override
-        public String allocationId() {
-            return allocationId;
         }
     }
 
@@ -515,7 +508,7 @@ public class ReplicationOperationTests extends ESTestCase {
                 final String allocationId = replica.allocationId().getId();
                 Long existing = generatedLocalCheckpoints.put(allocationId, checkpoint);
                 assertNull(existing);
-                listener.onResponse(new ReplicaResponse(allocationId, checkpoint));
+                listener.onResponse(new ReplicaResponse(checkpoint));
             }
         }
 

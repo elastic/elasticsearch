@@ -2022,7 +2022,7 @@ public class InternalEngineTests extends ESTestCase {
             initialEngine = engine;
             initialEngine
                 .seqNoService()
-                .updateAllocationIdsFromMaster(
+                .initializeAsPrimary(
                         randomNonNegativeLong(),
                         new HashSet<>(Arrays.asList("primary", "replica")),
                         Collections.emptySet());

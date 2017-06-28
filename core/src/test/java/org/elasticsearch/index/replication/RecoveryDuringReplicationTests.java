@@ -35,6 +35,7 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -182,6 +183,12 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             }
 
             shards.promoteReplicaToPrimary(newPrimary);
+
+            // check that local checkpoint of new primary is properly tracked after primary promotion
+            assertThat(newPrimary.getLocalCheckpoint(), equalTo(totalDocs - 1L));
+            assertThat(IndexShardTestCase.getEngine(newPrimary).seqNoService()
+                .getTrackedLocalCheckpointForShard(newPrimary.routingEntry().allocationId().getId()), equalTo(totalDocs - 1L));
+
             // index some more
             totalDocs += shards.indexDocs(randomIntBetween(0, 5));
 

@@ -7,7 +7,7 @@
 
 * <<info-api, Info API>>
 * <<security-api, Security APIs>>
-* <<watcher-api, Watcher APIs>>
+* {ref}/watcher-api.html[Watcher APIs]
 * <<graph-api, Graph APIs>>
 * {ref}/ml-apis.html[Machine Learning APIs]
 * {ref}/ml-api-definitions.html[Definitions]
@@ -114,7 +114,5 @@ GET /_xpack?human=false
 // CONSOLE
 
 include::security.asciidoc[]
-
-include::watcher.asciidoc[]
 
 include::graph.asciidoc[]

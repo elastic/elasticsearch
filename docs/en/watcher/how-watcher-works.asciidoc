@@ -42,8 +42,9 @@ Specify what happens when the watch condition is met.
 
 [[watch-definition-example]]
 
-For example, the following snippet shows a <<watcher-api-put-watch, Put Watch>>
-request that defines a watch that looks for log error events:
+For example, the following snippet shows a
+{ref}/watcher-api-put-watch.html[Put Watch] request that defines a watch that
+looks for log error events:
 
 [source,js]
 --------------------------------------------------
@@ -227,13 +228,13 @@ You can also set a watch to the _inactive_ state. Inactive watches are not
 registered with a trigger engine and can never be triggered.
 
 To set a watch to the inactive state when you create it, set the
-<<watcher-api-put-watch-active-state, `active`>> parameter to _inactive_.
-To deactivate an existing watch, use the <<watcher-api-deactivate-watch, D
-eactivate Watch API>>. To reactivate an inactive watch, use the
-<<watcher-api-activate-watch, Activate Watch API>>.
+{ref}/watcher-api-put-watch.html#watcher-api-put-watch-active-state[`active`]
+parameter to _inactive_. To deactivate an existing watch, use the
+{ref}/watcher-api-deactivate-watch.html[Deactivate Watch API]. To reactivate an inactive watch, use the
+{ref}/watcher-api-activate-watch.html[Activate Watch API].
 
-NOTE:   You can use the <<watcher-api-execute-watch, Execute Watch API>> to
-        force the execution of a watch even when it is inactive.
+NOTE:   You can use the {ref}/watcher-api-execute-watch.html[Execute Watch API]
+to force the execution of a watch even when it is inactive.
 
 Deactivating watches is useful in a variety of situations. For example, if you
 have a watch that monitors an external system and you need to take that system
@@ -434,4 +435,3 @@ references the `email_notification_subject` template:
   }
 }
 ----------------------------------------------------------------------
-

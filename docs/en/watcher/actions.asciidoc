@@ -2,21 +2,21 @@
 == Actions
 
 When a watch's condition is met, it's actions are executed unless it is being
-<<actions-ack-throttle, throttled>>. A watch can perform multiple actions. 
-The actions are executed one at a time and each action executes independently. 
-Any failures encountered while executing an action are recorded in the 
+<<actions-ack-throttle, throttled>>. A watch can perform multiple actions.
+The actions are executed one at a time and each action executes independently.
+Any failures encountered while executing an action are recorded in the
 action result and in the watch history.
 
-NOTE:	If no actions are defined for a watch, no actions are executed. 
+NOTE:	If no actions are defined for a watch, no actions are executed.
         However, a `watch_record` is still written to the watch history.
-        
+
 Actions have access to the payload in the execution context. They can use it to
 support their execution in any way they need. For example, the payload might
 serve as a model for a templated email body.
 
-{watcher} supports the following types of actions: 
-<<actions-email, email>>, <<actions-webhook, webhook>>, <<actions-index, index>>, 
-<<actions-logging, logging>>, <<actions-hipchat, hipchat>>, <<actions-slack, 
+{watcher} supports the following types of actions:
+<<actions-email, email>>, <<actions-webhook, webhook>>, <<actions-index, index>>,
+<<actions-logging, logging>>, <<actions-hipchat, hipchat>>, <<actions-slack,
 Slack>>, and <<actions-pagerduty, pagerduty>>.
 
 [float]
@@ -161,14 +161,15 @@ xpack.watcher.execution.default_throttle_period: 15m
 --------------------------------------------------
 
 {watcher} also supports acknowledgement-based throttling. You can acknowledge a
-watch using the <<watcher-api-ack-watch, Ack Watch API>> to prevent the watch actions
-from being executed again while the watch condition remains `true`. This essentially
-tells {watcher} "I received the notification and I'm handling it, please do not
-notify me about this error again". An acknowledged watch action remains in the
-`acked` state until the watch's condition evaluates to `false`. When that happens,
-the action's state changes to `awaits_successful_execution`.
+watch using the {ref}/watcher-api-ack-watch.html[Ack Watch API] to prevent the
+watch actions from being executed again while the watch condition remains `true`.
+This essentially tells {watcher} "I received the notification and I'm handling
+it, please do not notify me about this error again". An acknowledged watch action
+remains in the `acked` state until the watch's condition evaluates to `false`.
+When that happens, the action's state changes to `awaits_successful_execution`.
 
-To acknowledge an action, you use the <<watcher-api-ack-watch,Ack Watch API>>:
+To acknowledge an action, you use the
+{ref}/watcher-api-ack-watch.html[Ack Watch API]:
 
 [source,js]
 ----------------------------------------------------------------------

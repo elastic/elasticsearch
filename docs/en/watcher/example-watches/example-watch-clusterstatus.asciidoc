@@ -1,5 +1,5 @@
 [[watch-cluster-status]]
-=== Watching the Status of an Elasticsearch Cluster 
+=== Watching the Status of an Elasticsearch Cluster
 
 You can easily configure a basic watch to monitor the health of your
 Elasticsearch cluster:
@@ -276,7 +276,7 @@ Since the `cluster_health_watch` is configured to run every 10 seconds, make
 sure you delete it when you're done experimenting. Otherwise, you'll spam yourself
 indefinitely.
 
-To remove the watch, use the <<watcher-api-delete-watch, DELETE watch>> API:
+To remove the watch, use the {ref}/watcher-api-delete-watch.html[DELETE watch API]:
 
 [source,js]
 -------------------------------------------------------

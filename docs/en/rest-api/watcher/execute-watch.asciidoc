@@ -1,3 +1,4 @@
+[role="xpack"]
 [[watcher-api-execute-watch]]
 === Execute Watch API
 
@@ -30,8 +31,8 @@ This API supports the following fields:
                                               that will be used during the watch execution
 
 | `ignore_condition`  | no       | false    | When set to `true`, the watch execution uses the
-                                              <<condition-always, Always>> Condition. This can also be
-                                              specified as a HTTP parameter.
+                                              {xpack-ref}/condition-always.html[Always Condition].
+                                              This can also be specified as a HTTP parameter.
 
 | `alternative_input` | no       | null     | When present, the watch uses this object as a payload
                                               instead of executing its own input.
@@ -46,7 +47,8 @@ This API supports the following fields:
                                               watch is updated, possibly throttling subsequent executions.
                                               This can also be specified as a HTTP parameter.
 
-| `watch`             | no       | null     | When present, this <<watch-definition, watch>> is used
+| `watch`             | no       | null     | When present, this
+                                              {xpack-ref}/how-watcher-works.html#watch-definition[watch] is used
                                               instead of the one specified in the request. This watch is
                                               not persisted to the index and record_execution cannot be set.
 |======
@@ -201,11 +203,11 @@ are five possible modes an action can be associated with:
 | Name              | Description
 
 | `simulate`        | The action execution will be simulated. Each action type
-                      define its own simulation operation mode. For example, The
-                      <<actions-email, email>> action will create the email that
-                      would have been sent but will not actually send it. In this
-                      mode, the action may be throttled if the current state
-                      of the watch indicates it should be.
+                      define its own simulation operation mode. For example, the
+                      {xpack-ref}/actions-email.html[email] action will create
+                      the email that would have been sent but will not actually
+                      send it. In this mode, the action may be throttled if the
+                      current state of the watch indicates it should be.
 
 | `force_simulate`  | Similar to the the `simulate` mode, except the action will
                       not be throttled even if the current state of the watch

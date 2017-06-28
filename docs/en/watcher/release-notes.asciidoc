@@ -32,7 +32,7 @@ in the watch history.
 .Enhancements
 *  Hostname verification can be disabled for Watcher
 HTTP actions.
-* Running watches can be updated and deleted.  
+* Running watches can be updated and deleted.
 
 [float]
 ==== 2.4.0
@@ -88,14 +88,14 @@ May 18, 2016
 April 26, 2016
 
 .Bug Fixes
-* All SMTP connection timeouts are now set to two minutes by default to prevent 
+* All SMTP connection timeouts are now set to two minutes by default to prevent
 a watch from getting stuck.
-* HTTP headers from responses that contained dots led to exceptions when the 
-HTTP response was stored in the watch history. All dots in any header names 
-are now replaced with underscores. For example, a header called `foo.bar` 
+* HTTP headers from responses that contained dots led to exceptions when the
+HTTP response was stored in the watch history. All dots in any header names
+are now replaced with underscores. For example, a header called `foo.bar`
 becomes `foo_bar`
-* Hipchat action: Fall back to the default Hipchat color and format if they 
-are not specified at the account level or within the action itself, instead 
+* Hipchat action: Fall back to the default Hipchat color and format if they
+are not specified at the account level or within the action itself, instead
 of failing.
 
 [float]
@@ -116,7 +116,7 @@ March 30, 2016
 .Enhancement
 * Support `url` in http requests as a shortcut for `path`, `scheme`, `port`, `params`
 * Support `ignore_condition` and `record_execution` as parameters in the
-  <<watcher-api-execute-watch, Execute Watch API>>
+  {ref}/watcher-api-execute-watch.html[Execute Watch API]
 
 .New Features
 * Added <<actions-pagerduty, PagerDuty action>>
@@ -207,8 +207,8 @@ October 28, 2015
 * Added new <<actions-hipchat, HipChat Action>>
 * Added new <<actions-slack, Slack Action>>
 * Watches now have an <<watch-active-state, active state>>. In addition, a new
-  API was added to <<watcher-api-activate-watch, activate>>/<<watcher-api-deactivate-watch, deactivate>>
-  registered watches.
+  API was added to {ref}/watcher-api-activate-watch.html[activate]
+  /{ref}watcher-api-deactivate-watch.html[deactivate] registered watches.
 * Added new <<condition-array-compare, array_compare>>, that can compare an array
   of values in the <<watch-execution-context, Watch Execution Context Model>>
   to a given value.
@@ -264,7 +264,7 @@ June 25, 2015
   action, `search` input, and `search` transform.
 * You must now explicitly specify the unit when configuring any time value.
   (Numeric-only values are no longer supported.)
-* Cleaned up the <<watcher-api-get-watch, Get Watch API>> response.
+* Cleaned up the {ref}/watcher-api-get-watch.html[Get Watch API] response.
 * Cleaned up the <<watcher-api-stats, Stats API>> response.
 
 

@@ -211,7 +211,7 @@ PUT _xpack/watcher/watch/rss_watch
 [TIP]
 =================================================
 To execute a watch immediately (without waiting for the schedule to trigger),
-use the <<watcher-api-execute-watch, `_execute`>> API:
+use the {ref}/watcher-api-execute-watch.html[`_execute` API]:
 
 [source,js]
 --------------------------------------------------

@@ -129,6 +129,10 @@ public class RecoverySourceHandler {
         this.response = new RecoveryResponse();
     }
 
+    public StartRecoveryRequest getRequest() {
+        return request;
+    }
+
     /**
      * performs the recovery from the local engine to the target
      */

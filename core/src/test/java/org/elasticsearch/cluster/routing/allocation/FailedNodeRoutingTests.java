@@ -55,6 +55,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -133,10 +134,10 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             DiscoveryNodes newNodes = DiscoveryNodes.builder(state.nodes())
                 .add(createNode()).build();
             state = ClusterState.builder(state).nodes(newNodes).build();
-            state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after node leave
+            state = cluster.reroute(state, new ClusterRerouteRequest()); // always reroute after adding node
         }
 
-        // Log the shard versions (for debugging if necessary)
+        // Log the node versions (for debugging if necessary)
         for (ObjectCursor<DiscoveryNode> cursor : state.nodes().getDataNodes().values()) {
             Version nodeVer = cursor.value.getVersion();
             logger.info("--> node [{}] has version [{}]", cursor.value.getId(), nodeVer);
@@ -153,7 +154,6 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             state = cluster.createIndex(state, request);
             assertTrue(state.metaData().hasIndex(name));
         }
-        state = cluster.reroute(state, new ClusterRerouteRequest());
 
         ClusterState previousState = state;
 
@@ -164,60 +164,50 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
             state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));
         }
 
-        logger.info("--> state before failing shards: {}", state);
-        for (ShardRouting shardRouting : state.getRoutingNodes().shardsWithState(STARTED)) {
-            if (shardRouting.primary() && randomBoolean()) {
-                ShardRouting replicaToBePromoted = state.getRoutingNodes()
-                    .activeReplicaWithHighestVersion(shardRouting.shardId());
-                final ClusterState currentState = state;
-                // List of potential candidate replicas for promotion
-                Set<ShardRouting> candidates = state.getRoutingNodes().shardsWithState(STARTED)
+        boolean keepGoing = true;
+        while (keepGoing) {
+            List<ShardRouting> primaries = state.getRoutingNodes().shardsWithState(STARTED)
+                .stream().filter(ShardRouting::primary).collect(Collectors.toList());
+
+            // Pick a random subset of primaries to fail
+            List<FailedShard> shardsToFail = new ArrayList<>();
+            List<ShardRouting> failedPrimaries = randomSubsetOf(primaries);
+            failedPrimaries.stream().forEach(sr -> {
+                shardsToFail.add(new  FailedShard(randomFrom(sr), "failed primary", new Exception()));
+            });
+
+            logger.info("--> state before failing shards: {}", state);
+            state = cluster.applyFailedShards(state, shardsToFail);
+
+            final ClusterState compareState = state;
+            failedPrimaries.forEach(shardRouting -> {
+                logger.info("--> verifying version for {}", shardRouting);
+
+                ShardRouting newPrimary = compareState.routingTable().index(shardRouting.index())
+                    .shard(shardRouting.id()).primaryShard();
+                Version newPrimaryVersion = getNodeVersion(newPrimary, compareState);
+
+                logger.info("--> new primary is on version {}: {}", newPrimaryVersion, newPrimary);
+                compareState.routingTable().shardRoutingTable(newPrimary.shardId()).shardsWithState(STARTED)
                     .stream()
-                    .filter(s -> !s.primary() && s.active())
-                    .filter(s -> s.shardId().equals(shardRouting.shardId()))
-                    .filter(s -> !s.equals(replicaToBePromoted))
-                    .filter(s -> currentState.getRoutingNodes().node(s.currentNodeId()) != null)
-                    .collect(Collectors.toSet());
-                // If we find a replica and at least another candidate
-                if (replicaToBePromoted != null && candidates.size() > 0) {
-                    logger.info("--> found replica that should be promoted: {}", replicaToBePromoted);
-                    logger.info("--> other candidates: {}", candidates);
+                    .forEach(sr -> {
+                        Version candidateVer = getNodeVersion(sr, compareState);
+                        if (candidateVer != null) {
+                            logger.info("--> candidate on {} node; shard routing: {}", candidateVer, sr);
+                            assertTrue("candidate was not on the newest version, new primary is on " +
+                                    newPrimaryVersion + " and there is a candidate on " + candidateVer,
+                                candidateVer.onOrBefore(newPrimaryVersion));
+                        }
+                    });
+            });
 
-                    List<FailedShard> shardsToFail = new ArrayList<>();
-                    logger.info("--> failing shard {}", shardRouting);
-                    shardsToFail.add(new FailedShard(shardRouting, "failed primary", new Exception()));
-                    state = cluster.applyFailedShards(state, shardsToFail);
-                    ShardRouting newPrimary = state.routingTable().index(shardRouting.index())
-                        .shard(shardRouting.id()).primaryShard();
-                    Version newPrimaryVersion = getNodeVersion(newPrimary, state);
-
-                    final ClusterState compareState = state;
-                    logger.info("--> new primary is on version {}: {}", newPrimaryVersion, newPrimary);
-                    List<Version> candidateVersions = candidates.stream().map(sr -> {
-                        Version version = getNodeVersion(sr, compareState);
-                        logger.info("--> candidate on {} node; shard routing: {}", version, sr);
-                        return version;
-                    }).collect(Collectors.toList());
-                    for (Version candidateVer : candidateVersions) {
-                        assertTrue("candidate was not on the newest version, new primary is on " +
-                                newPrimaryVersion + " and there is a candidate on " + candidateVer,
-                            candidateVer.onOrBefore(newPrimaryVersion));
-                    }
-                }
-            }
-            state = cluster.applyStartedShards(state, state.getRoutingNodes().shardsWithState(INITIALIZING));
+            keepGoing = randomBoolean();
         }
         terminate(threadPool);
     }
 
     private static Version getNodeVersion(ShardRouting shardRouting, ClusterState state) {
-        for (ObjectObjectCursor<String, DiscoveryNode> entry : state.getNodes().getDataNodes()) {
-            if (entry.key.equals(shardRouting.currentNodeId())) {
-                return state.getRoutingNodes().node(entry.key).node().getVersion();
-            }
-        }
-        fail("shard is not assigned to a node");
-        return null;
+        return Optional.ofNullable(state.getNodes().get(shardRouting.currentNodeId())).map(DiscoveryNode::getVersion).orElse(null);
     }
 
     private static final AtomicInteger nodeIdGenerator = new AtomicInteger();

@@ -18,7 +18,10 @@
  */
 package org.elasticsearch.indices;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
+import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -41,6 +44,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.StringFieldMapper;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
@@ -55,6 +61,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -66,6 +73,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class IndicesServiceTests extends ESSingleNodeTestCase {
 
@@ -386,4 +395,57 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat(mapperService.documentMapperParser().parserContext("type").getSimilarity("test"),
             instanceOf(BM25SimilarityProvider.class));
     }
+
+    public void testStatsByShardDoesNotDieFromExpectedExceptions() {
+        final int shardCount = randomIntBetween(2, 5);
+        final int failedShardId = randomIntBetween(0, shardCount - 1);
+
+        final Index index = new Index("test-index", "abc123");
+        // the shard that is going to fail
+        final ShardId shardId = new ShardId(index, failedShardId);
+
+        final List<IndexShard> shards = new ArrayList<>(shardCount);
+        final List<IndexShardStats> shardStats = new ArrayList<>(shardCount - 1);
+
+        final IndexShardState state = randomFrom(IndexShardState.values());
+        final String message = "TEST - expected";
+
+        final RuntimeException expectedException =
+                randomFrom(new IllegalIndexShardStateException(shardId, state, message), new AlreadyClosedException(message));
+
+        // this allows us to control the indices that exist
+        final IndicesService mockIndicesService = mock(IndicesService.class);
+        final IndexService indexService = mock(IndexService.class);
+
+        // generate fake shards and their responses
+        for (int i = 0; i < shardCount; ++i) {
+            final IndexShard shard = mock(IndexShard.class);
+
+            shards.add(shard);
+
+            if (failedShardId != i) {
+                final IndexShardStats successfulShardStats = mock(IndexShardStats.class);
+
+                shardStats.add(successfulShardStats);
+
+                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL)).thenReturn(successfulShardStats);
+            } else {
+                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL)).thenThrow(expectedException);
+            }
+        }
+
+        when(mockIndicesService.iterator()).thenReturn(Collections.singleton(indexService).iterator());
+        when(indexService.iterator()).thenReturn(shards.iterator());
+        when(indexService.index()).thenReturn(index);
+
+        // real one, which has a logger defined
+        final IndicesService indicesService = getIndicesService();
+
+        final Map<Index, List<IndexShardStats>> indexStats = indicesService.statsByShard(mockIndicesService, CommonStatsFlags.ALL);
+
+        assertThat(indexStats.isEmpty(), equalTo(false));
+        assertThat("index not defined", indexStats.containsKey(index), equalTo(true));
+        assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
+    }
+
 }

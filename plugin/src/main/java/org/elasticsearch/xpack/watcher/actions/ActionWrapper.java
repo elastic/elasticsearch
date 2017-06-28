@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -42,10 +44,6 @@ public class ActionWrapper implements ToXContentObject {
     private final ExecutableTransform transform;
     private final ActionThrottler throttler;
     private final ExecutableAction action;
-
-    public ActionWrapper(String id, ExecutableAction action) {
-        this(id, null, null, null, action);
-    }
 
     public ActionWrapper(String id, ActionThrottler throttler,
                          @Nullable Condition condition,
@@ -112,6 +110,7 @@ public class ActionWrapper implements ToXContentObject {
             try {
                 conditionResult = condition.execute(ctx);
                 if (conditionResult.met() == false) {
+                    ctx.watch().status().actionStatus(id).resetAckStatus(DateTime.now(DateTimeZone.UTC));
                     return new ActionWrapper.Result(id, conditionResult, null,
                                                     new Action.Result.ConditionFailed(action.type(), "condition not met. skipping"));
                 }

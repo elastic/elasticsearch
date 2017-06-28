@@ -62,7 +62,6 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
@@ -108,9 +107,9 @@ public class SearchTransformTests extends ESIntegTestCase {
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, client(),
                 watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
 
-        WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
+        WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
 
-        Transform.Result result = transform.execute(ctx, EMPTY_PAYLOAD);
+        Transform.Result result = transform.execute(ctx, Payload.EMPTY);
         assertThat(result, notNullValue());
         assertThat(result.type(), is(SearchTransform.TYPE));
         assertThat(result.status(), is(Transform.Result.Status.SUCCESS));
@@ -145,9 +144,9 @@ public class SearchTransformTests extends ESIntegTestCase {
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, client(),
                 watcherSearchTemplateService(), TimeValue.timeValueMinutes(1));
 
-        WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
+        WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
 
-        SearchTransform.Result result = transform.execute(ctx, EMPTY_PAYLOAD);
+        SearchTransform.Result result = transform.execute(ctx, Payload.EMPTY);
         assertThat(result, notNullValue());
         assertThat(result.type(), is(SearchTransform.TYPE));
         assertThat(result.status(), is(Transform.Result.Status.FAILURE));

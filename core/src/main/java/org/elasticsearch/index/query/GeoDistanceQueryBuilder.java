@@ -269,9 +269,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         builder.endObject();
     }
 
-    public static GeoDistanceQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static GeoDistanceQueryBuilder fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
 
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -288,8 +286,6 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_ARRAY) {
                 fieldName = currentFieldName;
                 GeoUtils.parseGeoPoint(parser, point);

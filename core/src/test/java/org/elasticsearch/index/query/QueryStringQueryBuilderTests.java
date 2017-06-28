@@ -65,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
@@ -521,7 +522,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         builder.endObject();
 
-        QueryBuilder queryBuilder = new QueryParseContext(createParser(builder)).parseInnerQueryBuilder();
+        QueryBuilder queryBuilder = parseInnerQueryBuilder(createParser(builder));
         TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class,
                 () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
@@ -545,8 +546,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         builder.endObject();
 
-        QueryStringQueryBuilder queryBuilder = (QueryStringQueryBuilder) new QueryParseContext(createParser(builder))
-                .parseInnerQueryBuilder();
+        QueryStringQueryBuilder queryBuilder = (QueryStringQueryBuilder) parseInnerQueryBuilder(createParser(builder));
         assertFalse(queryBuilder.enablePositionIncrements());
     }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.xcontent.XContentParser;
+
 import java.io.IOException;
 
 /**
@@ -27,14 +29,14 @@ import java.io.IOException;
 @FunctionalInterface
 public interface QueryParser<QB extends QueryBuilder> {
     /**
-     * Creates a new {@link QueryBuilder} from the query held by the {@link QueryParseContext}
-     * in {@link org.elasticsearch.common.xcontent.XContent} format
+     * Creates a new {@link QueryBuilder} from the query held by the
+     * {@link QueryParseContext} in
+     * {@link org.elasticsearch.common.xcontent.XContent} format
      *
-     * @param parseContext
-     *            the input parse context. The state on the parser contained in
-     *            this context will be changed as a side effect of this method
-     *            call
+     * @param parser
+     *            The state on the parser contained in this context will be
+     *            changed as a side effect of this method call
      * @return the new QueryBuilder
      */
-    QB fromXContent(QueryParseContext parseContext) throws IOException;
+    QB fromXContent(XContentParser parser) throws IOException;
 }

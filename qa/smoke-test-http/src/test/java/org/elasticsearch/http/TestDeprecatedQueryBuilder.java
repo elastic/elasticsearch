@@ -29,7 +29,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -65,9 +64,7 @@ public class TestDeprecatedQueryBuilder extends AbstractQueryBuilder<TestDepreca
         builder.startObject(NAME).endObject();
     }
 
-    public static TestDeprecatedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
-        XContentParser parser = parseContext.parser();
-
+    public static TestDeprecatedQueryBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(), "[{}] query does not have any fields", NAME);
         }

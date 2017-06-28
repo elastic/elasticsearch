@@ -275,11 +275,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         builder.endArray();
     }
 
-    public static BoolQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
-        XContentParser parser = parseContext.parser();
-
+    public static BoolQueryBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
         boolean adjustPureNegative = BoolQueryBuilder.ADJUST_PURE_NEGATIVE_DEFAULT;
-        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        float boost = DEFAULT_BOOST;
         String minimumShouldMatch = null;
 
         final List<QueryBuilder> mustClauses = new ArrayList<>();
@@ -293,22 +291,20 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 switch (currentFieldName) {
                 case MUST:
-                    mustClauses.add(parseContext.parseInnerQueryBuilder());
+                    mustClauses.add(parseInnerQueryBuilder(parser));
                     break;
                 case SHOULD:
-                    shouldClauses.add(parseContext.parseInnerQueryBuilder());
+                    shouldClauses.add(parseInnerQueryBuilder(parser));
                     break;
                 case FILTER:
-                    filterClauses.add(parseContext.parseInnerQueryBuilder());
+                    filterClauses.add(parseInnerQueryBuilder(parser));
                     break;
                 case MUST_NOT:
                 case MUSTNOT:
-                    mustNotClauses.add(parseContext.parseInnerQueryBuilder());
+                    mustNotClauses.add(parseInnerQueryBuilder(parser));
                     break;
                 default:
                     throw new ParsingException(parser.getTokenLocation(), "[bool] query does not support [" + currentFieldName + "]");
@@ -317,17 +313,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     switch (currentFieldName) {
                     case MUST:
-                        mustClauses.add(parseContext.parseInnerQueryBuilder());
+                        mustClauses.add(parseInnerQueryBuilder(parser));
                         break;
                     case SHOULD:
-                        shouldClauses.add(parseContext.parseInnerQueryBuilder());
+                        shouldClauses.add(parseInnerQueryBuilder(parser));
                         break;
                     case FILTER:
-                        filterClauses.add(parseContext.parseInnerQueryBuilder());
+                        filterClauses.add(parseInnerQueryBuilder(parser));
                         break;
                     case MUST_NOT:
                     case MUSTNOT:
-                        mustNotClauses.add(parseContext.parseInnerQueryBuilder());
+                        mustNotClauses.add(parseInnerQueryBuilder(parser));
                         break;
                     default:
                         throw new ParsingException(parser.getTokenLocation(), "bool query does not support [" + currentFieldName + "]");
@@ -338,11 +334,11 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                     // ignore
                 } else if (MINIMUM_SHOULD_MATCH.match(currentFieldName)) {
                     minimumShouldMatch = parser.textOrNull();
-                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
+                } else if (BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
                 } else if (ADJUST_PURE_NEGATIVE.match(currentFieldName)) {
                     adjustPureNegative = parser.booleanValue();
-                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
+                } else if (NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[bool] query does not support [" + currentFieldName + "]");

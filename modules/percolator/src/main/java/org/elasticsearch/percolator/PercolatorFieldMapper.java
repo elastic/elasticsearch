@@ -72,6 +72,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+
 public class PercolatorFieldMapper extends FieldMapper {
 
     public static final XContentType QUERY_BUILDER_CONTENT_TYPE = XContentType.SMILE;
@@ -348,7 +350,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     private static QueryBuilder parseQueryBuilder(QueryParseContext context, XContentLocation location) {
         try {
-            return context.parseInnerQueryBuilder();
+            return parseInnerQueryBuilder(context.parser());
         } catch (IOException e) {
             throw new ParsingException(location, "Failed to parse", e);
         }

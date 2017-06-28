@@ -115,9 +115,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         builder.endObject();
     }
 
-    public static WrapperQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static WrapperQueryBuilder fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
@@ -161,9 +159,8 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(context.getXContentRegistry(), source)) {
-            QueryParseContext parseContext = context.newParseContext(qSourceParser);
 
-            final QueryBuilder queryBuilder = parseContext.parseInnerQueryBuilder();
+            final QueryBuilder queryBuilder = parseInnerQueryBuilder(qSourceParser);
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);

@@ -27,10 +27,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -48,15 +48,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+
 /**
  * Aggregation for adjacency matrices.
- * 
+ *
  * NOTE! This is an experimental class.
- * 
+ *
  * TODO the aggregation produces a sparse response but in the
  * computation it uses a non-sparse structure (an array of Bits
  * objects). This could be changed to a sparse structure in future.
- * 
+ *
  */
 public class AdjacencyMatrixAggregator extends BucketsAggregator {
 
@@ -65,11 +67,11 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     protected static class KeyedFilter implements Writeable, ToXContent {
         private final String key;
         private final QueryBuilder filter;
-        
-        public static final NamedObjectParser<KeyedFilter, QueryParseContext> PARSER = 
-                (XContentParser p, QueryParseContext c, String name) -> 
-                     new KeyedFilter(name, c.parseInnerQueryBuilder());
-        
+
+        public static final NamedObjectParser<KeyedFilter, QueryParseContext> PARSER =
+                (XContentParser p, QueryParseContext c, String name) ->
+                     new KeyedFilter(name, parseInnerQueryBuilder(p));
+
 
         public KeyedFilter(String key, QueryBuilder filter) {
             if (key == null) {
@@ -134,8 +136,8 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     private final int totalNumIntersections;
     private final String separator;
 
-    public AdjacencyMatrixAggregator(String name, AggregatorFactories factories, String separator, String[] keys, 
-            Weight[] filters, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, 
+    public AdjacencyMatrixAggregator(String name, AggregatorFactories factories, String separator, String[] keys,
+            Weight[] filters, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.separator = separator;
@@ -207,9 +209,9 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
             // a date-histogram where we will look for transactions over time and can expect many
             // empty buckets.
             if (docCount > 0) {
-                InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(keys[i], 
+                InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(keys[i],
                         docCount, bucketAggregations(bucketOrd));
-                buckets.add(bucket);                
+                buckets.add(bucket);
             }
         }
         int pos = keys.length;
@@ -220,7 +222,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                 // Empty buckets are not returned due to potential for very sparse matrices
                 if (docCount > 0) {
                     String intersectKey = keys[i] + separator + keys[j];
-                    InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(intersectKey, 
+                    InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(intersectKey,
                             docCount, bucketAggregations(bucketOrd));
                     buckets.add(bucket);
                 }

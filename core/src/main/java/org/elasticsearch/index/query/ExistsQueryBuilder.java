@@ -83,9 +83,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         builder.endObject();
     }
 
-    public static ExistsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static ExistsQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldPattern = null;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

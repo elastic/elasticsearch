@@ -59,7 +59,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -644,13 +643,10 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
     private static class ConnectedNodes implements Supplier<DiscoveryNode> {
 
-        // this classes uses both a set and a list to support faster operations. Insertion and contains for this class are O(1) thanks
-        // to the use of the set and removal is O(n) due to the arraylist. In order to support a round-robin scheme through the connected
-        // nodes, this class uses a counter and retrieves by index from the list. The arraylist enables us to do this in O(1).
         private final Set<DiscoveryNode> nodeSet = new HashSet<>();
-        private final List<DiscoveryNode> nodeList = new ArrayList<>();
-        private final AtomicInteger counter = new AtomicInteger(0);
         private final String clusterAlias;
+
+        private Iterator<DiscoveryNode> currentIterator = null;
 
         private ConnectedNodes(String clusterAlias) {
             this.clusterAlias = clusterAlias;
@@ -658,9 +654,9 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
         @Override
         public synchronized DiscoveryNode get() {
-            final int size = size();
-            if (size > 0) {
-                return nodeList.get(Math.floorMod(counter.incrementAndGet(), size));
+            ensureIteratorAvailable();
+            if (currentIterator.hasNext()) {
+                return currentIterator.next();
             } else {
                 throw new IllegalStateException("No node available for cluster: " + clusterAlias);
             }
@@ -669,7 +665,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         synchronized boolean remove(DiscoveryNode node) {
             final boolean setRemoval = nodeSet.remove(node);
             if (setRemoval) {
-                nodeList.remove(node);
+                currentIterator = null;
             }
             return setRemoval;
         }
@@ -677,14 +673,13 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         synchronized boolean add(DiscoveryNode node) {
             final boolean added = nodeSet.add(node);
             if (added) {
-                nodeList.add(node);
+                currentIterator = null;
             }
             return added;
         }
 
         synchronized int size() {
-            assert nodeList.size() == nodeSet.size() : "nodelist and nodeset should always have the same size";
-            return nodeList.size();
+            return nodeSet.size();
         }
 
         synchronized boolean contains(DiscoveryNode node) {
@@ -692,10 +687,17 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         }
 
         synchronized Optional<DiscoveryNode> getAny() {
-            if (nodeList.size() > 0) {
-                return Optional.of(get());
+            ensureIteratorAvailable();
+            if (currentIterator.hasNext()) {
+                return Optional.of(currentIterator.next());
             } else {
                 return Optional.empty();
+            }
+        }
+
+        private synchronized void ensureIteratorAvailable() {
+            if (currentIterator == null) {
+                currentIterator = nodeSet.iterator();
             }
         }
     }

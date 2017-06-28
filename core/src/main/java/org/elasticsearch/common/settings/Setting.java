@@ -345,7 +345,7 @@ public class Setting<T> extends ToXContentToBytes {
     /** Logs a deprecation warning if the setting is deprecated and used. */
     protected void checkDeprecation(Settings settings) {
         // They're using the setting, so we need to tell them to stop
-        if (this.isDeprecated() && this.exists(settings) && settings.addDeprecatedSetting(this.getKey())) {
+        if (this.isDeprecated() && this.exists(settings) && settings.addDeprecatedSetting(this)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(getClass()));
             deprecationLogger.deprecated("[{}] setting was deprecated in Elasticsearch and will be removed in a future release! " +

@@ -99,14 +99,14 @@ public final class Settings implements ToXContent {
     private final Set<String> deprecatedSettings = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
     /**
-     * Add the key as a tracked deprecated setting.
+     * Add the setting as a tracked deprecated setting.
      *
-     * @param key the key of the deprecated setting to track
+     * @param setting the deprecated setting to track
      * @return true if the setting was not already tracked as a deprecated setting, otherwise false
      */
-    boolean addDeprecatedSetting(final String key) {
-        assert settings.containsKey(key) : key;
-        return deprecatedSettings.add(key);
+    boolean addDeprecatedSetting(final Setting setting) {
+        assert setting.exists(this) : setting.getKey();
+        return deprecatedSettings.add(setting.getKey());
     }
 
     /**

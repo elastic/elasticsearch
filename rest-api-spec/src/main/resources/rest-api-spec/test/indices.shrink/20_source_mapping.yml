@@ -4,17 +4,27 @@
         version: " - 5.99.99"
         reason:  bug fixed in 6.0
 
+    - do:
+        cluster.state: {}
+        # Get master node id
+
+    - set: { master_node: master }
+
   # create index
     - do:
         indices.create:
           index: source
           wait_for_active_shards: 1
           body:
-              mappings:
-                test:
-                  properties:
-                    count:
-                      type: text
+            settings:
+              # ensure everything is allocated on a single node
+              index.routing.allocation.include._id: $master
+              number_of_replicas: 0
+            mappings:
+              test:
+                properties:
+                  count:
+                    type: text
 
     # index document
     - do:

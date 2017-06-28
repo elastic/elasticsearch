@@ -27,29 +27,13 @@ if not "%CONF_FILE%" == "" goto conffileset
 set SCRIPT_DIR=%~dp0
 for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
-%JAVA% -Xmx50M -version > nul 2>&1
-
-if errorlevel 1 (
-	echo Warning: Could not start JVM to detect version, defaulting to x86:
-	goto x86
-)
-
-%JAVA% -Xmx50M -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
-
-if errorlevel 1 goto x86
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
 set SERVICE_ID=elasticsearch-service-x64
 set ARCH=64-bit
-goto checkExe
 
-:x86
-set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x86.exe
-set SERVICE_ID=elasticsearch-service-x86
-set ARCH=32-bit
-
-:checkExe
 if EXIST "%EXECUTABLE%" goto okExe
-echo elasticsearch-service-(x86|x64).exe was not found...
+echo elasticsearch-service-x64.exe was not found...
+exit /B 1
 
 :okExe
 set ES_VERSION=${project.version}

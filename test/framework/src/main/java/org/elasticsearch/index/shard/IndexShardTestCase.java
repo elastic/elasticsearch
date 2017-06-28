@@ -355,7 +355,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
             getFakeDiscoNode(primary.routingEntry().currentNodeId()),
             null));
         primary.recoverFromStore();
-        primary.updateRoutingEntry(ShardRoutingHelper.moveToStarted(primary.routingEntry()));
+        updateRoutingEntry(primary, ShardRoutingHelper.moveToStarted(primary.routingEntry()));
+    }
+
+    public static void updateRoutingEntry(IndexShard shard, ShardRouting shardRouting) throws IOException {
+        shard.updateShardState(shardRouting, shard.getPrimaryTerm(), null, 0L, Collections.emptySet(), Collections.emptySet());
     }
 
     protected void recoveryEmptyReplica(IndexShard replica) throws IOException {
@@ -424,7 +428,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), pNode.getName()).build());
         recovery.recoverToTarget();
         recoveryTarget.markAsDone();
-        replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));
+        updateRoutingEntry(replica, ShardRoutingHelper.moveToStarted(replica.routingEntry()));
     }
 
     private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {

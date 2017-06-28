@@ -63,7 +63,7 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
 
     private final ClusterService clusterService;
 
-    private final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
+    final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
 
     @Inject
     public PeerRecoverySourceService(Settings settings, TransportService transportService, IndicesService indicesService,
@@ -137,7 +137,7 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
         }
     }
 
-    private final class OngoingRecoveries {
+    final class OngoingRecoveries {
         private final Map<IndexShard, ShardRecoveryContext> ongoingRecoveries = new HashMap<>();
 
         synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, IndexShard shard) {
@@ -191,6 +191,12 @@ public class PeerRecoverySourceService extends AbstractComponent implements Inde
             synchronized RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, IndexShard shard) {
                 if (onNewRecoveryException != null) {
                     throw onNewRecoveryException;
+                }
+                for (RecoverySourceHandler existingHandler : recoveryHandlers) {
+                    if (existingHandler.getRequest().targetAllocationId().equals(request.targetAllocationId())) {
+                        throw new DelayRecoveryException("recovery with same target already registered, waiting for " +
+                            "previous recovery attempt to be cancelled or completed");
+                    }
                 }
                 RecoverySourceHandler handler = createRecoverySourceHandler(request, shard);
                 recoveryHandlers.add(handler);

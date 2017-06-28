@@ -62,7 +62,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         boolean syncNeeded = numDocs > 0 && globalCheckPoint < numDocs - 1;
 
         String allocationId = shard.routingEntry().allocationId().getId();
-        shard.updateAllocationIdsFromMaster(randomNonNegativeLong(), Collections.singleton(allocationId), Collections.emptySet());
+        shard.updateShardState(shard.routingEntry(), shard.getPrimaryTerm(), null, 1000L, Collections.singleton(allocationId),
+            Collections.emptySet());
         shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
         assertEquals(globalCheckPoint, shard.getGlobalCheckpoint());
 

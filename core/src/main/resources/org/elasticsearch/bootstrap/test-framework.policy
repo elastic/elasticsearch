@@ -58,7 +58,7 @@ grant codeBase "${codebase.junit-4.12.jar}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.mocksocket-1.1.jar}" {
+grant codeBase "${codebase.mocksocket-1.2.jar}" {
   // mocksocket makes and accepts socket connections
   permission java.net.SocketPermission "*", "accept,connect";
 };

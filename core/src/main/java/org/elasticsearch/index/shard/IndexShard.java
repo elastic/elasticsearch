@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexOptions;
@@ -283,7 +284,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         searcherWrapper = indexSearcherWrapper;
         primaryTerm = indexSettings.getIndexMetaData().primaryTerm(shardId.id());
         refreshListeners = buildRefreshListeners();
-        persistMetadata(shardRouting, null);
+        persistMetadata(path, indexSettings, shardRouting, null, logger);
     }
 
     public Store store() {
@@ -373,7 +374,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final Engine engine = getEngineOrNull();
                 // if the engine is not yet started, we are not ready yet and can just ignore this
                 if (engine != null) {
-                    engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, activeAllocationIds, initializingAllocationIds);
+                    engine.seqNoService().updateAllocationIdsFromMaster(
+                            applyingClusterStateVersion, activeAllocationIds, initializingAllocationIds);
                 }
             }
         }
@@ -420,11 +422,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             state == IndexShardState.CLOSED :
             "routing is active, but local shard state isn't. routing: " + newRouting + ", local state: " + state;
         this.shardRouting = newRouting;
-        persistMetadata(newRouting, currentRouting);
+        persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
     }
 
-    private void updatePrimaryTerm(long newPrimaryTerm,
-                                   CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer) {
+    private void updatePrimaryTerm(
+            final long newPrimaryTerm, final CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer) {
         assert Thread.holdsLock(mutex);
         assert shardRouting.primary() : "primary term can only be explicitly updated on a primary shard";
         if (newPrimaryTerm != primaryTerm) {
@@ -1957,11 +1959,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return engineFactory.newReadWriteEngine(config);
     }
 
-    // pkg private for testing
-    void persistMetadata(ShardRouting newRouting, @Nullable ShardRouting currentRouting) throws IOException {
+    private static void persistMetadata(
+            final ShardPath shardPath,
+            final IndexSettings indexSettings,
+            final ShardRouting newRouting,
+            final @Nullable ShardRouting currentRouting,
+            final Logger logger) throws IOException {
         assert newRouting != null : "newRouting must not be null";
 
         // only persist metadata if routing information that is persisted in shard state metadata actually changed
+        final ShardId shardId = newRouting.shardId();
         if (currentRouting == null
             || currentRouting.primary() != newRouting.primary()
             || currentRouting.allocationId().equals(newRouting.allocationId()) == false) {
@@ -1973,15 +1980,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 writeReason = "routing changed from " + currentRouting + " to " + newRouting;
             }
             logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
-            final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.primary(), getIndexUUID(), newRouting.allocationId());
-            ShardStateMetaData.FORMAT.write(newShardStateMetadata, shardPath().getShardStatePath());
+            final ShardStateMetaData newShardStateMetadata =
+                    new ShardStateMetaData(newRouting.primary(), indexSettings.getUUID(), newRouting.allocationId());
+            ShardStateMetaData.FORMAT.write(newShardStateMetadata, shardPath.getShardStatePath());
         } else {
             logger.trace("{} skip writing shard state, has been written before", shardId);
         }
-    }
-
-    private String getIndexUUID() {
-        return indexSettings.getUUID();
     }
 
     private DocumentMapperForType docMapper(String type) {

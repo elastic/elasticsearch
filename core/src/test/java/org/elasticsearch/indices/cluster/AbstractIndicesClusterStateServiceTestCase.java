@@ -35,6 +35,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -345,17 +346,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public ShardRouting routingEntry() {
-            return shardRouting;
-        }
-
-        @Override
-        public IndexShardState state() {
-            return null;
-        }
-
-        @Override
-        public void updateRoutingEntry(ShardRouting shardRouting) throws IOException {
+        public void updateShardState(ShardRouting shardRouting,
+                                     long newPrimaryTerm,
+                                     CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
+                                     long applyingClusterStateVersion,
+                                     Set<String> activeAllocationIds,
+                                     Set<String> initializingAllocationIds) throws IOException {
             failRandomly();
             assertThat(this.shardId(), equalTo(shardRouting.shardId()));
             assertTrue("current: " + this.shardRouting + ", got: " + shardRouting, this.shardRouting.isSameAllocation(shardRouting));
@@ -364,20 +360,22 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                     shardRouting.active());
             }
             this.shardRouting = shardRouting;
+            if (shardRouting.primary()) {
+                term = newPrimaryTerm;
+                this.clusterStateVersion = applyingClusterStateVersion;
+                this.activeAllocationIds = activeAllocationIds;
+                this.initializingAllocationIds = initializingAllocationIds;
+            }
         }
 
         @Override
-        public void updatePrimaryTerm(final long newPrimaryTerm,
-                                      CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer) {
-            term = newPrimaryTerm;
+        public ShardRouting routingEntry() {
+            return shardRouting;
         }
 
         @Override
-        public void updateAllocationIdsFromMaster(
-                long applyingClusterStateVersion, Set<String> activeAllocationIds, Set<String> initializingAllocationIds) {
-            this.clusterStateVersion = applyingClusterStateVersion;
-            this.activeAllocationIds = activeAllocationIds;
-            this.initializingAllocationIds = initializingAllocationIds;
+        public IndexShardState state() {
+            return null;
         }
 
         public void updateTerm(long newTerm) {
@@ -388,9 +386,5 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             this.term = newTerm;
         }
 
-        @Override
-        public void updateLocalCheckpoint() {
-
-        }
     }
 }

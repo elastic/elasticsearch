@@ -21,7 +21,7 @@ import java.sql.DriverManager;
 
 import static java.util.Collections.singletonMap;
 
-public class JdbcIntegrationTestCase extends ESRestTestCase {
+public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     static {
         // Initialize the jdbc driver
         JdbcDriver.jdbcMajorVersion();

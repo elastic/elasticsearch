@@ -370,7 +370,7 @@ public class PathTrie<T> {
 
     class PathTrieIterator<T> implements Iterator<T> {
 
-        private final List<TrieMatchingMode> modes = new ArrayList<>(4);
+        private final List<TrieMatchingMode> modes;
         private final Supplier<Map<String, String>> paramSupplier;
         private final PathTrie<T> trie;
         private final String path;
@@ -379,19 +379,16 @@ public class PathTrie<T> {
             this.path = path;
             this.trie = trie;
             this.paramSupplier = paramSupplier;
-            modes.add(TrieMatchingMode.EXPLICIT_NODES_ONLY);
-            modes.add(TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
-            modes.add(TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED);
-            modes.add(TrieMatchingMode.WILDCARD_NODES_ALLOWED);
+            this.modes = Arrays.asList(TrieMatchingMode.EXPLICIT_NODES_ONLY,
+                TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED,
+                TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED,
+                TrieMatchingMode.WILDCARD_NODES_ALLOWED);
             assert TrieMatchingMode.values().length == 4 : "missing trie matching mode";
         }
 
         @Override
         public boolean hasNext() {
-            if (modes.isEmpty() == false) {
-                return true;
-            }
-            return false;
+            return modes.isEmpty() == false;
         }
 
         @Override

@@ -1,6 +1,7 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
+:include-xpack:         true
 :xes-repo-dir:          {docdir}
 :es-repo-dir:           {docdir}/../../../../elasticsearch/docs
 :es-test-dir:           {docdir}/../../../../elasticsearch/docs/src/test

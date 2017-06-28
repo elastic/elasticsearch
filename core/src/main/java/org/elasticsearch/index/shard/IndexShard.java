@@ -545,7 +545,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         changeState(IndexShardState.RELOCATED, reason);
                     }
                 } catch (final Exception e) {
-                    getEngine().seqNoService().releasePrimaryContext();
+                    try {
+                        getEngine().seqNoService().releasePrimaryContext();
+                    } catch (final Exception inner) {
+                        e.addSuppressed(inner);
+                    }
+                    throw e;
                 }
             });
         } catch (TimeoutException e) {

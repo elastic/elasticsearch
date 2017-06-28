@@ -157,15 +157,17 @@ public class SettingTests extends ESTestCase {
     public void testDeprecatedSetting() {
         final Setting<Boolean> deprecatedSetting = Setting.boolSetting("deprecated.foo.bar", false, Property.Deprecated);
         final Settings settings = Settings.builder().put("deprecated.foo.bar", true).build();
-        final int iterations = randomIntBetween(1, 128);
+        final int iterations = randomIntBetween(0, 128);
         for (int i = 0; i < iterations; i++) {
             deprecatedSetting.get(settings);
         }
-        /*
-         * This tests that we log the deprecation warning exactly one time, otherwise we would have to assert the deprecation warning for
-         * each usage of the setting.
-         */
-        assertSettingDeprecationsAndWarnings(new Setting[]{deprecatedSetting});
+        if (iterations > 0) {
+            /*
+             * This tests that we log the deprecation warning exactly one time, otherwise we would have to assert the deprecation warning
+             * for each usage of the setting.
+             */
+            assertSettingDeprecationsAndWarnings(new Setting[]{deprecatedSetting});
+        }
     }
 
     public void testDefault() {

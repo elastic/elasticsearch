@@ -282,7 +282,7 @@ additional parameters to influence how the graph is built.
 
 For tips on tuning the settings for more detailed forensic evaluation where
 every document could be of interest, see the
-{kibana-ref}/troubleshooting.html[Troubleshooting] guide.
+{kibana-ref}/graph-troubleshooting.html[Troubleshooting] guide.
 
 
 [source,js]

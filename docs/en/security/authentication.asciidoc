@@ -51,7 +51,7 @@ be disabled individually, using the
 You must reset the default passwords for all built-in users, and then
 <<disabling-default-password, disable default password support>>.
 You can update passwords from the *Management > Users* UI in Kibana or with the
-{ref}/security-api-reset-user-password.html[Reset Password API]:
+{ref}/security-api-users.html#security-api-reset-user-password[Reset Password API]:
 
 [source,js]
 ---------------------------------------------------------------------

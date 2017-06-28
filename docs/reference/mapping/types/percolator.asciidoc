@@ -73,8 +73,14 @@ fail.
 [float]
 ==== Limitations
 
+[float]
+===== Parent/child
+
 Because the `percolate` query is processing one document at a time, it doesn't support queries and filters that run
 against child documents such as `has_child` and `has_parent`.
+
+[float]
+===== Fetching queries
 
 There are a number of queries that fetch data via a get call during query parsing. For example the `terms` query when
 using terms lookup, `template` query when using indexed scripts and `geo_shape` when using pre-indexed shapes. When these
@@ -83,3 +89,11 @@ query evaluates these queries, the fetches terms, shapes etc. as the were upon i
 is that fetching of terms that these queries do, happens both each time the percolator query gets indexed on both primary
 and replica shards, so the terms that are actually indexed can be different between shard copies, if the source index
 changed while indexing.
+
+[float]
+===== Script query
+
+The script inside a `script` query can only access doc values fields. The `percolate` query indexes the provided document
+into an in-memory index. This in-memory index doesn't support stored fields and because of that the `_source` field and
+other stored fields are not stored. This is the reason why in the `script` query the `_source` and other stored fields
+aren't available.

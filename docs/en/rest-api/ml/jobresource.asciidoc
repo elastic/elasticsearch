@@ -287,16 +287,17 @@ For more information, see
 ==== Model Plot Config
 
 This advanced configuration option stores model information along with the
-results. It provides a more detailed view into anomaly detection. If you enable
-this option, it can add considerable overhead to the performance of the system;
-it is not feasible for jobs with many entities.
+results. It provides a more detailed view into anomaly detection. 
+
+WARNING: If you enable model plot it can add considerable overhead to the performance 
+of the system; it is not feasible for jobs with many entities.
 
 Model plot provides a simplified and indicative view of the model and its bounds.
 It does not display complex features such as multivariate correlations or multimodal data.
 As such, anomalies may occasionally be reported which cannot be seen in the model plot.
 
-Model plot config can be configured when the job is created or updated later.
-It must be disabled if performance issues are experienced.
+Model plot config can be configured when the job is created or updated later. It must be 
+disabled if performance issues are experienced.
 
 The `model_plot_config` object has the following properties:
 
@@ -305,6 +306,7 @@ The `model_plot_config` object has the following properties:
   each entity that is being analyzed. By default, this is not enabled.
 
 `terms`::
-  (string) Limits data collection to this comma separated list of _partition_
-  or _by_ field values. If terms are not specified or it is an empty string,
-  no filtering is applied. For example, `"CPU,NetworkIn,DiskWrites"`
+  (string) Limits data collection to this comma separated list of partition or by field values. 
+  If terms are not specified or it is an empty string, no filtering is applied. 
+  For example, "CPU,NetworkIn,DiskWrites". This is experimental. Only the specified `terms` can
+  be viewed when using the Single Metric Viewer.

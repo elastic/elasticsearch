@@ -5,21 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.cli.net.client;
 
-import java.net.MalformedURLException;
-import java.net.URL;
-
 import org.elasticsearch.xpack.sql.cli.CliConfiguration;
-import org.elasticsearch.xpack.sql.cli.CliException;
 import org.elasticsearch.xpack.sql.net.client.ClientException;
 import org.elasticsearch.xpack.sql.net.client.DataOutputConsumer;
 import org.elasticsearch.xpack.sql.net.client.jre.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.net.client.util.Bytes;
 
-public class HttpClient {
+import java.net.MalformedURLException;
+import java.net.URL;
+
+class HttpClient {
 
     private final CliConfiguration cfg;
 
-    public HttpClient(CliConfiguration cfg) {
+    HttpClient(CliConfiguration cfg) {
         this.cfg = cfg;
     }
 
@@ -32,25 +31,17 @@ public class HttpClient {
     }
 
     boolean head(String path) {
-        try {
-            return JreHttpUrlConnection.http(url(path), cfg, JreHttpUrlConnection::head);
-        } catch (ClientException ex) {
-            throw new ClientException(ex, "Transport failure");
-        }
+        return JreHttpUrlConnection.http(url(path), cfg, JreHttpUrlConnection::head);
     }
 
     Bytes put(DataOutputConsumer os) {
-        return put("sql/", os);
+        return put("", os);
     }
 
     Bytes put(String path, DataOutputConsumer os) {
-        try {
-            return JreHttpUrlConnection.http(url(path), cfg, con -> {
-                return con.put(os);
-            });
-        } catch (ClientException ex) {
-            throw new CliException(ex, "Transport failure");
-        }
+        return JreHttpUrlConnection.http(url(path), cfg, con -> {
+            return con.put(os);
+        });
     }
 
     void close() {}

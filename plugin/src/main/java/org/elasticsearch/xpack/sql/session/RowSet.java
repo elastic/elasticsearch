@@ -17,16 +17,16 @@ import java.util.function.Consumer;
  */
 public interface RowSet extends RowView {
 
-    boolean hasCurrent();
+    boolean hasCurrentRow();
 
-    boolean advance();
+    boolean advanceRow();
 
     int size();
 
     void reset();
 
     default void forEachRow(Consumer<? super RowView> action) {
-        for (boolean hasRows = hasCurrent(); hasRows; hasRows = advance()) {
+        for (boolean hasRows = hasCurrentRow(); hasRows; hasRows = advanceRow()) {
             action.accept(this);
         }
     }

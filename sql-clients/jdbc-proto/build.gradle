@@ -4,11 +4,9 @@ description = 'Request and response objects shared by the jdbc driver and ' +
     'its backend in :x-pack-elasticsearch:plugin'
 
 dependencies {
-  compile project(":x-pack-elasticsearch:sql-clients:net-client")
   testCompile project(':x-pack-elasticsearch:sql-clients:test-utils')
 }
 
 dependencyLicenses {
-  mapping from: /net-client.*/, to: 'elasticsearch'
-  ignoreSha 'net-client'
+ 
 }

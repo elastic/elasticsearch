@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.Response;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.TimeoutInfo;
 import org.elasticsearch.xpack.sql.jdbc.util.BytesArray;
 import org.elasticsearch.xpack.sql.jdbc.util.FastByteArrayInputStream;
+import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 
 import java.io.Closeable;
 import java.io.DataInput;
@@ -37,7 +38,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
 
-public class HttpJdbcClient implements Closeable {
+public class JdbcHttpClient implements Closeable {
     @FunctionalInterface
     interface DataInputFunction<R> {
         R apply(DataInput in) throws IOException, SQLException;
@@ -47,7 +48,7 @@ public class HttpJdbcClient implements Closeable {
     private final JdbcConfiguration conCfg;
     private InfoResponse serverInfo;
 
-    public HttpJdbcClient(JdbcConfiguration conCfg) {
+    public JdbcHttpClient(JdbcConfiguration conCfg) {
         http = new HttpClient(conCfg);
         this.conCfg = conCfg;
     }
@@ -57,7 +58,7 @@ public class HttpJdbcClient implements Closeable {
         // NOCOMMIT this seems race condition-y
         http.setNetworkTimeout(timeoutInMs);
         try {
-            return http.head("");
+            return http.head(StringUtils.EMPTY);
         } finally {
             http.setNetworkTimeout(oldTimeout);
         }
@@ -135,7 +136,7 @@ public class HttpJdbcClient implements Closeable {
     }
 
     private InfoResponse fetchServerInfo() throws SQLException {
-        BytesArray ba = http.put(out -> ProtoUtils.write(out, new InfoRequest()));
+        BytesArray ba = http.put(out -> ProtoUtils.write(out, new InfoRequest(System.getProperties())));
         return doIO(ba, in -> readResponse(in, Action.INFO));
     }
 

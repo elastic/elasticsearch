@@ -5,12 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.util;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-
-import org.elasticsearch.common.Strings;
+import java.util.regex.Pattern;
 
 import static java.util.stream.Collectors.joining;
 
@@ -58,7 +59,6 @@ public abstract class StringUtils {
         return strings.stream().collect(joining("."));
     }
 
-    //CamelCase to camel_case
     public static String camelCaseToUnderscore(String string) {
         if (!Strings.hasText(string)) {
             return EMPTY;
@@ -69,17 +69,92 @@ public abstract class StringUtils {
         boolean previousCharWasUp = false;
         for (int i = 0; i < s.length(); i++) {
             char ch = s.charAt(i);
-            if (Character.isUpperCase(ch)) {
-                if (i > 0 && !previousCharWasUp) {
-                    sb.append("_");
+            if (Character.isAlphabetic(ch)) {
+                if (Character.isUpperCase(ch)) {
+                    if (i > 0 && !previousCharWasUp) {
+                        sb.append("_");
+                    }
+                    previousCharWasUp = true;
                 }
-                previousCharWasUp = true;
+                else {
+                    previousCharWasUp = (ch == '_');
+                }
             }
             else {
-                previousCharWasUp = (ch == '_');
+                previousCharWasUp = true;
             }
             sb.append(ch);
         }
         return sb.toString().toUpperCase(Locale.ROOT);
+    }
+
+    public static String nullAsEmpty(String string) {
+        return string == null ? EMPTY : string;
+    }
+
+    // % -> *
+    // _ -> .
+    // consider \ as an escaping char
+    public static String sqlToJavaPattern(CharSequence sqlPattern, char escapeChar, boolean shouldEscape) {
+        StringBuilder regex = new StringBuilder(sqlPattern.length() + 4);
+
+        boolean escaped = false;
+        regex.append('^');
+        for (int i = 0; i < sqlPattern.length(); i++) {
+            char curr = sqlPattern.charAt(i);
+            if (shouldEscape && !escaped && (curr == escapeChar)) {
+                escaped = true;
+            }
+            else {
+                switch (curr) {
+                    case '%':
+                        regex.append(escaped ? "%" : ".*");
+                        escaped = false;
+                        break;
+                    case '_':
+                        regex.append(escaped ? "_" : ".");
+                        escaped = false;
+                        break;
+                    default:
+                        // escape special regex characters
+                        switch (curr) {
+                            case '\\':
+                            case '^':
+                            case '$':
+                            case '.':
+                            case '*':
+                            case '?':
+                            case '+':
+                            case '|':
+                            case '(':
+                            case ')':
+                            case '[':
+                            case ']':
+                            case '{':
+                            case '}':
+                                regex.append('\\');
+                        }
+
+                        regex.append(curr);
+                        escaped = false;
+                }
+            }
+        }
+        regex.append('$');
+
+        return regex.toString();
+    }
+
+    //TODO: likely this needs to be changed to probably its own indexNameResolver
+    public static String jdbcToEsPattern(String sqlPattern) {
+        return Strings.hasText(sqlPattern) ? sqlPattern.replace('%', '*').replace('_', '*') : EMPTY;
+    }
+
+    public static String sqlToJavaPattern(CharSequence sqlPattern) {
+        return sqlToJavaPattern(sqlPattern, '\\', true);
+    }
+
+    public static Pattern likeRegex(String likePattern) {
+        return Pattern.compile(sqlToJavaPattern(likePattern, '\\', true));
     }
 }

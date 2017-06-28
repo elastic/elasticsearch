@@ -13,14 +13,14 @@ import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 
 class DefaultCursor implements Cursor {
 
-    private final HttpJdbcClient client;
+    private final JdbcHttpClient client;
     private final RequestMeta meta;
 
     private final Page page;
     private int row = -1;
     private String requestId;
 
-    DefaultCursor(HttpJdbcClient client, String scrollId, Page page, RequestMeta meta) {
+    DefaultCursor(JdbcHttpClient client, String scrollId, Page page, RequestMeta meta) {
         this.client = client;
         this.meta = meta;
         this.requestId = simplifyScrollId(scrollId);

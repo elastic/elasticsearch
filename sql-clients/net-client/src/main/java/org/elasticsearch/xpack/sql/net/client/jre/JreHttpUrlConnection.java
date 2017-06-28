@@ -5,6 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.net.client.jre;
 
+import org.elasticsearch.xpack.sql.net.client.ClientException;
+import org.elasticsearch.xpack.sql.net.client.ConnectionConfiguration;
+import org.elasticsearch.xpack.sql.net.client.DataOutputConsumer;
+import org.elasticsearch.xpack.sql.net.client.util.Bytes;
+import org.elasticsearch.xpack.sql.net.client.util.IOUtils;
+
 import java.io.Closeable;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -12,27 +18,22 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.function.Function;
-
-import org.elasticsearch.xpack.sql.net.client.ClientException;
-import org.elasticsearch.xpack.sql.net.client.ConnectionConfiguration;
-import org.elasticsearch.xpack.sql.net.client.DataOutputConsumer;
-import org.elasticsearch.xpack.sql.net.client.util.Bytes;
-import org.elasticsearch.xpack.sql.net.client.util.IOUtils;
+import java.util.zip.GZIPInputStream;
 
 public class JreHttpUrlConnection implements Closeable {
 
     private boolean closed = false;
     final HttpURLConnection con;
     private final URL url;
+    private static final String GZIP = "gzip";
 
     public JreHttpUrlConnection(URL url, ConnectionConfiguration cfg) throws ClientException {
         this.url = url;
         try {
             con = (HttpURLConnection) url.openConnection();
         } catch (IOException ex) {
-            throw new ClientException(ex, "Cannot setup connection to %s", url);
+            throw new ClientException(ex, "Cannot setup connection to %s (%s)", url, ex.getMessage());
         }
 
         con.setConnectTimeout((int) cfg.getConnectTimeout());
@@ -43,8 +44,7 @@ public class JreHttpUrlConnection implements Closeable {
         // HttpURL adds this header by default, HttpS does not
         // adding it here to be consistent
         con.setRequestProperty("Accept-Charset", "UTF-8");
-        // NOCOMMIT if we're going to accept gzip then we need to transparently unzip it on the way out...
-        // con.setRequestProperty("Accept-Encoding", "gzip");
+        //con.setRequestProperty("Accept-Encoding", GZIP);
     }
 
     public boolean head() throws ClientException {
@@ -53,7 +53,7 @@ public class JreHttpUrlConnection implements Closeable {
             int responseCode = con.getResponseCode();
             return responseCode == HttpURLConnection.HTTP_OK;
         } catch (IOException ex) {
-            throw new ClientException(ex, "Cannot HEAD address %s", url);
+            throw new ClientException(ex, "Cannot HEAD address %s (%s)", url, ex.getMessage());
         }
     }
 
@@ -65,21 +65,23 @@ public class JreHttpUrlConnection implements Closeable {
             try (OutputStream out = con.getOutputStream()) {
                 doc.accept(new DataOutputStream(out));
             }
-            if (con.getResponseCode() >= 400) {
-                InputStream err = con.getErrorStream();
-                String response;
-                if (err == null) {
-                    response = "server did not return a response";
-                } else {
-                    response = new String(IOUtils.asBytes(err).bytes(), StandardCharsets.UTF_8);
-                }
-                throw new ClientException("Protocol/client error; server returned [" + con.getResponseMessage() + "]: " + response);
+            if (con.getResponseCode() >= 500) {
+                throw new ClientException("Server error: %s(%d;%s)", con.getResponseMessage(), con.getResponseCode(), IOUtils.asBytes(getStream(con, con.getErrorStream())).toString());
             }
-            // NOCOMMIT seems weird that we buffer this into a byte stream and then wrap it in a byte array input stream.....
-            return IOUtils.asBytes(con.getInputStream());
+            if (con.getResponseCode() >= 400) {
+                throw new ClientException("Client error: %s(%d;%s)", con.getResponseMessage(), con.getResponseCode(), IOUtils.asBytes(getStream(con, con.getErrorStream())).toString());
+            }
+            return IOUtils.asBytes(getStream(con, con.getInputStream()));
         } catch (IOException ex) {
-            throw new ClientException(ex, "Cannot POST address %s", url);
+            throw new ClientException(ex, "Cannot POST address %s (%s)", url, ex.getMessage());
         }
+    }
+    
+    private static InputStream getStream(HttpURLConnection con, InputStream stream) throws IOException {
+        if (GZIP.equals(con.getContentEncoding())) {
+            return new GZIPInputStream(stream);
+        }
+        return stream;
     }
 
     public void connect() {
@@ -89,7 +91,7 @@ public class JreHttpUrlConnection implements Closeable {
         try {
             con.connect();
         } catch (IOException ex) {
-            throw new ClientException(ex, "Cannot open connection to %s", url);
+            throw new ClientException(ex, "Cannot open connection to %s (%s)", url, ex.getMessage());
         }
     }
 

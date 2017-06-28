@@ -4,13 +4,16 @@ apply plugin: 'application'
 description = 'Command line interface to Elasticsearch that speaks SQL'
 
 dependencies {
-  compile "org.jline:jline:3.3.0"
+  compile "org.jline:jline:3.3.1"
   compile project(':x-pack-elasticsearch:sql-clients:net-client')
   compile project(':x-pack-elasticsearch:sql-clients:cli-proto')
 
   testCompile project(":x-pack-elasticsearch:transport-client")
   testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
   testCompile project(':x-pack-elasticsearch:sql-clients:test-utils')
+  
+  runtime "org.fusesource.jansi:jansi:1.16"
+  runtime "org.elasticsearch:jna:4.4.0"
 }
 
 dependencyLicenses {

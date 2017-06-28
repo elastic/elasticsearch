@@ -36,7 +36,7 @@ public abstract class CliUtils { // TODO made public so it could be shared with 
         AtomicBoolean firstRun = new AtomicBoolean(true);
         // take a look at the first values
         cursor.forEachSet(rowSet -> {
-            for (boolean shouldRun = rowSet.hasCurrent(); shouldRun; shouldRun = rowSet.advance()) {
+            for (boolean shouldRun = rowSet.hasCurrentRow(); shouldRun; shouldRun = rowSet.advanceRow()) {
                 for (int column = 0; column < rowSet.rowSize(); column++) {
                     if (column > 0) {
                         sb.append("|");

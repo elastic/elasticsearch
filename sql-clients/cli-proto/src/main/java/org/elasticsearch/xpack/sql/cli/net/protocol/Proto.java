@@ -5,9 +5,11 @@
  */
 package org.elasticsearch.xpack.sql.cli.net.protocol;
 
+import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Function;
 
-import org.elasticsearch.xpack.sql.net.client.util.ObjectUtils;
+import static java.util.stream.Collectors.toMap;
 
 //
 // Basic tabular messaging for the CLI
@@ -15,7 +17,6 @@ import org.elasticsearch.xpack.sql.net.client.util.ObjectUtils;
 // The protocol is very similar (a subset) to the JDBC driver
 //
 // To simplify things, the protocol is NOT meant to be backwards compatible.
-//NOCOMMIT the protocol kind of should be backwards compatible though....
 //
 public interface Proto {
 
@@ -55,7 +56,8 @@ public interface Proto {
         // stacktrace  - string     - exception stacktrace (should be massaged)
         ERROR  (0xF000000);
 
-        private static final Map<Integer, Status> MAP = ObjectUtils.mapEnum(Status.class, Status::value);
+        private static final Map<Integer, Status> MAP = Arrays.stream(Status.class.getEnumConstants())
+                .collect(toMap(Status::value, Function.identity()));
 
         private final int value;
         
@@ -134,7 +136,8 @@ public interface Proto {
         
         COMMAND(0x10);
     
-        private static final Map<Integer, Action> MAP = ObjectUtils.mapEnum(Action.class, Action::value);
+        private static final Map<Integer, Action> MAP = Arrays.stream(Action.class.getEnumConstants())
+                .collect(toMap(Action::value, Function.identity()));
 
         private final int value;
 

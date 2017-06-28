@@ -23,7 +23,7 @@ import java.io.IOException;
 
 public abstract class ProtoHandler<R> implements HttpHandler, AutoCloseable {
 
-    protected static final Logger log = ESLoggerFactory.getLogger(ProtoHandler.class.getName());
+    protected final static Logger log = ESLoggerFactory.getLogger(ProtoHandler.class.getName());
     private final TimeValue TV = TimeValue.timeValueSeconds(5);
     protected final NodeInfo info;
     protected final String clusterName;
@@ -44,46 +44,46 @@ public abstract class ProtoHandler<R> implements HttpHandler, AutoCloseable {
         log.debug("Received query call...");
 
         try (DataInputStream in = new DataInputStream(http.getRequestBody())) {
-            
             String msg = headerReader.apply(in);
-            
             if (msg != null) {
                 http.sendResponseHeaders(RestStatus.BAD_REQUEST.getStatus(), -1);
+                http.close();
                 return;
             }
-
             handle(http, in);
-
         } catch (Exception ex) {
-            error(http, ex);
+            fail(http, ex);
         }
     }
 
     protected abstract void handle(HttpExchange http, DataInput in) throws IOException;
 
     protected void sendHttpResponse(HttpExchange http, R response) throws IOException {
-        http.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
+        // first do the conversion in case an exception is triggered
         BytesReference data = toProto.apply(response);
+        if (http.getResponseHeaders().isEmpty()) {
+            http.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
+        }
         data.writeTo(http.getResponseBody());
         http.close();
     }
 
-    protected void error(HttpExchange http, Exception ex) {
-        log.error("Caught error", ex);
+    protected void fail(HttpExchange http, Exception ex) {
+        log.error("Caught error while transmitting response", ex);
         try {
+            // the error conversion has failed, halt
             if (http.getResponseHeaders().isEmpty()) {
                 http.sendResponseHeaders(RestStatus.INTERNAL_SERVER_ERROR.getStatus(), -1);
             }
-        } catch (IOException ex2) {
-            // ignore
-            log.error("Caught error while trying to send error", ex2);
+        } catch (IOException ioEx) {
+            log.error("Caught error while trying to catch error", ex);
         } finally {
             http.close();
         }
     }
 
     @Override
-    public void close() {
+    public void close() throws Exception {
         // no-op
     }
 }

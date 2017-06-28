@@ -28,12 +28,12 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import org.elasticsearch.xpack.sql.jdbc.debug.Debug;
-import org.elasticsearch.xpack.sql.jdbc.net.client.HttpJdbcClient;
+import org.elasticsearch.xpack.sql.jdbc.net.client.JdbcHttpClient;
 import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 
 public class JdbcConnection implements Connection, JdbcWrapper {
 
-    final HttpJdbcClient client;
+    final JdbcHttpClient client;
 
     private boolean closed = false;
     private String catalog;
@@ -46,7 +46,7 @@ public class JdbcConnection implements Connection, JdbcWrapper {
 
     public JdbcConnection(JdbcConfiguration connectionInfo) {
         info = connectionInfo;
-        client = new HttpJdbcClient(connectionInfo);
+        client = new JdbcHttpClient(connectionInfo);
 
         url = connectionInfo.asUrl().toExternalForm();
         userName = connectionInfo.userName();

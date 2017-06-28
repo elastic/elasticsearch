@@ -5,17 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.Locale;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
-
-import static java.lang.String.format;
-
-import static org.elasticsearch.xpack.sql.net.client.util.StringUtils.nullAsEmpty;
+import static org.elasticsearch.xpack.sql.jdbc.net.protocol.StringUtils.nullAsEmpty;
+import static org.elasticsearch.xpack.sql.jdbc.net.protocol.StringUtils.splitToIndexAndType;
 
 public class MetaColumnRequest extends Request {
 
@@ -28,7 +25,7 @@ public class MetaColumnRequest extends Request {
         this.tablePattern = nullAsEmpty(tablePattern);
         this.columnPattern = nullAsEmpty(columnPattern);
 
-        String[] split = StringUtils.splitToIndexAndType(tablePattern);
+        String[] split = splitToIndexAndType(tablePattern);
 
         this.index = split[0];
         this.type = split[1];

@@ -30,19 +30,19 @@ public abstract class AbstractRowSetCursor implements RowSetCursor {
     public Object column(int index) {
         Assert.isTrue(index >= 0, "Invalid index %d; needs to be positive", index);
         Assert.isTrue(index < rowSize(), "Invalid index %d for row of size %d", index, rowSize());
-        Assert.isTrue(hasCurrent(), "RowSet contains no (more) entries; use hasCurrent() to check its status");
+        Assert.isTrue(hasCurrentRow(), "RowSet contains no (more) entries; use hasCurrent() to check its status");
         return getColumn(index);
     }
 
     protected abstract Object getColumn(int column);
 
     @Override
-    public boolean hasCurrent() {
+    public boolean hasCurrentRow() {
         return terminated ? false : doHasCurrent();
     }
 
     @Override
-    public boolean advance() {
+    public boolean advanceRow() {
         if (terminated) {
             return false;
         }
@@ -94,7 +94,7 @@ public abstract class AbstractRowSetCursor implements RowSetCursor {
     public String toString() {
         StringBuilder sb = new StringBuilder();
 
-        if (hasCurrent()) {
+        if (hasCurrentRow()) {
             for (int column = 0; column < size; column++) {
                 if (column > 0) {
                     sb.append("|");

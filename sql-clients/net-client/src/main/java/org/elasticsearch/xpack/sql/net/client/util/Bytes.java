@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.net.client.util;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 public class Bytes {
@@ -27,5 +28,9 @@ public class Bytes {
 
     public byte[] copy() {
         return Arrays.copyOf(buf, size);
+    }
+
+    public String toString() {
+        return new String(buf, 0, size, StandardCharsets.UTF_8);
     }
 }

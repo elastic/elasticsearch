@@ -3,11 +3,5 @@ apply plugin: 'elasticsearch.build'
 description = 'Request and response objects shared by the cli and ' +
     'its backend in :x-pack-elasticsearch:plugin'
 
-dependencies {
-  compile project(':x-pack-elasticsearch:sql-clients:net-client')
-}
-
 dependencyLicenses {
-  mapping from: /net-client.*/, to: 'elasticsearch'
-  ignoreSha 'net-client'
 }

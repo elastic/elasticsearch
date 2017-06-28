@@ -26,10 +26,10 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.cli.action.CliAction;
 import org.elasticsearch.xpack.sql.plugin.cli.action.TransportCliAction;
-import org.elasticsearch.xpack.sql.plugin.cli.http.HttpCliAction;
+import org.elasticsearch.xpack.sql.plugin.cli.http.CliHttpHandler;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.JdbcAction;
 import org.elasticsearch.xpack.sql.plugin.jdbc.action.TransportJdbcAction;
-import org.elasticsearch.xpack.sql.plugin.jdbc.http.HttpJdbcAction;
+import org.elasticsearch.xpack.sql.plugin.jdbc.http.JdbcHttpHandler;
 import org.elasticsearch.xpack.sql.plugin.sql.action.SqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.action.TransportSqlAction;
 import org.elasticsearch.xpack.sql.plugin.sql.rest.RestSqlAction;
@@ -56,8 +56,8 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
 
         return Arrays.asList(new RestSqlAction(settings, restController),
-                             new HttpCliAction(settings, restController),
-                             new HttpJdbcAction(settings, restController));
+                             new CliHttpHandler(settings, restController),
+                             new JdbcHttpHandler(settings, restController));
     }
     
     @Override

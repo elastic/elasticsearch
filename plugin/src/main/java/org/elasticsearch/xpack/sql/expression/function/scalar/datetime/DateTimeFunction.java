@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
-import java.util.Locale;
-
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
@@ -19,9 +17,11 @@ import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.ReadableDateTime;
+
+import java.util.Locale;
 
 import static java.lang.String.format;
-
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
@@ -66,14 +66,14 @@ public abstract class DateTimeFunction extends ScalarFunction {
     @Override
     public ColumnsProcessor asProcessor() {
         return l -> {
-            DateTime dt = null;
+            ReadableDateTime dt = null;
             // most dates are returned as long
             if (l instanceof Long) {
                 dt = new DateTime((Long) l, DateTimeZone.UTC);
             }
             // but date histogram returns the keys already as DateTime on UTC
             else {
-                dt = (DateTime) l;
+                dt = (ReadableDateTime) l;
             }
             return Integer.valueOf(extract(dt));
         };
@@ -84,7 +84,7 @@ public abstract class DateTimeFunction extends ScalarFunction {
         return DataTypes.INTEGER;
     }
 
-    protected abstract int extract(DateTime dt);
+    protected abstract int extract(ReadableDateTime dt);
 
     // used for aggregration (date histogram)
     public abstract String interval();

@@ -11,13 +11,14 @@ import java.sql.SQLException;
 import java.sql.SQLRecoverableException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.SQLTimeoutException;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Function;
 
 import javax.sql.rowset.serial.SerialException;
 
-import org.elasticsearch.xpack.sql.net.client.util.ObjectUtils;
-
 import static java.util.Collections.emptyMap;
+import static java.util.stream.Collectors.toMap;
 
 //
 // Basic tabular messaging for the JDBC driver
@@ -28,7 +29,6 @@ import static java.util.Collections.emptyMap;
 // The proto is based around a simple, single request-response model.
 // Note the field order is _important_.
 // To simplify things, the protocol is not meant to be backwards compatible.
-// NOCOMMIT the protocol kind of should be backwards compatible though....
 //
 public interface Proto {
 
@@ -68,7 +68,8 @@ public interface Proto {
         // stacktrace  - string     - exception stacktrace (should be massaged)
         ERROR  (0xF000000);
 
-        private static final Map<Integer, Status> MAP = ObjectUtils.mapEnum(Status.class, Status::value);
+        private static final Map<Integer, Status> MAP = Arrays.stream(Status.class.getEnumConstants())
+                .collect(toMap(Status::value, Function.identity()));
 
         private final int value;
         
@@ -109,7 +110,8 @@ public interface Proto {
         TIMEOUT    (0x400);
         
 
-        private static final Map<Integer, SqlExceptionType> MAP = ObjectUtils.mapEnum(SqlExceptionType.class, SqlExceptionType::value);
+        private static final Map<Integer, SqlExceptionType> MAP = Arrays.stream(SqlExceptionType.class.getEnumConstants())
+                .collect(toMap(SqlExceptionType::value, Function.identity()));
 
         private final int value;
 
@@ -276,7 +278,8 @@ public interface Proto {
         QUERY_CLOSE(0x19);
 
 
-        private static final Map<Integer, Action> MAP = ObjectUtils.mapEnum(Action.class, Action::value);
+        private static final Map<Integer, Action> MAP = Arrays.stream(Action.class.getEnumConstants())
+                .collect(toMap(Action::value, Function.identity()));
 
         private final int value;
 

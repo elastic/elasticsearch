@@ -5,11 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.xpack.sql.cli.net.client.HttpCliClient;
-import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
-import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintWriter;
+import java.util.Locale;
+import java.util.Properties;
+
+import org.elasticsearch.xpack.sql.cli.net.client.CliHttpClient;
+import org.elasticsearch.xpack.sql.net.client.util.IOUtils;
 import org.jline.keymap.BindingReader;
 import org.jline.reader.EndOfFileException;
 import org.jline.reader.LineReader;
@@ -17,19 +20,15 @@ import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.UserInterruptException;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
+import org.jline.utils.AttributedString;
+import org.jline.utils.AttributedStringBuilder;
 import org.jline.utils.InfoCmp.Capability;
 
-import java.awt.Desktop;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Locale;
-import java.util.Properties;
-
-import static java.lang.String.format;
+import static org.jline.utils.AttributedStyle.BOLD;
+import static org.jline.utils.AttributedStyle.BRIGHT;
+import static org.jline.utils.AttributedStyle.DEFAULT;
+import static org.jline.utils.AttributedStyle.RED;
+import static org.jline.utils.AttributedStyle.YELLOW;
 
 public class Cli {
 
@@ -37,7 +36,7 @@ public class Cli {
     private final BindingReader bindingReader;
     private final Keys keys;
     private final CliConfiguration cfg;
-    private final HttpCliClient cliClient;
+    private final CliHttpClient cliClient;
 
     public static void main(String... args) throws Exception {
         try (Terminal term = TerminalBuilder.builder().build()) {
@@ -51,8 +50,8 @@ public class Cli {
         bindingReader = new BindingReader(term.reader());
         keys = new Keys(term);
         
-        cfg = new CliConfiguration("localhost:9200", new Properties());
-        cliClient = new HttpCliClient(cfg);
+        cfg = new CliConfiguration("localhost:9200/_cli", new Properties());
+        cliClient = new CliHttpClient(cfg);
     }
 
 
@@ -64,13 +63,16 @@ public class Cli {
                 .completer(Completers.INSTANCE)
                 .build();
         
-        String DEFAULT_PROMPT = "sql> ";
-        String MULTI_LINE_PROMPT = "   | ";
+        String prompt = null;
+
+        String DEFAULT_PROMPT = new AttributedString("sql> ", DEFAULT.foreground(YELLOW)).toAnsi(term);
+        String MULTI_LINE_PROMPT = new AttributedString("   | ", DEFAULT.foreground(YELLOW)).toAnsi(term);
 
         StringBuilder multiLine = new StringBuilder();
-        String prompt = DEFAULT_PROMPT;
+        prompt = DEFAULT_PROMPT;
 
         out.flush();
+        printLogo(out);
 
         while (true) {
             String line = null;
@@ -103,26 +105,61 @@ public class Cli {
                 line = multiLine.toString().trim();
                 multiLine.setLength(0);
             }
+            //
+            // local commands
+            //
+
             // special case to handle exit
             if (isExit(line)) {
-                out.println("Bye!");
+                out.println(new AttributedString("Bye!", DEFAULT.foreground(BRIGHT)).toAnsi(term));
                 out.flush();
                 return;
             }
             if (isClear(line)) {
                 term.puts(Capability.clear_screen);
             }
-            else if (isServerInfo(line)) {
-                executeServerInfo(out);
+            else if (isLogo(line)) {
+                printLogo(out);
             }
+
             else {
-                executeCommand(line, out);
+                try {
+                    if (isServerInfo(line)) {
+                        executeServerInfo(out);
+                    }
+                    else {
+                        executeCommand(line, out);
+                    }
+                } catch (RuntimeException ex) {
+                    AttributedStringBuilder asb = new AttributedStringBuilder();
+                    asb.append("Communication error [", BOLD.foreground(RED));
+                    asb.append(ex.getMessage(), DEFAULT.boldOff().italic().foreground(YELLOW));
+                    asb.append("]", BOLD.underlineOff().foreground(RED));
+                    out.println(asb.toAnsi(term));
+                }
+                out.println();
             }
 
             out.flush();
         }
     }
 
+    private static String logo() {
+        try (InputStream io = Cli.class.getResourceAsStream("logo.txt")) {
+            if (io != null) {
+                return IOUtils.asBytes(io).toString();
+            }
+        } catch (IOException io) {
+        }
+        return "Could not load logo...";
+    }
+
+    private void printLogo(PrintWriter out) {
+        term.puts(Capability.clear_screen);
+        out.println(logo());
+        out.println();
+    }
+    
     private static boolean isClear(String line) {
         line = line.toLowerCase(Locale.ROOT);
         return (line.equals("cls"));
@@ -130,12 +167,16 @@ public class Cli {
 
     private boolean isServerInfo(String line) {
         line = line.toLowerCase(Locale.ROOT);
-        return (line.equals("connect"));
+        return (line.equals("info"));
+    }
+
+    private boolean isLogo(String line) {
+        line = line.toLowerCase(Locale.ROOT);
+        return (line.equals("logo"));
     }
 
     private void executeServerInfo(PrintWriter out) {
-        InfoResponse info = cliClient.serverInfo();
-        out.println(format(Locale.ROOT, "Node:%s, Cluster:%s, Version:%s", info.node, info.cluster, info.versionString));
+        out.println(ResponseToString.toAnsi(cliClient.serverInfo()).toAnsi(term));
     }
 
     private static boolean isExit(String line) {
@@ -144,29 +185,6 @@ public class Cli {
     }
 
     protected void executeCommand(String line, PrintWriter out) throws IOException {
-        // remove trailing
-        CommandResponse cmd = cliClient.command(line, null);
-
-        String result = StringUtils.EMPTY;
-        if (cmd.data != null) {
-            result = cmd.data.toString();
-            // TODO: handle graphviz
-        }
-        out.println(result);
-    }
-
-    private String displayGraphviz(String str) throws IOException {
-        // save the content to a temp file
-        Path dotTempFile = Files.createTempFile(Paths.get(System.getProperty("java.io.tmpdir")), "sql-gv", ".dot2img");
-        Files.write(dotTempFile, str.getBytes(StandardCharsets.UTF_8));
-        // run graphviz on it (dot needs to be on the file path)
-        open(dotTempFile);
-        return "";
-    }
-
-    @SuppressForbidden(reason="The desktop API needs File instead of Path")
-    private void open(Path path) throws IOException {
-        Desktop desktop = Desktop.getDesktop();
-        desktop.open(path.toFile());
+        out.print(ResponseToString.toAnsi(cliClient.command(line, null)).toAnsi(term));
     }
 }

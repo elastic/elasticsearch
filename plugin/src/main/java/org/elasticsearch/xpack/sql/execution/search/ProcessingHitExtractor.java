@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnsProcessor;
 
 class ProcessingHitExtractor implements HitExtractor {
 
-    private final HitExtractor delegate;
+    final HitExtractor delegate;
     private final ColumnsProcessor processor;
 
     ProcessingHitExtractor(HitExtractor delegate, ColumnsProcessor processor) {

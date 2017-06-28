@@ -34,10 +34,9 @@ public class TransportCliAction extends HandledTransportAction<CliRequest, CliRe
         super(settings, CliAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, CliRequest::new);
 
         // lazy init of the resolver
-        // NOCOMMIT indexNameExpressionResolver should be available some other way
+        // NOCOMMIT indexNameExpressionResolver should be available some other way; so should the localNode name :)
         ((EsCatalog) planExecutor.catalog()).setIndexNameExpressionResolver(indexNameExpressionResolver);
-        this.cliServer = new CliServer(planExecutor, clusterService.getClusterName().value(), () -> clusterService.localNode().getName(),
-                Version.CURRENT, Build.CURRENT);
+        this.cliServer = new CliServer(planExecutor, clusterService.getClusterName().value(), () -> clusterService.localNode().getName(), Version.CURRENT, Build.CURRENT);
     }
 
     @Override

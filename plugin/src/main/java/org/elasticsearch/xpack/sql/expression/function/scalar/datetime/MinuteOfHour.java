@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.joda.time.DateTime;
+import org.joda.time.ReadableDateTime;
 
 public class MinuteOfHour extends DateTimeFunction {
 
@@ -26,7 +26,7 @@ public class MinuteOfHour extends DateTimeFunction {
     }
 
     @Override
-    protected int extract(DateTime dt) {
+    protected int extract(ReadableDateTime dt) {
         return dt.getMinuteOfHour();
     }
 }

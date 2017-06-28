@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.protocol;
 
+import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Locale;
 
-import org.elasticsearch.xpack.sql.jdbc.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
-
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.sql.jdbc.net.protocol.StringUtils.splitToIndexAndType;
 
 public class MetaTableRequest extends Request {
 
@@ -25,7 +25,7 @@ public class MetaTableRequest extends Request {
         super(Action.META_TABLE);
 
         this.pattern = pattern;
-        String[] split = StringUtils.splitToIndexAndType(pattern);
+        String[] split = splitToIndexAndType(pattern);
 
         this.index = split[0];
         this.type = split[1];

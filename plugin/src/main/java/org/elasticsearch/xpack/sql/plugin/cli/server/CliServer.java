@@ -6,30 +6,25 @@
 package org.elasticsearch.xpack.sql.plugin.cli.server;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Request;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.SearchHitRowSetCursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+import org.elasticsearch.xpack.sql.plugin.cli.http.CliServerProtoUtils;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.xpack.sql.net.client.util.StringUtils.EMPTY;
+import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
 
 public class CliServer {
 
@@ -51,8 +46,11 @@ public class CliServer {
             else if (req instanceof CommandRequest) {
                 command((CommandRequest) req, listener);
             }
+            else {
+                listener.onResponse(new ExceptionResponse(req.action, "Invalid requested", null));
+            }
         } catch (Exception ex) {
-            listener.onResponse(exception(ex, req.action));
+            listener.onResponse(CliServerProtoUtils.exception(ex, req.action));
         }
     }
 
@@ -73,35 +71,11 @@ public class CliServer {
 
                     listener.onResponse(new CommandResponse(start, stop, requestId, c));
                 }, 
-                ex -> exception(ex, req.action)));
+                ex -> listener.onResponse(CliServerProtoUtils.exception(ex, req.action))));
     }
 
     public void queryPage(QueryPageRequest req, ActionListener<Response> listener) {
         throw new UnsupportedOperationException();
     }
 
-    private static Response exception(Throwable cause, Action action) {
-        String message = EMPTY;
-        String cs = EMPTY;
-        if (cause != null) {
-            if (StringUtils.hasText(cause.getMessage())) {
-                message = cause.getMessage();
-            }
-            cs = cause.getClass().getName();
-        }
-
-        if (expectedException(cause)) {
-            return new ExceptionResponse(action, message, cs);
-        }
-        else {
-            // TODO: might want to 'massage' this
-            StringWriter sw = new StringWriter();
-            cause.printStackTrace(new PrintWriter(sw));
-            return new ErrorResponse(action, message, cs, sw.toString());
-        }
-    }
-
-    private static boolean expectedException(Throwable cause) {
-        return (cause instanceof SqlException || cause instanceof ResourceNotFoundException);
-    }
 }

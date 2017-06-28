@@ -34,6 +34,6 @@ class CliProtoHandler extends ProtoHandler<Response> {
     @Override
     protected void handle(HttpExchange http, DataInput in) throws IOException {
         Request req = ProtoUtils.readRequest(in);
-        server.handle(req, wrap(resp -> sendHttpResponse(http, resp), ex -> error(http, ex)));
+        server.handle(req, wrap(resp -> sendHttpResponse(http, resp), ex -> fail(http, ex)));
     }
 }

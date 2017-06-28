@@ -5,12 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.function.Consumer;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -18,6 +12,12 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.session.AbstractRowSetCursor;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 import org.elasticsearch.xpack.sql.type.Schema;
+
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.function.Consumer;
 
 //
 // Since the results might contain nested docs, the iteration is similar to that of Aggregation
@@ -48,9 +48,9 @@ public class SearchHitRowSetCursor extends AbstractRowSetCursor {
 
         String innerH = null;
         for (HitExtractor ex : exts) {
-            if (ex instanceof InnerHitExtractor) {
-                innerH = ((InnerHitExtractor) ex).parent();
-                innerHits.add(innerH);
+            InnerHitExtractor ie = getInnerHitExtractor(ex);
+            if (ie != null) {
+                innerH = ie.parent();
             }
         }
 
@@ -82,7 +82,7 @@ public class SearchHitRowSetCursor extends AbstractRowSetCursor {
     @Override
     protected Object getColumn(int column) {
         HitExtractor e = extractors.get(column);
-        int extractorLevel = e instanceof InnerHitExtractor ? 1 : 0;
+        int extractorLevel = isInnerHitExtractor(e) ? 1 : 0;
         
         SearchHit hit = null;
         SearchHit[] sh = hits;
@@ -96,6 +96,20 @@ public class SearchHitRowSetCursor extends AbstractRowSetCursor {
         }
         
         return e.get(hit);
+    }
+
+    private boolean isInnerHitExtractor(HitExtractor he) {
+        return getInnerHitExtractor(he) != null;
+    }
+
+    private InnerHitExtractor getInnerHitExtractor(HitExtractor he) {
+        if (he instanceof ProcessingHitExtractor) {
+            return getInnerHitExtractor(((ProcessingHitExtractor) he).delegate);
+        }
+        if (he instanceof InnerHitExtractor) {
+            return (InnerHitExtractor) he;
+        }
+        return null;
     }
 
     @Override

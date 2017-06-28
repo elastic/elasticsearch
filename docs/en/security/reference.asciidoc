@@ -3,7 +3,7 @@
 * <<security-privileges, Security Privileges>>
 * {ref}/security-settings.html[Security Settings]
 * <<security-files, Security Files>>
-* <<security-api, Security API>>
+* {ref}/security-api.html[Security API]
 
 include::reference/privileges.asciidoc[]
 

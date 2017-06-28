@@ -1,3 +1,4 @@
+[role="xpack"]
 [[security-api]]
 == Security APIs
 

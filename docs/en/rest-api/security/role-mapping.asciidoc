@@ -1,3 +1,4 @@
+[role="xpack"]
 [[security-api-role-mapping]]
 === Role Mapping APIs
 
@@ -6,7 +7,7 @@ To use this API, you must have at least the `manage_security` cluster privilege.
 
 NOTE: The API requires that each role-mapping have a distinct name. The name is
  used solely as an identifier to facilitate interaction via the API, and does
- not affect the behaviour of the mapping in any way.
+ not affect the behavior of the mapping in any way.
 
 [[security-api-put-role-mapping]]
 To add a role-mapping, submit a PUT or POST request to the `/_xpack/security/role_mapping/<name>`

@@ -13,9 +13,9 @@ The native realm is added to the realm chain by default. You don't need to
 explicitly configure a native realm to manage users through the REST APIs.
 
 
-IMPORTANT: When you configure realms in `elasticsearch.yml`, only the 
-realms you specify are used for authentication. To use the 
-`native` realm as a fallback, you must include it in the realm chain. 
+IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
+realms you specify are used for authentication. To use the
+`native` realm as a fallback, you must include it in the realm chain.
 
 You can, however, configure options for the `native` realm in the
 `xpack.security.authc.realms` namespace in `elasticsearch.yml`. Explicitly
@@ -87,7 +87,8 @@ xpack:
 [[managing-native-users]]
 ==== Managing Native Users
 
-You manage users in the `native` realm through the <<security-api-users, user API>>.
+You manage users in the `native` realm through the
+{ref}/security-api-users.html[user API].
 
 [[migrating-from-file]]
 NOTE: To migrate file-based users to the `native` realm, use the
@@ -100,9 +101,9 @@ NOTE: To migrate file-based users to the `native` realm, use the
 To add a user, submit a PUT or POST request to the `/_xpack/security/user/<username>`
 endpoint.
 
-Usernames must be at least 1 and no more than 1024 characters. They can 
-contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces, punctuation, and 
-printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block]. 
+Usernames must be at least 1 and no more than 1024 characters. They can
+contain alphanumeric characters (`a-z`, `A-Z`, `0-9`), spaces, punctuation, and
+printable symbols in the https://en.wikipedia.org/wiki/Basic_Latin_(Unicode_block)[Basic Latin (ASCII) block].
 Leading or trailing whitespace is not allowed.
 
 [source,js]

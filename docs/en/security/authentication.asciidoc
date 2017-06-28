@@ -40,7 +40,8 @@ any changes you have applied will be lost.
 Although they share the same API, the built-in users are separate and distinct
 from users managed by the <<native-realm, native realm>>. Disabling the native
 realm will not have any effect on the built-in users. The built-in users can
-be disabled individually, using the <<security-api-users, user management api>>.
+be disabled individually, using the
+{ref}/security-api-users.html[user management API].
 
 [float]
 [[reset-built-in-user-passwords]]
@@ -50,7 +51,7 @@ be disabled individually, using the <<security-api-users, user management api>>.
 You must reset the default passwords for all built-in users, and then
 <<disabling-default-password, disable default password support>>.
 You can update passwords from the *Management > Users* UI in Kibana or with the
-<<security-api-reset-user-password, Reset Password API>>:
+{ref}/security-api-reset-user-password.html[Reset Password API]:
 
 [source,js]
 ---------------------------------------------------------------------

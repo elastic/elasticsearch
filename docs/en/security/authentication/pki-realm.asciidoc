@@ -46,9 +46,9 @@ With this configuration, any certificate trusted by the SSL/TLS layer is accepte
 for authentication. The username is the common name (CN) extracted from the DN
 of the certificate.
 +
-IMPORTANT: When you configure realms in `elasticsearch.yml`, only the 
-realms you specify are used for authentication. If you also want to use the 
-`native` or `file` realms, you must include them in the realm chain. 
+IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
+realms you specify are used for authentication. If you also want to use the
+`native` or `file` realms, you must include them in the realm chain.
 +
 If you want to use something other than the CN of the DN as the username, you
 can specify a regex to extract the desired username. For example, the regex in
@@ -118,7 +118,7 @@ xpack:
 ==== Mapping Roles for PKI Users
 
 You map roles for PKI users through the
-<<security-api-role-mapping, role-mapping API>>, or by using a file stored on
+{ref}/security-api-role-mapping.html[role-mapping API], or by using a file stored on
 each node. When a user authenticates against a PKI realm, the privileges for
 that user are the union of all privileges defined by the roles to which the
 user is mapped.

@@ -29,13 +29,9 @@ The job is ready to resume its analysis from where it left off, once new data is
 
 ==== Request Body
 
-`open_timeout`::
+`timeout`::
   (time) Controls the time to wait until a job has opened.
   The default value is 30 minutes.
-
-`ignore_downtime`::
-  (boolean) If true (default), any gap in data since it was
-  last closed is treated as a maintenance window. That is to say, it is not an anomaly
 
 
 ==== Authorization
@@ -54,7 +50,7 @@ The following example opens the `event_rate` job and sets an optional property:
 --------------------------------------------------
 POST _xpack/ml/anomaly_detectors/event_rate/_open
 {
-  "ignore_downtime": false
+  "timeout": "35m"
 }
 --------------------------------------------------
 // CONSOLE

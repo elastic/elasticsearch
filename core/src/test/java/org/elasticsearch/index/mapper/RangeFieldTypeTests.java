@@ -83,7 +83,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
         QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-                null, null, () -> nowInMillis, null);
+            writableRegistry(), null, null, () -> nowInMillis, null);
         RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type, Version.CURRENT);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);

@@ -72,8 +72,8 @@ make it easier to control which users have authority to view and manage the jobs
 {dfeeds}, and results.
 
 By default, you can perform all of the steps in this tutorial by using the
-built-in `elastic` super user. The default password for the `elastic` user is
-`changeme`. For information about how to change that password, see
+built-in `elastic` super user. However, the password must be set before the user
+can do anything. For information about how to set that password, see
 <<security-getting-started>>.
 
 If you are performing these steps in a production environment, take extra care
@@ -191,7 +191,7 @@ mapping for the data set:
 [source,shell]
 ----------------------------------
 
-curl -u elastic:changeme -X PUT -H 'Content-Type: application/json'
+curl -u elastic:x-pack-test-password -X PUT -H 'Content-Type: application/json'
 http://localhost:9200/server-metrics -d '{
    "settings":{
       "number_of_shards":1,
@@ -227,7 +227,7 @@ http://localhost:9200/server-metrics -d '{
 }'
 ----------------------------------
 
-NOTE: If you run this command, you must replace `changeme` with your
+NOTE: If you run this command, you must replace `x-pack-test-password` with your
 actual password.
 
 ////
@@ -247,16 +247,16 @@ example, which loads the four JSON files:
 [source,shell]
 ----------------------------------
 
-curl -u elastic:changeme -X POST -H "Content-Type: application/json"
+curl -u elastic:x-pack-test-password -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_1.json"
 
-curl -u elastic:changeme -X POST -H "Content-Type: application/json"
+curl -u elastic:x-pack-test-password -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_2.json"
 
-curl -u elastic:changeme -X POST -H "Content-Type: application/json"
+curl -u elastic:x-pack-test-password -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_3.json"
 
-curl -u elastic:changeme -X POST -H "Content-Type: application/json"
+curl -u elastic:x-pack-test-password -X POST -H "Content-Type: application/json"
 http://localhost:9200/server-metrics/_bulk --data-binary "@server-metrics_4.json"
 ----------------------------------
 
@@ -271,7 +271,7 @@ You can verify that the data was loaded successfully with the following command:
 [source,shell]
 ----------------------------------
 
-curl 'http://localhost:9200/_cat/indices?v' -u elastic:changeme
+curl 'http://localhost:9200/_cat/indices?v' -u elastic:x-pack-test-password
 ----------------------------------
 
 You should see output similar to the following:

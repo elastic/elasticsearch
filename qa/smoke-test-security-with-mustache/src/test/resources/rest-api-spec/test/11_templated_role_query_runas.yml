@@ -12,7 +12,7 @@ setup:
         username: "inline_template_user"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "inline_template_role" ]
             }
   - do:
@@ -20,7 +20,7 @@ setup:
         username: "stored_template_user"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "stored_template_role" ]
             }
 
@@ -29,7 +29,7 @@ setup:
         username: "terms_template_user"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "terms_template_role" ],
               "metadata": {
                 "groups": [ "inline_template_user" ]

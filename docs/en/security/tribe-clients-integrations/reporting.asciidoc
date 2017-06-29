@@ -24,7 +24,7 @@ the following request creates a `reporter` user that has the
 ---------------------------------------------------------------
 POST /_xpack/security/user/reporter
 {
-  "password" : "changeme",
+  "password" : "x-pack-test-password",
   "roles" : ["kibana_user", "reporting_user"],
   "full_name" : "Reporting User"
 }

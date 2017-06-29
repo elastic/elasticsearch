@@ -21,6 +21,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
@@ -112,7 +113,8 @@ public class SecurityRestFilterTests extends ESTestCase {
 
     public void testProcessFiltersBodyCorrectly() throws Exception {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-                .withContent(new BytesArray("{\"password\": \"changeme\", \"foo\": \"bar\"}"), XContentType.JSON).build();
+                .withContent(new BytesArray("{\"password\": \"" + SecuritySettingsSource.TEST_PASSWORD + "\", \"foo\": \"bar\"}"),
+                        XContentType.JSON).build();
         when(channel.request()).thenReturn(restRequest);
         SetOnce<RestRequest> handlerRequest = new SetOnce<>();
         restHandler = new FilteredRestHandler() {
@@ -143,7 +145,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         Map<String, Object> original = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, handlerRequest.get()
                 .content()).map();
         assertEquals(2, original.size());
-        assertEquals("changeme", original.get("password"));
+        assertEquals(SecuritySettingsSource.TEST_PASSWORD, original.get("password"));
         assertEquals("bar", original.get("foo"));
 
         assertNotEquals(restRequest, authcServiceRequest.get());

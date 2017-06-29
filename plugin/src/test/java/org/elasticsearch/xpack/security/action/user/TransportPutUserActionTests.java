@@ -11,10 +11,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
@@ -163,7 +163,7 @@ public class TransportPutUserActionTests extends ESTestCase {
         final PutUserRequest request = new PutUserRequest();
         request.username(user.principal());
         if (isCreate) {
-            request.passwordHash(Hasher.BCRYPT.hash(new SecureString("changeme".toCharArray())));
+            request.passwordHash(Hasher.BCRYPT.hash(SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING));
         }
         final boolean created = isCreate ? randomBoolean() : false; // updates should always return false for create
         doAnswer(new Answer() {

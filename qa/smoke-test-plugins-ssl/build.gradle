@@ -168,7 +168,7 @@ integTestCluster {
   setting 'xpack.monitoring.exporters._http.ssl.truststore.path', clientKeyStore.name
   setting 'xpack.monitoring.exporters._http.ssl.truststore.password', 'keypass'
   setting 'xpack.monitoring.exporters._http.auth.username', 'monitoring_agent'
-  setting 'xpack.monitoring.exporters._http.auth.password', 'changeme'
+  setting 'xpack.monitoring.exporters._http.auth.password', 'x-pack-test-password'
 
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.http.ssl.keystore.path', nodeKeystore.name
@@ -183,9 +183,9 @@ integTestCluster {
   extraConfigFile clientKeyStore.name, clientKeyStore
 
   setupCommand 'setupTestUser',
-               'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+               'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupMonitoringUser',
-               'bin/x-pack/users', 'useradd', 'monitoring_agent', '-p', 'changeme', '-r', 'remote_monitoring_agent'
+               'bin/x-pack/users', 'useradd', 'monitoring_agent', '-p', 'x-pack-test-password', '-r', 'remote_monitoring_agent'
 
   waitCondition = { NodeInfo node, AntBuilder ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
@@ -204,7 +204,7 @@ integTestCluster {
         httpURLConnection = (HttpsURLConnection) new URL("https://${node.httpUri()}/_cluster/health?wait_for_nodes=${numNodes}&wait_for_status=yellow").openConnection();
         httpURLConnection.setSSLSocketFactory(sslContext.getSocketFactory());
         httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                Base64.getEncoder().encodeToString("test_user:changeme".getBytes(StandardCharsets.UTF_8)));
+                Base64.getEncoder().encodeToString("test_user:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
         httpURLConnection.setRequestMethod("GET");
         httpURLConnection.connect();
         if (httpURLConnection.getResponseCode() == 200) {

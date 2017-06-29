@@ -101,7 +101,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
                         .put("xpack.security.audit.outputs", randomFrom("index", "index,logfile"))
                         .putArray("xpack.security.audit.index.client.hosts", addresses.toArray(new String[addresses.size()]))
                         .put("xpack.security.audit.index.client.cluster.name", clusterName)
-                        .put("xpack.security.audit.index.client.xpack.security.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD);
+                        .put("xpack.security.audit.index.client.xpack.security.user", TEST_USER_NAME + ":" + TEST_PASSWORD);
 
                 addClientSSLSettings(builder, "xpack.security.audit.index.client.");
                 return builder.build();

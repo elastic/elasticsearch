@@ -36,7 +36,8 @@ curl -XPUT -u elastic 'localhost:9200/_xpack/security/user/logstash_system/_pass
 ----------------------------------------------------------
 // NOTCONSOLE
 
-NOTE: The default password for the `elastic` user is `changeme`.
+NOTE: By default, the `elastic` user does not have a password set. Until its password is set, the `elastic` user will only be
+allowed to submit change password rest requests from localhost.
 
 --
 

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealmTests;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.test.ESTestCase;
@@ -180,9 +181,11 @@ public class TransportGetUsersActionTests extends ESTestCase {
             }
         });
 
+        User[] users = responseRef.get().users();
+
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
-        assertThat(responseRef.get().users(), arrayContaining(reservedUsers.toArray(new User[reservedUsers.size()])));
+        assertThat(users, arrayContaining(reservedUsers.toArray(new User[reservedUsers.size()])));
     }
 
     public void testGetAllUsers() {

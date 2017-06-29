@@ -61,7 +61,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         execute("auto", pathHomeParameter, "-b", "true");
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        SecureString defaultPassword = new SecureString("changeme".toCharArray());
+        SecureString defaultPassword = new SecureString("".toCharArray());
 
         InOrder inOrder = Mockito.inOrder(httpClient);
         String elasticUrl = "http://localhost:9200/_xpack/security/user/elastic/_password";
@@ -80,7 +80,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         execute("auto", pathHomeParameter, "-u", url, "-b");
 
         ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        SecureString defaultPassword = new SecureString("changeme".toCharArray());
+        SecureString defaultPassword = new SecureString("".toCharArray());
 
         InOrder inOrder = Mockito.inOrder(httpClient);
         String elasticUrl = url + "/_xpack/security/user/elastic/_password";
@@ -99,7 +99,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         execute("interactive", pathHomeParameter);
 
-        SecureString defaultPassword = new SecureString("changeme".toCharArray());
+        SecureString defaultPassword = new SecureString("".toCharArray());
 
         InOrder inOrder = Mockito.inOrder(httpClient);
         String elasticUrl = "http://localhost:9200/_xpack/security/user/elastic/_password";

@@ -113,7 +113,7 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
         try {
             httpURLConnection = (HttpURLConnection) new URL("http://${node.httpUri()}/_cluster/health").openConnection();
             httpURLConnection.setRequestProperty("Authorization", "Basic " +
-                    Base64.getEncoder().encodeToString("test_admin:changeme".getBytes(StandardCharsets.UTF_8)));
+                    Base64.getEncoder().encodeToString("test_admin:x-pack-test-password".getBytes(StandardCharsets.UTF_8)));
             httpURLConnection.setRequestMethod("GET");
             httpURLConnection.setConnectTimeout(1000);
             httpURLConnection.setReadTimeout(30000);
@@ -145,7 +145,7 @@ Closure waitWithAuth = { NodeInfo node, AntBuilder ant ->
 integTestCluster {
     plugin ':x-pack-elasticsearch:plugin'
     setupCommand 'setupTestAdmin',
-            'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
+            'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
     waitCondition = waitWithAuth
 }
 

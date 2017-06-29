@@ -8,8 +8,11 @@ package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
@@ -17,11 +20,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.ml.MachineLearningTemplateRegistry;
+import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -31,7 +38,9 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 public abstract class XPackRestTestCase extends ESClientYamlSuiteTestCase {
 
     private static final String BASIC_AUTH_VALUE =
-            basicAuthHeaderValue("elastic", new SecureString("changeme".toCharArray()));
+            basicAuthHeaderValue("elastic", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
+
+    private final SetOnce<Integer> oneAllowed401 = new SetOnce<>();
 
     public XPackRestTestCase(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -47,6 +56,26 @@ public abstract class XPackRestTestCase extends ESClientYamlSuiteTestCase {
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
                 .build();
+    }
+
+
+    @Before
+    public void setPasswords() throws IOException {
+        BasicHeader authHeader = new BasicHeader("Authorization",
+                basicAuthHeaderValue("elastic", new SecureString("".toCharArray())));
+        String elasticUserPayload = "{\"password\" : \"" + SecuritySettingsSource.TEST_PASSWORD + "\"}";
+        try {
+            client().performRequest("put", "_xpack/security/user/elastic/_password", Collections.emptyMap(),
+                    new StringEntity(elasticUserPayload, ContentType.APPLICATION_JSON), authHeader);
+        } catch (ResponseException e) {
+            // The password might have already been set by the build.gradle file. So we ignore unsuccessful attempts
+            // due to failed authentication
+            if (e.getResponse().getStatusLine().getStatusCode() != 401) {
+                throw e;
+            } else {
+                oneAllowed401.set(e.getResponse().getStatusLine().getStatusCode());
+            }
+        }
     }
 
     /**

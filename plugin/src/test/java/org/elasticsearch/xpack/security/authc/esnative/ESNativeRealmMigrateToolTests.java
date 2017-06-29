@@ -15,6 +15,7 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 
 import java.io.FileNotFoundException;
@@ -104,9 +105,12 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
         Files.createDirectories(xpackConfDir);
 
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
-        OptionSet options = muor.getParser().parse("-u", "elastic", "-p", "changeme", "-U", "http://localhost:9200");
+
+        OptionSet options = muor.getParser().parse("-u", "elastic", "-p", SecuritySettingsSource.TEST_PASSWORD,
+                "-U", "http://localhost:9200");
         Settings settings = Settings.builder().put("path.home", homeDir).build();
         Environment environment = new Environment(settings, confDir);
+
         MockTerminal mockTerminal = new MockTerminal();
 
         FileNotFoundException fnfe = expectThrows(FileNotFoundException.class,

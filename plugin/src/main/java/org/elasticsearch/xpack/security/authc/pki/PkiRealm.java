@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.CompositeRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
@@ -39,9 +40,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
-import static org.elasticsearch.xpack.security.Security.setting;
 
 public class PkiRealm extends Realm {
 
@@ -84,7 +82,7 @@ public class PkiRealm extends Realm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken authToken, ActionListener<User> listener) {
+    public void authenticate(AuthenticationToken authToken, ActionListener<User> listener, IncomingRequest incomingRequest) {
         X509AuthenticationToken token = (X509AuthenticationToken)authToken;
         if (isCertificateChainTrusted(trustManager, token, logger) == false) {
             listener.onResponse(null);

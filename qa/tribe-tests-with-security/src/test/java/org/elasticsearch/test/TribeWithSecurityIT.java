@@ -7,7 +7,15 @@ package org.elasticsearch.test;
 
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -20,6 +28,7 @@ import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -84,9 +93,27 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
     }
 
     @Before
-    public void addSecurityIndex() {
+    public void addSecurityIndex() throws IOException {
         client().admin().indices().prepareCreate(INTERNAL_SECURITY_INDEX).get();
         cluster2.client().admin().indices().prepareCreate(INTERNAL_SECURITY_INDEX).get();
+
+        InetSocketAddress[] inetSocketAddresses = cluster2.httpAddresses();
+        List<HttpHost> hosts = new ArrayList<>();
+        for (InetSocketAddress socketAddress : inetSocketAddresses) {
+            hosts.add(new HttpHost(socketAddress.getAddress(), socketAddress.getPort()));
+        }
+
+        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
+        RestClient client = builder.build();
+        SecureString defaultPassword = new SecureString("".toCharArray());
+
+        String payload = "{\"password\": \"" + SecuritySettingsSource.TEST_PASSWORD + "\"}";
+        HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
+        BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, defaultPassword));
+        String route = "/_xpack/security/user/elastic/_password";
+        Response response = getRestClient().performRequest("PUT", route, Collections.emptyMap(), entity, authHeader);
+        client.close();
     }
 
     @Override
@@ -110,7 +137,7 @@ public class TribeWithSecurityIT extends SecurityIntegTestCase {
 
     public void testThatTribeCanAuthenticateElasticUser() throws Exception {
         ClusterHealthResponse response = tribeNode.client().filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecureString("changeme".toCharArray()))))
+                UsernamePasswordToken.basicAuthHeaderValue("elastic", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }

@@ -152,7 +152,7 @@ for the agent user:
 --------------------------------------------------
 xpack.monitoring.elasticsearch.url: ["http://es-mon-1:9200", "http://es-mon2:9200"]
 xpack.monitoring.elasticsearch.username: "remote_monitor"
-xpack.monitoring.elasticsearch.password: "changeme"
+xpack.monitoring.elasticsearch.password: "x-pack-test-password"
 --------------------------------------------------
 
 .. If SSL/TLS is enabled on the monitoring cluster:
@@ -176,6 +176,6 @@ Alternatively, you can configure trusted certificates using a truststore
 [source,yaml]
 --------------------------------------------------
 xpack.monitoring.elasticsearch.ssl.truststore.path: /path/to/file
-xpack.monitoring.elasticsearch.ssl.truststore.password: changeme
+xpack.monitoring.elasticsearch.ssl.truststore.password: x-pack-test-password
 --------------------------------------------------
 --

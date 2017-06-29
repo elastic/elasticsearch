@@ -5,15 +5,22 @@
  */
 package org.elasticsearch.xpack.security;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.MockSecureSettings;
-import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,11 +40,14 @@ import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -76,13 +86,27 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         super.setUp();
         if (cluster2 == null) {
             SecuritySettingsSource cluster2SettingsSource =
-                    new SecuritySettingsSource(defaultMaxNumberOfNodes(), useGeneratedSSL, createTempDir(), Scope.SUITE);
+                    new SecuritySettingsSource(defaultMaxNumberOfNodes(), useGeneratedSSL, createTempDir(), Scope.SUITE) {
+                        @Override
+                        public Settings nodeSettings(int nodeOrdinal) {
+                            return Settings.builder()
+                                    .put(super.nodeSettings(nodeOrdinal))
+                                    .put(NetworkModule.HTTP_ENABLED.getKey(), true)
+                                    .build();
+                        }
+                    };
+
             cluster2 = new InternalTestCluster(randomLong(), createTempDir(), true, true, 1, 2,
                     UUIDs.randomBase64UUID(random()), cluster2SettingsSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, getMockPlugins(),
                     getClientWrapper());
             cluster2.beforeTest(random(), 0.1);
             cluster2.ensureAtLeastNumDataNodes(2);
         }
+    }
+
+    @Override
+    public boolean shouldSetReservedUserPasswords() {
+        return false;
     }
 
     @Override
@@ -138,8 +162,17 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
 
     private void setupTribeNode(Settings settings) throws NodeValidationException, InterruptedException {
         SecuritySettingsSource cluster2SettingsSource =
-                new SecuritySettingsSource(1, useGeneratedSSL, createTempDir(), Scope.TEST);
-        Map<String,String> asMap = new HashMap<>(cluster2SettingsSource.nodeSettings(0).getAsMap());
+                new SecuritySettingsSource(1, useGeneratedSSL, createTempDir(), Scope.TEST) {
+                    @Override
+                    public Settings nodeSettings(int nodeOrdinal) {
+                        return Settings.builder()
+                                .put(super.nodeSettings(nodeOrdinal))
+                                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
+                                .build();
+                    }
+                };
+
+        Map<String, String> asMap = new HashMap<>(cluster2SettingsSource.nodeSettings(0).getAsMap());
         asMap.remove(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey());
         Settings.Builder tribe1Defaults = Settings.builder();
         Settings.Builder tribe2Defaults = Settings.builder();
@@ -216,9 +249,25 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
     }
 
     public void testThatTribeCanAuthenticateElasticUser() throws Exception {
+        InetSocketAddress[] inetSocketAddresses = cluster2.httpAddresses();
+        List<HttpHost> hosts = new ArrayList<>();
+        for (InetSocketAddress address : inetSocketAddresses) {
+            hosts.add(new HttpHost(address.getAddress(), address.getPort()));
+        }
+        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
+        RestClient client = builder.build();
+
+        String payload = "{\"password\": \"" + SecuritySettingsSource.TEST_PASSWORD + "\"}";
+        HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
+        BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, new SecureString("".toCharArray())));
+        String route = "/_xpack/security/user/" + ElasticUser.NAME + "/_password";
+        client.performRequest("PUT", route, Collections.emptyMap(), entity, authHeader);
+        client.close();
+
         setupTribeNode(Settings.EMPTY);
         ClusterHealthResponse response = tribeClient.filterWithHeader(Collections.singletonMap("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue("elastic", new SecureString("changeme".toCharArray()))))
+                UsernamePasswordToken.basicAuthHeaderValue("elastic", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)))
                 .admin().cluster().prepareHealth().get();
         assertNoTimeout(response);
     }
@@ -308,7 +357,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             PutUserResponse response =
                     securityClient(nonPreferredClient).preparePutUser(username, "password".toCharArray(), "superuser").get();
             assertTrue(response.created());
-                shouldBeSuccessfulUsers.add(username);
+            shouldBeSuccessfulUsers.add(username);
         }
 
         assertTribeNodeHasAllIndices();

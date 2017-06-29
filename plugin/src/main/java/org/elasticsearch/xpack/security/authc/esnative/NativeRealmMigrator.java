@@ -210,7 +210,7 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
         }
 
         try (SecureString secureString = new SecureString(passwordHash.toCharArray())) {
-            return Hasher.BCRYPT.verify(ReservedRealm.DEFAULT_PASSWORD_TEXT, secureString.getChars());
+            return Hasher.BCRYPT.verify(ReservedRealm.EMPTY_PASSWORD_TEXT, secureString.getChars());
         }
     }
 

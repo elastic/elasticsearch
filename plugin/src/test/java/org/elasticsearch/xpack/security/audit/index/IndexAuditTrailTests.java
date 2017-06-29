@@ -183,8 +183,8 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         Settings.Builder builder = Settings.builder()
                 .put("xpack.security.audit.index.client." + XPackSettings.SECURITY_ENABLED.getKey(), useSecurity)
                 .put(remoteSettings(NetworkAddress.format(inet.address().getAddress()), inet.address().getPort(), cluster2Name))
-                .put("xpack.security.audit.index.client.xpack.security.user", SecuritySettingsSource.DEFAULT_USER_NAME + ":" +
-                        SecuritySettingsSource.DEFAULT_PASSWORD);
+                .put("xpack.security.audit.index.client.xpack.security.user", SecuritySettingsSource.TEST_USER_NAME + ":" +
+                        SecuritySettingsSource.TEST_PASSWORD);
 
         if (useGeneratedSSL == false) {
             cluster2SettingsSource.addClientSSLSettings(builder, "xpack.security.audit.index.client.");

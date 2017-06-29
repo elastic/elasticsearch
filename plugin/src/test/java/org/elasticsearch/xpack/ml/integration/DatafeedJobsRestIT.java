@@ -11,9 +11,9 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.junit.After;
@@ -33,9 +33,9 @@ import static org.hamcrest.Matchers.equalTo;
 public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_ELASTIC =
-            basicAuthHeaderValue("elastic", new SecureString("changeme".toCharArray()));
+            basicAuthHeaderValue("elastic", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
     private static final String BASIC_AUTH_VALUE_ML_ADMIN =
-            basicAuthHeaderValue("ml_admin", new SecureString("changeme".toCharArray()));
+            basicAuthHeaderValue("ml_admin", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
 
     @Override
     protected Settings restClientSettings() {
@@ -50,11 +50,16 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     @Before
     public void setUpData() throws Exception {
+        String password = new String(SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING.getChars());
+        String elasticUserPayload = "{\"password\" : \"" + password + "\"}";
+
+        client().performRequest("put", "_xpack/security/user/elastic/_password", Collections.emptyMap(),
+                new StringEntity(elasticUserPayload, ContentType.APPLICATION_JSON));
 
         // This user has admin rights on machine learning, but (importantly for the tests) no
         // rights on any of the data indexes
         String user = "{"
-                + "  \"password\" : \"changeme\","
+                + "  \"password\" : \"" + password + "\","
                 + "  \"roles\" : [ \"machine_learning_admin\" ]"
                 + "}";
 

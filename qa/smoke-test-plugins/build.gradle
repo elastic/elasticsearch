@@ -18,13 +18,13 @@ integTestCluster {
   plugin ':x-pack-elasticsearch:plugin'
 
   setupCommand 'setupDummyUser',
-               'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+               'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
             dest: tmpFile.toString(),
             username: 'test_user',
-            password: 'changeme',
+            password: 'x-pack-test-password',
             ignoreerrors: true,
             retries: 10)
     return tmpFile.exists()

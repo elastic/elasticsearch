@@ -12,7 +12,7 @@ setup:
         username: "inline_template_user"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "inline_template_role" ]
             }
   - do:
@@ -20,7 +20,7 @@ setup:
         username: "stored_template_user"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "stored_template_role" ]
             }
 
@@ -29,7 +29,7 @@ setup:
         username: "terms_template_user"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "terms_template_role" ],
               "metadata": {
                 "groups": [ "inline_template_user"]
@@ -154,7 +154,7 @@ teardown:
 "Test inline template":
   - do:
       headers:
-        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       search:
         index: foobar
         body: { "query" : { "match_all" : {} } }
@@ -165,7 +165,7 @@ teardown:
 "Test stored template":
   - do:
       headers:
-        Authorization: "Basic c3RvcmVkX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+        Authorization: "Basic c3RvcmVkX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
       search:
         index: foobar
         body: { "query" : { "match_all" : {} } }
@@ -176,7 +176,7 @@ teardown:
 "Test terms template":
   - do:
       headers:
-        Authorization: "Basic dGVybXNfdGVtcGxhdGVfdXNlcjpjaGFuZ2VtZQ=="
+        Authorization: "Basic dGVybXNfdGVtcGxhdGVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       search:
         index: foobar
         body: { "query" : { "match_all" : {} } }

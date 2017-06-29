@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.test.NativeRealmIntegTestCase;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
-import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
-import org.elasticsearch.test.NativeRealmIntegTestCase;
+import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 
 import java.util.Arrays;
 
@@ -27,12 +29,10 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
 
-    private static final SecureString DEFAULT_PASSWORD = new SecureString("changeme".toCharArray());
-
     public void testAuthenticate() {
-        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME)) {
+        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, BeatsSystemUser.NAME, LogstashSystemUser.NAME)) {
             ClusterHealthResponse response = client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, DEFAULT_PASSWORD)))
+                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
                     .admin()
                     .cluster()
                     .prepareHealth()
@@ -43,15 +43,15 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     /**
-     * Enabling a user forces a doc to be written to the security index, and "user doc with default password" has a special case code in
+     * Enabling a user forces a doc to be written to the security index, and "user doc with empty password" has a special case code in
      * the reserved realm.
      */
     public void testAuthenticateAfterEnablingUser() {
         final SecurityClient c = securityClient();
-        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME)) {
+        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, BeatsSystemUser.NAME, LogstashSystemUser.NAME)) {
             c.prepareSetEnabled(username, true).get();
             ClusterHealthResponse response = client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, DEFAULT_PASSWORD)))
+                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
                     .admin()
                     .cluster()
                     .prepareHealth()
@@ -62,12 +62,12 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testChangingPassword() {
-        String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
+        String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME, BeatsSystemUser.NAME, LogstashSystemUser.NAME);
         final char[] newPassword = "supersecretvalue".toCharArray();
 
         if (randomBoolean()) {
             ClusterHealthResponse response = client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, DEFAULT_PASSWORD)))
+                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
                     .admin()
                     .cluster()
                     .prepareHealth()
@@ -81,7 +81,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(response, notNullValue());
 
         ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(ElasticsearchSecurityException.class, () -> client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, DEFAULT_PASSWORD)))
+                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
                     .admin()
                     .cluster()
                     .prepareHealth()
@@ -100,7 +100,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     public void testDisablingUser() throws Exception {
         // validate the user works
         ClusterHealthResponse response = client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, DEFAULT_PASSWORD)))
+                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
                 .admin()
                 .cluster()
                 .prepareHealth()
@@ -110,7 +110,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         // disable user
         securityClient().prepareSetEnabled(ElasticUser.NAME, false).get();
         ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(ElasticsearchSecurityException.class, () -> client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, DEFAULT_PASSWORD)))
+                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
                 .admin()
                 .cluster()
                 .prepareHealth()
@@ -120,7 +120,7 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
         //enable
         securityClient().prepareSetEnabled(ElasticUser.NAME, true).get();
         response = client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, DEFAULT_PASSWORD)))
+                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
                 .admin()
                 .cluster()
                 .prepareHealth()

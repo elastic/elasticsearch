@@ -17,6 +17,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -44,20 +46,20 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "reserved";
 
-    public static final SecureString DEFAULT_PASSWORD_TEXT = new SecureString("changeme".toCharArray());
-    static final char[] DEFAULT_PASSWORD_HASH = Hasher.BCRYPT.hash(DEFAULT_PASSWORD_TEXT);
+    public static final SecureString EMPTY_PASSWORD_TEXT = new SecureString("".toCharArray());
+    static final char[] EMPTY_PASSWORD_HASH = Hasher.BCRYPT.hash(EMPTY_PASSWORD_TEXT);
 
-    private static final ReservedUserInfo DEFAULT_USER_INFO = new ReservedUserInfo(DEFAULT_PASSWORD_HASH, true, true);
-    private static final ReservedUserInfo DISABLED_USER_INFO = new ReservedUserInfo(DEFAULT_PASSWORD_HASH, false, true);
+    private static final ReservedUserInfo DEFAULT_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, true, true);
+    private static final ReservedUserInfo DISABLED_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, false, true);
 
     public static final Setting<Boolean> ACCEPT_DEFAULT_PASSWORD_SETTING = Setting.boolSetting(
-            Security.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered);
+            Security.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered,
+            Setting.Property.Deprecated);
 
     private final NativeUsersStore nativeUsersStore;
     private final AnonymousUser anonymousUser;
     private final boolean realmEnabled;
     private final boolean anonymousEnabled;
-    private final boolean defaultPasswordEnabled;
     private final SecurityLifecycleService securityLifecycleService;
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
@@ -67,12 +69,20 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
-        this.defaultPasswordEnabled = ACCEPT_DEFAULT_PASSWORD_SETTING.get(settings);
         this.securityLifecycleService = securityLifecycleService;
     }
 
     @Override
-    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener, IncomingRequest incomingRequest) {
+        if (incomingRequest.getType() != IncomingRequest.RequestType.REST) {
+            doAuthenticate(token, listener, false);
+        } else {
+            InetAddress address = incomingRequest.getRemoteAddress().getAddress();
+            doAuthenticate(token, listener, address.isAnyLocalAddress() || address.isLoopbackAddress());
+        }
+    }
+
+    private void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener, boolean acceptEmptyPassword) {
         if (realmEnabled == false) {
             listener.onResponse(null);
         } else if (isReserved(token.principal(), config.globalSettings()) == false) {
@@ -82,7 +92,10 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 Runnable action;
                 if (userInfo != null) {
                     try {
-                        if (verifyPassword(userInfo, token)) {
+                        if (userInfo.hasEmptyPassword && isSetupMode(token.principal(), acceptEmptyPassword) == false) {
+                            action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
+                                    token.principal()));
+                        } else if (verifyPassword(userInfo, token)) {
                             final User user = getUser(token.principal(), userInfo);
                             action = () -> listener.onResponse(user);
                         } else {
@@ -90,7 +103,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                                     token.principal()));
                         }
                     } finally {
-                        if (userInfo.passwordHash != DEFAULT_PASSWORD_HASH) {
+                        if (userInfo.passwordHash != EMPTY_PASSWORD_HASH) {
                             Arrays.fill(userInfo.passwordHash, (char) 0);
                         }
                     }
@@ -104,11 +117,12 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
+    private boolean isSetupMode(String userName, boolean acceptEmptyPassword) {
+        return ElasticUser.NAME.equals(userName) && acceptEmptyPassword;
+    }
+
     private boolean verifyPassword(ReservedUserInfo userInfo, UsernamePasswordToken token) {
         if (Hasher.BCRYPT.verify(token.credentials(), userInfo.passwordHash)) {
-            if (userInfo.hasDefaultPassword && this.defaultPasswordEnabled == false) {
-                return false;
-            }
             return true;
         }
         return false;
@@ -154,7 +168,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         assert username != null;
         switch (username) {
             case ElasticUser.NAME:
-                return new ElasticUser(userInfo.enabled);
+                return new ElasticUser(userInfo.enabled, userInfo.hasEmptyPassword);
             case KibanaUser.NAME:
                 return new KibanaUser(userInfo.enabled);
             case LogstashSystemUser.NAME:
@@ -178,7 +192,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 List<User> users = new ArrayList<>(4);
 
                 ReservedUserInfo userInfo = reservedUserInfos.get(ElasticUser.NAME);
-                users.add(new ElasticUser(userInfo == null || userInfo.enabled));
+                users.add(new ElasticUser(userInfo == null || userInfo.enabled,
+                        userInfo == null || userInfo.hasEmptyPassword));
 
                 userInfo = reservedUserInfos.get(KibanaUser.NAME);
                 users.add(new KibanaUser(userInfo == null || userInfo.enabled));

@@ -66,19 +66,19 @@ integTestCluster {
   plugin ':x-pack-elasticsearch:plugin'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
-               'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
+               'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupMlAdminUser',
-               'bin/x-pack/users', 'useradd', 'ml_admin', '-p', 'changeme', '-r', 'minimal,machine_learning_admin'
+               'bin/x-pack/users', 'useradd', 'ml_admin', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_admin'
   setupCommand 'setupMlUserUser',
-               'bin/x-pack/users', 'useradd', 'ml_user', '-p', 'changeme', '-r', 'minimal,machine_learning_user'
+               'bin/x-pack/users', 'useradd', 'ml_user', '-p', 'x-pack-test-password', '-r', 'minimal,machine_learning_user'
   setupCommand 'setupPowerlessUser',
-               'bin/x-pack/users', 'useradd', 'no_ml', '-p', 'changeme', '-r', 'minimal'
+               'bin/x-pack/users', 'useradd', 'no_ml', '-p', 'x-pack-test-password', '-r', 'minimal'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
             dest: tmpFile.toString(),
             username: 'test_admin',
-            password: 'changeme',
+            password: 'x-pack-test-password',
             ignoreerrors: true,
             retries: 10)
     return tmpFile.exists()

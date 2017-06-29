@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.User;
 
+import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -132,8 +134,8 @@ public class AuthenticationService extends AbstractComponent {
 
         private final AuditableRequest request;
         private final User fallbackUser;
-        private final ActionListener<Authentication> listener;
 
+        private final ActionListener<Authentication> listener;
         private RealmRef authenticatedBy = null;
         private RealmRef lookedupBy = null;
         private AuthenticationToken authenticationToken = null;
@@ -279,7 +281,7 @@ public class AuthenticationService extends AbstractComponent {
                                     authenticationToken.principal(), realm.name(), ex);
                             logger.debug("Authentication failed due to exception", ex);
                             userListener.onFailure(ex);
-                        }));
+                        }), request);
                     } else {
                         userListener.onResponse(null);
                     }
@@ -436,16 +438,21 @@ public class AuthenticationService extends AbstractComponent {
         }
     }
 
-    abstract static class AuditableRequest {
+    abstract static class AuditableRequest implements IncomingRequest {
 
         final AuditTrail auditTrail;
         final AuthenticationFailureHandler failureHandler;
         final ThreadContext threadContext;
+        private final InetSocketAddress remoteAddress;
+        private final RequestType requestType;
 
-        AuditableRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext) {
+        AuditableRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
+                         RequestType requestType, InetSocketAddress remoteAddress) {
             this.auditTrail = auditTrail;
             this.failureHandler = failureHandler;
             this.threadContext = threadContext;
+            this.remoteAddress = remoteAddress;
+            this.requestType = requestType;
         }
 
         abstract void realmAuthenticationFailed(AuthenticationToken token, String realm);
@@ -461,6 +468,14 @@ public class AuthenticationService extends AbstractComponent {
         abstract ElasticsearchSecurityException runAsDenied(User user, AuthenticationToken token);
 
         abstract void authenticationSuccess(String realm, User user);
+
+        public InetSocketAddress getRemoteAddress() {
+            return remoteAddress;
+        }
+
+        public RequestType getType() {
+            return requestType;
+        }
     }
 
     static class AuditableTransportRequest extends AuditableRequest {
@@ -470,7 +485,7 @@ public class AuthenticationService extends AbstractComponent {
 
         AuditableTransportRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
                                   String action, TransportMessage message) {
-            super(auditTrail, failureHandler, threadContext);
+            super(auditTrail, failureHandler, threadContext, getType(message), getRemoteAddress(message));
             this.action = action;
             this.message = message;
         }
@@ -523,15 +538,25 @@ public class AuthenticationService extends AbstractComponent {
         public String toString() {
             return "transport request action [" + action + "]";
         }
+
+        private static RequestType getType(TransportMessage message) {
+            return message.remoteAddress() == null ? RequestType.LOCAL_NODE : RequestType.REMOTE_NODE;
+        }
+
+        private static InetSocketAddress getRemoteAddress(TransportMessage message) {
+            TransportAddress transportAddress = message.remoteAddress();
+            return transportAddress == null ? null : transportAddress.address();
+        }
     }
 
     static class AuditableRestRequest extends AuditableRequest {
 
         private final RestRequest request;
 
+        @SuppressWarnings("unchecked")
         AuditableRestRequest(AuditTrail auditTrail, AuthenticationFailureHandler failureHandler, ThreadContext threadContext,
                              RestRequest request) {
-            super(auditTrail, failureHandler, threadContext);
+            super(auditTrail, failureHandler, threadContext, RequestType.REST, (InetSocketAddress) request.getRemoteAddress());
             this.request = request;
         }
 

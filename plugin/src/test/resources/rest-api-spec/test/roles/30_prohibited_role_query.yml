@@ -29,7 +29,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "role" ]
             }
 
@@ -50,7 +50,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic am9lOmNoYW5nZW1l"
+        Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       index:
         index: index
         type: type
@@ -64,7 +64,7 @@ teardown:
   - do:
       catch:  /terms query with terms lookup isn't supported as part of a role query/
       headers:
-        Authorization: "Basic am9lOmNoYW5nZW1l"
+        Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       search:
         index: index
         body: { "query" : { "match_all" : {} } }

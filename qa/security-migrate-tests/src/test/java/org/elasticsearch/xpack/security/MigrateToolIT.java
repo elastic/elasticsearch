@@ -59,8 +59,8 @@ public class MigrateToolIT extends MigrateToolTestCase {
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
         OptionParser parser = muor.getParser();
 
-        OptionSet options =
-                parser.parse("-u", "test_admin", "-p", "changeme", "-U", url, "--path.conf", System.getProperty("tests.config.dir"));
+        OptionSet options = parser.parse("-u", "test_admin", "-p", "x-pack-test-password", "-U", url,
+                "--path.conf", System.getProperty("tests.config.dir"));
         muor.execute(t, options, new Environment(settings));
 
         logger.info("--> output:\n{}", t.getOutput());
@@ -112,7 +112,7 @@ public class MigrateToolIT extends MigrateToolTestCase {
         }
 
         // Check that bob can access the things the "actual_role" says he can
-        String token = basicAuthHeaderValue("bob", new SecureString("changeme".toCharArray()));
+        String token = basicAuthHeaderValue("bob", new SecureString("x-pack-test-password".toCharArray()));
         // Create "index1" index and try to search from it as "bob"
         client.filterWithHeader(Collections.singletonMap("Authorization", token)).admin().indices().prepareCreate("index1").get();
         // Wait for the index to be ready so it doesn't fail if no shards are initialized

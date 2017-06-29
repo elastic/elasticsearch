@@ -18,7 +18,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 
 public class ReindexWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private static final String USER = "test_admin";
-    private static final String PASS = "changeme";
+    private static final String PASS = "x-pack-test-password";
 
     public ReindexWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.common.http.HttpMethod;
@@ -146,7 +147,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder(host, publishAddress.getPort())
                 .path(new TextTemplate("/%3Clogstash-%7Bnow%2Fd%7D%3E/log/1"))
                 .body(new TextTemplate("{\"foo\":\"bar\"}"))
-                .auth(new BasicAuth("test", "changeme".toCharArray()))
+                .auth(new BasicAuth("test", SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
                 .putHeader("Content-Type", new TextTemplate("application/json"))
                 .method(HttpMethod.PUT);
 

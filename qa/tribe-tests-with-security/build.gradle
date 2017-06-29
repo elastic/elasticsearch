@@ -20,13 +20,13 @@ configOne.setting('xpack.ml.enabled', false)
 configOne.plugin(':x-pack-elasticsearch:plugin')
 configOne.module(project.project(':modules:analysis-common'))
 configOne.setupCommand('setupDummyUser',
-        'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser')
+        'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
 configOne.waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow",
             dest: tmpFile.toString(),
             username: 'test_user',
-            password: 'changeme',
+            password: 'x-pack-test-password',
             ignoreerrors: true,
             retries: 10)
     return tmpFile.exists()
@@ -42,13 +42,13 @@ configTwo.setting('xpack.ml.enabled', false)
 configTwo.plugin(':x-pack-elasticsearch:plugin')
 configTwo.module(project.project(':modules:analysis-common'))
 configTwo.setupCommand('setupDummyUser',
-        'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser')
+        'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser')
 configTwo.waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=1&wait_for_status=yellow",
             dest: tmpFile.toString(),
             username: 'test_user',
-            password: 'changeme',
+            password: 'x-pack-test-password',
             ignoreerrors: true,
             retries: 10)
     return tmpFile.exists()
@@ -59,7 +59,7 @@ integTestCluster {
     dependsOn setupClusterOne, setupClusterTwo
     plugin ':x-pack-elasticsearch:plugin'
     setupCommand 'setupDummyUser',
-            'bin/x-pack/users', 'useradd', 'test_user', '-p', 'changeme', '-r', 'superuser'
+            'bin/x-pack/users', 'useradd', 'test_user', '-p', 'x-pack-test-password', '-r', 'superuser'
     setting 'xpack.monitoring.enabled', false
     setting 'xpack.ml.enabled', false
     setting 'node.name', 'tribe-node'
@@ -78,7 +78,7 @@ integTestCluster {
         ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=5&wait_for_status=yellow",
                 dest: tmpFile.toString(),
                 username: 'test_user',
-                password: 'changeme',
+                password: 'x-pack-test-password',
                 ignoreerrors: true,
                 retries: 10)
         return tmpFile.exists()

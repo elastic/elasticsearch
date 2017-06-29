@@ -55,7 +55,7 @@ teardown:
                 auth:
                   basic:
                     username: test_admin
-                    password: changeme
+                    password: x-pack-test-password
           condition:
             compare:
               "ctx.payload.number_of_data_nodes":

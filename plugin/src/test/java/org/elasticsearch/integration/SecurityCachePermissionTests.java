@@ -7,7 +7,6 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -26,7 +25,7 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
     @Override
     public String configUsers() {
         return super.configUsers()
-                + READ_ONE_IDX_USER + ":" + SecuritySettingsSource.DEFAULT_PASSWORD_HASHED + "\n";
+                + READ_ONE_IDX_USER + ":" + SecuritySettingsSource.TEST_PASSWORD_HASHED + "\n";
     }
 
     @Override
@@ -61,7 +60,7 @@ public class SecurityCachePermissionTests extends SecurityIntegTestCase {
         // Repeat with unauthorized user!!!!
         try {
             response = client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(READ_ONE_IDX_USER,
-                    new SecureString("changeme".toCharArray()))))
+                    SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)))
                     .prepareSearch("data").setTypes("a").setQuery(QueryBuilders.constantScoreQuery(
                     QueryBuilders.termsLookupQuery("token", new TermsLookup("tokens", "tokens", "1", "tokens"))))
                     .execute().actionGet();

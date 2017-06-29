@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.rest.action.oauth2;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -18,6 +17,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.security.action.token.CreateTokenRequest;
 import org.elasticsearch.xpack.security.action.token.CreateTokenResponse;
@@ -85,7 +85,7 @@ public class RestGetTokenActionTests extends ESTestCase {
         final String request = "{" +
                 "\"grant_type\": \"password\"," +
                 "\"username\": \"user1\"," +
-                "\"password\": \"changeme\"," +
+                "\"password\": \"" + SecuritySettingsSource.TEST_PASSWORD + "\"," +
                 "\"scope\": \"FULL\"" +
                 "}";
         try (XContentParser parser = XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, request)) {
@@ -93,7 +93,7 @@ public class RestGetTokenActionTests extends ESTestCase {
             assertEquals("password", createTokenRequest.getGrantType());
             assertEquals("user1", createTokenRequest.getUsername());
             assertEquals("FULL", createTokenRequest.getScope());
-            assertTrue(new SecureString("changeme".toCharArray()).equals(createTokenRequest.getPassword()));
+            assertTrue(SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING.equals(createTokenRequest.getPassword()));
         }
     }
 }

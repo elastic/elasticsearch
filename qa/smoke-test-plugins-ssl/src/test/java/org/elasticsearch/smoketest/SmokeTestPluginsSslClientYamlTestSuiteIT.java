@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 public class SmokeTestPluginsSslClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_user";
-    private static final String PASS = "changeme";
+    private static final String PASS = "x-pack-test-password";
     private static final String KEYSTORE_PASS = "keypass";
 
     public SmokeTestPluginsSslClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

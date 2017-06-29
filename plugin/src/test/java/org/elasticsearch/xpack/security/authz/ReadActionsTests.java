@@ -37,7 +37,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return SecuritySettingsSource.DEFAULT_ROLE + ":\n" +
+        return SecuritySettingsSource.TEST_ROLE + ":\n" +
                 "  cluster: [ ALL ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +

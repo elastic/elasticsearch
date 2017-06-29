@@ -50,8 +50,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         SecurityClient securityClient = new SecurityClient(client);
         CreateTokenResponse response = securityClient.prepareCreateToken()
                 .setGrantType("password")
-                .setUsername(SecuritySettingsSource.DEFAULT_USER_NAME)
-                .setPassword(new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
                 .get();
         Instant created = Instant.now();
 
@@ -90,8 +90,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     public void testExpireMultipleTimes() throws Exception {
         CreateTokenResponse response = securityClient().prepareCreateToken()
                 .setGrantType("password")
-                .setUsername(SecuritySettingsSource.DEFAULT_USER_NAME)
-                .setPassword(new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))
+                .setUsername(SecuritySettingsSource.TEST_USER_NAME)
+                .setPassword(new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))
                 .get();
 
         InvalidateTokenResponse invalidateResponse = securityClient().prepareInvalidateToken(response.getTokenString()).get();

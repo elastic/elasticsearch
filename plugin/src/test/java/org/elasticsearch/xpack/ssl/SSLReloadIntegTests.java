@@ -94,13 +94,14 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         X509Certificate certificate = getCertificate(keyPair);
         KeyStore keyStore = KeyStore.getInstance("jks");
         keyStore.load(null, null);
-        keyStore.setKeyEntry("key", keyPair.getPrivate(), "changeme".toCharArray(), new Certificate[] { certificate });
+        keyStore.setKeyEntry("key", keyPair.getPrivate(), SecuritySettingsSource.TEST_PASSWORD.toCharArray(),
+                new Certificate[] { certificate });
         Path keystorePath = createTempDir().resolve("newcert.jks");
         try (OutputStream out = Files.newOutputStream(keystorePath)) {
-            keyStore.store(out, "changeme".toCharArray());
+            keyStore.store(out, SecuritySettingsSource.TEST_PASSWORD.toCharArray());
         }
         MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString("xpack.ssl.keystore.secure_password", "changeme");
+        secureSettings.setString("xpack.ssl.keystore.secure_password", SecuritySettingsSource.TEST_PASSWORD);
         secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())

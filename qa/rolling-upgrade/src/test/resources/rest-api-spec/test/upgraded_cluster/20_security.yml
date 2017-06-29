@@ -2,7 +2,7 @@
 "Verify user and role in upgraded cluster":
   - do:
       headers:
-        Authorization: "Basic bmF0aXZlX3VzZXI6Y2hhbmdlbWU="
+        Authorization: "Basic bmF0aXZlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
       cluster.health:
         wait_for_status: green
         wait_for_nodes: 2
@@ -30,7 +30,7 @@
       reason: "the rest enabled action used by the old cluster test trips an assertion. see https://github.com/elastic/x-pack/pull/4443"
   - do:
       headers:
-        Authorization: "Basic bmF0aXZlX3VzZXI6Y2hhbmdlbWU="
+        Authorization: "Basic bmF0aXZlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
       cluster.health:
         wait_for_status: green
         wait_for_nodes: 2

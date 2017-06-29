@@ -16,8 +16,8 @@ endpoint.
 POST /_xpack/security/oauth2/token
 {
   "grant_type" : "password",
-  "username" : "elastic",
-  "password" : "changeme"
+  "username" : "test_admin",
+  "password" : "x-pack-test-password"
 }
 --------------------------------------------------
 // CONSOLE

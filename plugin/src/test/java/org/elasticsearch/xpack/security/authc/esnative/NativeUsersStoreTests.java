@@ -111,9 +111,9 @@ public class NativeUsersStoreTests extends ESTestCase {
         actionRespond(GetRequest.class, new GetResponse(result));
 
         final NativeUsersStore.ReservedUserInfo userInfo = future.get();
-        assertThat(userInfo.hasDefaultPassword, equalTo(true));
+        assertThat(userInfo.hasEmptyPassword, equalTo(true));
         assertThat(userInfo.enabled, equalTo(true));
-        assertThat(userInfo.passwordHash, equalTo(ReservedRealm.DEFAULT_PASSWORD_HASH));
+        assertThat(userInfo.passwordHash, equalTo(ReservedRealm.EMPTY_PASSWORD_HASH));
     }
 
     public void testInContainerTrueReturnsEmptyPasswordForNonElasticReservedUsers() throws Exception {
@@ -142,9 +142,9 @@ public class NativeUsersStoreTests extends ESTestCase {
         actionRespond(GetRequest.class, new GetResponse(result));
 
         final NativeUsersStore.ReservedUserInfo userInfo = future.get();
-        assertThat(userInfo.hasDefaultPassword, equalTo(true));
+        assertThat(userInfo.hasEmptyPassword, equalTo(true));
         assertThat(userInfo.enabled, equalTo(true));
-        assertThat(userInfo.passwordHash, equalTo(ReservedRealm.DEFAULT_PASSWORD_HASH));
+        assertThat(userInfo.passwordHash, equalTo(ReservedRealm.EMPTY_PASSWORD_HASH));
     }
 
     public void testInContainerTrueReturnsBootstrapPasswordForElastic() throws Exception {
@@ -171,7 +171,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         actionRespond(GetRequest.class, new GetResponse(result));
 
         final NativeUsersStore.ReservedUserInfo userInfo = future.get();
-        assertThat(userInfo.hasDefaultPassword, equalTo(false));
+        assertThat(userInfo.hasEmptyPassword, equalTo(false));
         assertThat(userInfo.enabled, equalTo(true));
         assertThat(userInfo.passwordHash, equalTo(passwordHash));
     }

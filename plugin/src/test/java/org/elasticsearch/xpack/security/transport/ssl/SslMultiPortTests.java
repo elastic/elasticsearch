@@ -9,19 +9,19 @@ import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.ssl.SSLClientAuth;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.TestXPackTransportClient;
+import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.ssl.SSLClientAuth;
 import org.junit.BeforeClass;
 
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_PASSWORD;
-import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_USER_NAME;
+import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD;
+import static org.elasticsearch.test.SecuritySettingsSource.TEST_USER_NAME;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -189,7 +189,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatTransportClientCannotConnectToDefaultProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .build();
         try (TransportClient transportClient = new TestXPackTransportClient(settings)) {
@@ -207,7 +207,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatTransportClientCannotConnectToClientProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .build();
         try (TransportClient transportClient = new TestXPackTransportClient(settings)) {
@@ -225,7 +225,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatTransportClientCannotConnectToNoClientAuthProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .build();
         try (TransportClient transportClient = new TestXPackTransportClient(settings)) {
@@ -245,7 +245,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatTransportClientWithOnlyTruststoreCanConnectToNoClientAuthProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("xpack.ssl.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
@@ -266,7 +266,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatTransportClientWithOnlyTruststoreCannotConnectToClientProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
                 .put("xpack.ssl.truststore.path",
@@ -290,7 +290,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatTransportClientWithOnlyTruststoreCannotConnectToDefaultProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
                 .put("xpack.ssl.truststore.path",
@@ -313,7 +313,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatSSLTransportClientWithNoTruststoreCannotConnectToDefaultProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
                 .build();
@@ -333,7 +333,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatSSLTransportClientWithNoTruststoreCannotConnectToClientProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
                 .build();
@@ -353,7 +353,7 @@ public class SslMultiPortTests extends SecurityIntegTestCase {
      */
     public void testThatSSLTransportClientWithNoTruststoreCannotConnectToNoClientAuthProfile() throws Exception {
         Settings settings = Settings.builder()
-                .put(Security.USER_SETTING.getKey(), DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), TEST_USER_NAME + ":" + TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
                 .build();

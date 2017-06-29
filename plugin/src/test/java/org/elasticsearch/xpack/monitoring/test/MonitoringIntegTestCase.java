@@ -27,6 +27,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -157,7 +158,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
             return Settings.builder()
                     .put(super.transportClientSettings())
                     .put("client.transport.sniff", false)
-                    .put(Security.USER_SETTING.getKey(), "test:changeme")
+                    .put(Security.USER_SETTING.getKey(), "test:" + SecuritySettings.TEST_PASSWORD)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
                     .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
                     .put(XPackSettings.WATCHER_ENABLED.getKey(), watcherEnabled)
@@ -467,7 +468,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     public static class SecuritySettings {
 
         public static final String TEST_USERNAME = "test";
-        public static final String TEST_PASSWORD = "changeme";
+        public static final String TEST_PASSWORD = SecuritySettingsSource.TEST_PASSWORD;
         private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecureString(TEST_PASSWORD.toCharArray())));
 
         static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);

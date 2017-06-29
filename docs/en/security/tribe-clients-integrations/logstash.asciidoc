@@ -61,7 +61,7 @@ the `user` API:
 ---------------------------------------------------------------
 POST _xpack/security/user/logstash_internal
 {
-  "password" : "changeme", 
+  "password" : "x-pack-test-password",
   "roles" : [ "logstash_writer"], 
   "full_name" : "Internal Logstash User"
 }
@@ -76,18 +76,18 @@ plugins in your Logstash `.conf` file. For example:
 input { 
     ...
     user => logstash_internal 
-    password => changeme
+    password => x-pack-test-password
   }
 filter { 
     ...
     user => logstash_internal 
-    password => changeme
+    password => x-pack-test-password
   }
 output {
   elasticsearch {
     ...
     user => logstash_internal 
-    password => changeme
+    password => x-pack-test-password
   }
 --------------------------------------------------
 
@@ -126,7 +126,7 @@ the `user` API:
 ---------------------------------------------------------------
 POST _xpack/security/user/logstash_user
 {
-  "password" : "changeme", 
+  "password" : "x-pack-test-password",
   "roles" : [ "logstash_reader"], 
   "full_name" : "Kibana User"
 }
@@ -187,8 +187,8 @@ This user has the minimum permissions necessary for the monitoring function, and
 _should not_ be used for any other purpose - it is specifically _not intended_ for
 use within a Logstash pipeline.
 
-By default, the `logstash_system` user password is set to `changeme`.
-Change this password through the reset password API:
+By default, the `logstash_system` does not have a password. The user will not be enabled until
+a password is set. Set the password through the reset password API:
 
 [source,js]
 ---------------------------------------------------------------------

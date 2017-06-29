@@ -28,6 +28,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.ssl.CertificateTool.CAInfo;
 import org.elasticsearch.xpack.ssl.CertificateTool.CertificateInformation;
 import org.elasticsearch.xpack.ssl.CertificateTool.Name;
@@ -249,7 +250,7 @@ public class CertificateToolTests extends ESTestCase {
         X509Certificate caCert = CertUtils.generateCACertificate(new X500Principal("CN=test ca"), keyPair, days);
 
         final boolean generatedCa = randomBoolean();
-        final char[] keyPassword = randomBoolean() ? "changeme".toCharArray() : null;
+        final char[] keyPassword = randomBoolean() ? SecuritySettingsSource.TEST_PASSWORD.toCharArray() : null;
         assertFalse(Files.exists(outputFile));
         CAInfo caInfo = new CAInfo(caCert, keyPair.getPrivate(), generatedCa, keyPassword);
         CertificateTool.generateAndWriteSignedCertificates(outputFile, certInfos, caInfo, keysize, days);
@@ -289,7 +290,8 @@ public class CertificateToolTests extends ESTestCase {
             }
 
             try (Reader reader = Files.newBufferedReader(zipRoot.resolve("ca").resolve("ca.key"))) {
-                PrivateKey privateKey = CertUtils.readPrivateKey(reader, () -> keyPassword != null ? "changeme".toCharArray() : null);
+                PrivateKey privateKey = CertUtils.readPrivateKey(reader, () -> keyPassword != null ?
+                        SecuritySettingsSource.TEST_PASSWORD.toCharArray() : null);
                 assertEquals(caInfo.privateKey, privateKey);
             }
         } else {

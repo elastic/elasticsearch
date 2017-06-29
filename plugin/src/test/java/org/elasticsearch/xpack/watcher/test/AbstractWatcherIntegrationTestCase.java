@@ -41,6 +41,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
@@ -293,7 +294,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         return Settings.builder()
                 .put("client.transport.sniff", false)
-                .put(Security.USER_SETTING.getKey(), "admin:changeme")
+                .put(Security.USER_SETTING.getKey(), "admin:" + SecuritySettingsSource.TEST_PASSWORD)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
                 .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
                 .build();
@@ -686,7 +687,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     public static class SecuritySettings {
 
         public static final String TEST_USERNAME = "test";
-        public static final String TEST_PASSWORD = "changeme";
+        public static final String TEST_PASSWORD = SecuritySettingsSource.TEST_PASSWORD;
         private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecureString(TEST_PASSWORD.toCharArray())));
 
         static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);

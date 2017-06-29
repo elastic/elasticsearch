@@ -19,7 +19,8 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 
 public class SmokeTestSecurityWithMustacheClientYamlTestSuiteIT extends SecurityClusterClientYamlTestCase {
 
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("test_admin", new SecureString("changeme".toCharArray()));
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("test_admin",
+            new SecureString("x-pack-test-password".toCharArray()));
 
     public SmokeTestSecurityWithMustacheClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

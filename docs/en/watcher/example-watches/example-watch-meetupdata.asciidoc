@@ -33,7 +33,7 @@ output { <2>
   elasticsearch {
     hosts => "http://localhost:9200"
     user  => "elastic"
-    password  => "changeme"
+    password  => "x-pack-test-password"
   }
 }
 

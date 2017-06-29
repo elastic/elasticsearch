@@ -39,7 +39,7 @@ setup:
         username: "full"
         body:  >
           {
-            "password" : "changeme",
+            "password" : "x-pack-test-password",
             "roles" : [ "readall" ],
             "full_name" : "user who can read all data"
           }
@@ -49,7 +49,7 @@ setup:
         username: "limited"
         body:  >
           {
-            "password" : "changeme",
+            "password" : "x-pack-test-password",
             "roles" : [ "limitread" ],
             "full_name" : "user who can read some data"
           }
@@ -106,7 +106,7 @@ teardown:
             - '{"marker": "test_2", "location.city": "ams"}'
 
   - do:
-      headers: { Authorization: "Basic ZnVsbDpjaGFuZ2VtZQ==" } # full - user
+      headers: { Authorization: "Basic ZnVsbDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # full - user
       search:
         index: the_alias
         size: 0
@@ -126,7 +126,7 @@ teardown:
   - match: { aggregations.cities.buckets.1.doc_count: 1 }
 
   - do:
-      headers: { Authorization: "Basic bGltaXRlZDpjaGFuZ2VtZQ==" } # limited - user
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       search:
         index: the_alias
         size: 0
@@ -144,7 +144,7 @@ teardown:
   - match: { aggregations.cities.buckets.0.doc_count: 1 }
 
   - do:
-      headers: { Authorization: "Basic bGltaXRlZDpjaGFuZ2VtZQ==" } # limited - user
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       search:
         index: the_*
         size: 0
@@ -162,7 +162,7 @@ teardown:
   - match: { aggregations.cities.buckets.0.doc_count: 1 }
 
   - do:
-      headers: { Authorization: "Basic bGltaXRlZDpjaGFuZ2VtZQ==" } # limited - user
+      headers: { Authorization: "Basic bGltaXRlZDp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # limited - user
       search:
         index: test_*
         size: 0

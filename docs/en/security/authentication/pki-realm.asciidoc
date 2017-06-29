@@ -80,7 +80,7 @@ xpack:
           type: pki
           truststore:
             path: "/path/to/pki_truststore.jks"
-            password: "changeme"
+            password: "x-pack-test-password"
 ------------------------------------------------------------
 
 . Restart Elasticsearch.

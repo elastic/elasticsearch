@@ -57,7 +57,7 @@ users from the **Management / Users** UI in Kibana or through the
 ---------------------------------------------------------------
 POST /_xpack/security/user/packetbeat_internal
 {
-  "password" : "changeme", 
+  "password" : "x-pack-test-password",
   "roles" : [ "packetbeat_writer"], 
   "full_name" : "Internal Packetbeat User"
 }
@@ -87,7 +87,7 @@ output.elasticsearch:
     hosts: ["localhost:9200"]
     index: "packetbeat"
     username: "packetbeat_internal"
-    password: "changeme"
+    password: "x-pack-test-password"
 --------------------------------------------------
 
 .. To use PKI authentication, configure the `certificate` and
@@ -144,7 +144,7 @@ the `packetbeat_reader` role:
 ---------------------------------------------------------------
 POST /_xpack/security/user/packetbeat_user
 {
-  "password" : "changeme", 
+  "password" : "x-pack-test-password",
   "roles" : [ "packetbeat_reader"], 
   "full_name" : "Packetbeat User"
 }

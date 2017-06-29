@@ -26,7 +26,7 @@ import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public class XDocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
-    private static final String USER_TOKEN = basicAuthHeaderValue("test_admin", new SecureString("changeme".toCharArray()));
+    private static final String USER_TOKEN = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
 
     public XDocsClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

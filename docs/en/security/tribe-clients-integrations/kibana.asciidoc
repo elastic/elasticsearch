@@ -27,8 +27,8 @@ To use Kibana with {security}:
 requests as this user to access the cluster monitoring APIs and the `.kibana` index.
 The server does _not_ need access to user indices.
 +
-By default, the `kibana` user password is set to `changeme`. Change this password
-through the reset password API:
+By default, the `kibana` does not have a password. The user will not be enabled until
+a password is set. Set the password through the reset password API:
 +
 [source,shell]
 --------------------------------------------------------------------------------

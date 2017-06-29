@@ -19,7 +19,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -29,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapLoadBalancing;
@@ -142,7 +142,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
      * This user will then be passed to the listener
      */
     @Override
-    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
+    protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener, IncomingRequest incomingRequest) {
         // we submit to the threadpool because authentication using LDAP will execute blocking I/O for a bind request and we don't want
         // network threads stuck waiting for a socket to connect. After the bind, then all interaction with LDAP should be async
         final CancellableLdapRunnable cancellableLdapRunnable = new CancellableLdapRunnable(listener,

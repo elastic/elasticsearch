@@ -76,7 +76,8 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
 
         keystore = KeyStore.getInstance("JKS");
         keystore.load(null, null);
-        keystore.setKeyEntry("private key", keyPair.getPrivate(), "changeme".toCharArray(), new Certificate[]{cert});
+        keystore.setKeyEntry("private key", keyPair.getPrivate(), SecuritySettingsSource.TEST_PASSWORD.toCharArray(),
+                new Certificate[]{cert});
     }
 
     @AfterClass
@@ -98,15 +99,15 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
                 .put("transport.host", hostName);
         Path keystorePath = nodeConfigPath(nodeOrdinal).resolve("keystore.jks");
         try (OutputStream os = Files.newOutputStream(keystorePath)) {
-            keystore.store(os, "changeme".toCharArray());
+            keystore.store(os, SecuritySettingsSource.TEST_PASSWORD.toCharArray());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } catch (CertificateException | NoSuchAlgorithmException | KeyStoreException e) {
             throw new ElasticsearchException("unable to write keystore for node", e);
         }
         SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
-            secureSettings.setString("xpack.ssl.keystore.secure_password", "changeme");
-            secureSettings.setString("xpack.ssl.truststore.secure_password", "changeme");
+            secureSettings.setString("xpack.ssl.keystore.secure_password", SecuritySettingsSource.TEST_PASSWORD);
+            secureSettings.setString("xpack.ssl.truststore.secure_password", SecuritySettingsSource.TEST_PASSWORD);
         });
         builder.put("xpack.ssl.keystore.path", keystorePath.toAbsolutePath())
                .put("xpack.ssl.truststore.path", keystorePath.toAbsolutePath());
@@ -127,15 +128,15 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
                 .put(defaultSettings.filter((s) -> s.startsWith("xpack.ssl.") == false));
         Path path = createTempDir().resolve("keystore.jks");
         try (OutputStream os = Files.newOutputStream(path)) {
-            keystore.store(os, "changeme".toCharArray());
+            keystore.store(os, SecuritySettingsSource.TEST_PASSWORD.toCharArray());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } catch (CertificateException | NoSuchAlgorithmException | KeyStoreException e) {
             throw new ElasticsearchException("unable to write keystore for node", e);
         }
         SecuritySettingsSource.addSecureSettings(builder, secureSettings -> {
-            secureSettings.setString("xpack.ssl.keystore.secure_password", "changeme");
-            secureSettings.setString("xpack.ssl.truststore.secure_password", "changeme");
+            secureSettings.setString("xpack.ssl.keystore.secure_password", SecuritySettingsSource.TEST_PASSWORD);
+            secureSettings.setString("xpack.ssl.truststore.secure_password", SecuritySettingsSource.TEST_PASSWORD);
         });
         builder.put("xpack.ssl.keystore.path", path.toAbsolutePath())
                .put("xpack.ssl.truststore.path", path.toAbsolutePath());

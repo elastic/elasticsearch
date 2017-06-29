@@ -8,6 +8,7 @@ package org.elasticsearch.example.realm;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
@@ -23,7 +24,7 @@ public class CustomRealm extends Realm {
     public static final String PW_HEADER = "Password";
 
     public static final String KNOWN_USER = "custom_user";
-    public static final SecureString KNOWN_PW = new SecureString("changeme".toCharArray());
+    public static final SecureString KNOWN_PW = new SecureString("x-pack-test-password".toCharArray());
     static final String[] ROLES = new String[] { "superuser" };
 
     public CustomRealm(RealmConfig config) {
@@ -48,7 +49,7 @@ public class CustomRealm extends Realm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken authToken, ActionListener<User> listener) {
+    public void authenticate(AuthenticationToken authToken, ActionListener<User> listener, IncomingRequest incomingRequest) {
         UsernamePasswordToken token = (UsernamePasswordToken)authToken;
         final String actualUser = token.principal();
         if (KNOWN_USER.equals(actualUser) && CharArrays.constantTimeEquals(token.credentials().getChars(), KNOWN_PW.getChars())) {

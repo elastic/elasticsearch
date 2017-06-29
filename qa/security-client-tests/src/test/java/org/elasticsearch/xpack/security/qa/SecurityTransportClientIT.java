@@ -33,8 +33,8 @@ import static org.hamcrest.Matchers.is;
  * Integration tests that test a transport client with security being loaded that connect to an external cluster
  */
 public class SecurityTransportClientIT extends ESIntegTestCase {
-    static final String ADMIN_USER_PW = "test_user:changeme";
-    static final String TRANSPORT_USER_PW = "transport:changeme";
+    static final String ADMIN_USER_PW = "test_user:x-pack-test-password";
+    static final String TRANSPORT_USER_PW = "transport:x-pack-test-password";
 
     @Override
     protected Settings externalClusterClientSettings() {
@@ -96,7 +96,7 @@ public class SecurityTransportClientIT extends ESIntegTestCase {
             ClusterHealthResponse response;
             if (useTransportUser) {
                 response = client.filterWithHeader(Collections.singletonMap("Authorization",
-                        basicAuthHeaderValue("test_user", new SecureString("changeme".toCharArray()))))
+                        basicAuthHeaderValue("test_user", new SecureString("x-pack-test-password".toCharArray()))))
                         .admin().cluster().prepareHealth().get();
             } else {
                 response = client.admin().cluster().prepareHealth().get();

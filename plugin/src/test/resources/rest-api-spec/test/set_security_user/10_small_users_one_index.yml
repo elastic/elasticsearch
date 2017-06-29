@@ -25,7 +25,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "company_x_logs_role" ]
             }
   - do:
@@ -33,7 +33,7 @@ setup:
         username: "john"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "company_y_logs_role" ]
             }
 
@@ -94,7 +94,7 @@ teardown:
 "Test shared index seperating user by using DLS":
   - do:
       headers:
-        Authorization: "Basic am9lOmNoYW5nZW1l"
+        Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       index:
         index: shared_logs
         type: type
@@ -106,7 +106,7 @@ teardown:
           }
   - do:
       headers:
-        Authorization: "Basic am9objpjaGFuZ2VtZQ=="
+        Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       index:
         index: shared_logs
         type: type
@@ -123,7 +123,7 @@ teardown:
   # Joe searches:
   - do:
       headers:
-        Authorization: "Basic am9lOmNoYW5nZW1l"
+        Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       search:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
@@ -134,7 +134,7 @@ teardown:
   # John searches:
   - do:
       headers:
-        Authorization: "Basic am9objpjaGFuZ2VtZQ=="
+        Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       search:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }

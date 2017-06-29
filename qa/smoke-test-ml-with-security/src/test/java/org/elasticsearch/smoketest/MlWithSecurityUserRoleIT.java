@@ -48,7 +48,7 @@ public class MlWithSecurityUserRoleIT extends MlWithSecurityIT {
 
     @Override
     protected String[] getCredentials() {
-        return new String[]{"ml_user", "changeme"};
+        return new String[]{"ml_user", "x-pack-test-password"};
     }
 }
 

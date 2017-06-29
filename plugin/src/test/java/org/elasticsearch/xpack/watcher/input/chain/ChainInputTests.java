@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
@@ -143,7 +144,7 @@ public class ChainInputTests extends ESTestCase {
         HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder("theHost", 1234)
                 .path("/index/_search")
                 .body(jsonBuilder().startObject().field("size", 1).endObject().string())
-                .auth(new BasicAuth("test", "changeme".toCharArray())));
+                .auth(new BasicAuth("test", SecuritySettingsSource.TEST_PASSWORD.toCharArray())));
 
         ChainInput.Builder chainedInputBuilder = chainInput()
                 .add("foo", httpInputBuilder)

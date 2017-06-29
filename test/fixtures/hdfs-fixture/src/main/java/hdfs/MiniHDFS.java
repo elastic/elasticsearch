@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.apache.hadoop.conf.Configuration;
@@ -49,7 +50,8 @@ public class MiniHDFS {
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1 && args.length != 3) {
-            throw new IllegalArgumentException("MiniHDFS <baseDirectory> [<kerberosPrincipal> <kerberosKeytab>]");
+            throw new IllegalArgumentException("Expected: MiniHDFS <baseDirectory> [<kerberosPrincipal> <kerberosKeytab>], " +
+                "got: " + Arrays.toString(args));
         }
         boolean secure = args.length == 3;
 
@@ -83,6 +85,8 @@ public class MiniHDFS {
             cfg.set(DFSConfigKeys.DFS_NAMENODE_KEYTAB_FILE_KEY, keytabFile);
             cfg.set(DFSConfigKeys.DFS_DATANODE_KEYTAB_FILE_KEY, keytabFile);
             cfg.set(DFSConfigKeys.DFS_NAMENODE_ACLS_ENABLED_KEY, "true");
+            // dfs.block.access.token.enable
+            cfg.set(DFSConfigKeys.DFS_BLOCK_ACCESS_TOKEN_ENABLE_KEY, "true");
             cfg.set(DFSConfigKeys.IGNORE_SECURE_PORTS_FOR_TESTING_KEY, "true");
         }
 

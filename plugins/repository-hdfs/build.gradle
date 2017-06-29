@@ -32,7 +32,7 @@ esplugin {
 apply plugin: 'elasticsearch.vagrantsupport'
 
 versions << [
-  'hadoop2': '2.7.1'
+  'hadoop2': '2.8.1'
 ]
 
 configurations {
@@ -45,7 +45,8 @@ dependencies {
   compile "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
   compile "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
   compile "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
-  compile 'org.apache.htrace:htrace-core:3.1.0-incubating'
+  compile "org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop2}"
+  compile 'org.apache.htrace:htrace-core4:4.0.1-incubating'
   compile 'com.google.guava:guava:11.0.2'
   compile 'com.google.protobuf:protobuf-java:2.5.0'
   compile 'commons-logging:commons-logging:1.1.3'
@@ -317,8 +318,7 @@ thirdPartyAudit.excludes = [
   'org.apache.commons.digester.substitution.MultiVariableExpander', 
   'org.apache.commons.digester.substitution.VariableSubstitutor', 
   'org.apache.commons.digester.xmlrules.DigesterLoader', 
-  'org.apache.commons.httpclient.util.URIUtil', 
-  'org.apache.commons.jxpath.JXPathContext', 
+  'org.apache.commons.jxpath.JXPathContext',
   'org.apache.commons.jxpath.ri.JXPathContextReferenceImpl', 
   'org.apache.commons.jxpath.ri.QName', 
   'org.apache.commons.jxpath.ri.compiler.NodeNameTest', 
@@ -402,14 +402,12 @@ thirdPartyAudit.excludes = [
   'org.codehaus.jackson.JsonFactory', 
   'org.codehaus.jackson.JsonGenerator', 
   'org.codehaus.jackson.JsonGenerator$Feature', 
-  'org.codehaus.jackson.JsonNode', 
-  'org.codehaus.jackson.map.MappingJsonFactory', 
+  'org.codehaus.jackson.map.MappingJsonFactory',
   'org.codehaus.jackson.map.ObjectMapper', 
   'org.codehaus.jackson.map.ObjectReader', 
   'org.codehaus.jackson.map.ObjectWriter', 
   'org.codehaus.jackson.node.ContainerNode', 
-  'org.codehaus.jackson.type.TypeReference', 
-  'org.codehaus.jackson.util.MinimalPrettyPrinter', 
+  'org.codehaus.jackson.util.MinimalPrettyPrinter',
   'org.fusesource.leveldbjni.JniDBFactory', 
   'org.iq80.leveldb.DB', 
   'org.iq80.leveldb.Options', 
@@ -437,8 +435,7 @@ thirdPartyAudit.excludes = [
   'org.mortbay.jetty.servlet.ServletHolder', 
   'org.mortbay.jetty.servlet.SessionHandler', 
   'org.mortbay.jetty.webapp.WebAppContext', 
-  'org.mortbay.log.Log', 
-  'org.mortbay.thread.QueuedThreadPool', 
+  'org.mortbay.thread.QueuedThreadPool',
   'org.mortbay.util.MultiException', 
   'org.mortbay.util.ajax.JSON$Convertible', 
   'org.mortbay.util.ajax.JSON$Output', 
@@ -473,7 +470,36 @@ thirdPartyAudit.excludes = [
   'org.apache.log4j.AppenderSkeleton',
   'org.apache.log4j.AsyncAppender',
   'org.apache.log4j.helpers.ISO8601DateFormat',
-  'org.apache.log4j.spi.ThrowableInformation'
+  'org.apache.log4j.spi.ThrowableInformation',
+
+  // Not pulled in for the plugin, but third party checker complains that they're missing
+  // Their absence is not missed.
+
+  // Hadoop Common
+  'com.jcraft.jsch.ChannelSftp$LsEntry',
+  'com.jcraft.jsch.ChannelSftp',
+  'com.jcraft.jsch.SftpATTRS',
+  'org.mortbay.jetty.security.SslSelectChannelConnector',
+
+  // Hadoop Auth
+  'com.nimbusds.jose.JWSObject$State',
+  'com.nimbusds.jose.crypto.RSASSAVerifier',
+  'com.nimbusds.jwt.ReadOnlyJWTClaimsSet',
+  'com.nimbusds.jwt.SignedJWT',
+  'org.apache.directory.shared.kerberos.components.EncryptionKey',
+
+  // HDFS Client
+  'com.squareup.okhttp.Call',
+  'com.squareup.okhttp.MediaType',
+  'com.squareup.okhttp.OkHttpClient',
+  'com.squareup.okhttp.Request$Builder',
+  'com.squareup.okhttp.RequestBody',
+  'com.squareup.okhttp.Response',
+  'com.squareup.okhttp.ResponseBody',
+
+  // HDFS
+  'io.netty.channel.ChannelOption',
+  'io.netty.util.ReferenceCountUtil'
 ]
 
 // Gradle 2.13 bundles org.slf4j.impl.StaticLoggerBinder in its core.jar which leaks into the forbidden APIs ant task

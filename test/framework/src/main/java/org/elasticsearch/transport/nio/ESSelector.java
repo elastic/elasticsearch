@@ -77,6 +77,7 @@ public abstract class ESSelector implements Closeable {
                 }
             } finally {
                 try {
+                    channelsToClose.addAll(registeredChannels);
                     cleanup();
                 } finally {
                     runLock.unlock();
@@ -128,6 +129,14 @@ public abstract class ESSelector implements Closeable {
         return registeredChannels;
     }
 
+    public void addRegisteredChannel(NioChannel channel) {
+        registeredChannels.add(channel);
+    }
+
+    public void removeRegisteredChannel(NioChannel channel) {
+        registeredChannels.remove(channel);
+    }
+
     @Override
     public void close() throws IOException {
         close(false);
@@ -154,7 +163,7 @@ public abstract class ESSelector implements Closeable {
     void closePendingChannels() {
         NioChannel channel;
         while ((channel = channelsToClose.poll()) != null) {
-            closeChannel(channel);
+            eventHandler.handleClose(channel);
         }
     }
 
@@ -202,14 +211,6 @@ public abstract class ESSelector implements Closeable {
             if (queue.remove(objectAdded)) {
                 throw new IllegalStateException("selector is already closed");
             }
-        }
-    }
-
-    private void closeChannel(NioChannel channel) {
-        try {
-            eventHandler.handleClose(channel);
-        } finally {
-            registeredChannels.remove(channel);
         }
     }
 }

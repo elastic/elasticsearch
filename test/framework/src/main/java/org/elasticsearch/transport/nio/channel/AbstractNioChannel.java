@@ -199,6 +199,10 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
                 closeFuture.channelClosed(this);
             } catch (IOException e) {
                 closeFuture.channelCloseThrewException(this, e);
+            } finally {
+                if (selector != null) {
+                    selector.removeRegisteredChannel(this);
+                }
             }
         }
     }

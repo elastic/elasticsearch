@@ -68,7 +68,6 @@ public class AcceptingSelector extends ESSelector {
 
     @Override
     void cleanup() {
-        channelsToClose.addAll(registeredChannels);
         closePendingChannels();
     }
 
@@ -89,7 +88,7 @@ public class AcceptingSelector extends ESSelector {
             if (newChannel.register(this)) {
                 SelectionKey selectionKey = newChannel.getSelectionKey();
                 selectionKey.attach(newChannel);
-                registeredChannels.add(newChannel);
+                addRegisteredChannel(newChannel);
                 eventHandler.serverChannelRegistered(newChannel);
             }
         }

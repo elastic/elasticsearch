@@ -73,7 +73,6 @@ public class SocketSelector extends ESSelector {
             op.getListener().onFailure(new ClosedSelectorException());
         }
         channelsToClose.addAll(newChannels);
-        channelsToClose.addAll(registeredChannels);
         closePendingChannels();
     }
 
@@ -194,7 +193,7 @@ public class SocketSelector extends ESSelector {
     private void setupChannel(NioSocketChannel newChannel) {
         try {
             if (newChannel.register(this)) {
-                registeredChannels.add(newChannel);
+                addRegisteredChannel(newChannel);
                 SelectionKey key = newChannel.getSelectionKey();
                 key.attach(newChannel);
                 eventHandler.handleRegistration(newChannel);

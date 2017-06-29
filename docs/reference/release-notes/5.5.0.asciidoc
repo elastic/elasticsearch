@@ -298,7 +298,7 @@ Plugin Lang Painless::
 * Fix Painless Lambdas for Java 9 {pull}24070[#24070] (issue: {issue}23473[#23473])
 
 Plugins::
-* X-Pack plugin download fails on Windows desktop [ISSUE] {pull}24570[#24570]
+* X-Pack plugin download fails on Windows desktop {pull}24570[#24570]
 * Fix plugin installation permissions {pull}24527[#24527] (issue: {issue}24480[#24480])
 * Fix delete of plugin directory on remove plugin {pull}24266[#24266] (issue: {issue}24252[#24252])
 * Use a marker file when removing a plugin {pull}24252[#24252] (issue: {issue}24231[#24231])
@@ -323,7 +323,7 @@ Scroll::
 * Fix single shard scroll within a cluster with nodes in version `>= 5.3` and `<= 5.3` {pull}24512[#24512]
 
 Search::
-* Adds check for negative search request size [OPEN] {pull}25397[#25397] (issue: {issue}22530[#22530])
+* Adds check for negative search request size {pull}25397[#25397] (issue: {issue}22530[#22530])
 * Do not search locally if remote index pattern resolves to no indices {pull}25436[#25436] (issue: {issue}25426[#25426])
 * Make sure range queries are correctly profiled. {pull}25108[#25108]
 * Compute the took time of the query after the expand phase of field collapsing {pull}24902[#24902] (issue: {issue}24900[#24900])

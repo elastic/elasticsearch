@@ -26,9 +26,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Optional;
 
 /**
  * A query that matches on all documents.
@@ -64,11 +64,11 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
         declareStandardFields(PARSER);
     }
 
-    public static MatchAllQueryBuilder fromXContent(QueryParseContext context) {
+    public static MatchAllQueryBuilder fromXContent(XContentParser parser) {
         try {
-            return PARSER.apply(context.parser(), context);
+            return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {
-            throw new ParsingException(context.parser().getTokenLocation(), e.getMessage(), e);
+            throw new ParsingException(parser.getTokenLocation(), e.getMessage(), e);
         }
     }
 

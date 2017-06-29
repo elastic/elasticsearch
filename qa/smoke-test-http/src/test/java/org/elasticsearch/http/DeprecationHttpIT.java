@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.hasSize;
 /**
  * Tests {@code DeprecationLogger} uses the {@code ThreadContext} to add response headers.
  */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class DeprecationHttpIT extends HttpSmokeTestCase {
 
     @Override
@@ -123,14 +125,6 @@ public class DeprecationHttpIT extends HttpSmokeTestCase {
 
     public void testDeprecationWarningsAppearInHeaders() throws Exception {
         doTestDeprecationWarningsAppearInHeaders();
-    }
-
-    public void testDeprecationHeadersDoNotGetStuck() throws Exception {
-        doTestDeprecationWarningsAppearInHeaders();
-        doTestDeprecationWarningsAppearInHeaders();
-        if (rarely()) {
-            doTestDeprecationWarningsAppearInHeaders();
-        }
     }
 
     /**

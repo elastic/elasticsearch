@@ -1,0 +1,13 @@
+apply plugin: 'elasticsearch.build'
+
+description = 'Request and response objects shared by the jdbc driver and ' +
+    'its backend in :x-pack-elasticsearch:plugin'
+
+dependencies {
+  testCompile project(':x-pack-elasticsearch:sql:test-utils')
+}
+
+forbiddenApisMain {
+  // does not depend on core, so only jdk and http signatures should be checked
+  signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
+}

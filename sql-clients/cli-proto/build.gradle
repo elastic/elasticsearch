@@ -1,7 +1,0 @@
-apply plugin: 'elasticsearch.build'
-
-description = 'Request and response objects shared by the cli and ' +
-    'its backend in :x-pack-elasticsearch:plugin'
-
-dependencyLicenses {
-}

@@ -1,3 +1,0 @@
-apply plugin: 'elasticsearch.build'
-
-description = 'Common base code for protos'

@@ -1,0 +1,90 @@
+apply plugin: 'elasticsearch.build'
+
+description = 'The server components of SQL for Elasticsearch'
+
+dependencies {
+  compile project(':x-pack-elasticsearch:sql:jdbc-proto')
+  compile project(':x-pack-elasticsearch:sql:cli-proto')
+  compile 'org.antlr:antlr4-runtime:4.5.1-1'
+  provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
+}
+
+dependencyLicenses {
+  mapping from: /jdbc-proto.*/, to: 'elasticsearch'
+  mapping from: /cli-proto.*/, to: 'elasticsearch'
+  ignoreSha 'jdbc-proto'
+  ignoreSha 'cli-proto'
+}
+
+// NOCOMMIT probably not a good thing to rely on.....
+compileJava.options.compilerArgs << "-parameters"
+compileTestJava.options.compilerArgs << "-parameters"
+
+/**********************************************
+ *          SQL Parser regeneration           *
+ **********************************************/
+
+configurations {
+  regenerate
+}
+
+dependencies {
+  regenerate 'org.antlr:antlr4:4.5.1-1'
+}
+
+String grammarPath = 'src/main/antlr'
+String outputPath = 'src/main/java/org/elasticsearch/xpack/sql/parser'
+
+task cleanGenerated(type: Delete) {
+  delete fileTree(grammarPath) {
+    include '*.tokens'
+  }
+  delete fileTree(outputPath) {
+    include 'SqlBase*.java'
+  }
+}
+
+task regenParser(type: JavaExec) {
+  dependsOn cleanGenerated
+  main = 'org.antlr.v4.Tool'
+  classpath = configurations.regenerate
+  systemProperty 'file.encoding', 'UTF-8'
+  systemProperty 'user.language', 'en'
+  systemProperty 'user.country', 'US'
+  systemProperty 'user.variant', ''
+  args '-Werror',
+       '-package', 'org.elasticsearch.xpack.sql.parser',
+       '-listener',
+       '-visitor',
+       '-o', outputPath,
+       "${file(grammarPath)}/SqlBase.g4"
+}
+
+task regen {
+  dependsOn regenParser
+  doLast {
+    // moves token files to grammar directory for use with IDE's
+    ant.move(file: "${outputPath}/SqlBase.tokens", toDir: grammarPath)
+    ant.move(file: "${outputPath}/SqlBaseLexer.tokens", toDir: grammarPath)
+    // make the generated classes package private
+    ant.replaceregexp(match: 'public ((interface|class) \\QSqlBase\\E\\w+)',
+                      replace: '\\1',
+                      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'SqlBase*.java')
+    }
+    // nuke timestamps/filenames in generated files
+    ant.replaceregexp(match: '\\Q// Generated from \\E.*',
+                      replace: '\\/\\/ ANTLR GENERATED CODE: DO NOT EDIT',
+                      encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'SqlBase*.java')
+    }
+    // remove tabs in antlr generated files
+    ant.replaceregexp(match: '\t', flags: 'g', replace: '  ', encoding: 'UTF-8') {
+      fileset(dir: outputPath, includes: 'SqlBase*.java')
+    }
+    // fix line endings
+    ant.fixcrlf(srcdir: outputPath) {
+      patternset(includes: 'SqlBase*.java')
+    }
+  }
+}

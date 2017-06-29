@@ -1,0 +1,13 @@
+description = 'SQL for Elasticsearch'
+
+import org.gradle.plugins.ide.eclipse.model.*;
+
+subprojects {
+  apply plugin: 'elasticsearch.build'
+
+  sourceSets.test.resources.srcDirs = ["src/test/resources", "src/test/java"]
+
+  dependencies {
+    testCompile "org.elasticsearch.test:framework:${version}"
+  }
+}

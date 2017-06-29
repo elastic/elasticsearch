@@ -101,7 +101,7 @@ public class DatabaseMetaDataIT extends JdbcIntegrationTestCase {
 
             assertTrue(results.next());
             i = 1;
-            assertThat(results.getString(i++), startsWith("x-pack-elasticsearch_sql-clients_jdbc_"));
+            assertThat(results.getString(i++), startsWith("x-pack-elasticsearch_sql_jdbc_"));
             assertEquals("", results.getString(i++));
             assertEquals("test.doc", results.getString(i++));
             assertEquals("TABLE", results.getString(i++));
@@ -160,7 +160,7 @@ public class DatabaseMetaDataIT extends JdbcIntegrationTestCase {
 
             assertTrue(results.next());
             i = 1;
-            assertThat(results.getString(i++), startsWith("x-pack-elasticsearch_sql-clients_jdbc_"));
+            assertThat(results.getString(i++), startsWith("x-pack-elasticsearch_sql_jdbc_"));
             assertEquals("", results.getString(i++));
             assertEquals("test.doc", results.getString(i++));
             assertEquals("name", results.getString(i++));

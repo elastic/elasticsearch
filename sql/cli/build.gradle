@@ -5,13 +5,14 @@ description = 'Command line interface to Elasticsearch that speaks SQL'
 
 dependencies {
   compile "org.jline:jline:3.3.1"
-  compile project(':x-pack-elasticsearch:sql-clients:net-client')
-  compile project(':x-pack-elasticsearch:sql-clients:cli-proto')
+  compile project(':x-pack-elasticsearch:sql:net-client')
+  compile project(':x-pack-elasticsearch:sql:cli-proto')
 
   testCompile project(":x-pack-elasticsearch:transport-client")
   testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
-  testCompile project(':x-pack-elasticsearch:sql-clients:test-utils')
-  
+  testCompile project(':x-pack-elasticsearch:sql:test-utils')
+  testCompile project(':x-pack-elasticsearch:sql:server')
+
   runtime "org.fusesource.jansi:jansi:1.16"
   runtime "org.elasticsearch:jna:4.4.0"
 }
@@ -23,10 +24,15 @@ dependencyLicenses {
   ignoreSha 'net-client'
 }
 
+forbiddenApisMain {
+  // does not depend on core, so only jdk and http signatures should be checked
+  signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
+}
+
 // TODO seems like we should use the jars....
 jar {
-  from(zipTree(project(':x-pack-elasticsearch:sql-clients:net-client').jar.archivePath))
-  from(zipTree(project(':x-pack-elasticsearch:sql-clients:cli-proto').jar.archivePath))
+  from(zipTree(project(':x-pack-elasticsearch:sql:net-client').jar.archivePath))
+  from(zipTree(project(':x-pack-elasticsearch:sql:cli-proto').jar.archivePath))
 }
 
 mainClassName = "org.elasticsearch.sql.console.SqlConsole"

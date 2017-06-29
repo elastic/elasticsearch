@@ -13,6 +13,11 @@ sourceSets {
   }
 }
 
+forbiddenApisMain {
+  // does not depend on core, so only jdk and http signatures should be checked
+  signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
+}
+
 task generateGitHash {
   // TODO use the manifest file automatically built by elasticsearch.build
   doLast {
@@ -36,12 +41,12 @@ task generateGitHash {
 }
 
 dependencies {
-  compile project(':x-pack-elasticsearch:sql-clients:net-client')
-  compile project(':x-pack-elasticsearch:sql-clients:jdbc-proto')
+  compile project(':x-pack-elasticsearch:sql:net-client')
+  compile project(':x-pack-elasticsearch:sql:jdbc-proto')
 
-  testCompile project(":x-pack-elasticsearch:transport-client")
+  testCompile project(":x-pack-elasticsearch:transport-client") // NOCOMMIT probably can remove this
   testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
-  testCompile project(':x-pack-elasticsearch:sql-clients:test-utils')
+  testCompile project(':x-pack-elasticsearch:sql:test-utils')
 
   // Used by the hack to run InternalTestCluster if not running against a gradle-started cluster.
   testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
@@ -59,8 +64,8 @@ dependencyLicenses {
 
 // TODO seems like we should use the jars....
 jar {
-  from(zipTree(project(':x-pack-elasticsearch:sql-clients:net-client').jar.archivePath))
-  from(zipTree(project(':x-pack-elasticsearch:sql-clients:jdbc-proto').jar.archivePath))
+  from(zipTree(project(':x-pack-elasticsearch:sql:net-client').jar.archivePath))
+  from(zipTree(project(':x-pack-elasticsearch:sql:jdbc-proto').jar.archivePath))
 }
 
 apply plugin: 'elasticsearch.rest-test'

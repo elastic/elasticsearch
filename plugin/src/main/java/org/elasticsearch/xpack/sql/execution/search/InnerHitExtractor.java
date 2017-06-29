@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
-import java.util.Map;
-
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.xpack.sql.execution.ExecutionException;
+
+import java.util.Map;
 
 class InnerHitExtractor implements HitExtractor {
     private final String hitName, fieldName;
@@ -28,7 +28,7 @@ class InnerHitExtractor implements HitExtractor {
     @Override
     public Object get(SearchHit hit) {
         if (useDocValue) {
-            SearchHitField field = hit.field(fieldName);
+            DocumentField field = hit.field(fieldName);
             return field != null ? field.getValue() : null;
         }
         else {

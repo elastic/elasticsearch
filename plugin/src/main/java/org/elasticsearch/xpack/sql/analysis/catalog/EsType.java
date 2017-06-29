@@ -5,19 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.Types;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import java.util.Collections;
+import java.util.Map;
 
 public class EsType {
 
@@ -49,7 +43,7 @@ public class EsType {
         Map<String, Object> asMap;
         try {
             asMap = metaData.sourceAsMap();
-        } catch (IOException ex) {
+        } catch (ElasticsearchParseException ex) {
             throw new MappingException("Cannot get mapping info", ex);
         }
 

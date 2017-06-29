@@ -5,16 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.test.server;
 
+import com.sun.net.httpserver.HttpServer;
+
+import org.elasticsearch.client.Client;
+
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.Executors;
-
-import org.elasticsearch.client.Client;
-
-import com.sun.net.httpserver.HttpServer;
-
-import static java.lang.String.format;
 
 public abstract class ProtoHttpServer<R> {
 

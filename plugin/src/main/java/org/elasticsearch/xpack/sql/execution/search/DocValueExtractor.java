@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.execution.search;
 
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 
 class DocValueExtractor implements HitExtractor {
     private final String fieldName;
@@ -17,7 +17,7 @@ class DocValueExtractor implements HitExtractor {
 
     @Override
     public Object get(SearchHit hit) {
-        SearchHitField field = hit.field(fieldName);
+        DocumentField field = hit.field(fieldName);
         return field != null ? field.getValue() : null;
     }
 

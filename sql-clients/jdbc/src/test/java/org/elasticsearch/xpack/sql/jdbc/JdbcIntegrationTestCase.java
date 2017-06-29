@@ -12,7 +12,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcTemplate;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver;
 import org.junit.Before;
 

@@ -58,8 +58,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 
 public class NioTransport extends TcpTransport<NioChannel> {
 
-    public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_WORKER_THREAD_NAME_PREFIX;
-    public static final String TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX;
+    public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = Transports.ES_NIO_TRANSPORT_WORKER_THREAD_NAME_PREFIX;
+    public static final String TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX = Transports.ES_NIO_TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX;
 
     public static final Setting<Integer> NIO_WORKER_COUNT =
         new Setting<>("transport.nio.worker_count",

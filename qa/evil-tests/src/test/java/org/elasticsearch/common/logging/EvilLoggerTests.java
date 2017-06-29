@@ -30,9 +30,11 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
@@ -44,11 +46,18 @@ import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CyclicBarrier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -96,8 +105,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testDeprecationLogger() throws IOException, UserException {
         setupLogging("deprecation");
 
-        final DeprecationLogger deprecationLogger =
-                new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
 
         final int deprecatedIterations = randomIntBetween(0, 256);
         for (int i = 0; i < deprecatedIterations; i++) {
@@ -121,11 +129,87 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
+    public void testConcurrentDeprecationLogger() throws IOException, UserException, BrokenBarrierException, InterruptedException {
+        setupLogging("deprecation");
+
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
+
+        final int numberOfThreads = randomIntBetween(2, 4);
+        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+        final List<Thread> threads = new ArrayList<>();
+        final int iterations = randomIntBetween(1, 4);
+        for (int i = 0; i < numberOfThreads; i++) {
+            final Thread thread = new Thread(() -> {
+                final List<Integer> ids = IntStream.range(0, 128).boxed().collect(Collectors.toList());
+                Randomness.shuffle(ids);
+                final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+                DeprecationLogger.setThreadContext(threadContext);
+                try {
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                for (int j = 0; j < iterations; j++) {
+                    for (final Integer id : ids) {
+                        deprecationLogger.deprecatedAndMaybeLog(Integer.toString(id), "This is a maybe logged deprecation message" + id);
+                    }
+                }
+
+                /*
+                 * We have to manually check that each thread has the right warning headers in the thread context because the act of doing
+                 * this through the test framework on one thread would otherwise clear the thread context and we would be unable to assert
+                 * on the other threads.
+                 */
+                final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
+                final Set<String> actualWarningValues =
+                        warnings.stream().map(DeprecationLogger::extractWarningValueFromWarningHeader).collect(Collectors.toSet());
+                for (int j = 0; j < 128; j++) {
+                    assertThat(actualWarningValues, hasItem(DeprecationLogger.escape("This is a maybe logged deprecation message" + j)));
+                }
+
+                try {
+                    barrier.await();
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        // synchronize the start of all threads
+        barrier.await();
+
+        // wait for all threads to complete their iterations
+        barrier.await();
+
+        final String deprecationPath =
+                System.getProperty("es.logs.base_path") +
+                        System.getProperty("file.separator") +
+                        System.getProperty("es.logs.cluster_name") +
+                        "_deprecation.log";
+        final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
+        // we appended an integer to each log message, use that for sorting
+        deprecationEvents.sort(Comparator.comparingInt(s -> Integer.parseInt(s.split("message")[1])));
+        assertThat(deprecationEvents.size(), equalTo(128));
+        for (int i = 0; i < 128; i++) {
+            assertLogLine(
+                    deprecationEvents.get(i),
+                    Level.WARN,
+                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "This is a maybe logged deprecation message" + i);
+        }
+
+        for (final Thread thread : threads) {
+            thread.join();
+        }
+
+    }
+
     public void testDeprecationLoggerMaybeLog() throws IOException, UserException {
         setupLogging("deprecation");
 
-        final DeprecationLogger deprecationLogger =
-                new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
+        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
 
         final int iterations = randomIntBetween(1, 16);
 

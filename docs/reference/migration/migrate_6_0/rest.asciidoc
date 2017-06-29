@@ -68,3 +68,9 @@ This comma-separation for retrieving multiple pieces of information has been
 removed.. `GET /_all` can be used to retrieve all aliases, settings, and
 mappings for all indices. In order to retrieve only the mappings for an index,
 `GET /myindex/_mappings` (or `_aliases`, or `_settings`).
+
+==== Dissallow using `_cache` and `_cache_key`
+
+The `_cache` and `_cache_key` options in queries have been deprecated since version 2.0.0 and
+have been ignored since then, issuing a deprecation warning. These options have now been completely
+removed, so using them now will throw an error.

@@ -30,13 +30,8 @@ import java.io.IOException;
 public interface QueryParser<QB extends QueryBuilder> {
     /**
      * Creates a new {@link QueryBuilder} from the query held by the
-     * {@link QueryParseContext} in
-     * {@link org.elasticsearch.common.xcontent.XContent} format
-     *
-     * @param parser
-     *            The state on the parser contained in this context will be
-     *            changed as a side effect of this method call
-     * @return the new QueryBuilder
+     * {@link XContentParser}. The state on the parser contained in this context
+     * will be changed as a side effect of this method call
      */
     QB fromXContent(XContentParser parser) throws IOException;
 }

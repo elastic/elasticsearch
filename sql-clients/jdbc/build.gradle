@@ -57,12 +57,6 @@ dependencyLicenses {
   ignoreSha 'net-client'
 }
 
-forbiddenApisTest {
-  //we are using jdk-internal instead of jdk-non-portable to allow for com.sun.net.httpserver.* usage
-  bundledSignatures -= 'jdk-non-portable'
-  bundledSignatures += 'jdk-internal'
-}
-
 // TODO seems like we should use the jars....
 jar {
   from(zipTree(project(':x-pack-elasticsearch:sql-clients:net-client').jar.archivePath))

@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
 import org.elasticsearch.xpack.sql.test.server.ProtoHttpServer;
 
 public class CliHttpServer extends ProtoHttpServer<Response> {
+    // NOCOMMIT replace me with the same hack that JdbcIntegrationTestCase uses
 
     public CliHttpServer(Client client) {
         super(client, new CliProtoHandler(client), "/cli/", "sql/");

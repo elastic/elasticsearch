@@ -30,13 +30,10 @@ import java.sql.Types;
 import java.util.Calendar;
 
 class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
-
-    private final String sql;
     final PreparedQuery query;
 
     JdbcPreparedStatement(JdbcConnection con, String sql) {
         super(con);
-        this.sql = sql;
         this.query = PreparedQuery.prepare(sql);
     }
 

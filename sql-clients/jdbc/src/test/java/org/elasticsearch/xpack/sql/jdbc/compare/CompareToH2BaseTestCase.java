@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.jdbc.query;
+package org.elasticsearch.xpack.sql.jdbc.compare;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
@@ -29,7 +29,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.sql.jdbc.query.JdbcAssert.assertResultSets;
+import static org.elasticsearch.xpack.sql.jdbc.compare.JdbcAssert.assertResultSets;
 
 /**
  * Compares Elasticsearch's JDBC driver to H2.

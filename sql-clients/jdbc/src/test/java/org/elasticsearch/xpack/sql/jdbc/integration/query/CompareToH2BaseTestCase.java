@@ -21,7 +21,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.lang.String.format;
-import static org.elasticsearch.xpack.sql.jdbc.query.JdbcAssert.assertResultSets;
+import static org.elasticsearch.xpack.sql.jdbc.compare.JdbcAssert.assertResultSets;
 
 public abstract class CompareToH2BaseTestCase extends ESTestCase {
     // NOCOMMIT subclasses should probably all be integration tests running against a running Elasticsearch

@@ -11,14 +11,14 @@ import java.util.function.Supplier;
 
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.xpack.sql.jdbc.JdbcTemplate;
+import org.elasticsearch.xpack.sql.jdbc.compare.FilterIT;
+import org.elasticsearch.xpack.sql.jdbc.compare.SelectIT;
 import org.elasticsearch.xpack.sql.jdbc.integration.query.function.aggregate.AggSpecTests;
 import org.elasticsearch.xpack.sql.jdbc.integration.query.function.scalar.datetime.DateTimeSpecTests;
 import org.elasticsearch.xpack.sql.jdbc.integration.query.function.scalar.math.MathSpecTests;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.EsDataLoader;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.EsJdbcServer;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.H2;
-import org.elasticsearch.xpack.sql.jdbc.query.FilterIT;
-import org.elasticsearch.xpack.sql.jdbc.query.SelectIT;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.runner.RunWith;

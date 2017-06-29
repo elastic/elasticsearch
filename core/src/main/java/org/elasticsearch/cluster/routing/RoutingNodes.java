@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.Assertions;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -320,14 +321,35 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /**
      * Returns one active replica shard for the given shard id or <code>null</code> if
      * no active replica is found.
+     *
+     * Since replicas could possibly be on nodes with a older version of ES than
+     * the primary is, this will return replicas on the highest version of ES.
+     *
      */
-    public ShardRouting activeReplica(ShardId shardId) {
+    public ShardRouting activeReplicaWithHighestVersion(ShardId shardId) {
+        Version highestVersionSeen = null;
+        ShardRouting candidate = null;
         for (ShardRouting shardRouting : assignedShards(shardId)) {
             if (!shardRouting.primary() && shardRouting.active()) {
-                return shardRouting;
+                // It's possible for replicaNodeVersion to be null, when deassociating dead nodes
+                // that have been removed, the shards are failed, and part of the shard failing
+                // calls this method with an out-of-date RoutingNodes, where the version might not
+                // be accessible. Therefore, we need to protect against the version being null
+                // (meaning the node will be going away).
+                RoutingNode replicaNode = node(shardRouting.currentNodeId());
+                if (replicaNode != null && replicaNode.node() != null) {
+                    Version replicaNodeVersion = replicaNode.node().getVersion();
+                    if (highestVersionSeen == null || replicaNodeVersion.after(highestVersionSeen)) {
+                        highestVersionSeen = replicaNodeVersion;
+                        candidate = shardRouting;
+                    } else if (candidate == null) {
+                        // Only use this replica if there are no other candidates
+                        candidate = shardRouting;
+                    }
+                }
             }
         }
-        return null;
+        return candidate;
     }
 
     /**
@@ -567,7 +589,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             if (failedShard.relocatingNodeId() == null) {
                 if (failedShard.primary()) {
                     // promote active replica to primary if active replica exists (only the case for shadow replicas)
-                    ShardRouting activeReplica = activeReplica(failedShard.shardId());
+                    ShardRouting activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
                     assert activeReplica == null || IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) :
                         "initializing primary [" + failedShard + "] with active replicas [" + activeReplica + "] only expected when " +
                             "using shadow replicas";
@@ -599,7 +621,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             assert failedShard.active();
             if (failedShard.primary()) {
                 // promote active replica to primary if active replica exists
-                ShardRouting activeReplica = activeReplica(failedShard.shardId());
+                ShardRouting activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
                 if (activeReplica == null) {
                     moveToUnassigned(failedShard, unassignedInfo);
                 } else {

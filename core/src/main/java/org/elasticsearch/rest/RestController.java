@@ -250,7 +250,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
 
             if (handler == null) {
                 if (request.method() == RestRequest.Method.OPTIONS) {
-                    // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
+                    // when we routinghave OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
 
                     channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
                 } else {

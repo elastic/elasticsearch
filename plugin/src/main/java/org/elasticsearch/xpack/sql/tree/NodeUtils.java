@@ -146,6 +146,7 @@ public abstract class NodeUtils {
             Parameter[] parameters = ctr.getParameters();
             for (int paramIndex = 0; paramIndex < parameters.length; paramIndex++) {
                 Parameter param = parameters[paramIndex];
+                // NOCOMMIT - oh boy. this is worth digging into. I suppose we preserve these for now but I don't think this is safe to rely on.
                 Assert.isTrue(param.isNamePresent(), "Can't find constructor parameter names for [%s]. Is class debug information available?", 
                                 clazz.toGenericString());
                 String paramName = param.getName();

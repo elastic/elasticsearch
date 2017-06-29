@@ -42,6 +42,7 @@ public class TransportJdbcAction extends HandledTransportAction<JdbcRequest, Jdb
 
     @Override
     protected void doExecute(JdbcRequest request, ActionListener<JdbcResponse> listener) {
+        // NOCOMMIT looks like this runs on the netty threadpool which might be bad. If we go async immediately it is ok, but we don't.
         jdbcServer.handle(request.request(), chain(listener, JdbcResponse::new));
     }
 }

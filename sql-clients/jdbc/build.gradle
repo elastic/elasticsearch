@@ -43,6 +43,9 @@ dependencies {
   testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
   testCompile project(':x-pack-elasticsearch:sql-clients:test-utils')
 
+  // Used by the hack to run InternalTestCluster if not running against a gradle-started cluster.
+  testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
+
   testRuntime "com.h2database:h2:1.4.194"
   testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
 }

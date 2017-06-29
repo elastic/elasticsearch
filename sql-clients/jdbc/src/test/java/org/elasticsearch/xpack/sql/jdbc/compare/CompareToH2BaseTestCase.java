@@ -39,13 +39,6 @@ public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
     public final Integer lineNumber;
     public final Path source;
 
-    public CompareToH2BaseTestCase(String queryName, String query, Integer lineNumber, Path source) {
-        this.queryName = queryName;
-        this.query = query;
-        this.lineNumber = lineNumber;
-        this.source = source;
-    }
-
     protected static List<Object[]> readScriptSpec(String spec) throws Exception {
         String url = "/" + spec + ".spec";
         URL resource = CompareToH2BaseTestCase.class.getResource(url);
@@ -85,6 +78,13 @@ public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
         assertNull("Cannot find query for test " + name, name);
 
         return ctorArgs;
+    }
+
+    public CompareToH2BaseTestCase(String queryName, String query, Integer lineNumber, Path source) {
+        this.queryName = queryName;
+        this.query = query;
+        this.lineNumber = lineNumber;
+        this.source = source;
     }
 
     public void testQuery() throws Throwable {

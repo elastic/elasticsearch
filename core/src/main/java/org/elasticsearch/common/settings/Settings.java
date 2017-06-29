@@ -105,7 +105,7 @@ public final class Settings implements ToXContent {
      * @return true if the setting was not already tracked as a deprecated setting, otherwise false
      */
     boolean addDeprecatedSetting(final Setting setting) {
-        assert setting.exists(this) : setting.getKey();
+        assert setting.isDeprecated() && setting.exists(this) : setting.getKey();
         return deprecatedSettings.add(setting.getKey());
     }
 

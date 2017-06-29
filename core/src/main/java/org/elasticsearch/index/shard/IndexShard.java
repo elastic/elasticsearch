@@ -1689,6 +1689,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * while the global checkpoint update may have emanated from the primary when we were in that state, we could subsequently move
              * to recovery finalization, or even finished recovery before the update arrives here.
              */
+            IndexShardState shardState = state();
+            if (shardState == IndexShardState.POST_RECOVERY ||
+                shardState == IndexShardState.STARTED ||
+                shardState == IndexShardState.RELOCATED) {
+                failShard("supposedly in-sync shard copy received a global checkpoint [" + globalCheckpoint + "] that is higher than its " +
+                    "local checkpoint [" + localCheckpoint + "], fail shard to trigger resync", null);
+                throw new IllegalStateException("supposedly in-sync shard copy received a global checkpoint [" + globalCheckpoint + "] " +
+                        "that is higher than its local checkpoint [" + localCheckpoint + "]");
+            }
             return;
         }
         seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint);

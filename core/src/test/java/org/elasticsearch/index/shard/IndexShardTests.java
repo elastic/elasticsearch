@@ -1793,6 +1793,29 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary, replica);
     }
 
+    public void testShardFailsOnGlobalCheckpointUpdateHigherThanLocalCheckpoint() throws IOException {
+        final IndexShard replica = newStartedShard(false);
+        final int numDocs = randomInt(10);
+        for (int i = 0; i < numDocs; i++) {
+            indexDoc(replica, "test", Integer.toString(i));
+        }
+        final long localCheckpoint = replica.getLocalCheckpoint();
+        if (numDocs > 0) {
+            replica.updateGlobalCheckpointOnReplica(randomInt(numDocs - 1));
+        }
+        final AtomicReference<IndexShard.ShardFailure> shardFailure = new AtomicReference<>();
+        replica.addShardFailureCallback(shardFailure::set);
+        final long globalCheckpoint = numDocs + randomInt(10);
+        final IllegalStateException ise = expectThrows(IllegalStateException.class,
+            () -> replica.updateGlobalCheckpointOnReplica(globalCheckpoint));
+        final String message = "supposedly in-sync shard copy received a global checkpoint [" + globalCheckpoint + "] that is higher " +
+            "than its local checkpoint [" + localCheckpoint + "]";
+        assertThat(ise.getMessage(), containsString(message));
+        assertNotNull(shardFailure.get());
+        assertThat(shardFailure.get().reason, containsString(message));
+        closeShards(replica);
+    }
+
     public void testRecoverFromLocalShard() throws IOException {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)

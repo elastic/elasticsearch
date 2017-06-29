@@ -31,6 +31,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
@@ -42,6 +43,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -94,22 +96,100 @@ public class EvilLoggerTests extends ESTestCase {
     public void testDeprecationLogger() throws IOException, UserException {
         setupLogging("deprecation");
 
-        final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
+        final DeprecationLogger deprecationLogger =
+                new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
 
-        deprecationLogger.deprecated("This is a deprecation message");
+        final int deprecatedIterations = randomIntBetween(0, 256);
+        for (int i = 0; i < deprecatedIterations; i++) {
+            deprecationLogger.deprecated("This is a deprecation message");
+            assertWarnings("This is a deprecation message");
+        }
+
         final String deprecationPath =
             System.getProperty("es.logs.base_path") +
                 System.getProperty("file.separator") +
                 System.getProperty("es.logs.cluster_name") +
                 "_deprecation.log";
         final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
+        assertThat(deprecationEvents.size(), equalTo(deprecatedIterations));
+        for (int i = 0; i < deprecatedIterations; i++) {
+            assertLogLine(
+                    deprecationEvents.get(i),
+                    Level.WARN,
+                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "This is a deprecation message");
+        }
+    }
+
+    public void testDeprecationLoggerMaybeLog() throws IOException, UserException {
+        setupLogging("deprecation");
+
+        final DeprecationLogger deprecationLogger =
+                new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
+
+        final int iterations = randomIntBetween(1, 16);
+
+        for (int i = 0; i < iterations; i++) {
+            deprecationLogger.deprecatedAndMaybeLog("key", "This is a maybe logged deprecation message");
+            assertWarnings("This is a maybe logged deprecation message");
+        }
+        for (int k = 0; k < 128; k++) {
+            for (int i = 0; i < iterations; i++) {
+                deprecationLogger.deprecatedAndMaybeLog("key" + k, "This is a maybe logged deprecation message" + k);
+                assertWarnings("This is a maybe logged deprecation message" + k);
+            }
+        }
+        for (int i = 0; i < iterations; i++) {
+            deprecationLogger.deprecatedAndMaybeLog("key", "This is a maybe logged deprecation message");
+            assertWarnings("This is a maybe logged deprecation message");
+        }
+
+        final String deprecationPath =
+                System.getProperty("es.logs.base_path") +
+                        System.getProperty("file.separator") +
+                        System.getProperty("es.logs.cluster_name") +
+                        "_deprecation.log";
+        final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
+        assertThat(deprecationEvents.size(), equalTo(1 + 128 + 1));
+        assertLogLine(
+                deprecationEvents.get(0),
+                Level.WARN,
+                "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                "This is a maybe logged deprecation message");
+        for (int k = 0; k < 128; k++) {
+            assertLogLine(
+                    deprecationEvents.get(1 + k),
+                    Level.WARN,
+                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "This is a maybe logged deprecation message" + k);
+        }
+    }
+
+    public void testDeprecatedSettings() throws IOException, UserException {
+        setupLogging("settings");
+
+        final Setting setting = Setting.boolSetting("deprecated.foo", false, Setting.Property.Deprecated);
+        final Settings settings = Settings.builder().put("deprecated.foo", true).build();
+
+        final int iterations = randomIntBetween(0, 128);
+        for (int i = 0; i < iterations; i++) {
+            setting.get(settings);
+            assertSettingDeprecationsAndWarnings(new Setting[]{setting});
+        }
+
+        final String deprecationPath =
+                System.getProperty("es.logs.base_path") +
+                        System.getProperty("file.separator") +
+                        System.getProperty("es.logs.cluster_name") +
+                        "_deprecation.log";
+        final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
         assertThat(deprecationEvents.size(), equalTo(1));
         assertLogLine(
-            deprecationEvents.get(0),
-            Level.WARN,
-            "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
-            "This is a deprecation message");
-        assertWarnings("This is a deprecation message");
+                deprecationEvents.get(0),
+                Level.WARN,
+                "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                        "See the breaking changes documentation for the next major version.");
     }
 
     public void testFindAppender() throws IOException, UserException {

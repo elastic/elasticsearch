@@ -57,6 +57,7 @@ import static org.mockito.Mockito.when;
 
 public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/x-pack-elasticsearch/issues/1890")
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
         MapperService mapperService = mock(MapperService.class);

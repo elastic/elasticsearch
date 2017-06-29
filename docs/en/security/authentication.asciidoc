@@ -114,6 +114,16 @@ PUT _xpack/security/user/logstash_system/_enable
 =============================================================================
 
 [float]
+[[disabling-default-password]]
+==== Disable Default Password Functionality
+[IMPORTANT]
+=============================================================================
+This setting is deprecated. The elastic user no longer has a default password. The password must
+be set before the user can be used.
+
+=============================================================================
+
+[float]
 [[internal-users]]
 === Internal Users
 

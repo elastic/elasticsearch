@@ -165,7 +165,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
             QueryParseContext parseContext = context.newParseContext(qSourceParser);
 
             final QueryBuilder queryBuilder = parseContext.parseInnerQueryBuilder().orElseThrow(
-                    () -> new ParsingException(qSourceParser.getTokenLocation(), "inner query cannot be empty"));
+                    () -> new ParsingException(qSourceParser.getTokenLocation(), "inner query cannot be empty")).rewrite(context);
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);

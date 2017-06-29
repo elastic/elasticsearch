@@ -292,11 +292,11 @@ public class DeprecationLogger {
      * @param message The deprecation message.
      * @param params The parameters used to fill in the message, if any exist.
      */
-    @SuppressLoggerChecks(reason = "safely delegates to logger")
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final Object... params) {
         deprecated(threadContexts, message, true, params);
     }
 
+    @SuppressLoggerChecks(reason = "safely delegates to logger")
     void deprecated(final Set<ThreadContext> threadContexts, final String message, final boolean log, final Object... params) {
         final Iterator<ThreadContext> iterator = threadContexts.iterator();
 

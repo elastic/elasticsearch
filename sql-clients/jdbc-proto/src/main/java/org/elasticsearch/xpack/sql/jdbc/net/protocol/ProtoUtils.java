@@ -12,6 +12,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.sql.JDBCType;
+import java.sql.Timestamp;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -28,6 +29,7 @@ import static java.sql.Types.LONGVARCHAR;
 import static java.sql.Types.NULL;
 import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
+import static java.sql.Types.TIMESTAMP;
 import static java.sql.Types.TIMESTAMP_WITH_TIMEZONE;
 import static java.sql.Types.TINYINT;
 import static java.sql.Types.VARBINARY;
@@ -114,11 +116,13 @@ public abstract class ProtoUtils {
     // See Jdbc spec, appendix B
     @SuppressWarnings("unchecked")
     public static <T> T readValue(DataInput in, int type) throws IOException {
+        // NOCOMMIT <T> feels slippery here
         Object result;
         byte hasNext = in.readByte();
         if (hasNext == 0) { // NOCOMMIT feels like a bitmask at the start of the row would be better.
             return null;
         }
+        // NOCOMMIT we ought to make sure we use all of these
         switch (type) {
             case NULL:
                 // used to move the stream forward
@@ -165,8 +169,8 @@ public abstract class ProtoUtils {
             case LONGVARCHAR:
                 result = in.readUTF();
                 break;
-            case TIMESTAMP_WITH_TIMEZONE:
-                result = in.readLong();
+            case TIMESTAMP:
+                result = new Timestamp(in.readLong());
                 break;
             default:
                 throw new IOException("Don't know how to read type [" + type + " / " + JDBCType.valueOf(type) + "]");
@@ -182,6 +186,7 @@ public abstract class ProtoUtils {
         out.writeByte(1);
 
         switch (type) {
+            // NOCOMMIT we ought to make sure we use all of these
             case NULL:
                 // used to move the stream forward
                 out.writeBoolean(false);
@@ -225,7 +230,7 @@ public abstract class ProtoUtils {
             case LONGVARCHAR:
                 out.writeUTF(o.toString());
                 return;
-            case TIMESTAMP_WITH_TIMEZONE:
+            case TIMESTAMP:
                 out.writeLong(((Number) o).longValue());
                 return;
             default:

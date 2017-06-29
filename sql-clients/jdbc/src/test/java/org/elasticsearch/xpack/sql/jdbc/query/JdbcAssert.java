@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.jdbc.integration.util;
+package org.elasticsearch.xpack.sql.jdbc.query;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -19,7 +19,6 @@ import static org.junit.Assert.assertTrue;
 import static org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcUtils.nameOf;
 
 public class JdbcAssert {
-
     public static void assertResultSets(ResultSet expected, ResultSet actual) throws SQLException {
         assertResultSetMetadata(expected, actual);
         assertResultSetData(expected, actual);
@@ -67,42 +66,31 @@ public class JdbcAssert {
                 Object actualObject = actual.getObject(column);
                 int type = metaData.getColumnType(column);
 
-                // handle timestamp differently
+                // handle timestamps with care because h2 returns "funny" objects
                 if (type == Types.TIMESTAMP_WITH_TIMEZONE) {
-                    expectedObject = getDate(expected, column);
-                    actualObject = getDate(actual, column);
-                }
-                if (type == Types.TIME) {
-                    expectedObject = getTime(expected, column);
-                    actualObject = getTime(actual, column);
+                    expectedObject = expected.getTimestamp(column);
+                    actualObject = actual.getTimestamp(column);
+                } else if (type == Types.TIME) {
+                    expectedObject = expected.getTime(column);
+                    actualObject = actual.getTime(column);
+                } else if (type == Types.DATE) {
+                    expectedObject = expected.getDate(column);
+                    actualObject = actual.getDate(column);
                 }
 
                 String msg = f("Different result for column %s, entry %d", metaData.getColumnName(column), count);
 
                 if (type == Types.DOUBLE) {
+                    // NOCOMMIT 1d/1f seems like a huge difference.
                     assertEquals(msg, (double) expectedObject, (double) actualObject, 1d);
-
-                }
-                else if (type == Types.FLOAT) {
+                } else if (type == Types.FLOAT) {
                     assertEquals(msg, (float) expectedObject, (float) actualObject, 1f);
-
-                }
-                else {
+                } else {
                     assertEquals(msg, expectedObject, actualObject);
                 }
             }
         }
         assertEquals(f("%s still has data after %d entries", actual, count), expected.next(), actual.next());
-    }
-
-    private static Object getDate(ResultSet resultSet, int column) throws SQLException {
-        // return just the date as a string
-        return resultSet.getDate(column).toString();
-    }
-
-    private static Object getTime(ResultSet resultSet, int column) throws SQLException {
-        // return just the time as a string
-        return resultSet.getTime(column).toString();
     }
 
     private static String f(String message, Object... args) {

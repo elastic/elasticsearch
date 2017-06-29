@@ -19,7 +19,19 @@ public class DateType extends AbstractDataType {
     private final List<String> formats;
 
     DateType(boolean docValues, String... formats) {
-        super(JDBCType.TIMESTAMP_WITH_TIMEZONE, docValues);
+        /* Since we normalize timestamps to UTC for storage and do not keep
+         * the origination zone information information we are technically
+         * `TIMESTAMP WITHOUT TIME ZONE` or just `TIMESTAMP`, or, in Oracle
+         * parlance, `TIMESTAMP WITH LOCAL TIME ZONE`.
+         * `TIMESTAMP WITH TIME ZONE` implies that we store the original
+         * time zone of the even. Confusingly, PostgreSQL's
+         * `TIMESTAMP WITH TIME ZONE` type does not store original time zone,
+         * unlike H2 and Oracle, *but* it is aware of the session's time zone
+         * so it is preferred. But it is *weird*. As bad as it feels not to
+         * be like PostgreSQL, we are going to not be like PostgreSQL here
+         * and return TIMESTAMP so we more closely conform with H2 and
+         * (shudder) Oracle. */
+        super(JDBCType.TIMESTAMP, docValues);
         this.formats = ObjectUtils.isEmpty(formats) ? DEFAULT_FORMAT : Arrays.asList(formats);
     }
 

@@ -86,6 +86,7 @@ public class EsCatalog implements Catalog {
             return EsType.NOT_FOUND;
         }
         
+        // NOCOMMIT verify that this works if the index isn't on the node
         MappingMetaData mapping = metadata().index(index).mapping(type);
         if (mapping == null) {
             return EsType.NOT_FOUND;

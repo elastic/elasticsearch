@@ -91,22 +91,22 @@ public abstract class EsDataLoader {
 
         // add mapping
         indices().preparePutMapping(index)
-        .setType(type)
-        .setSource(jsonBuilder()
-            .startObject()
-            .startObject(type)
-            .startObject("properties")
-            .startObject("emp_no").field("type", "integer").endObject()
-            .startObject("birth_date").field("type", "date").endObject()
-//            .startObject("first_name").field("type", "text").endObject()
-//            .startObject("last_name").field("type", "text").endObject()
-//            .startObject("gender").field("type", "keyword").endObject()
-            .startObject("hire_date").field("type", "date").endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            )
-        .get();
+            .setType(type)
+            .setSource(jsonBuilder()
+                .startObject()
+                .startObject(type)
+                .startObject("properties")
+                .startObject("emp_no").field("type", "integer").endObject()
+                .startObject("birth_date").field("type", "date").endObject()
+    //            .startObject("first_name").field("type", "text").endObject()
+    //            .startObject("last_name").field("type", "text").endObject()
+    //            .startObject("gender").field("type", "keyword").endObject()
+                .startObject("hire_date").field("type", "date").endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                )
+            .get();
 
         loadFromFile("/employees.csv", index, type, "emp_no", "birth_date", "first_name", "last_name", "gender", "hire_date");
     }

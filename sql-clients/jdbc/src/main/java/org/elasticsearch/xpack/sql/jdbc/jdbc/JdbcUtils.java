@@ -118,8 +118,6 @@ public abstract class JdbcUtils {
                 return Blob.class;
             case CLOB:
                 return Clob.class;
-            case TIMESTAMP_WITH_TIMEZONE:
-                return Long.class;
             default:
                 throw new IllegalArgumentException("Unsupported JDBC type [" + jdbcType + "/" + nameOf(jdbcType) + "]");
         }

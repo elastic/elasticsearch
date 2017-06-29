@@ -94,13 +94,13 @@ public class JdbcTemplate {
         }
     }
 
-    public <T> T map(CheckedFunction<Connection, T, SQLException> c) throws Exception {
+    public <T> T map(CheckedFunction<Connection, T, SQLException> c) throws SQLException {
         try (Connection con = conn.get()) {
             return c.apply(con);
         }
     }
 
-    public <T> T query(String q, CheckedFunction<ResultSet, T, SQLException> f) throws Exception {
+    public <T> T query(String q, CheckedFunction<ResultSet, T, SQLException> f) throws SQLException {
         return map(c -> {
             try (Statement st = c.createStatement();
                  ResultSet rset = st.executeQuery(q)) {
@@ -109,11 +109,11 @@ public class JdbcTemplate {
         });
     }
 
-    public void queryToConsole(String q) throws Exception {
+    public void queryToConsole(String q) throws SQLException {
         query(q, resultSetToConsole());
     }
 
-    public <T> T queryObject(String q, Class<T> type) throws Exception {
+    public <T> T queryObject(String q, Class<T> type) throws SQLException {
         return query(q, singleResult(type));
     }
 
@@ -126,7 +126,7 @@ public class JdbcTemplate {
         });
     }
 
-    public <T> T execute(String query, CheckedFunction<PreparedStatement, T, SQLException> callback) throws Exception {
+    public <T> T execute(String query, CheckedFunction<PreparedStatement, T, SQLException> callback) throws SQLException {
         return map(c -> {
             try (PreparedStatement ps = c.prepareStatement(query)) {
                 return callback.apply(ps);
@@ -135,7 +135,7 @@ public class JdbcTemplate {
     }
 
     public <T> T execute(String query, CheckedConsumer<PreparedStatement, SQLException> prepare,
-            CheckedFunction<ResultSet, T, SQLException> mapper) throws Exception {
+            CheckedFunction<ResultSet, T, SQLException> mapper) throws SQLException {
         return execute(query, ps -> {
             prepare.accept(ps);
             try (ResultSet rs = ps.executeQuery()) {
@@ -144,7 +144,7 @@ public class JdbcTemplate {
         });
     }
 
-    public <T> T query(String q, CheckedFunction<ResultSet, T, SQLException> mapper, Object... args) throws Exception {
+    public <T> T query(String q, CheckedFunction<ResultSet, T, SQLException> mapper, Object... args) throws SQLException {
         CheckedConsumer<PreparedStatement, SQLException> p = ps -> {
             if (args != null) {
                 for (int i = 0; i < args.length; i++) {

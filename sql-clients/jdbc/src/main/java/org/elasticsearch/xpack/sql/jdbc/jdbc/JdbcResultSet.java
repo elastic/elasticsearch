@@ -300,7 +300,6 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         return getObject(columnIndex, type);
     }
 
-    @SuppressWarnings("unchecked")
     private <T> T convert(int columnIndex, Class<T> type) throws SQLException {
         checkOpen();
         if (columnIndex < 1 || columnIndex > cursor.columnSize()) {

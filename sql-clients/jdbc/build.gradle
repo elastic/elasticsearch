@@ -67,6 +67,7 @@ jar {
 }
 
 apply plugin: 'elasticsearch.rest-test'
+integTest.mustRunAfter test
 
 integTestCluster {
   distribution = 'zip' // NOCOMMIT make double sure we want all the modules

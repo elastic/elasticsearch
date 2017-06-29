@@ -5,14 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plugin.jdbc.server;
 
-import java.io.DataOutput;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.sql.Types;
-import java.util.concurrent.TimeoutException;
-
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,7 +21,15 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.Response;
 import org.elasticsearch.xpack.sql.parser.ParsingException;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
-import org.joda.time.ReadableDateTime;
+import org.joda.time.ReadableInstant;
+
+import java.io.DataOutput;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.sql.Types;
+import java.util.concurrent.TimeoutException;
 
 import static org.elasticsearch.xpack.sql.util.StringUtils.EMPTY;
 
@@ -64,8 +64,9 @@ public abstract class JdbcServerProtoUtils {
             for (int i = 0; i < rowSet.rowSize(); i++) {
                 Object value = rowSet.column(i);
                 // unpack Joda classes on the server-side to not 'pollute' the common project and thus the client 
-                if (jdbcTypes[i] == Types.TIMESTAMP_WITH_TIMEZONE && value instanceof ReadableDateTime) {
-                    value = ((ReadableDateTime) value).getMillis();
+                if (jdbcTypes[i] == Types.TIMESTAMP && value instanceof ReadableInstant) {
+                    // NOCOMMIT feels like a hack that'd be better cleaned up another way.
+                    value = ((ReadableInstant) value).getMillis();
                 }
                 ProtoUtils.writeValue(out, value, jdbcTypes[i]);
             }

@@ -10,7 +10,6 @@ import java.sql.SQLException;
 import java.util.function.Supplier;
 
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.xpack.sql.jdbc.integration.query.filter.FilterSpecTests;
 import org.elasticsearch.xpack.sql.jdbc.integration.query.function.aggregate.AggSpecTests;
 import org.elasticsearch.xpack.sql.jdbc.integration.query.function.scalar.datetime.DateTimeSpecTests;
 import org.elasticsearch.xpack.sql.jdbc.integration.query.function.scalar.math.MathSpecTests;
@@ -18,6 +17,8 @@ import org.elasticsearch.xpack.sql.jdbc.integration.util.EsDataLoader;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.EsJdbcServer;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.H2;
 import org.elasticsearch.xpack.sql.jdbc.integration.util.JdbcTemplate;
+import org.elasticsearch.xpack.sql.jdbc.query.FilterIT;
+import org.elasticsearch.xpack.sql.jdbc.query.SelectIT;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.runner.RunWith;
@@ -27,7 +28,7 @@ import org.junit.runners.Suite.SuiteClasses;
 import static org.junit.Assert.assertNotNull;
 
 @RunWith(Suite.class)
-@SuiteClasses({ SelectSpecTests.class, FilterSpecTests.class, AggSpecTests.class, MathSpecTests.class, DateTimeSpecTests.class })
+@SuiteClasses({ SelectIT.class, FilterIT.class, AggSpecTests.class, MathSpecTests.class, DateTimeSpecTests.class })
 //@SuiteClasses({ DebugSpecTest.class })
 //@SuiteClasses({ AggSpecTest.class })
 //@SuiteClasses({ DateTimeSpecTest.class })

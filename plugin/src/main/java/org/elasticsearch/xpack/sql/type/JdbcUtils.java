@@ -68,7 +68,7 @@ abstract class JdbcUtils {
             case DOUBLE: return 25;
             case VARCHAR:
             case VARBINARY: return -1;
-            case TIME_WITH_TIMEZONE: return 20;
+            case TIMESTAMP: return 20;
             default:
                 return -1;
         }
@@ -106,7 +106,7 @@ abstract class JdbcUtils {
             case TINYINT: return Byte.BYTES;
             case SMALLINT: return Short.BYTES;
             case INTEGER: return Integer.BYTES;
-            case TIME_WITH_TIMEZONE:
+            case TIMESTAMP:
             case BIGINT: return Long.BYTES;
             case REAL: return Float.BYTES;
             case FLOAT:

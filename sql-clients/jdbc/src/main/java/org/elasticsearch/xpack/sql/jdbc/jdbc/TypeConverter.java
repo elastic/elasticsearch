@@ -179,6 +179,7 @@ abstract class TypeConverter {
             case CHAR:
             case VARCHAR:
             case LONGVARCHAR:
+            case TIMESTAMP:
                 result = v;
                 break;
             // since the date is already in UTC just do calendar math
@@ -187,10 +188,6 @@ abstract class TypeConverter {
                 break;
             case TIME:
                 result = new Time(utcMillisRemoveDate(((Long) v).longValue()));
-                break;
-            case TIMESTAMP:
-            case TIMESTAMP_WITH_TIMEZONE:
-                result = new Timestamp(((Long) v).longValue());
                 break;
             default:
         }

@@ -158,12 +158,9 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
 
         internalCluster().stopRandomNonMasterNode();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
-                assertThat(state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
-            }
+        assertBusy(() -> {
+            ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+            assertThat(state1.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID), equalTo(true));
         });
 
         logger.info("--> starting the previous master node again...");
@@ -191,6 +188,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25415")
     public void testMultipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = Settings.builder()
                 .put("discovery.zen.minimum_master_nodes", 3)
@@ -405,12 +403,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         latch.await();
 
         assertThat(failure.get(), instanceOf(Discovery.FailedToCommitClusterStateException.class));
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(masterClusterService.state().nodes().getMasterNode(), nullValue());
-            }
-        });
+        assertBusy(() -> assertThat(masterClusterService.state().nodes().getMasterNode(), nullValue()));
 
         partition.stopDisrupting();
 

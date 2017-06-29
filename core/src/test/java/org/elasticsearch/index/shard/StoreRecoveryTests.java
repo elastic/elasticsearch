@@ -21,7 +21,6 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
@@ -32,11 +31,12 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESTestCase;
 
@@ -46,7 +46,10 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.AccessControlException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.function.Predicate;
+
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class StoreRecoveryTests extends ESTestCase {
 
@@ -82,7 +85,9 @@ public class StoreRecoveryTests extends ESTestCase {
         StoreRecovery storeRecovery = new StoreRecovery(new ShardId("foo", "bar", 1), logger);
         RecoveryState.Index indexStats = new RecoveryState.Index();
         Directory target = newFSDirectory(createTempDir());
-        storeRecovery.addIndices(indexStats, target, indexSort, dirs);
+        final long maxSeqNo = randomNonNegativeLong();
+        final long maxUnsafeAutoIdTimestamp = randomNonNegativeLong();
+        storeRecovery.addIndices(indexStats, target, indexSort, dirs, maxSeqNo, maxUnsafeAutoIdTimestamp);
         int numFiles = 0;
         Predicate<String> filesFilter = (f) -> f.startsWith("segments") == false && f.equals("write.lock") == false
             && f.startsWith("extra") == false;
@@ -99,6 +104,10 @@ public class StoreRecoveryTests extends ESTestCase {
         }
         DirectoryReader reader = DirectoryReader.open(target);
         SegmentInfos segmentCommitInfos = SegmentInfos.readLatestCommit(target);
+        final Map<String, String> userData = segmentCommitInfos.getUserData();
+        assertThat(userData.get(SequenceNumbers.MAX_SEQ_NO), equalTo(Long.toString(maxSeqNo)));
+        assertThat(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(maxSeqNo)));
+        assertThat(userData.get(InternalEngine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID), equalTo(Long.toString(maxUnsafeAutoIdTimestamp)));
         for (SegmentCommitInfo info : segmentCommitInfos) { // check that we didn't merge
             assertEquals("all sources must be flush",
                 info.info.getDiagnostics().get("source"), "flush");

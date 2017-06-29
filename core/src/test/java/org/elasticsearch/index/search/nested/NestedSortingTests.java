@@ -285,7 +285,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
 
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopFieldDocs topDocs = searcher.search(query, 5, sort);
-        assertThat(topDocs.totalHits, equalTo(7));
+        assertThat(topDocs.totalHits, equalTo(7L));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(3));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("a"));
@@ -302,7 +302,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         nestedComparatorSource = new BytesRefFieldComparatorSource(indexFieldData, null, sortMode, createNested(searcher, parentFilter, childFilter));
         sort = new Sort(new SortField("field2", nestedComparatorSource, true));
         topDocs = searcher.search(query, 5, sort);
-        assertThat(topDocs.totalHits, equalTo(7));
+        assertThat(topDocs.totalHits, equalTo(7L));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(28));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("o"));
@@ -328,7 +328,7 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         );
         sort = new Sort(new SortField("field2", nestedComparatorSource, true));
         topDocs = searcher.search(query, 5, sort);
-        assertThat(topDocs.totalHits, equalTo(6));
+        assertThat(topDocs.totalHits, equalTo(6L));
         assertThat(topDocs.scoreDocs.length, equalTo(5));
         assertThat(topDocs.scoreDocs[0].doc, equalTo(23));
         assertThat(((BytesRef) ((FieldDoc) topDocs.scoreDocs[0]).fields[0]).utf8ToString(), equalTo("m"));

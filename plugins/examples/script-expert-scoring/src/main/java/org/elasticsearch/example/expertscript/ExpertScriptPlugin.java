@@ -115,7 +115,7 @@ public class ExpertScriptPlugin extends Plugin implements ScriptPlugin {
                     }
 
                     @Override
-                    public boolean needsScores() {
+                    public boolean needs_score() {
                         return false;
                     }
                 };

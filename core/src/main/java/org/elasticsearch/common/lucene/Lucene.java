@@ -272,7 +272,7 @@ public class Lucene {
     public static TopDocs readTopDocs(StreamInput in) throws IOException {
         byte type = in.readByte();
         if (type == 0) {
-            int totalHits = in.readVInt();
+            long totalHits = in.readVLong();
             float maxScore = in.readFloat();
 
             ScoreDoc[] scoreDocs = new ScoreDoc[in.readVInt()];
@@ -281,7 +281,7 @@ public class Lucene {
             }
             return new TopDocs(totalHits, scoreDocs, maxScore);
         } else if (type == 1) {
-            int totalHits = in.readVInt();
+            long totalHits = in.readVLong();
             float maxScore = in.readFloat();
 
             SortField[] fields = new SortField[in.readVInt()];
@@ -385,7 +385,7 @@ public class Lucene {
             out.writeByte((byte) 2);
             CollapseTopFieldDocs collapseDocs = (CollapseTopFieldDocs) topDocs;
 
-            out.writeVInt(topDocs.totalHits);
+            out.writeVLong(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
             out.writeString(collapseDocs.field);
@@ -405,7 +405,7 @@ public class Lucene {
             out.writeByte((byte) 1);
             TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs;
 
-            out.writeVInt(topDocs.totalHits);
+            out.writeVLong(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
             out.writeVInt(topFieldDocs.fields.length);
@@ -419,7 +419,7 @@ public class Lucene {
             }
         } else {
             out.writeByte((byte) 0);
-            out.writeVInt(topDocs.totalHits);
+            out.writeVLong(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
             out.writeVInt(topDocs.scoreDocs.length);

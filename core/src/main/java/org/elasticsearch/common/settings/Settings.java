@@ -55,7 +55,6 @@ import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -63,6 +62,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -92,6 +92,22 @@ public final class Settings implements ToXContent {
 
     /** The first level of setting names. This is constructed lazily in {@link #names()}. */
     private final SetOnce<Set<String>> firstLevelNames = new SetOnce<>();
+
+    /**
+     * The set of deprecated settings tracked by this settings object.
+     */
+    private final Set<String> deprecatedSettings = Collections.newSetFromMap(new ConcurrentHashMap<>());
+
+    /**
+     * Add the setting as a tracked deprecated setting.
+     *
+     * @param setting the deprecated setting to track
+     * @return true if the setting was not already tracked as a deprecated setting, otherwise false
+     */
+    boolean addDeprecatedSetting(final Setting setting) {
+        assert setting.isDeprecated() && setting.exists(this) : setting.getKey();
+        return deprecatedSettings.add(setting.getKey());
+    }
 
     /**
      * Setting names found in this Settings for both string and secure settings.
@@ -610,8 +626,10 @@ public final class Settings implements ToXContent {
     }
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
-        out.writeVInt(settings.size());
-        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+        // pull getAsMap() to exclude secure settings in size()
+        Set<Map.Entry<String, String>> entries = settings.getAsMap().entrySet();
+        out.writeVInt(entries.size());
+        for (Map.Entry<String, String> entry : entries) {
             out.writeString(entry.getKey());
             out.writeOptionalString(entry.getValue());
         }
@@ -715,6 +733,10 @@ public final class Settings implements ToXContent {
         public Builder setSecureSettings(SecureSettings secureSettings) {
             if (secureSettings.isLoaded() == false) {
                 throw new IllegalStateException("Secure settings must already be loaded");
+            }
+            if (this.secureSettings.get() != null) {
+                throw new IllegalArgumentException("Secure settings already set. Existing settings: " +
+                    this.secureSettings.get().getSettingNames() + ", new settings: " + secureSettings.getSettingNames());
             }
             this.secureSettings.set(secureSettings);
             return this;

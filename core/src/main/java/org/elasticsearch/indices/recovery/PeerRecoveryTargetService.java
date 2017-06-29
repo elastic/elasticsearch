@@ -82,6 +82,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         public static final String PREPARE_TRANSLOG = "internal:index/shard/recovery/prepare_translog";
         public static final String FINALIZE = "internal:index/shard/recovery/finalize";
         public static final String WAIT_CLUSTERSTATE = "internal:index/shard/recovery/wait_clusterstate";
+        public static final String HANDOFF_PRIMARY_CONTEXT = "internal:index/shard/recovery/handoff_primary_context";
     }
 
     private final ThreadPool threadPool;
@@ -116,6 +117,11 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 FinalizeRecoveryRequestHandler());
         transportService.registerRequestHandler(Actions.WAIT_CLUSTERSTATE, RecoveryWaitForClusterStateRequest::new,
             ThreadPool.Names.GENERIC, new WaitForClusterStateRequestHandler());
+        transportService.registerRequestHandler(
+                Actions.HANDOFF_PRIMARY_CONTEXT,
+                RecoveryHandoffPrimaryContextRequest::new,
+                ThreadPool.Names.GENERIC,
+                new HandoffPrimaryContextRequestHandler());
     }
 
     @Override
@@ -409,6 +415,18 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
+    }
+
+    class HandoffPrimaryContextRequestHandler implements TransportRequestHandler<RecoveryHandoffPrimaryContextRequest> {
+
+        @Override
+        public void messageReceived(final RecoveryHandoffPrimaryContextRequest request, final TransportChannel channel) throws Exception {
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+                recoveryRef.target().handoffPrimaryContext(request.primaryContext());
+            }
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+
     }
 
     class TranslogOperationsRequestHandler implements TransportRequestHandler<RecoveryTranslogOperationsRequest> {

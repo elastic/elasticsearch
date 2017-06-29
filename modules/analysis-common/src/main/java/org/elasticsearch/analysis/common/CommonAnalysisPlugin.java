@@ -32,6 +32,7 @@ import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.apache.lucene.analysis.ckb.SoraniNormalizationFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.core.DecimalDigitFilter;
+import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.LowerCaseTokenizer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.UpperCaseFilter;
@@ -52,7 +53,6 @@ import org.apache.lucene.analysis.miscellaneous.ScandinavianFoldingFilter;
 import org.apache.lucene.analysis.miscellaneous.ScandinavianNormalizationFilter;
 import org.apache.lucene.analysis.miscellaneous.TrimFilter;
 import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
-import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterGraphFilter;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
@@ -98,6 +98,23 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("trim", TrimTokenFilterFactory::new);
         filters.put("word_delimiter", WordDelimiterTokenFilterFactory::new);
         filters.put("word_delimiter_graph", WordDelimiterGraphTokenFilterFactory::new);
+        filters.put("unique", UniqueTokenFilterFactory::new);
+        filters.put("flatten_graph", FlattenGraphTokenFilterFactory::new);
+        filters.put("length", LengthTokenFilterFactory::new);
+        filters.put("lowercase", LowerCaseTokenFilterFactory::new);
+        filters.put("uppercase", UpperCaseTokenFilterFactory::new);
+        filters.put("nGram", NGramTokenFilterFactory::new);
+        filters.put("ngram", NGramTokenFilterFactory::new);
+        filters.put("edgeNGram", EdgeNGramTokenFilterFactory::new);
+        filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
+        filters.put("stemmer", StemmerTokenFilterFactory::new);
+        filters.put("stemmer_override", requriesAnalysisSettings(StemmerOverrideTokenFilterFactory::new));
+        filters.put("kstem", KStemTokenFilterFactory::new);
+        filters.put("dictionary_decompounder", requriesAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
+        filters.put("hyphenation_decompounder", requriesAnalysisSettings(HyphenationCompoundWordTokenFilterFactory::new));
+        filters.put("reverse", ReverseTokenFilterFactory::new);
+        filters.put("elision", ElisionTokenFilterFactory::new);
+        filters.put("truncate", requriesAnalysisSettings(TruncateTokenFilterFactory::new));
         return filters;
     }
 
@@ -113,8 +130,8 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         Map<String, AnalysisProvider<TokenizerFactory>> tokenizers = new TreeMap<>();
-        tokenizers.put("simplepattern", SimplePatternTokenizerFactory::new);
-        tokenizers.put("simplepatternsplit", SimplePatternSplitTokenizerFactory::new);
+        tokenizers.put("simple_pattern", SimplePatternTokenizerFactory::new);
+        tokenizers.put("simple_pattern_split", SimplePatternSplitTokenizerFactory::new);
         return tokenizers;
     }
 
@@ -172,7 +189,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("nGram", false, NGramTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("persian_normalization", true, PersianNormalizationFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("porter_stem", false, PorterStemFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("reverse", false, input -> new ReverseStringFilter(input)));
+        filters.add(PreConfiguredTokenFilter.singleton("reverse", false, ReverseStringFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("russian_stem", false, input -> new SnowballFilter(input, "Russian")));
         filters.add(PreConfiguredTokenFilter.singleton("scandinavian_folding", true, ScandinavianFoldingFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("scandinavian_normalization", true, ScandinavianNormalizationFilter::new));
@@ -185,7 +202,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.add(PreConfiguredTokenFilter.singleton("trim", false, TrimFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("truncate", false, input -> new TruncateTokenFilter(input, 10)));
         filters.add(PreConfiguredTokenFilter.singleton("type_as_payload", false, TypeAsPayloadTokenFilter::new));
-        filters.add(PreConfiguredTokenFilter.singleton("unique", false, input -> new UniqueTokenFilter(input)));
+        filters.add(PreConfiguredTokenFilter.singleton("unique", false, UniqueTokenFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("uppercase", true, UpperCaseFilter::new));
         filters.add(PreConfiguredTokenFilter.singleton("word_delimiter", false, input ->
                 new WordDelimiterFilter(input,
@@ -207,6 +224,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public List<PreConfiguredTokenizer> getPreConfiguredTokenizers() {
         List<PreConfiguredTokenizer> tokenizers = new ArrayList<>();
+        tokenizers.add(PreConfiguredTokenizer.singleton("keyword", KeywordTokenizer::new, null));
         tokenizers.add(PreConfiguredTokenizer.singleton("lowercase", LowerCaseTokenizer::new, () -> new TokenFilterFactory() {
             @Override
             public String name() {

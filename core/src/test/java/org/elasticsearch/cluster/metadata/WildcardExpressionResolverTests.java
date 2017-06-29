@@ -182,20 +182,4 @@ public class WildcardExpressionResolverTests extends ESTestCase {
     private IndexMetaData.Builder indexBuilder(String index) {
         return IndexMetaData.builder(index).settings(settings(Version.CURRENT).put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0));
     }
-
-    public void testForDeprecatedPlusPattern() {
-        MetaData.Builder mdBuilder = MetaData.builder()
-            .put(indexBuilder("testXXX").state(IndexMetaData.State.OPEN))
-            .put(indexBuilder("testXYY").state(IndexMetaData.State.OPEN))
-            .put(indexBuilder("testYYY").state(IndexMetaData.State.OPEN));
-        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
-        IndexNameExpressionResolver.WildcardExpressionResolver resolver = new IndexNameExpressionResolver.WildcardExpressionResolver();
-
-        IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, IndicesOptions.fromOptions(true, true, true, true));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+testX*", "-testYYY"))), equalTo(newHashSet("testXXX", "testXYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("+testYYY", "+testXY*"))), equalTo(newHashSet("testYYY", "testXYY")));
-        assertThat(newHashSet(resolver.resolve(context, Arrays.asList("testYYY", "+testXX*"))), equalTo(newHashSet("testXXX", "testYYY")));
-        assertWarnings("support for '+' as part of index expressions is deprecated");
-    }
-
 }

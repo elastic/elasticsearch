@@ -18,10 +18,10 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -55,9 +55,9 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
             if (hitContext.hit().fieldsOrNull() == null) {
                 hitContext.hit().fields(new HashMap<>(2));
             }
-            SearchHitField hitField = hitContext.hit().getFields().get(field);
+            DocumentField hitField = hitContext.hit().getFields().get(field);
             if (hitField == null) {
-                hitField = new SearchHitField(field, new ArrayList<>(2));
+                hitField = new DocumentField(field, new ArrayList<>(2));
                 hitContext.hit().getFields().put(field, hitField);
             }
             MappedFieldType fieldType = context.mapperService().fullName(field);

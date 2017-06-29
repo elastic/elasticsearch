@@ -95,17 +95,17 @@ public abstract class TransportReplicationAction<
             Response extends ReplicationResponse
         > extends TransportAction<Request, Response> {
 
-    private final TransportService transportService;
+    protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final ShardStateAction shardStateAction;
-    private final IndicesService indicesService;
-    private final TransportRequestOptions transportOptions;
-    private final String executor;
+    protected final IndicesService indicesService;
+    protected final TransportRequestOptions transportOptions;
+    protected final String executor;
 
     // package private for testing
-    private final String transportReplicaAction;
-    private final String transportPrimaryAction;
-    private final ReplicationOperation.Replicas replicasProxy;
+    protected final String transportReplicaAction;
+    protected final String transportPrimaryAction;
+    protected final ReplicationOperation.Replicas replicasProxy;
 
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,
@@ -122,6 +122,15 @@ public abstract class TransportReplicationAction<
 
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
+        registerRequestHandlers(actionName, transportService, request, replicaRequest, executor);
+
+        this.transportOptions = transportOptions();
+
+        this.replicasProxy = newReplicasProxy();
+    }
+
+    protected void registerRequestHandlers(String actionName, TransportService transportService, Supplier<Request> request,
+                                           Supplier<ReplicaRequest> replicaRequest, String executor) {
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new OperationTransportHandler());
         transportService.registerRequestHandler(transportPrimaryAction, () -> new ConcreteShardRequest<>(request), executor,
             new PrimaryOperationTransportHandler());
@@ -130,10 +139,6 @@ public abstract class TransportReplicationAction<
             () -> new ConcreteReplicaRequest<>(replicaRequest),
             executor, true, true,
             new ReplicaOperationTransportHandler());
-
-        this.transportOptions = transportOptions();
-
-        this.replicasProxy = newReplicasProxy();
     }
 
     @Override
@@ -178,7 +183,7 @@ public abstract class TransportReplicationAction<
 
     /**
      * Synchronously execute the specified replica operation. This is done under a permit from
-     * {@link IndexShard#acquireReplicaOperationPermit(long, ActionListener, String)}.
+     * {@link IndexShard#acquireReplicaOperationPermit(long, long, ActionListener, String)}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
@@ -217,7 +222,12 @@ public abstract class TransportReplicationAction<
                 || TransportActions.isShardNotAvailableException(e);
     }
 
-    class OperationTransportHandler implements TransportRequestHandler<Request> {
+    protected class OperationTransportHandler implements TransportRequestHandler<Request> {
+
+        public OperationTransportHandler() {
+
+        }
+
         @Override
         public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             execute(task, request, new ActionListener<Response>() {
@@ -250,7 +260,12 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    class PrimaryOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<Request>> {
+    protected class PrimaryOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<Request>> {
+
+        public PrimaryOperationTransportHandler() {
+
+        }
+
         @Override
         public void messageReceived(final ConcreteShardRequest<Request> request, final TransportChannel channel) throws Exception {
             throw new UnsupportedOperationException("the task parameter is required for this operation");
@@ -314,7 +329,6 @@ public abstract class TransportReplicationAction<
                         });
                 } else {
                     setPhase(replicationTask, "primary");
-                    final IndexMetaData indexMetaData = clusterService.state().getMetaData().index(request.shardId().getIndex());
                     final ActionListener<Response> listener = createResponseListener(primaryShardReference);
                     createReplicatedOperation(request,
                             ActionListener.wrap(result -> result.respond(listener), listener::onFailure),
@@ -437,7 +451,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    class ReplicaOperationTransportHandler implements TransportRequestHandler<ConcreteReplicaRequest<ReplicaRequest>> {
+    public class ReplicaOperationTransportHandler implements TransportRequestHandler<ConcreteReplicaRequest<ReplicaRequest>> {
 
         @Override
         public void messageReceived(
@@ -507,7 +521,6 @@ public abstract class TransportReplicationAction<
         @Override
         public void onResponse(Releasable releasable) {
             try {
-                replica.updateGlobalCheckpointOnReplica(globalCheckpoint);
                 final ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
                 releasable.close(); // release shard operation lock before responding to caller
                 final TransportReplicationAction.ReplicaResponse response =
@@ -582,7 +595,7 @@ public abstract class TransportReplicationAction<
                 throw new ShardNotFoundException(this.replica.shardId(), "expected aID [{}] but found [{}]", targetAllocationID,
                     actualAllocationId);
             }
-            replica.acquireReplicaOperationPermit(request.primaryTerm, this, executor);
+            replica.acquireReplicaOperationPermit(request.primaryTerm, globalCheckpoint, this, executor);
         }
 
         /**
@@ -1049,7 +1062,11 @@ public abstract class TransportReplicationAction<
      * shards. It also encapsulates the logic required for failing the replica
      * if deemed necessary as well as marking it as stale when needed.
      */
-    class ReplicasProxy implements ReplicationOperation.Replicas<ReplicaRequest> {
+    protected class ReplicasProxy implements ReplicationOperation.Replicas<ReplicaRequest> {
+
+        public ReplicasProxy() {
+
+        }
 
         @Override
         public void performOn(
@@ -1112,13 +1129,13 @@ public abstract class TransportReplicationAction<
 
         private R request;
 
-        ConcreteShardRequest(Supplier<R> requestSupplier) {
+        public ConcreteShardRequest(Supplier<R> requestSupplier) {
             request = requestSupplier.get();
             // null now, but will be populated by reading from the streams
             targetAllocationID = null;
         }
 
-        ConcreteShardRequest(R request, String targetAllocationID) {
+        public ConcreteShardRequest(R request, String targetAllocationID) {
             Objects.requireNonNull(request);
             Objects.requireNonNull(targetAllocationID);
             this.request = request;

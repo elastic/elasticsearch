@@ -194,6 +194,11 @@ public class InternalTestClusterTests extends ESTestCase {
             }
 
             @Override
+            public Path nodeConfigPath(int nodeOrdinal) {
+                return null;
+            }
+
+            @Override
             public Settings transportClientSettings() {
                 return Settings.builder()
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
@@ -258,6 +263,12 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                     .build();
             }
+
+            @Override
+            public Path nodeConfigPath(int nodeOrdinal) {
+                return null;
+            }
+
             @Override
             public Settings transportClientSettings() {
                 return Settings.builder()
@@ -350,10 +361,10 @@ public class InternalTestClusterTests extends ESTestCase {
         final Path baseDir = createTempDir();
         final int numNodes = 5;
         InternalTestCluster cluster = new InternalTestCluster(randomLong(), baseDir, false,
-            false, 0, 0, "test", new NodeConfigurationSource() {
-                @Override
-                public Settings nodeSettings(int nodeOrdinal) {
-                    return Settings.builder()
+                false, 0, 0, "test", new NodeConfigurationSource() {
+            @Override
+            public Settings nodeSettings(int nodeOrdinal) {
+                return Settings.builder()
                         .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), numNodes)
                         .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
@@ -362,14 +373,19 @@ public class InternalTestClusterTests extends ESTestCase {
                         // elections more likely
                         .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "3s")
                         .build();
-                }
+            }
 
-                @Override
-                public Settings transportClientSettings() {
-                    return Settings.builder()
+            @Override
+            public Path nodeConfigPath(int nodeOrdinal) {
+                return null;
+            }
+
+            @Override
+            public Settings transportClientSettings() {
+                return Settings.builder()
                         .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME).build();
-                }
-            }, 0, randomBoolean(), "", Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class), Function.identity());
+            }
+        }, 0, randomBoolean(), "", Arrays.asList(MockTcpTransportPlugin.class, TestZenDiscovery.TestPlugin.class), Function.identity());
         cluster.beforeTest(random(), 0.0);
         List<DiscoveryNode.Role> roles = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
@@ -438,6 +454,11 @@ public class InternalTestClusterTests extends ESTestCase {
                     .put(NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.getKey(), 2)
                     .put(NetworkModule.TRANSPORT_TYPE_KEY, MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                     .build();
+            }
+
+            @Override
+            public Path nodeConfigPath(int nodeOrdinal) {
+                return null;
             }
 
             @Override

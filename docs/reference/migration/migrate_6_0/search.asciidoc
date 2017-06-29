@@ -53,6 +53,9 @@
 
 * The `template` query has been removed. This query was deprecated since 5.0
 
+* The `percolate` query's `document_type` has been deprecated. From 6.0 and later
+  it is no longer required to specify the `document_type` parameter.
+
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't

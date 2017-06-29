@@ -72,7 +72,9 @@ public class InnerHitsIT extends ParentChildTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ParentJoinPlugin.class, CustomScriptPlugin.class);
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(CustomScriptPlugin.class);
+        return plugins;
     }
 
     public static class CustomScriptPlugin extends MockScriptPlugin {
@@ -90,9 +92,22 @@ public class InnerHitsIT extends ParentChildTestCase {
             );
         } else {
             assertAcked(prepareCreate("articles")
-                .addMapping("doc", "join_field", "type=join,article=comment", "title", "type=text",
-                    "message", "type=text,fielddata=true")
-            );
+                .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
+                    .startObject("join_field")
+                        .field("type", "join")
+                        .startObject("relations")
+                            .field("article", "comment")
+                        .endObject()
+                    .endObject()
+                    .startObject("title")
+                        .field("type", "text")
+                    .endObject()
+                    .startObject("message")
+                        .field("type", "text")
+                        .field("fielddata", true)
+                    .endObject()
+                    .endObject().endObject().endObject()
+                ));
         }
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -173,8 +188,10 @@ public class InnerHitsIT extends ParentChildTestCase {
             assertAcked(prepareCreate("idx")
                 .addMapping("doc", jsonBuilder().startObject().startObject("doc").startObject("properties")
                     .startObject("join_field")
-                    .field("type", "join")
-                    .field("parent", new String[] {"child1", "child2"})
+                        .field("type", "join")
+                        .startObject("relations")
+                            .field("parent", new String[] {"child1", "child2"})
+                        .endObject()
                     .endObject()
                     .endObject().endObject().endObject()
                 ));
@@ -261,8 +278,8 @@ public class InnerHitsIT extends ParentChildTestCase {
             );
         } else {
             assertAcked(prepareCreate("stack")
-                .addMapping("doc", "join_field", "type=join,question=answer", "body", "type=text")
-            );
+                .addMapping("doc", addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "question", "answer"),
+                    "body", "text")));
         }
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("stack", "question", "1", null, "body", "I'm using HTTPS + Basic authentication "
@@ -308,9 +325,9 @@ public class InnerHitsIT extends ParentChildTestCase {
             );
         } else {
             assertAcked(prepareCreate("articles")
-                .addMapping("doc", "join_field", "type=join,article=comment,comment=remark",
-                    "title", "type=text", "message", "type=text")
-            );
+                .addMapping("doc",
+                    addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                        "article", "comment", "comment", "remark"), "title", "text", "message", "text")));
         }
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -376,10 +393,9 @@ public class InnerHitsIT extends ParentChildTestCase {
                     .addMapping("baron", "_parent", "type=earl")
             );
         } else {
-            assertAcked(
-                prepareCreate("royals")
-                    .addMapping("doc", "join_field", "type=join,king=prince,prince=duke,duke=earl,earl=baron")
-            );
+            assertAcked(prepareCreate("royals")
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                    "king", "prince", "prince", "duke", "duke", "earl", "earl", "baron")));
         }
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -452,7 +468,7 @@ public class InnerHitsIT extends ParentChildTestCase {
                 .addMapping("child", "_parent", "type=parent"));
         } else {
             assertAcked(prepareCreate("index")
-                .addMapping("doc", "join_field", "type=join,parent=child"));
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("index", "parent", "1", null));
@@ -495,7 +511,8 @@ public class InnerHitsIT extends ParentChildTestCase {
         if (legacy()) {
             assertAcked(prepareCreate("index1").addMapping("child", "_parent", "type=parent"));
         } else {
-            assertAcked(prepareCreate("index1").addMapping("doc", "join_field", "type=join,parent=child"));
+            assertAcked(prepareCreate("index1")
+                .addMapping("doc", buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent", "child")));
         }
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(createIndexRequest("index1", "parent", "1", null));
@@ -517,7 +534,8 @@ public class InnerHitsIT extends ParentChildTestCase {
                 .addMapping("child_type", "_parent", "type=parent_type", "nested_type", "type=nested"));
         } else {
             assertAcked(prepareCreate("test")
-                .addMapping("doc", "join_field", "type=join,parent_type=child_type", "nested_type", "type=nested"));
+                .addMapping("doc", addFieldMappings(buildParentJoinFieldMappingFromSimplifiedDef("join_field", true,
+                    "parent_type", "child_type"), "nested_type", "nested")));
         }
         createIndexRequest("test", "parent_type", "1", null, "key", "value").get();
         createIndexRequest("test", "child_type", "2", "1", "nested_type", Collections.singletonMap("key", "value")).get();
@@ -545,7 +563,9 @@ public class InnerHitsIT extends ParentChildTestCase {
             );
         } else {
             assertAcked(prepareCreate("index1")
-                .addMapping("doc", "join_field", "type=join,parent_type=child_type", "nested_type", "type=nested")
+                .addMapping("doc", addFieldMappings(
+                    buildParentJoinFieldMappingFromSimplifiedDef("join_field", true, "parent_type", "child_type"),
+                    "nested_type", "nested"))
             );
         }
         assertAcked(prepareCreate("index2"));

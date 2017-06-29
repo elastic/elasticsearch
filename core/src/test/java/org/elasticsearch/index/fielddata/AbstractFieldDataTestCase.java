@@ -134,7 +134,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     @Before
     public void setup() throws Exception {
-        indexService = createIndex("test", Settings.builder().put("mapping.single_type", false).build());
+        indexService = createIndex("test", Settings.builder().build());
         mapperService = indexService.mapperService();
         indicesFieldDataCache = getInstanceFromNode(IndicesService.class).getIndicesFieldDataCache();
         ifdService = indexService.fieldData();

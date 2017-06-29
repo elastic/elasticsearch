@@ -19,8 +19,8 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -212,54 +212,6 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         SearchResponse search = client().prepareSearch().setQuery(constantScoreQuery(matchQuery("name", "abc")))
                 .highlighter(new HighlightBuilder().field("name")).get();
         assertHighlight(search, 0, "name", 0, startsWith("<em>abc</em> <em>abc</em> <em>abc</em> <em>abc</em>"));
-    }
-
-    public void testNgramHighlighting() throws IOException {
-        assertAcked(prepareCreate("test")
-                .addMapping("test",
-                        "name", "type=text,analyzer=name_index_analyzer,search_analyzer=name_search_analyzer,"
-                            + "term_vector=with_positions_offsets",
-                        "name2", "type=text,analyzer=name2_index_analyzer,search_analyzer=name_search_analyzer,"
-                            + "term_vector=with_positions_offsets")
-                .setSettings(Settings.builder()
-                        .put(indexSettings())
-                        .put("analysis.filter.my_ngram.max_gram", 20)
-                        .put("analysis.filter.my_ngram.min_gram", 1)
-                        .put("analysis.filter.my_ngram.type", "ngram")
-                        .put("analysis.tokenizer.my_ngramt.max_gram", 20)
-                        .put("analysis.tokenizer.my_ngramt.min_gram", 1)
-                        .put("analysis.tokenizer.my_ngramt.token_chars", "letter,digit")
-                        .put("analysis.tokenizer.my_ngramt.type", "ngram")
-                        .put("analysis.analyzer.name_index_analyzer.tokenizer", "my_ngramt")
-                        .put("analysis.analyzer.name2_index_analyzer.tokenizer", "whitespace")
-                        .put("analysis.analyzer.name2_index_analyzer.filter", "my_ngram")
-                        .put("analysis.analyzer.name_search_analyzer.tokenizer", "whitespace")));
-        client().prepareIndex("test", "test", "1")
-            .setSource("name", "logicacmg ehemals avinci - the know how company",
-                       "name2", "logicacmg ehemals avinci - the know how company").get();
-        refresh();
-        ensureGreen();
-        SearchResponse search = client().prepareSearch().setQuery(matchQuery("name", "logica m"))
-                .highlighter(new HighlightBuilder().field("name")).get();
-        assertHighlight(search, 0, "name", 0,
-                equalTo("<em>logica</em>c<em>m</em>g ehe<em>m</em>als avinci - the know how co<em>m</em>pany"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name", "logica ma")).highlighter(new HighlightBuilder().field("name")).get();
-        assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehe<em>ma</em>ls avinci - the know how company"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name", "logica")).highlighter(new HighlightBuilder().field("name")).get();
-        assertHighlight(search, 0, "name", 0, equalTo("<em>logica</em>cmg ehemals avinci - the know how company"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name2", "logica m")).highlighter(new HighlightBuilder().field("name2"))
-                .get();
-        assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> <em>ehemals</em> avinci - the know how <em>company</em>"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name2", "logica ma")).highlighter(new HighlightBuilder().field("name2"))
-                .get();
-        assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> <em>ehemals</em> avinci - the know how company"));
-
-        search = client().prepareSearch().setQuery(matchQuery("name2", "logica")).highlighter(new HighlightBuilder().field("name2")).get();
-        assertHighlight(search, 0, "name2", 0, equalTo("<em>logicacmg</em> ehemals avinci - the know how company"));
     }
 
     public void testEnsureNoNegativeOffsets() throws Exception {
@@ -1407,29 +1359,27 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     public void testPhrasePrefix() throws IOException {
         Builder builder = Settings.builder()
                 .put(indexSettings())
-                .put("index.mapping.single_type", false)
                 .put("index.analysis.analyzer.synonym.tokenizer", "whitespace")
                 .putArray("index.analysis.analyzer.synonym.filter", "synonym", "lowercase")
                 .put("index.analysis.filter.synonym.type", "synonym")
                 .putArray("index.analysis.filter.synonym.synonyms", "quick => fast");
 
-        assertAcked(prepareCreate("test").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping())
-                .addMapping("type2",
-                        "field4", "type=text,term_vector=with_positions_offsets,analyzer=synonym",
-                        "field3", "type=text,analyzer=synonym"));
+        assertAcked(prepareCreate("first_test_index").setSettings(builder.build()).addMapping("type1", type1TermVectorMapping()));
+
         ensureGreen();
 
-        client().prepareIndex("test", "type1", "0").setSource(
+        client().prepareIndex("first_test_index", "type1", "0").setSource(
                 "field0", "The quick brown fox jumps over the lazy dog",
                 "field1", "The quick brown fox jumps over the lazy dog").get();
-        client().prepareIndex("test", "type1", "1").setSource("field1", "The quick browse button is a fancy thing, right bro?").get();
+        client().prepareIndex("first_test_index", "type1", "1").setSource("field1",
+            "The quick browse button is a fancy thing, right bro?").get();
         refresh();
         logger.info("--> highlighting and searching on field0");
 
         SearchSourceBuilder source = searchSource()
                 .query(matchPhrasePrefixQuery("field0", "bro"))
                 .highlighter(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
-        SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        SearchResponse searchResponse = client().search(searchRequest("first_test_index").source(source)).actionGet();
 
         assertHighlight(searchResponse, 0, "field0", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
 
@@ -1437,7 +1387,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .query(matchPhrasePrefixQuery("field0", "quick bro"))
             .highlighter(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        searchResponse = client().search(searchRequest("first_test_index").source(source)).actionGet();
         assertHighlight(searchResponse, 0, "field0", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
 
         logger.info("--> highlighting and searching on field1");
@@ -1448,7 +1398,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             )
             .highlighter(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        searchResponse = client().search(searchRequest("first_test_index").source(source)).actionGet();
         assertThat(searchResponse.getHits().totalHits, equalTo(2L));
         for (int i = 0; i < 2; i++) {
             assertHighlight(searchResponse, i, "field1", 0, 1, anyOf(
@@ -1460,7 +1410,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             .query(matchPhrasePrefixQuery("field1", "quick bro"))
             .highlighter(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        searchResponse = client().search(searchRequest("first_test_index").source(source)).actionGet();
 
         assertHighlight(searchResponse, 0, "field1", 0, 1, anyOf(
             equalTo("The <x>quick</x> <x>browse</x> button is a fancy thing, right bro?"),
@@ -1469,27 +1419,33 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             equalTo("The <x>quick</x> <x>browse</x> button is a fancy thing, right bro?"),
             equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog")));
 
+        assertAcked(prepareCreate("second_test_index").setSettings(builder.build()).addMapping("doc",
+            "field4", "type=text,term_vector=with_positions_offsets,analyzer=synonym",
+            "field3", "type=text,analyzer=synonym"));
         // with synonyms
-        client().prepareIndex("test", "type2", "0").setSource(
+        client().prepareIndex("second_test_index", "doc", "0").setSource(
+            "type", "type2",
             "field4", "The quick brown fox jumps over the lazy dog",
             "field3", "The quick brown fox jumps over the lazy dog").get();
-        client().prepareIndex("test", "type2", "1").setSource(
+        client().prepareIndex("second_test_index", "doc", "1").setSource(
+            "type", "type2",
             "field4", "The quick browse button is a fancy thing, right bro?").get();
-        client().prepareIndex("test", "type2", "2").setSource(
+        client().prepareIndex("second_test_index", "doc", "2").setSource(
+            "type", "type2",
             "field4", "a quick fast blue car").get();
         refresh();
 
-        source = searchSource().postFilter(typeQuery("type2")).query(matchPhrasePrefixQuery("field3", "fast bro"))
+        source = searchSource().postFilter(termQuery("type", "type2")).query(matchPhrasePrefixQuery("field3", "fast bro"))
             .highlighter(highlight().field("field3").order("score").preTags("<x>").postTags("</x>"));
 
-        searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        searchResponse = client().search(searchRequest("second_test_index").source(source)).actionGet();
 
         assertHighlight(searchResponse, 0, "field3", 0, 1, equalTo("The <x>quick</x> <x>brown</x> fox jumps over the lazy dog"));
 
         logger.info("--> highlighting and searching on field4");
-        source = searchSource().postFilter(typeQuery("type2")).query(matchPhrasePrefixQuery("field4", "the fast bro"))
+        source = searchSource().postFilter(termQuery("type", "type2")).query(matchPhrasePrefixQuery("field4", "the fast bro"))
             .highlighter(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
-        searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        searchResponse = client().search(searchRequest("second_test_index").source(source)).actionGet();
 
         assertHighlight(searchResponse, 0, "field4", 0, 1, anyOf(
             equalTo("<x>The</x> <x>quick</x> <x>browse</x> button is a fancy thing, right bro?"),
@@ -1499,9 +1455,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             equalTo("<x>The</x> <x>quick</x> <x>brown</x> fox jumps over the lazy dog")));
 
         logger.info("--> highlighting and searching on field4");
-        source = searchSource().postFilter(typeQuery("type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca"))
+        source = searchSource().postFilter(termQuery("type", "type2")).query(matchPhrasePrefixQuery("field4", "a fast quick blue ca"))
             .highlighter(highlight().field("field4").order("score").preTags("<x>").postTags("</x>"));
-        searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+        searchResponse = client().search(searchRequest("second_test_index").source(source)).actionGet();
 
         assertHighlight(searchResponse, 0, "field4", 0, 1,
             anyOf(equalTo("<x>a quick fast blue car</x>"),

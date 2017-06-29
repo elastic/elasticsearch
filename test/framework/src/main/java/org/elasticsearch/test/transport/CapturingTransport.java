@@ -40,6 +40,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.TransportStats;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -214,6 +215,11 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
+    public TransportStats getStats() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public void transportServiceAdapter(TransportServiceAdapter adapter) {
         this.adapter = adapter;
     }
@@ -248,11 +254,6 @@ public class CapturingTransport implements Transport {
     @Override
     public void disconnectFromNode(DiscoveryNode node) {
 
-    }
-
-    @Override
-    public long serverOpen() {
-        return 0;
     }
 
     @Override

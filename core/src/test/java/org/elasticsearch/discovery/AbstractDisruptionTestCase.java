@@ -197,35 +197,29 @@ public abstract class AbstractDisruptionTestCase extends ESIntegTestCase {
     }
 
     void assertNoMaster(final String node, @Nullable final ClusterBlock expectedBlocks, TimeValue maxWaitTime) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterState state = getNodeClusterState(node);
-                final DiscoveryNodes nodes = state.nodes();
-                assertNull("node [" + node + "] still has [" + nodes.getMasterNode() + "] as master", nodes.getMasterNode());
-                if (expectedBlocks != null) {
-                    for (ClusterBlockLevel level : expectedBlocks.levels()) {
-                        assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks", state.getBlocks().hasGlobalBlock
-                                (level));
-                    }
+        assertBusy(() -> {
+            ClusterState state = getNodeClusterState(node);
+            final DiscoveryNodes nodes = state.nodes();
+            assertNull("node [" + node + "] still has [" + nodes.getMasterNode() + "] as master", nodes.getMasterNode());
+            if (expectedBlocks != null) {
+                for (ClusterBlockLevel level : expectedBlocks.levels()) {
+                    assertTrue("node [" + node + "] does have level [" + level + "] in it's blocks", state.getBlocks().hasGlobalBlock
+                            (level));
                 }
             }
         }, maxWaitTime.getMillis(), TimeUnit.MILLISECONDS);
     }
 
     void assertDifferentMaster(final String node, final String oldMasterNode) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ClusterState state = getNodeClusterState(node);
-                String masterNode = null;
-                if (state.nodes().getMasterNode() != null) {
-                    masterNode = state.nodes().getMasterNode().getName();
-                }
-                logger.trace("[{}] master is [{}]", node, state.nodes().getMasterNode());
-                assertThat("node [" + node + "] still has [" + masterNode + "] as master",
-                        oldMasterNode, not(equalTo(masterNode)));
+        assertBusy(() -> {
+            ClusterState state = getNodeClusterState(node);
+            String masterNode = null;
+            if (state.nodes().getMasterNode() != null) {
+                masterNode = state.nodes().getMasterNode().getName();
             }
+            logger.trace("[{}] master is [{}]", node, state.nodes().getMasterNode());
+            assertThat("node [" + node + "] still has [" + masterNode + "] as master",
+                    oldMasterNode, not(equalTo(masterNode)));
         }, 10, TimeUnit.SECONDS);
     }
 

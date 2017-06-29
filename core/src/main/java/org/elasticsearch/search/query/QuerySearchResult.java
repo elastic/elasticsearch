@@ -56,7 +56,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private ProfileShardResult profileShardResults;
     private boolean hasProfileResults;
     private boolean hasScoreDocs;
-    private int totalHits;
+    private long totalHits;
     private float maxScore;
 
     public QuerySearchResult() {
@@ -317,7 +317,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
     }
 
-    public int getTotalHits() {
+    public long getTotalHits() {
         return totalHits;
     }
 

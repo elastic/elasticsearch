@@ -81,10 +81,8 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     @BeforeClass
     public static void init() throws IOException {
-        Path genericConfigFolder = createTempDir();
         Settings baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
         Map<String, Function<Map<String, Object>, Object>> scripts = Collections.singletonMap("dummy", p -> null);
         ScriptEngine engine = new MockScriptEngine(MockScriptEngine.NAME, scripts);

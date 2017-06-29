@@ -804,6 +804,12 @@ public abstract class Engine implements Closeable {
     public abstract CommitId flush() throws EngineException;
 
     /**
+     * Rolls the translog generation and cleans unneeded.
+     */
+    public abstract void rollTranslogGeneration() throws EngineException;
+
+
+    /**
      * Force merges to 1 segment
      */
     public void forceMerge(boolean flush) throws IOException {

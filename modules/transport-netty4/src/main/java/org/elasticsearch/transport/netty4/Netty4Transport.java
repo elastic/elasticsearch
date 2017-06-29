@@ -306,7 +306,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     }
 
     @Override
-    public long serverOpen() {
+    public long getNumOpenServerConnections() {
         Netty4OpenChannelsHandler channels = serverOpenChannels;
         return channels == null ? 0 : channels.numberOfOpenChannels();
     }

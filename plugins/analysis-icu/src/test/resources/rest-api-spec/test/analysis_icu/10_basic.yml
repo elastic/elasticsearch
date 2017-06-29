@@ -39,3 +39,50 @@
             tokenizer:    keyword
     - length: { tokens: 1 }
     - match:  { tokens.0.token: foo bar resume }
+---
+"Normalization with a UnicodeSet Filter":
+    - do:
+        indices.create:
+            index:  test
+            body:
+                settings:
+                    index:
+                        analysis:
+                            char_filter:
+                                charfilter_icu_normalizer:
+                                    type: icu_normalizer
+                                    unicodeSetFilter: "[^ß]"
+                            filter:
+                                tokenfilter_icu_normalizer:
+                                    type: icu_normalizer
+                                    unicodeSetFilter: "[^ßB]"
+                                tokenfilter_icu_folding:
+                                    type: icu_folding
+                                    unicodeSetFilter: "[^â]"
+    - do:
+        indices.analyze:
+          index:    test
+          body:
+            char_filter: ["charfilter_icu_normalizer"]
+            tokenizer:  keyword
+            text:     charfilter Föo Bâr Ruß
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: charfilter föo bâr ruß }
+    - do:
+        indices.analyze:
+          index:    test
+          body:
+            tokenizer:  keyword
+            filter: ["tokenfilter_icu_normalizer"]
+            text:     tokenfilter Föo Bâr Ruß
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: tokenfilter föo Bâr ruß }
+    - do:
+        indices.analyze:
+          index:    test
+          body:
+            tokenizer:  keyword
+            filter: ["tokenfilter_icu_folding"]
+            text:     icufolding Föo Bâr Ruß
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: icufolding foo bâr russ }

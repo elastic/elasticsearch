@@ -189,7 +189,7 @@ GET hockey/_search
   "script_fields": {
     "birth_year": {
       "script": {
-        "source": "doc.born.value.year"
+        "source": "doc.born.date.year"
       }
     }
   }

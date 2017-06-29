@@ -80,12 +80,14 @@ public class ConnectFuture extends BaseFuture<NioSocketChannel> {
         if (isDone()) {
             try {
                 // Get should always return without blocking as we already checked 'isDone'
-                return super.get();
+                return super.get(0, TimeUnit.NANOSECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return null;
             } catch (ExecutionException e) {
                 return null;
+            } catch (TimeoutException e) {
+                throw new AssertionError("This should never happen as we only call get() after isDone() is true.");
             }
         } else {
             return null;

@@ -29,6 +29,9 @@ public enum Transports {
     /** threads whose name is prefixed by this string will be considered network threads, even though they aren't */
     public static final String TEST_MOCK_TRANSPORT_THREAD_PREFIX = "__mock_network_thread";
 
+    public static final String NIO_TRANSPORT_WORKER_THREAD_NAME_PREFIX = "nio_transport_worker";
+    public static final String NIO_TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX = "nio_transport_acceptor";
+
     /**
      * Utility method to detect whether a thread is a network thread. Typically
      * used in assertions to make sure that we do not call blocking code from
@@ -40,7 +43,9 @@ public enum Transports {
                 HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
                 TcpTransport.TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX,
                 TcpTransport.TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX,
-                TEST_MOCK_TRANSPORT_THREAD_PREFIX)) {
+                TEST_MOCK_TRANSPORT_THREAD_PREFIX,
+                NIO_TRANSPORT_WORKER_THREAD_NAME_PREFIX,
+                NIO_TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX)) {
             if (threadName.contains(s)) {
                 return true;
             }

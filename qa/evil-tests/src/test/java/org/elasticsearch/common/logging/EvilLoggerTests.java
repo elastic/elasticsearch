@@ -168,7 +168,7 @@ public class EvilLoggerTests extends ESTestCase {
     public void testDeprecatedSettings() throws IOException, UserException {
         setupLogging("settings");
 
-        final Setting setting = Setting.boolSetting("deprecated.foo", false, Setting.Property.Deprecated);
+        final Setting<Boolean> setting = Setting.boolSetting("deprecated.foo", false, Setting.Property.Deprecated);
         final Settings settings = Settings.builder().put("deprecated.foo", true).build();
 
         final int iterations = randomIntBetween(0, 128);

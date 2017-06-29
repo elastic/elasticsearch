@@ -79,6 +79,7 @@ public class AcceptingSelector extends ESSelector {
      */
     public void registerServerChannel(NioServerSocketChannel serverSocketChannel) {
         newChannels.add(serverSocketChannel);
+        ensureSelectorOpenForEnqueuing(newChannels, serverSocketChannel);
         wakeup();
     }
 

@@ -10,15 +10,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import java.nio.file.Path;
 
 /**
- * Tests for basic {@code SELECT} statements without {@code WHERE} or {@code GROUP BY} or functions.
+ * Tests for aggregations created by {@code GROUP BY}.
  */
-public class SelectIT extends CompareToH2BaseTestCase {
-    public SelectIT(String queryName, String query, Integer lineNumber, Path source) {
+public class AggIT extends CompareToH2BaseTestCase {
+    public AggIT(String queryName, String query, Integer lineNumber, Path source) {
         super(queryName, query, lineNumber, source);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> queries() throws Exception {
-        return readScriptSpec("select");
+        return readScriptSpec("agg");
     }
 }

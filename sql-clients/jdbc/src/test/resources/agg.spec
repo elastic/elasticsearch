@@ -125,8 +125,6 @@ aggMaxAndCountWithFilter
 SELECT gender g, MAX(emp_no) m, COUNT(1) c FROM "emp.emp" WHERE emp_no > 10000 GROUP BY gender;
 aggMaxAndCountWithFilterAndLimit
 SELECT gender g, MAX(emp_no) m, COUNT(1) c FROM "emp.emp" WHERE emp_no > 10000 GROUP BY gender LIMIT 1;
-aggMinWithCastAndFilter
-SELECT gender g, CAST(MAX(emp_no) AS SMALLINT) m, COUNT(1) c FROM "emp.emp" WHERE emp_no < 10020 GROUP BY gender;
 aggMaxWithAlias
 SELECT gender g, MAX(emp_no) m FROM "emp.emp" GROUP BY g;
 
@@ -161,11 +159,11 @@ aggSumWithHaving
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "emp.emp" GROUP BY g HAVING SUM(emp_no) > 10;
 aggSumWithHavingOnAlias
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "emp.emp" GROUP BY g HAVING s > 10;
-aggMaxWithMultipleHaving
+aggSumWithMultipleHaving
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "emp.emp" GROUP BY g HAVING s > 10 AND s < 10000000;
-aggMaxWithMultipleHavingWithLimit
+aggSumWithMultipleHavingWithLimit
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "emp.emp" GROUP BY g HAVING s > 10 AND s < 10000000 LIMIT 1;
-aggMaxWithMultipleHavingOnAliasAndFunction
+aggSumWithMultipleHavingOnAliasAndFunction
 SELECT gender g, CAST(SUM(emp_no) AS INT) s FROM "emp.emp" GROUP BY g HAVING s > 10 AND SUM(emp_no) > 10000000;
 
 // AVG

@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.jdbc.JdbcIntegrationTestCase;
-import org.elasticsearch.xpack.sql.jdbc.integration.util.EsDataLoader;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -137,7 +136,7 @@ public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
         createIndex.endObject().endObject();
         client().performRequest("PUT", "/emp", emptyMap(), new StringEntity(createIndex.string(), ContentType.APPLICATION_JSON));
 
-        URL dataSet = EsDataLoader.class.getResource("/employees.csv");
+        URL dataSet = CompareToH2BaseTestCase.class.getResource("/employees.csv");
         if (dataSet == null) {
             throw new IllegalArgumentException("Can't find employees.csv");
         }

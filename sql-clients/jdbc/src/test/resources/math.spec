@@ -30,8 +30,6 @@ mathRadians
 SELECT RADIANS(emp_no) m, first_name FROM "emp.emp" WHERE emp_no < 10010 ORDER BY emp_no;
 mathRound
 SELECT CAST(ROUND(emp_no) AS INT) m, first_name FROM "emp.emp" WHERE emp_no < 10010 ORDER BY emp_no;
-mathRadians
-SELECT RADIANS(emp_no) m, first_name FROM "emp.emp" WHERE emp_no < 10010 ORDER BY emp_no;
 mathSin
 SELECT SIN(emp_no) m, first_name FROM "emp.emp" WHERE emp_no < 10010 ORDER BY emp_no;
 mathSinH
@@ -54,7 +52,7 @@ SELECT EXP(ABS(CEIL(SIN(DEGREES(emp_no))))) m, first_name FROM "emp.emp" WHERE E
 
 //
 // Filter by Scalar
-// 
+//
 mathAbsFilterAndOrder
 SELECT emp_no, ABS(emp_no) m, first_name FROM "emp.emp" WHERE ABS(emp_no) < 10010 ORDER BY ABS(emp_no);
 mathACosFilterAndOrder
@@ -72,6 +70,6 @@ SELECT emp_no, CEIL(emp_no) m, first_name FROM "emp.emp" WHERE CEIL(emp_no) < 10
 
 //
 // constants - added when folding will be supported
-// 
+//
 //mathConstantPI
 //SELECT ABS(emp_no) m, PI(), first_name FROM "emp.emp" WHERE emp_no < 10010 ORDER BY emp_no;

@@ -3,16 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.jdbc.integration.query;
+package org.elasticsearch.xpack.sql.jdbc.compare;
+
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.nio.file.Path;
 
-public class DebugSpecTests extends CompareToH2BaseTestCase {
-    public DebugSpecTests(String queryName, String query, Integer lineNumber, Path source) {
+public class MathIT extends CompareToH2BaseTestCase {
+    public MathIT(String queryName, String query, Integer lineNumber, Path source) {
         super(queryName, query, lineNumber, source);
     }
 
+    @ParametersFactory
     public static Iterable<Object[]> queries() throws Exception {
-        return readScriptSpec("/org/elasticsearch/sql/jdbc/integration/query/debug.spec");
+        return readScriptSpec("math");
     }
 }

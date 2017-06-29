@@ -9,6 +9,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.nio.file.Path;
 
+/**
+ * Tests for filters added by {@code WHERE} clauses.
+ */
 public class FilterIT extends CompareToH2BaseTestCase {
     public FilterIT(String queryName, String query, Integer lineNumber, Path source) {
         super(queryName, query, lineNumber, source);

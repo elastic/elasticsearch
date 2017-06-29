@@ -5,19 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
+import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
+import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
+import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
+import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
+import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
+import org.jline.utils.AttributedStringBuilder;
+
 import java.awt.Desktop;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-
-import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
-import org.jline.utils.AttributedStringBuilder;
 
 import static org.jline.utils.AttributedStyle.BOLD;
 import static org.jline.utils.AttributedStyle.BRIGHT;
@@ -68,7 +69,7 @@ abstract class ResponseToString {
         return sb;
     }
 
-
+    @SuppressForbidden(reason="ignore for now") // NOCOMMIT figure this out
     private static void displayGraphviz(String str) {
         try {
             // save the content to a temp file

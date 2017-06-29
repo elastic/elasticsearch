@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.jdbc;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -23,69 +22,10 @@ import java.util.Map;
 
 // poor's man JdbcTemplate
 public class JdbcTemplate {
-    private static final int MAX_WIDTH = 20;
-
     private final CheckedSupplier<Connection, SQLException> conn;
 
     public JdbcTemplate(CheckedSupplier<Connection, SQLException> conn) {
         this.conn = conn;
-    }
-
-    @SuppressForbidden(reason="temporary")
-    public static CheckedFunction<ResultSet, Void, SQLException> resultSetToConsole() {
-        // NOCOMMIT this doesn't really test anything. If we want to log the whole result set we can do that too, but we have to add assertions
-        return rs -> {
-            ResultSetMetaData metaData = rs.getMetaData();
-            StringBuilder sb = new StringBuilder();
-            StringBuilder column = new StringBuilder();
-
-            int columns = metaData.getColumnCount();
-            for (int i = 1; i <= columns; i++) {
-                if (i > 1) {
-                    sb.append(" | ");
-                }
-                column.setLength(0);
-                column.append(metaData.getColumnName(i));
-                column.append("(");
-                column.append(metaData.getColumnTypeName(i));
-                column.append(")");
-
-                sb.append(trimOrPad(column));
-            }
-
-            int l = sb.length();
-            sb.append("\n");
-            for (int i = 0; i < l; i++) {
-                sb.append("=");
-            }
-            System.out.println(sb);
-
-            while (rs.next()) {
-                sb.setLength(0);
-                for (int i = 1; i <= columns; i++) {
-                    column.setLength(0);
-                    if (i > 1) {
-                        sb.append(" | ");
-                    }
-                    sb.append(trimOrPad(column.append(rs.getString(i))));
-                }
-                System.out.println(sb);
-            }
-            return null;
-        };
-    }
-
-    private static StringBuilder trimOrPad(StringBuilder buffer) {
-        if (buffer.length() > MAX_WIDTH) {
-            buffer.setLength(MAX_WIDTH - 1);
-            buffer.append("~");
-        }
-        else {
-            for (int i = buffer.length(); i < MAX_WIDTH; i++) {
-                buffer.append(" ");
-            }
-        }
-        return buffer;
     }
 
     public void consume(CheckedConsumer<Connection, SQLException> c) throws SQLException {
@@ -107,10 +47,6 @@ public class JdbcTemplate {
                 return f.apply(rset);
             }
         });
-    }
-
-    public void queryToConsole(String q) throws SQLException {
-        query(q, resultSetToConsole());
     }
 
     public <T> T queryObject(String q, Class<T> type) throws SQLException {

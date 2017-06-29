@@ -22,6 +22,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver;
+import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -52,6 +53,7 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
      * enabled.
      */
     @BeforeClass
+    @SuppressForbidden(reason="it is a hack anyway")
     public static void startInternalTestClusterIfNeeded() throws IOException, InterruptedException {
         if (System.getProperty("tests.rest.cluster") != null) {
             // Nothing to do, using an external Elasticsearch node.

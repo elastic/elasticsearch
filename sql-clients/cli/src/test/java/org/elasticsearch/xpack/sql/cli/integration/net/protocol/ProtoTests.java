@@ -131,7 +131,7 @@ public class ProtoTests extends ESTestCase {
                 );
         
         for (String c : commands) {
-            Response command = (Response) client.command(c, null);
+            Response command = client.command(c, null);
             String msg = "";
             if (command instanceof ExceptionResponse) {
                 msg = ((ExceptionResponse) command).message;

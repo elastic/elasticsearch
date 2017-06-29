@@ -435,11 +435,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         if (!otherFields.isEmpty()) {
             builder.startObject(Fields.FIELDS);
             for (DocumentField field : otherFields) {
-                builder.startArray(field.getName());
-                for (Object value : field.getValues()) {
-                    builder.value(value);
-                }
-                builder.endArray();
+                field.toXContent(builder, params);
             }
             builder.endObject();
         }
@@ -600,14 +596,9 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
 
     private static Map<String, DocumentField> parseFields(XContentParser parser) throws IOException {
         Map<String, DocumentField> fields = new HashMap<>();
-        while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            String fieldName = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
-            List<Object> values = new ArrayList<>();
-            while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                values.add(parseStoredFieldsValue(parser));
-            }
-            fields.put(fieldName, new DocumentField(fieldName, values));
+        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            DocumentField field = DocumentField.fromXContent(parser);
+            fields.put(field.getName(), field);
         }
         return fields;
     }

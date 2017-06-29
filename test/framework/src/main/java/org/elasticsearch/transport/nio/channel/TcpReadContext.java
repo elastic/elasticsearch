@@ -67,6 +67,8 @@ public class TcpReadContext implements ReadContext {
 
         BytesReference message;
 
+        // Frame decoder will throw an exception if the message is improperly formatted, the header is incorrect,
+        // or the message is corrupted
         while ((message = frameDecoder.decode(createCompositeBuffer(), rawBytesCount)) != null) {
             int messageLengthWithHeader = message.length();
             NetworkBytesReference.vectorizedIncrementReadIndexes(references, messageLengthWithHeader);

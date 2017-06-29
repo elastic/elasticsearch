@@ -94,22 +94,6 @@ public final class Settings implements ToXContent {
     private final SetOnce<Set<String>> firstLevelNames = new SetOnce<>();
 
     /**
-     * The set of deprecated settings tracked by this settings object.
-     */
-    private final Set<String> deprecatedSettings = Collections.newSetFromMap(new ConcurrentHashMap<>());
-
-    /**
-     * Add the setting as a tracked deprecated setting.
-     *
-     * @param setting the deprecated setting to track
-     * @return true if the setting was not already tracked as a deprecated setting, otherwise false
-     */
-    boolean addDeprecatedSetting(final Setting setting) {
-        assert setting.isDeprecated() && setting.exists(this) : setting.getKey();
-        return deprecatedSettings.add(setting.getKey());
-    }
-
-    /**
      * Setting names found in this Settings for both string and secure settings.
      * This is constructed lazily in {@link #keySet()}.
      */

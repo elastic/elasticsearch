@@ -237,7 +237,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     private T copy(T original) throws IOException {
         /* The cast below is required to make Java 9 happy. Java 8 infers the T in copyWriterable to be the same as AbstractSortTestCase's
          * T but Java 9 infers it to be SortBuilder. */
-        return copyWriteable(original, namedWriteableRegistry,
+        return (T) copyWriteable(original, namedWriteableRegistry,
                 namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
     }
 }

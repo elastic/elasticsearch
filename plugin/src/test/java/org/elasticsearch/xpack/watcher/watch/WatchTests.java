@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.ScriptQueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.Script;
@@ -556,9 +555,9 @@ public class WatchTests extends ESTestCase {
     protected NamedXContentRegistry xContentRegistry() {
         return new NamedXContentRegistry(Arrays.asList(
                 new NamedXContentRegistry.Entry(QueryBuilder.class, new ParseField(MatchAllQueryBuilder.NAME), (p, c) ->
-                        MatchAllQueryBuilder.fromXContent((QueryParseContext) c)),
+                        MatchAllQueryBuilder.fromXContent(p)),
                 new NamedXContentRegistry.Entry(QueryBuilder.class, new ParseField(ScriptQueryBuilder.NAME), (p, c) ->
-                        ScriptQueryBuilder.fromXContent((QueryParseContext) c))
+                        ScriptQueryBuilder.fromXContent(p))
                 ));
     }
 

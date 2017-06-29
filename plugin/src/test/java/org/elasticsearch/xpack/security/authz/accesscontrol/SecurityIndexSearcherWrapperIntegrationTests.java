@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -145,7 +146,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         for (int i = 0; i < numValues; i++) {
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
             when(queryShardContext.newParseContext(anyParser())).thenReturn(queryParseContext);
-            when(queryParseContext.parseInnerQueryBuilder()).thenReturn(new TermQueryBuilder("field", values[i]));
+            when(AbstractQueryBuilder.parseInnerQueryBuilder(anyParser())).thenReturn(new TermQueryBuilder("field", values[i]));
             when(queryShardContext.toFilter(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
             DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
             IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));

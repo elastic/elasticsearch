@@ -28,10 +28,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.graph.action.GraphExploreAction.INSTANCE;
-
 /**
  * @see GraphExploreRequest
  */
@@ -121,7 +121,7 @@ public class RestGraphAction extends XPackRestHandler {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(fieldName)) {
-                    currentHop.guidingQuery(context.parseInnerQueryBuilder());
+                    currentHop.guidingQuery(parseInnerQueryBuilder(parser));
                 } else if (CONNECTIONS_FIELD.match(fieldName)) {
                     parseHop(parser, context, graphRequest.createNextHop(null), graphRequest);
                 } else if (CONTROLS_FIELD.match(fieldName)) {
@@ -221,7 +221,7 @@ public class RestGraphAction extends XPackRestHandler {
                                         "Graph vertices definition cannot contain both "+ INCLUDE_FIELD.getPreferredName()+
                                         " and "+EXCLUDE_FIELD.getPreferredName()+" clauses", token.name());
                             }
-                            excludes = new HashSet<String>();
+                            excludes = new HashSet<>();
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 excludes.add(parser.text());
                             }

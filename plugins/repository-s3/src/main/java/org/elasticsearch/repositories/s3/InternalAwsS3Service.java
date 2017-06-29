@@ -27,7 +27,7 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
+import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
@@ -166,10 +166,10 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
     }
 
     static class PrivilegedInstanceProfileCredentialsProvider implements AWSCredentialsProvider {
-        private final EC2ContainerCredentialsProviderWrapper credentials;
+        private final InstanceProfileCredentialsProvider credentials;
 
         private PrivilegedInstanceProfileCredentialsProvider() {
-            this.credentials = new EC2ContainerCredentialsProviderWrapper();
+            this.credentials = new InstanceProfileCredentialsProvider();
         }
 
         @Override

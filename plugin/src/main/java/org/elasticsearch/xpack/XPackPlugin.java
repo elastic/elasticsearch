@@ -46,7 +46,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -98,6 +97,7 @@ import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityFeatureSet;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.upgrade.Upgrade;
@@ -123,6 +123,9 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.watcher.Watcher.ENCRYPT_SENSITIVE_DATA_SETTING;
 
 public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, IngestPlugin, NetworkPlugin {
 
@@ -202,6 +205,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected Graph graph;
     protected MachineLearning machineLearning;
     protected Logstash logstash;
+    protected CryptoService cryptoService;
     protected Deprecation deprecation;
     protected Upgrade upgrade;
 
@@ -229,6 +233,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         } else {
             this.extensionsService = null;
         }
+        cryptoService = ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? new CryptoService(settings) : null;
     }
 
     // For tests only
@@ -283,7 +288,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
         // watcher http stuff
         Map<String, HttpAuthFactory> httpAuthFactories = new HashMap<>();
-        httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(security.getCryptoService()));
+        httpAuthFactories.put(BasicAuth.TYPE, new BasicAuthFactory(cryptoService));
         // TODO: add more auth types, or remove this indirection
         HttpAuthRegistry httpAuthRegistry = new HttpAuthRegistry(httpAuthFactories);
         HttpRequestTemplate.Parser httpTemplateParser = new HttpRequestTemplate.Parser(httpAuthRegistry);
@@ -296,7 +301,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.addAll(notificationComponents);
 
         components.addAll(watcher.createComponents(getClock(), scriptService, internalClient, licenseState,
-                httpClient, httpTemplateParser, threadPool, clusterService, security.getCryptoService(), xContentRegistry, components));
+                httpClient, httpTemplateParser, threadPool, clusterService, cryptoService, xContentRegistry, components));
 
 
         components.addAll(machineLearning.createComponents(internalClient, clusterService, threadPool, xContentRegistry));
@@ -315,7 +320,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                                                             HttpRequestTemplate.Parser httpTemplateParser, ScriptService scriptService,
                                                             HttpAuthRegistry httpAuthRegistry) {
         List<Object> components = new ArrayList<>();
-        components.add(new EmailService(settings, security.getCryptoService(), clusterSettings));
+        components.add(new EmailService(settings, cryptoService, clusterSettings));
         components.add(new HipChatService(settings, httpClient, clusterSettings));
         components.add(new JiraService(settings, httpClient, clusterSettings));
         components.add(new SlackService(settings, httpClient, clusterSettings));
@@ -573,7 +578,10 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     @Override
     public List<BootstrapCheck> getBootstrapChecks() {
-        return security.getBootstrapChecks();
+        return Collections.unmodifiableList(
+                Stream.of(security.getBootstrapChecks(), watcher.getBootstrapChecks())
+                        .flatMap(Collection::stream)
+                        .collect(Collectors.toList()));
     }
 
 }

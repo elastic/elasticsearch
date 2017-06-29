@@ -200,7 +200,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
     private final boolean enabled;
     private final boolean transportClientMode;
     private final XPackLicenseState licenseState;
-    private final CryptoService cryptoService;
     private final SSLService sslService;
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
@@ -220,16 +219,9 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
         if (enabled && transportClientMode == false) {
             validateAutoCreateIndex(settings);
-            cryptoService = new CryptoService(settings, env);
-        } else {
-            cryptoService = null;
         }
         this.licenseState = licenseState;
         this.sslService = sslService;
-    }
-
-    public CryptoService getCryptoService() {
-        return cryptoService;
     }
 
     public Collection<Module> nodeModules() {
@@ -254,7 +246,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         
         if (enabled == false) {
             modules.add(b -> {
-                b.bind(CryptoService.class).toProvider(Providers.of(null));
                 b.bind(Realms.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(CompositeRolesStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
                 b.bind(NativeRoleMappingStore.class).toProvider(Providers.of(null)); // for SecurityFeatureSet
@@ -268,7 +259,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         // which might not be the case during Plugin class instantiation. Once nodeModules are pulled
         // everything should have been loaded
         modules.add(b -> {
-            b.bind(CryptoService.class).toInstance(cryptoService);
             if (XPackSettings.AUDIT_ENABLED.get(settings)) {
                 b.bind(AuditTrail.class).to(AuditTrailService.class); // interface used by some actions...
             }
@@ -473,9 +463,6 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         settingsList.add(TokenService.TOKEN_PASSPHRASE);
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
-
-        // encryption settings
-        CryptoService.addSettings(settingsList);
 
         // hide settings
         settingsList.add(Setting.listSetting(setting("hide_settings"), Collections.emptyList(), Function.identity(),

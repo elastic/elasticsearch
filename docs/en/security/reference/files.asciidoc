@@ -20,10 +20,6 @@ The {security} uses the following files:
 * `CONFIG_DIR/x-pack/log4j2.properties` contains audit information (read more
   <<logging-file, here>>).
 
-* `CONFIG_DIR/x-pack/system_key` holds a cluster secret key that's used to
-  authenticate messages during node to node communication. For more information,
-  see <<enable-message-authentication, Enabling Message Authentication>>.
-
 [[security-files-location]]
 
 IMPORTANT:  Any files that {security} uses must be stored in the Elasticsearch

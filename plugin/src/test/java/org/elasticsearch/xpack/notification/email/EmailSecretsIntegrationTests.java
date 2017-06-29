@@ -6,10 +6,12 @@
 package org.elasticsearch.xpack.notification.email;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xpack.notification.email.support.EmailServer;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
@@ -43,6 +45,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
 
     private EmailServer server;
     private Boolean encryptSensitiveData;
+    private byte[] encryptionKey;
 
     @Override
     public void setUp() throws Exception {
@@ -58,15 +61,23 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         if (encryptSensitiveData == null) {
-            encryptSensitiveData = securityEnabled() && randomBoolean();
+            encryptSensitiveData = randomBoolean();
+            if (encryptSensitiveData) {
+                encryptionKey = CryptoService.generateKey();
+            }
         }
-        return Settings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("xpack.notification.email.account.test.smtp.auth", true)
                 .put("xpack.notification.email.account.test.smtp.port", server.port())
                 .put("xpack.notification.email.account.test.smtp.host", "localhost")
-                .put("xpack.watcher.encrypt_sensitive_data", encryptSensitiveData)
-                .build();
+                .put("xpack.watcher.encrypt_sensitive_data", encryptSensitiveData);
+        if (encryptSensitiveData) {
+            MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
+            builder.setSecureSettings(secureSettings);
+        }
+        return builder.build();
     }
 
     public void testEmail() throws Exception {
@@ -91,9 +102,12 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         Map<String, Object> source = response.getSource();
         Object value = XContentMapValues.extractValue("actions._email.email.password", source);
         assertThat(value, notNullValue());
-        if (securityEnabled() && encryptSensitiveData) {
+        if (encryptSensitiveData) {
             assertThat(value, not(is(EmailServer.PASSWORD)));
-            CryptoService cryptoService = getInstanceFromMaster(CryptoService.class);
+            MockSecureSettings mockSecureSettings = new MockSecureSettings();
+            mockSecureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
+            Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+            CryptoService cryptoService = new CryptoService(settings);
             assertThat(new String(cryptoService.decrypt(((String) value).toCharArray())), is(EmailServer.PASSWORD));
         } else {
             assertThat(value, is(EmailServer.PASSWORD));

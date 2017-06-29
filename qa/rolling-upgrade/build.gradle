@@ -220,6 +220,7 @@ subprojects {
         }
         extraConfigFile 'x-pack/system_key',
             "${mainProject.projectDir}/src/test/resources/system_key"
+        setting 'xpack.watcher.encrypt_sensitive_data', 'true'
       }
     }
 
@@ -244,9 +245,10 @@ subprojects {
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {
-        setting 'xpack.security.system_key.required', 'true'
-        extraConfigFile 'x-pack/system_key',
-            "${mainProject.projectDir}/src/test/resources/system_key"
+        setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+        setupCommand 'create-elasticsearch-keystore', 'bin/elasticsearch-keystore', 'create'
+        setupCommand 'add-key-elasticsearch-keystore',
+                'bin/elasticsearch-keystore', 'add-file', 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
       }
     }
 
@@ -271,9 +273,10 @@ subprojects {
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {
-        setting 'xpack.security.system_key.required', 'true'
-        extraConfigFile 'x-pack/system_key',
-            "${mainProject.projectDir}/src/test/resources/system_key"
+        setting 'xpack.watcher.encrypt_sensitive_data', 'true'
+        setupCommand 'create-elasticsearch-keystore', 'bin/elasticsearch-keystore', 'create'
+        setupCommand 'add-key-elasticsearch-keystore',
+                'bin/elasticsearch-keystore', 'add-file', 'xpack.watcher.encryption_key', "${mainProject.projectDir}/src/test/resources/system_key"
       }
     }
 

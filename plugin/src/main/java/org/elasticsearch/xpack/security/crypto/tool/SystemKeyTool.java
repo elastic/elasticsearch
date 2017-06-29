@@ -15,6 +15,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 
 import java.nio.file.Files;
@@ -61,7 +62,7 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
             }
             keyPath = parsePath(args.get(0));
         } else {
-            keyPath = CryptoService.resolveSystemKey(env);
+            keyPath = env.configFile().resolve(XPackPlugin.NAME).resolve("system_key");
         }
 
         // write the key
@@ -75,7 +76,7 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
         if (view != null) {
             view.setPermissions(PERMISSION_OWNER_READ_WRITE);
             terminal.println("Ensure the generated key can be read by the user that Elasticsearch runs as, "
-                + "permissions are set to owner read/write only");
+                    + "permissions are set to owner read/write only");
         }
     }
 

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -25,12 +26,14 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -153,6 +156,7 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.io.InputStream;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -177,6 +181,7 @@ public class Watcher implements ActionPlugin {
             new Setting<>("index.xpack.watcher.template.version", "", Function.identity(), Setting.Property.IndexScope);
     public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING =
             Setting.boolSetting("xpack.watcher.encrypt_sensitive_data", false, Setting.Property.NodeScope);
+    public static final Setting<InputStream> ENCRYPTION_KEY_SETTING = SecureSetting.secureFile("xpack.watcher.encryption_key", null);
     public static final Setting<TimeValue> MAX_STOP_TIMEOUT_SETTING =
             Setting.timeSetting("xpack.watcher.stop.timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
 
@@ -367,6 +372,7 @@ public class Watcher implements ActionPlugin {
         settings.add(Setting.intSetting("xpack.watcher.execution.scroll.size", 0, Setting.Property.NodeScope));
         settings.add(Setting.intSetting("xpack.watcher.watch.scroll.size", 0, Setting.Property.NodeScope));
         settings.add(ENCRYPT_SENSITIVE_DATA_SETTING);
+        settings.add(ENCRYPTION_KEY_SETTING);
 
         settings.add(Setting.simpleString("xpack.watcher.internal.ops.search.default_timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.internal.ops.bulk.default_timeout", Setting.Property.NodeScope));
@@ -379,6 +385,8 @@ public class Watcher implements ActionPlugin {
         settings.add(Setting.simpleString("xpack.watcher.execution.scroll.timeout", Setting.Property.NodeScope));
         settings.add(Setting.simpleString("xpack.watcher.start_immediately", Setting.Property.NodeScope));
 
+        // encryption settings
+        CryptoService.addSettings(settings);
         return settings;
     }
 
@@ -511,5 +519,9 @@ public class Watcher implements ActionPlugin {
 
             return map;
         };
+    }
+
+    public List<BootstrapCheck> getBootstrapChecks() {
+        return Collections.singletonList(new EncryptSensitiveDataBootstrapCheck(settings, new Environment(settings)));
     }
 }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.http.MockResponse;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.ApplicableBasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
@@ -31,7 +33,6 @@ import org.junit.Before;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.webhookAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -52,8 +53,9 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";
 
-    private MockWebServer webServer = new MockWebServer();;
+    private MockWebServer webServer = new MockWebServer();
     private static Boolean encryptSensitiveData;
+    private static byte[] encryptionKey;
 
     @Before
     public void init() throws Exception {
@@ -68,12 +70,18 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         if (encryptSensitiveData == null) {
-            encryptSensitiveData = securityEnabled() && randomBoolean();
+            encryptSensitiveData = randomBoolean();
+            if (encryptSensitiveData) {
+                encryptionKey = CryptoService.generateKey();
+            }
         }
         if (encryptSensitiveData) {
+            MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
             return Settings.builder()
                     .put(super.nodeSettings(nodeOrdinal))
                     .put("xpack.watcher.encrypt_sensitive_data", encryptSensitiveData)
+                    .setSecureSettings(secureSettings)
                     .build();
         }
         return super.nodeSettings(nodeOrdinal);
@@ -99,9 +107,12 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         Map<String, Object> source = response.getSource();
         Object value = XContentMapValues.extractValue("input.http.request.auth.basic.password", source);
         assertThat(value, notNullValue());
-        if (securityEnabled() && encryptSensitiveData) {
+        if (encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
-            CryptoService cryptoService = getInstanceFromMaster(CryptoService.class);
+            MockSecureSettings mockSecureSettings = new MockSecureSettings();
+            mockSecureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
+            Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+            CryptoService cryptoService = new CryptoService(settings);
             assertThat(new String(cryptoService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         } else {
             assertThat(value, is((Object) PASSWORD));
@@ -164,9 +175,12 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         Object value = XContentMapValues.extractValue("actions._webhook.webhook.auth.basic.password", source);
         assertThat(value, notNullValue());
 
-        if (securityEnabled() && encryptSensitiveData) {
+        if (encryptSensitiveData) {
             assertThat(value, not(is((Object) PASSWORD)));
-            CryptoService cryptoService = getInstanceFromMaster(CryptoService.class);
+            MockSecureSettings mockSecureSettings = new MockSecureSettings();
+            mockSecureSettings.setFile(Watcher.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
+            Settings settings = Settings.builder().setSecureSettings(mockSecureSettings).build();
+            CryptoService cryptoService = new CryptoService(settings);
             assertThat(new String(cryptoService.decrypt(((String) value).toCharArray())), is(PASSWORD));
         } else {
             assertThat(value, is((Object) PASSWORD));

@@ -25,7 +25,9 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,6 +38,12 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
 
+/**
+ * A single field name and values part of {@link SearchHit} and {@link GetResult}.
+ *
+ * @see SearchHit
+ * @see GetResult
+ */
 public class DocumentField implements Streamable, ToXContent, Iterable<Object> {
 
     private String name;

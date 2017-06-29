@@ -183,13 +183,15 @@ public class EvilLoggerTests extends ESTestCase {
                         System.getProperty("es.logs.cluster_name") +
                         "_deprecation.log";
         final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
-        assertThat(deprecationEvents.size(), equalTo(1));
-        assertLogLine(
-                deprecationEvents.get(0),
-                Level.WARN,
-                "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
-                "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                        "See the breaking changes documentation for the next major version.");
+        if (iterations > 0) {
+            assertThat(deprecationEvents.size(), equalTo(1));
+            assertLogLine(
+                    deprecationEvents.get(0),
+                    Level.WARN,
+                    "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
+                    "\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                            "See the breaking changes documentation for the next major version.");
+        }
     }
 
     public void testFindAppender() throws IOException, UserException {

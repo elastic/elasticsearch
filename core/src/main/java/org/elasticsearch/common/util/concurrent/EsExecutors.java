@@ -92,10 +92,6 @@ public class EsExecutors {
     public static EsThreadPoolExecutor newAutoQueueFixed(String name, int size, int initialQueueCapacity, int minQueueSize,
                                                          int maxQueueSize, int frameSize, TimeValue targetedResponseTime,
                                                          ThreadFactory threadFactory, ThreadContext contextHolder) {
-        if (initialQueueCapacity == minQueueSize && initialQueueCapacity == maxQueueSize) {
-            return newFixed(name, size, initialQueueCapacity, threadFactory, contextHolder);
-        }
-
         if (initialQueueCapacity <= 0) {
             throw new IllegalArgumentException("initial queue capacity for [" + name + "] executor must be positive, got: " +
                             initialQueueCapacity);

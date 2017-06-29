@@ -79,9 +79,7 @@ public final class QueueResizingEsThreadPoolExecutor extends EsThreadPoolExecuto
         this.minQueueSize = minQueueSize;
         this.maxQueueSize = maxQueueSize;
         this.targetedResponseTimeNanos = targetedResponseTime.getNanos();
-        // We choose to start the EWMA with the targeted response time, reasoning that it is a
-        // better start point for a realistic task execution time than starting at 0
-        this.executionEWMA = new ExponentiallyWeightedMovingAverage(EWMA_ALPHA, targetedResponseTimeNanos);
+        this.executionEWMA = new ExponentiallyWeightedMovingAverage(EWMA_ALPHA, 0);
         logger.debug("thread pool [{}] will adjust queue by [{}] when determining automatic queue size",
                 name, QUEUE_ADJUSTMENT_AMOUNT);
     }

@@ -198,26 +198,26 @@ public class QueueResizingEsThreadPoolExecutorTests extends ESTestCase {
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
-        assertThat((long)executor.getTaskExecutionEWMA(), equalTo(1000000L));
+        assertThat((long)executor.getTaskExecutionEWMA(), equalTo(0L));
         executeTask(executor,  1);
         assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(700030L));
+            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(30L));
         });
         executeTask(executor,  1);
         assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(490050L));
+            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(51L));
         });
         executeTask(executor,  1);
         assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(343065L));
+            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(65L));
         });
         executeTask(executor,  1);
         assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(240175L));
+            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(75L));
         });
         executeTask(executor,  1);
         assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(168153L));
+            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(83L));
         });
 
         executor.shutdown();

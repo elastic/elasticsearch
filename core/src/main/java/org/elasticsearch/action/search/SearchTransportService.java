@@ -57,6 +57,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -191,6 +192,13 @@ public class SearchTransportService extends AbstractComponent {
 
     public RemoteClusterService getRemoteClusterService() {
         return transportService.getRemoteClusterService();
+    }
+
+    /**
+     * Return a map of nodeId to pending number of requests for the given action name
+     */
+    public Map<String, Long> getPendingRequests(final String actionName) {
+        return transportService.getPendingRequests(actionName);
     }
 
     static class ScrollFreeContextRequest extends TransportRequest {

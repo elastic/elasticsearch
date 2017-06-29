@@ -56,6 +56,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -558,6 +559,21 @@ public class TransportService extends AbstractLifecycleComponent {
             handler.handleException(ex);
         }
 
+    }
+
+    /**
+     * Return a map of nodeId to pending number of requests for the given action name
+     */
+    public Map<String, Long> getPendingRequests(final String actionName) {
+        Map<String, Long> nodeCounts = new HashMap<>();
+        for (Map.Entry<Long, RequestHolder> entry : clientHandlers.entrySet()) {
+            RequestHolder reqHolder = entry.getValue();
+            if (actionName.equals(reqHolder.action())) {
+                String nodeId = reqHolder.connection().getNode().getId();
+                nodeCounts.put(nodeId, nodeCounts.getOrDefault(nodeId, 0L) + 1);
+            }
+        }
+        return nodeCounts;
     }
 
     private <T extends TransportResponse> void sendRequestInternal(final Transport.Connection connection, final String action,

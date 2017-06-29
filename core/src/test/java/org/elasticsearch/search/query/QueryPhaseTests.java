@@ -226,7 +226,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
 
         QueryPhase.execute(context, contextSearcher, checkCancelled -> {}, null);
         QuerySearchResult results = context.queryResult();
-        assertThat(results.serviceTimeEWMA(), greaterThan(0L));
+        assertThat(results.serviceTimeEWMA(), greaterThanOrEqualTo(0L));
         assertThat(results.nodeQueueSize(), greaterThanOrEqualTo(0));
         reader.close();
         dir.close();

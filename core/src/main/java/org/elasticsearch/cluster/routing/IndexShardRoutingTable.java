@@ -29,18 +29,24 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.node.ResponseCollectorService;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -259,6 +265,142 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         ordered.addAll(shuffler.shuffle(activeShards, seed));
         ordered.addAll(allInitializingShards);
         return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
+     * Returns an iterator over active and initializing shards, ordered by the adaptive replica
+     * selection forumla. Making sure though that its random within the active shards of the same
+     * (or missing) rank, and initializing shards are the last to iterate through.
+     */
+    public ShardIterator rankedActiveInitializingShardsIt(@Nullable ResponseCollectorService collector,
+                                                          @Nullable Map<String, Long> nodeSearchCounts) {
+        final int seed = shuffler.nextSeed();
+        if (allInitializingShards.isEmpty()) {
+            return new PlainShardIterator(shardId, rank(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts));
+        }
+
+        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        List<ShardRouting> rankedActiveShards = rank(shuffler.shuffle(activeShards, seed), collector, nodeSearchCounts);
+        ordered.addAll(rankedActiveShards);
+        List<ShardRouting> rankedInitializingShards = rank(allInitializingShards, collector, nodeSearchCounts);
+        ordered.addAll(rankedInitializingShards);
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    private static Set<String> getAllNodeIds(final List<ShardRouting> shards) {
+        final Set<String> nodeIds = new HashSet<>();
+        for (ShardRouting shard : shards) {
+            nodeIds.add(shard.currentNodeId());
+        }
+        return nodeIds;
+    }
+
+    private static Map<String, Optional<ResponseCollectorService.ComputedNodeStats>>
+        getNodeStats(final Set<String> nodeIds, final ResponseCollectorService collector) {
+
+        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = new HashMap<>(nodeIds.size());
+        for (String nodeId : nodeIds) {
+            nodeStats.put(nodeId, collector.getNodeStatistics(nodeId));
+        }
+        return nodeStats;
+    }
+
+    private static Map<String, Double> rankNodes(final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
+                                                 final Map<String, Long> nodeSearchCounts) {
+        final Map<String, Double> nodeRanks = new HashMap<>(nodeStats.size());
+        for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
+            entry.getValue().ifPresent(stats -> {
+                nodeRanks.put(entry.getKey(), stats.rank(nodeSearchCounts.getOrDefault(entry.getKey(), 1L)));
+            });
+        }
+        return nodeRanks;
+    }
+
+    private static void adjustStats(final ResponseCollectorService collector,
+                                    final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats,
+                                    final String minNodeId,
+                                    final ResponseCollectorService.ComputedNodeStats minStats) {
+        if (minNodeId != null) {
+            for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
+                if (entry.getKey().equals(minNodeId) == false && entry.getValue().isPresent()) {
+                    final ResponseCollectorService.ComputedNodeStats stats = entry.getValue().get();
+                    final int updatedQueue = (minStats.queueSize + stats.queueSize) / 2;
+                    final long updatedResponse = (long) (minStats.responseTime + stats.responseTime) / 2;
+                    final long updatedService = (long) (minStats.serviceTime + stats.serviceTime) / 2;
+                    collector.addNodeStatistics(stats.nodeId, updatedQueue, updatedResponse, updatedService);
+                }
+            }
+        }
+    }
+
+    private static List<ShardRouting> rank(List<ShardRouting> shards, final ResponseCollectorService collector,
+                                           final Map<String, Long> nodeSearchCounts) {
+        if (collector == null || nodeSearchCounts == null || shards.size() <= 1) {
+            return shards;
+        }
+
+        // Retrieve which nodes we can potentially send the query to
+        final Set<String> nodeIds = getAllNodeIds(shards);
+        final int nodeCount = nodeIds.size();
+
+        final Map<String, Optional<ResponseCollectorService.ComputedNodeStats>> nodeStats = getNodeStats(nodeIds, collector);
+
+        // Retrieve all the nodes the shards exist on
+        final Map<String, Double> nodeRanks = rankNodes(nodeStats, nodeSearchCounts);
+
+        String minNode = null;
+        ResponseCollectorService.ComputedNodeStats minStats = null;
+        // calculate the "winning" node and its stats (for adjusting other nodes later)
+        for (Map.Entry<String, Optional<ResponseCollectorService.ComputedNodeStats>> entry : nodeStats.entrySet()) {
+            if (entry.getValue().isPresent()) {
+                ResponseCollectorService.ComputedNodeStats stats = entry.getValue().get();
+                double rank = stats.rank(nodeSearchCounts.getOrDefault(entry.getKey(), 1L));
+                if (minStats == null || rank < minStats.rank(nodeSearchCounts.getOrDefault(minStats.nodeId, 1L))) {
+                    minStats = stats;
+                    minNode = entry.getKey();
+                }
+            }
+        }
+
+        // sort all shards based on the shard rank
+        ArrayList<ShardRouting> sortedShards = new ArrayList<>(shards);
+        Collections.sort(sortedShards, new NodeRankComparator(nodeRanks));
+
+        // adjust the non-winner nodes' stats so they will get a chance to receive queries
+        adjustStats(collector, nodeStats, minNode, minStats);
+
+        return sortedShards;
+    }
+
+    private static class NodeRankComparator implements Comparator<ShardRouting> {
+        private final Map<String, Double> nodeRanks;
+
+        NodeRankComparator(Map<String, Double> nodeRanks) {
+            this.nodeRanks = nodeRanks;
+        }
+
+        @Override
+        public int compare(ShardRouting s1, ShardRouting s2) {
+            if (s1.currentNodeId().equals(s2.currentNodeId())) {
+                // these shards on the the same node
+                return 0;
+            }
+            Double shard1rank = nodeRanks.get(s1.currentNodeId());
+            Double shard2rank = nodeRanks.get(s2.currentNodeId());
+            if (shard1rank != null && shard2rank != null) {
+                if (shard1rank < shard2rank) {
+                    return -1;
+                } else if (shard2rank < shard1rank) {
+                    return 1;
+                } else {
+                    // Yahtzee!
+                    return 0;
+                }
+            } else {
+                // One or both of the nodes don't have stats
+                return 0;
+            }
+        }
     }
 
     /**

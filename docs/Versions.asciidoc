@@ -37,3 +37,8 @@ ifeval::["{release-state}"!="unreleased"]
 :elasticsearch-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/elasticsearch/{version}
 :painless-javadoc: https://artifacts.elastic.co/javadoc/org/elasticsearch/painless/lang-painless/{version}
 endif::[]
+
+///////
+Shared attribute values are pulled from elastic/docs
+///////
+include::{docs-dir}/shared/attributes.asciidoc[]

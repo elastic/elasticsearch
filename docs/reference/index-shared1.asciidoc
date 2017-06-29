@@ -1,4 +1,3 @@
-include::{docs-dir}/shared/attributes.asciidoc[]
 
 include::getting-started.asciidoc[]
 

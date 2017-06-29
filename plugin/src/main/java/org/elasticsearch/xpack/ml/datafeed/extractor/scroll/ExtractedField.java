@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.scroll;
 
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 import org.joda.time.base.BaseDateTime;
 
 import java.util.List;
@@ -82,7 +82,7 @@ abstract class ExtractedField {
 
         @Override
         public Object[] value(SearchHit hit) {
-            SearchHitField keyValue = hit.field(name);
+            DocumentField keyValue = hit.field(name);
             if (keyValue != null) {
                 List<Object> values = keyValue.getValues();
                 return values.toArray(new Object[values.size()]);

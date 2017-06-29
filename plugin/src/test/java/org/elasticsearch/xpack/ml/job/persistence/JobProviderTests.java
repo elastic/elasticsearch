@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -34,7 +35,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.MlMetadata;
@@ -880,9 +880,9 @@ public class JobProviderTests extends ESTestCase {
         for (Map<String, Object> map : source) {
             Map<String, Object> _source = new HashMap<>(map);
 
-            Map<String, SearchHitField> fields = new HashMap<>();
-            fields.put("field_1", new SearchHitField("field_1", Collections.singletonList("foo")));
-            fields.put("field_2", new SearchHitField("field_2", Collections.singletonList("foo")));
+            Map<String, DocumentField> fields = new HashMap<>();
+            fields.put("field_1", new DocumentField("field_1", Collections.singletonList("foo")));
+            fields.put("field_2", new DocumentField("field_2", Collections.singletonList("foo")));
 
             SearchHit hit = new SearchHit(123, String.valueOf(map.hashCode()), new Text("foo"), fields)
                     .sourceRef(XContentFactory.jsonBuilder().map(_source).bytes());

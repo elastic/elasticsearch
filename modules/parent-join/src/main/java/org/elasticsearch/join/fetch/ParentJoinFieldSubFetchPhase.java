@@ -23,10 +23,9 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.join.mapper.ParentIdFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -62,14 +61,14 @@ public final class ParentJoinFieldSubFetchPhase implements FetchSubPhase {
             parentId = getSortedDocValue(parentMapper.name(), hitContext.reader(), hitContext.docId());
         }
 
-        Map<String, SearchHitField> fields = hitContext.hit().fieldsOrNull();
+        Map<String, DocumentField> fields = hitContext.hit().fieldsOrNull();
         if (fields == null) {
             fields = new HashMap<>();
             hitContext.hit().fields(fields);
         }
-        fields.put(mapper.name(), new SearchHitField(mapper.name(), Collections.singletonList(joinName)));
+        fields.put(mapper.name(), new DocumentField(mapper.name(), Collections.singletonList(joinName)));
         if (parentId != null) {
-            fields.put(parentMapper.name(), new SearchHitField(parentMapper.name(), Collections.singletonList(parentId)));
+            fields.put(parentMapper.name(), new DocumentField(parentMapper.name(), Collections.singletonList(parentId)));
         }
     }
 

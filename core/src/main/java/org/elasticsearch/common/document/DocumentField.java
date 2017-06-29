@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.get;
+package org.elasticsearch.common.document;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -25,7 +25,9 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,34 +38,52 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
 
-public class GetField implements Streamable, ToXContent, Iterable<Object> {
+/**
+ * A single field name and values part of {@link SearchHit} and {@link GetResult}.
+ *
+ * @see SearchHit
+ * @see GetResult
+ */
+public class DocumentField implements Streamable, ToXContent, Iterable<Object> {
 
     private String name;
     private List<Object> values;
 
-    private GetField() {
+    private DocumentField() {
     }
 
-    public GetField(String name, List<Object> values) {
+    public DocumentField(String name, List<Object> values) {
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.values = Objects.requireNonNull(values, "values must not be null");
     }
 
+    /**
+     * The name of the field.
+     */
     public String getName() {
         return name;
     }
 
-    public Object getValue() {
-        if (values != null && !values.isEmpty()) {
-            return values.get(0);
+    /**
+     * The first value of the hit.
+     */
+    public <V> V getValue() {
+        if (values == null || values.isEmpty()) {
+            return null;
         }
-        return null;
+        return (V)values.get(0);
     }
 
+    /**
+     * The field values.
+     */
     public List<Object> getValues() {
         return values;
     }
 
+    /**
+     * @return The field is a metadata field
+     */
     public boolean isMetadataField() {
         return MapperService.isMetadataField(name);
     }
@@ -73,8 +93,8 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
         return values.iterator();
     }
 
-    public static GetField readGetField(StreamInput in) throws IOException {
-        GetField result = new GetField();
+    public static DocumentField readDocumentField(StreamInput in) throws IOException {
+        DocumentField result = new DocumentField();
         result.readFrom(in);
         return result;
     }
@@ -102,25 +122,26 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(name);
         for (Object value : values) {
-            //this call doesn't really need to support writing any kind of object.
-            //Stored fields values are converted using MappedFieldType#valueForDisplay.
-            //As a result they can either be Strings, Numbers, Booleans, or BytesReference, that's all.
+            // this call doesn't really need to support writing any kind of object.
+            // Stored fields values are converted using MappedFieldType#valueForDisplay.
+            // As a result they can either be Strings, Numbers, Booleans, or BytesReference, that's
+            // all.
             builder.value(value);
         }
         builder.endArray();
         return builder;
     }
 
-    public static GetField fromXContent(XContentParser parser) throws IOException {
+    public static DocumentField fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String fieldName = parser.currentName();
         XContentParser.Token token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
         List<Object> values = new ArrayList<>();
-        while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             values.add(parseStoredFieldsValue(parser));
         }
-        return new GetField(fieldName, values);
+        return new DocumentField(fieldName, values);
     }
 
     @Override
@@ -131,9 +152,8 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        GetField objects = (GetField) o;
-        return Objects.equals(name, objects.name) &&
-                Objects.equals(values, objects.values);
+        DocumentField objects = (DocumentField) o;
+        return Objects.equals(name, objects.name) && Objects.equals(values, objects.values);
     }
 
     @Override
@@ -143,7 +163,7 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
 
     @Override
     public String toString() {
-        return "GetField{" +
+        return "DocumentField{" +
                 "name='" + name + '\'' +
                 ", values=" + values +
                 '}';

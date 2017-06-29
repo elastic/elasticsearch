@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -113,11 +114,12 @@ public class NativeRealmMigratorTests extends ESTestCase {
             GetRequest request = (GetRequest) invocationOnMock.getArguments()[1];
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
             if (request.indices().length == 1 && request.indices()[0].equals(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                    && request.type().equals(NativeUsersStore.RESERVED_USER_DOC_TYPE)) {
+                    && request.type().equals(NativeUsersStore.INDEX_TYPE)
+                    && request.id().startsWith(NativeUsersStore.RESERVED_USER_TYPE)) {
                 final boolean exists = reservedUsers.get(request.id()) != null;
-                GetResult getResult = new GetResult(SecurityLifecycleService.SECURITY_INDEX_NAME, NativeUsersStore.RESERVED_USER_DOC_TYPE,
-                        request.id(), randomLong(), exists, JsonXContent.contentBuilder().map(reservedUsers.get(request.id())).bytes(),
-                        emptyMap());
+                GetResult getResult = new GetResult(SecurityLifecycleService.SECURITY_INDEX_NAME, NativeUsersStore.INDEX_TYPE,
+                        NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, request.id()),
+                        randomLong(), exists, JsonXContent.contentBuilder().map(reservedUsers.get(request.id())).bytes(), emptyMap());
                 listener.onResponse(new GetResponse(getResult));
             } else {
                 listener.onResponse(null);
@@ -170,7 +172,8 @@ public class NativeRealmMigratorTests extends ESTestCase {
                         .put(User.Fields.ENABLED.getPreferredName(), false)
                         .immutableMap()
         );
-        String[] disabledUsers = new String[]{LogstashSystemUser.NAME, BeatsSystemUser.NAME};
+        final String[] disabledUsers = Arrays.asList(LogstashSystemUser.NAME, BeatsSystemUser.NAME)
+            .stream().map(s -> NativeUsersStore.RESERVED_USER_TYPE + "-" + s).toArray(String[]::new);
         verifyUpgrade(randomFrom(Version.V_5_1_1, Version.V_5_0_2, Version.V_5_0_0), disabledUsers, true);
     }
 
@@ -182,7 +185,7 @@ public class NativeRealmMigratorTests extends ESTestCase {
                         .put(User.Fields.ENABLED.getPreferredName(), false)
                         .immutableMap()
         );
-        String[] disabledUsers = new String[]{BeatsSystemUser.NAME};
+        String[] disabledUsers = new String[]{ NativeUsersStore.RESERVED_USER_TYPE + "-" + BeatsSystemUser.NAME };
         Version version = randomFrom(Version.V_5_3_0, Version.V_5_2_1);
         verifyUpgrade(version, disabledUsers, true);
     }
@@ -196,7 +199,7 @@ public class NativeRealmMigratorTests extends ESTestCase {
                                 .put(User.Fields.ENABLED.getPreferredName(), randomBoolean())
                                 .immutableMap()
                 ));
-        String[] disabledUsers = new String[]{BeatsSystemUser.NAME};
+        String[] disabledUsers = new String[]{ NativeUsersStore.RESERVED_USER_TYPE + "-" + BeatsSystemUser.NAME };
         verifyUpgrade(Version.V_5_2_0, disabledUsers, true);
     }
 
@@ -232,7 +235,9 @@ public class NativeRealmMigratorTests extends ESTestCase {
                     .execute(eq(UpdateAction.INSTANCE), captor.capture(), any(ActionListener.class));
             final List<UpdateRequest> requests = captor.getAllValues();
             this.reservedUsers.keySet().forEach(u -> {
-                UpdateRequest request = requests.stream().filter(r -> r.id().equals(u)).findFirst().get();
+                UpdateRequest request = requests.stream()
+                    .filter(r -> r.id().equals(NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, u)))
+                    .findFirst().get();
                 assertThat(request.validate(), nullValue(ActionRequestValidationException.class));
                 assertThat(request.doc().sourceAsMap(), hasEntry(is(User.Fields.PASSWORD.getPreferredName()), is("")));
                 assertThat(request.getRefreshPolicy(), equalTo(WriteRequest.RefreshPolicy.IMMEDIATE));

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -167,30 +166,26 @@ public class HttpRequestTemplateTests extends ESTestCase {
     }
 
     public void testParsingEmptyUrl() throws Exception {
-        try {
-            HttpRequestTemplate.builder().fromUrl("");
-            fail("Expected exception due to empty URL");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("Configured URL is empty, please configure a valid URL"));
-        }
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> HttpRequestTemplate.builder().fromUrl(""));
+        assertThat(e.getMessage(), containsString("Configured URL is empty, please configure a valid URL"));
     }
 
     public void testInvalidUrlsWithMissingScheme() throws Exception {
-        try {
-            HttpRequestTemplate.builder().fromUrl("www.test.de");
-            fail("Expected exception due to missing scheme");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("URL [www.test.de] does not contain a scheme"));
-        }
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+                () -> HttpRequestTemplate.builder().fromUrl("www.test.de"));
+        assertThat(e.getMessage(), containsString("URL [www.test.de] does not contain a scheme"));
     }
 
     public void testInvalidUrlsWithHost() throws Exception {
-        try {
-            HttpRequestTemplate.builder().fromUrl("https://");
-            fail("Expected exception due to missing host");
-        } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("Malformed URL [https://]"));
-        }
+        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
+                () -> HttpRequestTemplate.builder().fromUrl("https://"));
+        assertThat(e.getMessage(), containsString("Malformed URL [https://]"));
+    }
+
+    public void testThatPartsFromUrlAreTemplatable() throws Exception {
+        HttpRequestTemplate template = HttpRequestTemplate.builder().fromUrl("http://www.test.de/%7B%7Bfoo%7D%7D").build();
+        HttpRequest request = template.render(new MockTextTemplateEngine(), emptyMap());
+        assertThat(request.path(), is("/{{foo}}"));
     }
 
     private void assertThatManualBuilderEqualsParsingFromUrl(String url, HttpRequestTemplate.Builder builder) throws Exception {

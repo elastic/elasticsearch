@@ -66,11 +66,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.apache.lucene.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -80,8 +78,6 @@ import static org.joda.time.DateTimeZone.UTC;
 import static org.junit.Assert.assertThat;
 
 public final class WatcherTestUtils {
-
-    public static final Payload EMPTY_PAYLOAD = new Payload.Simple(emptyMap());
 
     private WatcherTestUtils() {
     }
@@ -113,10 +109,6 @@ public final class WatcherTestUtils {
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    public static SearchRequest matchAllRequest() {
-        return matchAllRequest(null);
     }
 
     public static SearchRequest matchAllRequest(IndicesOptions indicesOptions) {
@@ -171,63 +163,41 @@ public final class WatcherTestUtils {
 
     public static Watch createTestWatch(String watchName, Client client, HttpClient httpClient, EmailService emailService,
                                         WatcherSearchTemplateService searchTemplateService, Logger logger) throws AddressException {
-
-        WatcherSearchTemplateRequest transformRequest =
-                templateRequest(searchSource().query(matchAllQuery()), "my-payload-index");
-
         List<ActionWrapper> actions = new ArrayList<>();
+        TextTemplateEngine engine = new MockTextTemplateEngine();
 
         HttpRequestTemplate.Builder httpRequest = HttpRequestTemplate.builder("localhost", 80);
         httpRequest.method(HttpMethod.POST);
+        httpRequest.path(new TextTemplate("/foobarbaz/{{ctx.watch_id}}"));
+        httpRequest.body(new TextTemplate("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits"));
+        actions.add(new ActionWrapper("_webhook", null, null, null, new ExecutableWebhookAction(new WebhookAction(httpRequest.build()),
+                logger, httpClient, engine)));
 
-        TextTemplate path = new TextTemplate("/foobarbaz/{{ctx.watch_id}}");
-        httpRequest.path(path);
-        TextTemplate body = new TextTemplate("{{ctx.watch_id}} executed with {{ctx.payload.response.hits.total_hits}} hits");
-        httpRequest.body(body);
 
-        TextTemplateEngine engine = new MockTextTemplateEngine();
-
-        actions.add(new ActionWrapper("_webhook", new ExecutableWebhookAction(new WebhookAction(httpRequest.build()), logger, httpClient,
-                engine)));
-
-        String from = "from@test.com";
-        String to = "to@test.com";
-
-        EmailTemplate email = EmailTemplate.builder()
-                .from(from)
-                .to(to)
-                .build();
-
+        EmailTemplate email = EmailTemplate.builder().from("from@test.com").to("to@test.com").build();
         Authentication auth = new Authentication("testname", new Secret("testpassword".toCharArray()));
-
         EmailAction action = new EmailAction(email, "testaccount", auth, Profile.STANDARD, null, null);
         ExecutableEmailAction executale = new ExecutableEmailAction(action, logger, emailService, engine,
                 new HtmlSanitizer(Settings.EMPTY), Collections.emptyMap());
-
-        actions.add(new ActionWrapper("_email", executale));
-
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("foo", "bar");
-
-        Map<String, Object> inputData = new LinkedHashMap<>();
-        inputData.put("bar", "foo");
+        actions.add(new ActionWrapper("_email", null, null, null, executale));
 
         DateTime now = DateTime.now(UTC);
         Map<String, ActionStatus> statuses = new HashMap<>();
         statuses.put("_webhook", new ActionStatus(now));
         statuses.put("_email", new ActionStatus(now));
 
+        WatcherSearchTemplateRequest transformRequest = templateRequest(searchSource().query(matchAllQuery()), "my-payload-index");
         SearchTransform searchTransform = new SearchTransform(transformRequest, null, null);
 
         return new Watch(
                 watchName,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
-                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(inputData)), logger),
+                new ExecutableSimpleInput(new SimpleInput(new Payload.Simple(Collections.singletonMap("bar", "foo"))), logger),
                 AlwaysCondition.INSTANCE,
                 new ExecutableSearchTransform(searchTransform, logger, client, searchTemplateService, TimeValue.timeValueMinutes(1)),
                 new TimeValue(0),
                 actions,
-                metadata,
+                Collections.singletonMap("foo", "bar"),
                 new WatchStatus(now, statuses));
     }
 

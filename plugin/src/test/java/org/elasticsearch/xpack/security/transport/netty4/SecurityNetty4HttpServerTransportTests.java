@@ -9,6 +9,7 @@ import io.netty.channel.ChannelHandler;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
@@ -43,10 +44,12 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     @Before
     public void createSSLService() throws Exception {
         Path testNodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testNodeStore)
-                .put("xpack.ssl.keystore.password", "testnode")
                 .put("path.home", createTempDir())
+                .setSecureSettings(secureSettings)
                 .build();
         env = new Environment(settings);
         sslService = new SSLService(settings, env);
@@ -171,10 +174,12 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testThatExceptionIsThrownWhenConfiguredWithoutSslKey() throws Exception {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
-                .put("xpack.ssl.truststore.password", "testnode")
+                .setSecureSettings(secureSettings)
                 .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
                 .put("path.home", createTempDir())
                 .build();
@@ -187,10 +192,12 @@ public class SecurityNetty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testNoExceptionWhenConfiguredWithoutSslKeySSLDisabled() throws Exception {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
-                .put("xpack.ssl.truststore.password", "testnode")
+                .setSecureSettings(secureSettings)
                 .put("path.home", createTempDir())
                 .build();
         env = new Environment(settings);

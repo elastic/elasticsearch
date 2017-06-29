@@ -103,9 +103,7 @@ public class RemoteIndexAuditTrailStartingTests extends SecurityIntegTestCase {
                         .put("xpack.security.audit.index.client.cluster.name", clusterName)
                         .put("xpack.security.audit.index.client.xpack.security.user", DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD);
 
-                for (Map.Entry<String, String> entry : getClientSSLSettings().getAsMap().entrySet()) {
-                    builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
-                }
+                addClientSSLSettings(builder, "xpack.security.audit.index.client.");
                 return builder.build();
             }
         };

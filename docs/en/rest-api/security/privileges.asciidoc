@@ -1,3 +1,4 @@
+[role="xpack"]
 [[security-api-privileges]]
 === Privilege APIs
 
@@ -6,9 +7,10 @@
 The `has_privileges` API allows you to determine whether the logged in user has
 a specified list of privileges.
 
-All users can use this API, but only to determine their own privileges. 
-To check the privileges of other users, you must use the
-<<run-as-privilege,run as>> feature.
+All users can use this API, but only to determine their own privileges.
+To check the privileges of other users, you must use the run as feature. For
+more information, see 
+{xpack-ref}/run-as-privilege.html[Submitting Requests on Behalf of Other Users].
 
 To check you privileges, submit a GET request to the
 `_xpack/security/user/_has_privileges` endpoint:
@@ -22,7 +24,7 @@ GET _xpack/security/user/_has_privileges
     {
       "names": [ "suppliers", "products" ],
       "privileges": [ "read" ]
-    }, 
+    },
     {
       "names": [ "inventory" ],
       "privileges" : [ "read", "write" ]

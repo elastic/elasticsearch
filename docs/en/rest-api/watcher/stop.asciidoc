@@ -1,3 +1,4 @@
+[role="xpack"]
 [[watcher-api-stop]]
 === Stop API
 

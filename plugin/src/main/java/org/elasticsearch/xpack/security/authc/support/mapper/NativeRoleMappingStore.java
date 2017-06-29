@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -47,6 +48,7 @@ import org.elasticsearch.xpack.security.client.SecurityClient;
 import static org.elasticsearch.action.DocWriteResponse.Result.CREATED;
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 
 /**
  * This store reads + writes {@link ExpressionRoleMapping role mappings} in an Elasticsearch
@@ -94,8 +96,13 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
      * <em>package private</em> for unit testing
      */
     void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
+        if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
+        }
         final QueryBuilder query = QueryBuilders.termQuery(DOC_TYPE_FIELD, DOC_TYPE_ROLE_MAPPING);
-        SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
+        SearchRequest request = client.prepareSearch(SECURITY_INDEX_NAME)
                 .setScroll(TimeValue.timeValueSeconds(10L))
                 .setTypes(SECURITY_GENERIC_TYPE)
                 .setQuery(query)
@@ -107,7 +114,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
                         listener.onResponse(mappings.stream().filter(Objects::nonNull).collect(Collectors.toList())),
                 ex -> {
                     logger.error(new ParameterizedMessage("failed to load role mappings from index [{}] skipping all mappings.",
-                            SecurityLifecycleService.SECURITY_INDEX_NAME), ex);
+                            SECURITY_INDEX_NAME), ex);
                     listener.onResponse(Collections.emptyList());
                 }),
                 doc -> buildMapping(getNameFromId(doc.getId()), doc.getSourceRef()));
@@ -144,6 +151,9 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
                                                  Request request, ActionListener<Result> listener) {
         if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("role-mappings may not be modified using a tribe node"));
+        } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("role-mappings cannot be modified until template and mappings are up to date"));
         } else {
@@ -156,10 +166,18 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
         }
     }
 
-    private void innerPutMapping(PutRoleMappingRequest request, ActionListener<Boolean> listener) throws IOException {
+    private void innerPutMapping(PutRoleMappingRequest request, ActionListener<Boolean> listener) {
         final ExpressionRoleMapping mapping = request.getMapping();
-        client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(mapping.getName()))
-                .setSource(mapping.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true))
+        securityLifecycleService.createIndexIfNeededThenExecute(listener, () -> {
+            final XContentBuilder xContentBuilder;
+            try {
+                xContentBuilder = mapping.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);
+            } catch (IOException e) {
+                listener.onFailure(e);
+                return;
+            }
+            client.prepareIndex(SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(mapping.getName()))
+                .setSource(xContentBuilder)
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .execute(new ActionListener<IndexResponse>() {
                     @Override
@@ -174,10 +192,16 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
                         listener.onFailure(e);
                     }
                 });
+        });
     }
 
     private void innerDeleteMapping(DeleteRoleMappingRequest request, ActionListener<Boolean> listener) throws IOException {
-        client.prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(request.getName()))
+        if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
+        }
+        client.prepareDelete(SECURITY_INDEX_NAME, SECURITY_GENERIC_TYPE, getIdForName(request.getName()))
                 .setRefreshPolicy(request.getRefreshPolicy())
                 .execute(new ActionListener<DeleteResponse>() {
 
@@ -229,7 +253,7 @@ public class NativeRoleMappingStore extends AbstractComponent implements UserRol
             logger.info("The security index is not yet available - no role mappings can be loaded");
             if (logger.isDebugEnabled()) {
                 logger.debug("Security Index [{}] [exists: {}] [available: {}] [writable: {}]",
-                        SecurityLifecycleService.SECURITY_INDEX_NAME,
+                        SECURITY_INDEX_NAME,
                         securityLifecycleService.isSecurityIndexExisting(),
                         securityLifecycleService.isSecurityIndexAvailable(),
                         securityLifecycleService.isSecurityIndexWriteable()

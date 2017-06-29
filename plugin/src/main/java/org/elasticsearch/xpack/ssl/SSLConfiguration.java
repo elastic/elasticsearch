@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ssl;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -26,7 +27,7 @@ public final class SSLConfiguration {
     // These settings are never registered, but they exist so that we can parse the values defined under grouped settings. Also, some are
     // implemented as optional settings, which provides a declarative manner for fallback as we typically fallback to values from a
     // different configuration
-    private static final SSLConfigurationSettings SETTINGS_PARSER = SSLConfigurationSettings.withoutPrefix();
+    static final SSLConfigurationSettings SETTINGS_PARSER = SSLConfigurationSettings.withoutPrefix();
 
     private final KeyConfig keyConfig;
     private final TrustConfig trustConfig;
@@ -181,25 +182,31 @@ public final class SSLConfiguration {
             if (global != null) {
                 return global.keyConfig();
             } else if (System.getProperty("javax.net.ssl.keyStore") != null) {
-                return new StoreKeyConfig(System.getProperty("javax.net.ssl.keyStore"),
-                        System.getProperty("javax.net.ssl.keyStorePassword", ""), System.getProperty("javax.net.ssl.keyStorePassword", ""),
+                // TODO: we should not support loading a keystore from sysprops...
+                try (SecureString keystorePassword = new SecureString(System.getProperty("javax.net.ssl.keyStorePassword", ""))) {
+                    return new StoreKeyConfig(System.getProperty("javax.net.ssl.keyStore"),
+                        keystorePassword, keystorePassword,
                         System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()),
                         System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
+                }
             }
             return KeyConfig.NONE;
         }
 
         if (keyPath != null) {
-            String keyPassword = SETTINGS_PARSER.keyPassword.get(settings).orElse(null);
+            SecureString keyPassword = SETTINGS_PARSER.keyPassword.get(settings);
             String certPath = SETTINGS_PARSER.cert.get(settings).orElse(null);
             if (certPath == null) {
                 throw new IllegalArgumentException("you must specify the certificates to use with the key");
             }
             return new PEMKeyConfig(keyPath, keyPassword, certPath);
         } else {
-            String keyStorePassword = SETTINGS_PARSER.keystorePassword.get(settings).orElse(null);
+            SecureString keyStorePassword = SETTINGS_PARSER.keystorePassword.get(settings);
             String keyStoreAlgorithm = SETTINGS_PARSER.keystoreAlgorithm.get(settings);
-            String keyStoreKeyPassword = SETTINGS_PARSER.keystoreKeyPassword.get(settings).orElse(keyStorePassword);
+            SecureString keyStoreKeyPassword = SETTINGS_PARSER.keystoreKeyPassword.get(settings);;
+            if (keyStoreKeyPassword.length() == 0) {
+                keyStoreKeyPassword = keyStorePassword;
+            }
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
             return new StoreKeyConfig(keyStorePath, keyStorePassword, keyStoreKeyPassword, keyStoreAlgorithm, trustStoreAlgorithm);
         }
@@ -223,13 +230,14 @@ public final class SSLConfiguration {
         } else if (caPaths != null) {
             return new PEMTrustConfig(caPaths);
         } else if (trustStorePath != null) {
-            String trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings).orElse(null);
+            SecureString trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings);
             String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
             return new StoreTrustConfig(trustStorePath, trustStorePassword, trustStoreAlgorithm);
         } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null) {
-            return new StoreTrustConfig(System.getProperty("javax.net.ssl.trustStore"),
-                    System.getProperty("javax.net.ssl.trustStorePassword", ""),
+            try (SecureString truststorePassword = new SecureString(System.getProperty("javax.net.ssl.trustStorePassword", ""))) {
+                return new StoreTrustConfig(System.getProperty("javax.net.ssl.trustStore"), truststorePassword,
                     System.getProperty("ssl.TrustManagerFactory.algorithm", TrustManagerFactory.getDefaultAlgorithm()));
+            }
         } else if (global != null && keyConfig == global.keyConfig()) {
             return global.trustConfig();
         } else if (keyConfig != KeyConfig.NONE) {

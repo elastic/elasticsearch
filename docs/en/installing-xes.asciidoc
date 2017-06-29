@@ -89,7 +89,7 @@ Continue with installation? [y/N]y
 --
 [source,yaml]
 -----------------------------------------------------------
-action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*
+action.auto_create_index: .security,.monitoring*,.watches,.triggered_watches,.watcher-history*,.ml*
 -----------------------------------------------------------
 --
 
@@ -102,8 +102,9 @@ bin/elasticsearch
 ----------------------------------------------------------
 --
 
-For information about installing {xpack} in {kib} and Logstash, see
-{xpack-ref}/installing-xpack.html[Installing {xpack}].
+For information, see
+{kibana-ref}/installing-xpack-kb.html[Installing {xpack} on {kib}] and
+{logstash-ref}/installing-xpack-log.html[Installing {xpack} on Logstash].
 
 [IMPORTANT]
 =============================================================================

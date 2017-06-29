@@ -2,7 +2,7 @@
 == Getting Started with {watcher}
 
 {Watcher} is automatically enabled when you <<installing-xpack, install
-{xpack}>> into Elasticsearch and Kibana. 
+{xpack}>> into Elasticsearch and Kibana.
 
 [[watch-log-data]]
 To set up a watch to start sending alerts:
@@ -127,7 +127,7 @@ POST logs/event
 // TEST[continued]
 
 Once you add this event, the next time the watch executes its condition will
-evaluate to `true`. The condition result is recorded as part of the 
+evaluate to `true`. The condition result is recorded as part of the
 `watch_record` each time the watch executes, so you can verify whether or
 not the condition was met by searching the watch history:
 
@@ -202,7 +202,7 @@ delete it when you're done experimenting. Otherwise, the noise from this sample
 watch will make it hard to see what else is going on in your watch history and
 log file.
 
-To remove the watch, use the <<watcher-api-delete-watch, DELETE watch>> API:
+To remove the watch, use the {ref}/watcher-api-delete-watch.html[DELETE watch API]:
 
 [source,js]
 --------------------------------------------------
@@ -214,7 +214,7 @@ DELETE _xpack/watcher/watch/log_error_watch
 [float]
 [[required-security-privileges]]
 === Required Security Privileges
-To enable users to create and manipulate watches, assign them the `watcher_admin` 
+To enable users to create and manipulate watches, assign them the `watcher_admin`
 security role. Watcher admins can also view watches, watch history, and triggered
 watches.
 

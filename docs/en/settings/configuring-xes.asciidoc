@@ -2,22 +2,8 @@
 [[settings-xpack]]
 == Configuring X-Pack
 
-You can configure {es} settings for {xpack} features in the `elasticsearch.yml`
-file.
-
-If you are using {kib}, there are also settings in the `kibana.yml` file. See
-{kibana}/settings.html[Configuring {kib}].
-
-//TODO: Add link to "Configuring XPack" in Kibana Reference.
-
-The following settings pertain to specific {xpack} features:
-
-* <<ml-settings,Machine Learning Settings>>
-* {xpack-ref}/monitoring-settings.html[Monitoring Settings]
-* {xpack-ref}/security-settings.html[Security Settings]
-* {xpack-ref}/notification-settings.html[Watcher Settings]
-
-For more information, see <<settings>> and
-{xpack-ref}/xpack-settings.html[{xpack} Settings].
-
+include::x-pack-settings.asciidoc[]
 include::ml-settings.asciidoc[]
+include::monitoring-settings.asciidoc[]
+include::security-settings.asciidoc[]
+include::notification-settings.asciidoc[]

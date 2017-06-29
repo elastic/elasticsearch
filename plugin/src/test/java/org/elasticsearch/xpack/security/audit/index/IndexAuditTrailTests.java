@@ -187,9 +187,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
                         SecuritySettingsSource.DEFAULT_PASSWORD);
 
         if (useGeneratedSSL == false) {
-            for (Map.Entry<String, String> entry : cluster2SettingsSource.getClientSSLSettings().getAsMap().entrySet()) {
-                builder.put("xpack.security.audit.index.client." + entry.getKey(), entry.getValue());
-            }
+            cluster2SettingsSource.addClientSSLSettings(builder, "xpack.security.audit.index.client.");
         }
         if (useSecurity == false && builder.get(NetworkModule.TRANSPORT_TYPE_KEY) == null) {
             builder.put("xpack.security.audit.index.client." + NetworkModule.TRANSPORT_TYPE_KEY,

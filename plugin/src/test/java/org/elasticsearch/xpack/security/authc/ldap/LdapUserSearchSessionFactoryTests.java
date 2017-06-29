@@ -15,6 +15,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.SingleServerSet;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -58,12 +59,19 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
          * If we re-use a SSLContext, previously connected sessions can get re-established which breaks hostname
          * verification tests since a re-established connection does not perform hostname verification.
          */
+
         globalSettings = Settings.builder()
                 .put("path.home", createTempDir())
                 .put("xpack.ssl.truststore.path", keystore)
-                .put("xpack.ssl.truststore.password", "changeit")
+                .setSecureSettings(newSecureSettings("xpack.ssl.truststore.secure_password", "changeit"))
                 .build();
         sslService = new SSLService(globalSettings, env);
+    }
+
+    private MockSecureSettings newSecureSettings(String key, String value) {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(key, value);
+        return secureSettings;
     }
 
     public void testSupportsUnauthenticatedSessions() throws Exception {

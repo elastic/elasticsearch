@@ -5,7 +5,7 @@ The Logstash Elasticsearch plugins (
 {logstash-ref}/plugins-outputs-elasticsearch.html[output],
 {logstash-ref}/plugins-inputs-elasticsearch.html[input],
 {logstash-ref}/plugins-filters-elasticsearch.html[filter]
-and <<monitoring-logstash-settings, monitoring>>)
+and {logstash-ref}/monitoring-logstash.html[monitoring]
 support authentication and encryption over HTTP.
 
 To use Logstash with a secured cluster, you need to configure authentication 
@@ -179,7 +179,7 @@ output {
 [[ls-monitoring-user]]
 ===== Configuring Logstash Monitoring
 
-If you wish to ship Logstash <<monitoring-logstash-settings, monitoring>>
+If you wish to ship Logstash {logstash-ref}/monitoring-logstash.html[monitoring]
 data to a secure cluster, Logstash must be configured with a username and password.
 
 X-Pack security comes preconfigured with a `logstash_system` user for this purpose.

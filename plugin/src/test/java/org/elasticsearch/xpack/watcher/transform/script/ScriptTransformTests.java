@@ -32,7 +32,6 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
-import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.EMPTY_PAYLOAD;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.createScriptService;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.simplePayload;
@@ -64,7 +63,7 @@ public class ScriptTransformTests extends ESTestCase {
         when(service.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT)).thenReturn(factory);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
-        WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
+        WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
 
         Payload payload = simplePayload("key", "value");
 
@@ -92,7 +91,7 @@ public class ScriptTransformTests extends ESTestCase {
         when(service.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT)).thenReturn(factory);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
-        WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
+        WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
 
         Payload payload = simplePayload("key", "value");
 
@@ -118,14 +117,14 @@ public class ScriptTransformTests extends ESTestCase {
         when(service.compile(script, Watcher.SCRIPT_EXECUTABLE_CONTEXT)).thenReturn(factory);
         ExecutableScriptTransform transform = new ExecutableScriptTransform(new ScriptTransform(script), logger, service);
 
-        WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
+        WatchExecutionContext ctx = mockExecutionContext("_name", Payload.EMPTY);
 
         Payload payload = simplePayload("key", "value");
 
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
         ExecutableScript executable = mock(ExecutableScript.class);
-        Object value = randomFrom("value", 1, new String[] { "value" }, Arrays.asList("value"), singleton("value"));
+        Object value = randomFrom("value", 1, new String[] { "value" }, Collections.singletonList("value"), singleton("value"));
         when(executable.run()).thenReturn(value);
         when(factory.newInstance(model)).thenReturn(executable);
 

@@ -82,7 +82,8 @@ April 4, 2016
 March 30, 2016
 
 .New Features
-* <<native-realm,Native realm>> with support for <<security-api-users,user management APIs>>.
+* <<native-realm,Native realm>> with support for
+{ref}/security-api-users.html[user management APIs].
 * <<security-api-roles,Role management APIs>> have been added.
 
 .Bug Fixes
@@ -199,7 +200,7 @@ August 10, 2015
 
 .Bug Fixes
 * When using the <<ldap-user-search,LDAP user search>> mechanism, connection errors during startup no longer cause the node to stop.
-* The <<security-api-clear-cache,Clear Cache API>> no longer generates invalid JSON.
+* The {ref}/security-api-clear-cache.html[Clear Cache API] no longer generates invalid JSON.
 * The <<audit-index,index output for auditing>> starts properly when forwarding the audit events to a remote cluster and uses
 the correct user to index the audit events.
 
@@ -258,7 +259,7 @@ June 24, 2015
 * The {ref-17}/query-dsl-terms-filter.html#_caching_19[terms filter lookup cache] has been disabled to ensure all requests
   are properly authorized. This removes the need to manually disable the terms filter cache.
 * For LDAP client connections, only the protocols and ciphers specified in the `shield.ssl.supported_protocols` and
-  `shield.ssl.ciphers` <<ssl-tls-settings,settings>> will be used.
+  `shield.ssl.ciphers`  {ref}/security-settings.html#ssl-tls-settings[settings] will be used.
 * The auditing mechanism now logs authentication failed events when a request contains an invalid authentication token.
 
 [float]

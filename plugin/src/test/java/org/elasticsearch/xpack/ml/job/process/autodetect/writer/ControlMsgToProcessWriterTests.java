@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ml.job.config.Operator;
 import org.elasticsearch.xpack.ml.job.config.RuleCondition;
 import org.elasticsearch.xpack.ml.job.config.RuleConditionType;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.junit.Before;
 import org.mockito.InOrder;
@@ -39,12 +39,12 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         lengthEncodedWriter = Mockito.mock(LengthEncodedWriter.class);
     }
 
-    public void testWriteCalcInterimMessage_GivenAdvanceTime() throws IOException {
+    public void testWriteFlushControlMessage_GivenAdvanceTime() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
-        InterimResultsParams interimResultsParams = InterimResultsParams.builder()
+        FlushJobParams flushJobParams = FlushJobParams.builder()
                 .advanceTime("1234567890").build();
 
-        writer.writeCalcInterimMessage(interimResultsParams);
+        writer.writeFlushControlMessage(flushJobParams);
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
@@ -53,12 +53,12 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
-    public void testWriteCalcInterimMessage_GivenCalcInterimResultsWithNoTimeParams() throws IOException {
+    public void testWriteFlushControlMessage_GivenCalcInterimResultsWithNoTimeParams() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
-        InterimResultsParams interimResultsParams = InterimResultsParams.builder()
+        FlushJobParams flushJobParams = FlushJobParams.builder()
                 .calcInterim(true).build();
 
-        writer.writeCalcInterimMessage(interimResultsParams);
+        writer.writeFlushControlMessage(flushJobParams);
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
@@ -67,23 +67,23 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
-    public void testWriteCalcInterimMessage_GivenNeitherCalcInterimNorAdvanceTime() throws IOException {
+    public void testWriteFlushControlMessage_GivenNeitherCalcInterimNorAdvanceTime() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
-        InterimResultsParams interimResultsParams = InterimResultsParams.builder().build();
+        FlushJobParams flushJobParams = FlushJobParams.builder().build();
 
-        writer.writeCalcInterimMessage(interimResultsParams);
+        writer.writeFlushControlMessage(flushJobParams);
 
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
-    public void testWriteCalcInterimMessage_GivenCalcInterimResultsWithTimeParams() throws IOException {
+    public void testWriteFlushControlMessage_GivenCalcInterimResultsWithTimeParams() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
-        InterimResultsParams interimResultsParams = InterimResultsParams.builder()
+        FlushJobParams flushJobParams = FlushJobParams.builder()
                 .calcInterim(true)
                 .forTimeRange(TimeRange.builder().startTime("120").endTime("180").build())
                 .build();
 
-        writer.writeCalcInterimMessage(interimResultsParams);
+        writer.writeFlushControlMessage(flushJobParams);
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
@@ -92,15 +92,15 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
-    public void testWriteCalcInterimMessage_GivenCalcInterimAndAdvanceTime() throws IOException {
+    public void testWriteFlushControlMessage_GivenCalcInterimAndAdvanceTime() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
-        InterimResultsParams interimResultsParams = InterimResultsParams.builder()
+        FlushJobParams flushJobParams = FlushJobParams.builder()
                 .calcInterim(true)
                 .forTimeRange(TimeRange.builder().startTime("50").endTime("100").build())
                 .advanceTime("180")
                 .build();
 
-        writer.writeCalcInterimMessage(interimResultsParams);
+        writer.writeFlushControlMessage(flushJobParams);
 
         InOrder inOrder = inOrder(lengthEncodedWriter);
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);

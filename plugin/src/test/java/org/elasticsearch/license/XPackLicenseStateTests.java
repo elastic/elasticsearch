@@ -292,13 +292,22 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAllowed(PLATINUM, false, XPackLicenseState::isMachineLearningAllowed, false);
     }
 
-    public void testLogstashAllowed() {
-        assertAllowed(randomMode(), true, XPackLicenseState::isLogstashAllowed, true);
-        assertAllowed(randomMode(), false, XPackLicenseState::isLogstashAllowed, false);
+    public void testLogstashPlatinumGoldTrialStandard() throws Exception {
+        assertAllowed(TRIAL, true, XPackLicenseState::isLogstashAllowed, true);
+        assertAllowed(GOLD, true, XPackLicenseState::isLogstashAllowed, true);
+        assertAllowed(PLATINUM, true, XPackLicenseState::isLogstashAllowed, true);
+        assertAllowed(STANDARD, true, XPackLicenseState::isLogstashAllowed, true);
     }
 
-    public void testLogstashAckNotBasicToTrial() {
-        OperationMode from = randomFrom(STANDARD, BASIC, GOLD, PLATINUM);
-        assertAckMesssages(Logstash.NAME, from, TRIAL, 1);
+    public void testLogstashBasicLicense() throws Exception {
+        assertAllowed(BASIC, true, XPackLicenseState::isLogstashAllowed, false);
+    }
+
+    public void testLogstashInactive() {
+        assertAllowed(BASIC, false, XPackLicenseState::isLogstashAllowed, false);
+        assertAllowed(TRIAL, false, XPackLicenseState::isLogstashAllowed, false);
+        assertAllowed(GOLD, false, XPackLicenseState::isLogstashAllowed, false);
+        assertAllowed(PLATINUM, false, XPackLicenseState::isLogstashAllowed, false);
+        assertAllowed(STANDARD, false, XPackLicenseState::isLogstashAllowed, false);
     }
 }

@@ -1,8 +1,7 @@
 {
-  "index_patterns" : ".security",
+  "index_patterns" : ".security-*",
   "order" : 1000,
   "settings" : {
-    "mapping.single_type": false,
     "number_of_shards" : 1,
     "number_of_replicas" : 0,
     "auto_expand_replicas" : "0-all",
@@ -34,7 +33,7 @@
     }
   },
   "mappings" : {
-    "user" : {
+    "doc" : {
       "_meta": {
         "security-version": "${security.template.version}"
       },
@@ -64,15 +63,7 @@
         },
         "enabled": {
           "type": "boolean"
-        }
-      }
-    },
-    "role" : {
-      "_meta": {
-        "security-version": "${security.template.version}"
-      },
-      "dynamic" : "strict",
-      "properties" : {
+        },
         "cluster" : {
           "type" : "keyword"
         },
@@ -106,56 +97,24 @@
         "run_as" : {
           "type" : "keyword"
         },
-        "metadata" : {
-          "type" : "object",
-          "dynamic" : true
-        }
-      }
-    },
-    "reserved-user" : {
-      "_meta": {
-        "security-version": "${security.template.version}"
-      },
-      "dynamic" : "strict",
-      "properties" : {
-        "password": {
-          "type" : "keyword",
-          "index" : false,
-          "doc_values" : false
-        },
-        "enabled": {
-          "type": "boolean"
-        }
-      }
-    },
-    "doc": {
-      "_meta": {
-        "security-version": "${security.template.version}"
-      },
-      "dynamic": "strict",
-      "properties": {
         "doc_type": {
+          "type" : "keyword"
+        },
+        "type": {
           "type" : "keyword"
         },
         "expiration_time": {
           "type": "date",
           "format": "epoch_millis"
         },
-        "roles": {
-          "type": "keyword"
-        },
         "rules": {
-          "type" : "object",
-          "dynamic" : true
-        },
-        "enabled": {
-          "type": "boolean"
-        },
-        "metadata" : {
           "type" : "object",
           "dynamic" : true
         }
       }
     }
+  },
+  "aliases" : {
+    ".security": {}
   }
 }

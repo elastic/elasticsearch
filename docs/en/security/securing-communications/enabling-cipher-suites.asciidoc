@@ -16,7 +16,7 @@ encryption with key lengths greater than 128 bits, such as 256-bit AES encryptio
 
 After installation, all cipher suites in the JCE are available for use. To enable
 the use of stronger cipher suites with {security}, configure the `cipher_suites`
-parameter. See the <<ssl-tls-settings, Configuration Parameters for TLS/SSL>>
+parameter. See the {ref}/security-settings.html#ssl-tls-settings[Configuration Parameters for TLS/SSL]
 section of this document for specific parameter information.
 
 NOTE: The _JCE Unlimited Strength Jurisdiction Policy Files_ must be installed

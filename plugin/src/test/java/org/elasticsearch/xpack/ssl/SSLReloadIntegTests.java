@@ -16,6 +16,7 @@ import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.network.InetAddressHelper;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
@@ -70,9 +71,10 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         Settings.Builder builder = Settings.builder()
                 .put(settings.filter((s) -> s.startsWith("xpack.ssl.") == false));
 
+
+        SecuritySettingsSource.addSSLSettingsForStore(builder,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
         builder.put("resource.reload.interval.high", "1s")
-                .put(SecuritySettingsSource.getSSLSettingsForStore(
-                        "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode"))
                 .put("xpack.ssl.keystore.path", nodeStorePath);
 
         if (builder.get("xpack.ssl.truststore.path") != null) {
@@ -97,13 +99,14 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
         try (OutputStream out = Files.newOutputStream(keystorePath)) {
             keyStore.store(out, "changeme".toCharArray());
         }
-
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.ssl.keystore.secure_password", "changeme");
+        secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir())
                 .put("xpack.ssl.keystore.path", keystorePath)
-                .put("xpack.ssl.keystore.password", "changeme")
                 .put("xpack.ssl.truststore.path", nodeStorePath)
-                .put("xpack.ssl.truststore.password", "testnode")
+                .setSecureSettings(secureSettings)
                 .build();
         String node = randomFrom(internalCluster().getNodeNames());
         SSLService sslService = new SSLService(settings, new Environment(settings));

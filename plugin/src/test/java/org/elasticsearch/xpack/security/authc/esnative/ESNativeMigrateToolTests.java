@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -62,7 +63,7 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
     public void testRetrieveUsers() throws Exception {
         final Environment nodeEnvironment = nodeEnvironment();
         String home = Environment.PATH_HOME_SETTING.get(nodeEnvironment.settings());
-        String conf = Environment.PATH_CONF_SETTING.get(nodeEnvironment.settings());
+        String conf = nodeEnvironment.configFile().toString();
         SecurityClient c = new SecurityClient(client());
         logger.error("--> creating users");
         int numToAdd = randomIntBetween(1,10);
@@ -80,29 +81,29 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         String password = new String(CharArrays.toUtf8Bytes(nodeClientPassword().getChars()), StandardCharsets.UTF_8);
         String url = getHttpURL();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
-        Settings sslSettings =
-                SecuritySettingsSource.getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks",
-                        "testnode");
-        Settings settings = Settings.builder().put(sslSettings)
+
+        Settings.Builder builder = Settings.builder()
                 .put("path.home", home)
-                .put("path.conf", conf)
-                .build();
+                .put("path.conf", conf);
+        SecuritySettingsSource.addSSLSettingsForStore(builder,
+            "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
+        Settings settings = builder.build();
         logger.error("--> retrieving users using URL: {}, home: {}", url, home);
 
         OptionParser parser = muor.getParser();
-        OptionSet options = parser.parse("-u", username, "-p", password, "-U", url, "-Epath.conf=" + conf);
+        OptionSet options = parser.parse("-u", username, "-p", password, "-U", url, "--path.conf", conf);
         logger.info("--> options: {}", options.asMap());
         Set<String> users = muor.getUsersThatExist(t, settings, new Environment(settings), options);
-        logger.info("--> output: \n{}", t.getOutput());;
+        logger.info("--> output: \n{}", t.getOutput());
         for (String u : addedUsers) {
-            assertThat("expected list to contain: " + u, users.contains(u), is(true));
+            assertThat("expected list to contain: " + u + ", real list: " + users, users.contains(u), is(true));
         }
     }
 
     public void testRetrieveRoles() throws Exception {
         final Environment nodeEnvironment = nodeEnvironment();
         String home = Environment.PATH_HOME_SETTING.get(nodeEnvironment.settings());
-        String conf = Environment.PATH_CONF_SETTING.get(nodeEnvironment.settings());
+        Path conf = nodeEnvironment.configFile();
         SecurityClient c = new SecurityClient(client());
         logger.error("--> creating roles");
         int numToAdd = randomIntBetween(1,10);
@@ -125,18 +126,15 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         String password = new String(CharArrays.toUtf8Bytes(nodeClientPassword().getChars()), StandardCharsets.UTF_8);
         String url = getHttpURL();
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
-        Settings sslSettings =
-                SecuritySettingsSource.getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks",
-                        "testclient");
-        Settings settings = Settings.builder().put(sslSettings)
-                .put("path.home", home)
-                .put("path.conf", conf)
-                .build();
+        Settings.Builder builder = Settings.builder().put("path.home", home);
+        SecuritySettingsSource.addSSLSettingsForStore(builder,
+                "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");
+        Settings settings = builder.build();
         logger.error("--> retrieving roles using URL: {}, home: {}", url, home);
 
         OptionParser parser = muor.getParser();
-        OptionSet options = parser.parse("-u", username, "-p", password, "-U", url, "-Epath.conf", conf);
-        Set<String> roles = muor.getRolesThatExist(t, settings, new Environment(settings), options);
+        OptionSet options = parser.parse("-u", username, "-p", password, "-U", url, "--path.conf", conf.toString());
+        Set<String> roles = muor.getRolesThatExist(t, settings, new Environment(settings, conf), options);
         logger.info("--> output: \n{}", t.getOutput());;
         for (String r : addedRoles) {
             assertThat("expected list to contain: " + r, roles.contains(r), is(true));

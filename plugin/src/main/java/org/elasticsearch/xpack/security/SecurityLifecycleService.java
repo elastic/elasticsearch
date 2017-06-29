@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -123,6 +124,10 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         return securityIndex.indexExists();
     }
 
+    public boolean isSecurityIndexUpToDate() {
+        return securityIndex.isIndexUpToDate();
+    }
+
     public boolean isSecurityIndexAvailable() {
         return securityIndex.isAvailable();
     }
@@ -173,5 +178,25 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
 
     public static List<String> indexNames() {
         return Collections.singletonList(SECURITY_INDEX_NAME);
+    }
+
+    /**
+     * Creates the security index, if it does not already exist, then runs the given
+     * action on the security index.
+     */
+    public <T> void createIndexIfNeededThenExecute(final ActionListener<T> listener, final Runnable andThen) {
+        if (!isSecurityIndexExisting() || isSecurityIndexUpToDate()) {
+            securityIndex.createIndexIfNeededThenExecute(listener, andThen);
+        } else {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+        }
+    }
+
+    /**
+     * Checks if the security index is out of date with the current version.
+     */
+    public boolean isSecurityIndexOutOfDate() {
+        return securityIndex.indexExists() && !securityIndex.isIndexUpToDate();
     }
 }

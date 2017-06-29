@@ -10,6 +10,7 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.env.Environment;
@@ -37,9 +38,11 @@ public class SecurityNetty4TransportTests extends ESTestCase {
     @Before
     public void createSSLService() throws Exception {
         Path testnodeStore = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks");
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", testnodeStore)
-                .put("xpack.ssl.keystore.password", "testnode")
+                .setSecureSettings(secureSettings)
                 .put("path.home", createTempDir())
                 .build();
         env = new Environment(settings);
@@ -177,14 +180,16 @@ public class SecurityNetty4TransportTests extends ESTestCase {
     }
 
     public void testTransportSSLOverridesGlobalSSL() throws Exception {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
+        secureSettings.setString("xpack.ssl.truststore.secure_password", "truststore-testnode-only");
         Settings.Builder builder = Settings.builder()
                 .put("xpack.security.transport.ssl.keystore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
-                .put("xpack.security.transport.ssl.keystore.password", "testnode")
                 .put("xpack.security.transport.ssl.client_authentication", "none")
                 .put("xpack.ssl.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
-                .put("xpack.ssl.truststore.password", "truststore-testnode-only")
+                .setSecureSettings(secureSettings)
                 .put("path.home", createTempDir());
         Settings settings = builder.build();
         env = new Environment(settings);

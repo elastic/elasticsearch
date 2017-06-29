@@ -9,6 +9,7 @@ import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.TrustManagerFactory;
 import java.util.Arrays;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 
@@ -64,22 +65,6 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.supportedProtocols.get(settings), is(Arrays.asList("SSLv3", "SSLv2Hello", "SSLv2")));
     }
 
-    public void testKeyStoreKeyPasswordDefaultsToKeystorePassword() {
-        final SSLConfigurationSettings ssl = SSLConfigurationSettings.withPrefix("xpack.ssl.");
-
-        assertThat(ssl.keystorePassword.match("xpack.ssl.keystore.password"), is(true));
-        assertThat(ssl.keystoreKeyPassword.match("xpack.ssl.keystore.key_password"), is(true));
-
-        assertThat(ssl.keystorePassword.match("xpack.ssl.keystore.key_password"), is(false));
-        assertThat(ssl.keystoreKeyPassword.match("xpack.ssl.keystore.password"), is(false));
-
-        final String password = randomAlphaOfLength(16);
-        final Settings settings = Settings.builder()
-                .put("xpack.ssl.keystore.password", password)
-                .build();
-        assertThat(ssl.keystoreKeyPassword.get(settings).get(), is(password));
-    }
-
     public void testEmptySettingsParsesToDefaults() {
         final SSLConfigurationSettings ssl = SSLConfigurationSettings.withoutPrefix();
         final Settings settings = Settings.EMPTY;
@@ -87,15 +72,15 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.cert.get(settings).isPresent(), is(false));
         assertThat(ssl.ciphers.get(settings).size(), is(0));
         assertThat(ssl.clientAuth.get(settings).isPresent(), is(false));
-        assertThat(ssl.keyPassword.get(settings).isPresent(), is(false));
+        assertThat(ssl.keyPassword.exists(settings), is(false));
         assertThat(ssl.keyPath.get(settings).isPresent(), is(false));
         assertThat(ssl.keystoreAlgorithm.get(settings), is(KeyManagerFactory.getDefaultAlgorithm()));
-        assertThat(ssl.keystoreKeyPassword.get(settings).isPresent(), is(false));
-        assertThat(ssl.keystorePassword.get(settings).isPresent(), is(false));
+        assertThat(ssl.keystoreKeyPassword.exists(settings), is(false));
+        assertThat(ssl.keystorePassword.exists(settings), is(false));
         assertThat(ssl.keystorePath.get(settings).isPresent(), is(false));
         assertThat(ssl.supportedProtocols.get(settings).size(), is(0));
         assertThat(ssl.truststoreAlgorithm.get(settings), is(TrustManagerFactory.getDefaultAlgorithm()));
-        assertThat(ssl.truststorePassword.get(settings).isPresent(), is(false));
+        assertThat(ssl.truststorePassword.exists(settings), is(false));
         assertThat(ssl.truststorePath.get(settings).isPresent(), is(false));
         assertThat(ssl.verificationMode.get(settings).isPresent(), is(false));
     }

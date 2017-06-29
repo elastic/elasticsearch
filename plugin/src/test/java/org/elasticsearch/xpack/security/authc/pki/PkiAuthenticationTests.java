@@ -15,9 +15,11 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
@@ -38,7 +40,7 @@ import java.security.SecureRandom;
 import java.util.Locale;
 import java.util.Map.Entry;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -51,10 +53,10 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         SSLClientAuth sslClientAuth = randomBoolean() ? SSLClientAuth.REQUIRED : SSLClientAuth.OPTIONAL;
-        return Settings.builder()
+
+        Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
-
                 .put("xpack.security.http.ssl.enabled", true)
                 .put("xpack.security.http.ssl.client_authentication", sslClientAuth)
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
@@ -63,9 +65,11 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
                 .put("xpack.security.authc.realms.pki1.order", "1")
                 .put("xpack.security.authc.realms.pki1.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
-                .put("xpack.security.authc.realms.pki1.truststore.password", "truststore-testnode-only")
-                .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
-                .build();
+                .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"));
+
+        SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
+                secureSettings.setString("xpack.security.authc.realms.pki1.truststore.secure_password", "truststore-testnode-only"));
+        return builder.build();
     }
 
     @Override
@@ -74,8 +78,9 @@ public class PkiAuthenticationTests extends SecurityIntegTestCase {
     }
 
     public void testTransportClientCanAuthenticateViaPki() {
-        Settings settings = getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
-        try (TransportClient client = createTransportClient(settings)) {
+        Settings.Builder builder = Settings.builder();
+        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
+        try (TransportClient client = createTransportClient(builder.build())) {
             client.addTransportAddress(randomFrom(internalCluster().getInstance(Transport.class).boundAddress().boundAddresses()));
             IndexResponse response = client.prepareIndex("foo", "bar").setSource("pki", "auth").get();
             assertEquals(DocWriteResponse.Result.CREATED, response.getResult());

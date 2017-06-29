@@ -18,6 +18,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -42,7 +43,7 @@ final class ExpiredTokenRemover extends AbstractRunnable {
 
     @Override
     public void doRun() {
-        SearchRequest searchRequest = new SearchRequest(TokenService.INDEX_NAME);
+        SearchRequest searchRequest = new SearchRequest(SecurityLifecycleService.SECURITY_INDEX_NAME);
         DeleteByQueryRequest dbq = new DeleteByQueryRequest(searchRequest);
         if (timeout != TimeValue.MINUS_ONE) {
             dbq.setTimeout(timeout);

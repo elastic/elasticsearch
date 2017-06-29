@@ -11,7 +11,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -95,12 +95,19 @@ public class ControlMsgToProcessWriter {
     }
 
     /**
-     * Send an instruction to calculate interim results to the C++ autodetect process.
+     * Writes the control messages that are requested when flushing a job.
+     * Those control messages need to be followed by a flush message in order
+     * for them to reach the C++ process immediately. List of supported controls:
      *
-     * @param params Parameters indicating whether interim results should be written
-     *               and for which buckets
+     * <ul>
+     *   <li>advance time</li>
+     *   <li>calculate interim results</li>
+     * </ul>
+     *
+     * @param params Parameters describing the controls that will accompany the flushing
+     *               (e.g. calculating interim results, time control, etc.)
      */
-    public void writeCalcInterimMessage(InterimResultsParams params) throws IOException {
+    public void writeFlushControlMessage(FlushJobParams params) throws IOException {
         if (params.shouldAdvanceTime()) {
             writeMessage(ADVANCE_TIME_MESSAGE_CODE + params.getAdvanceTime());
         }

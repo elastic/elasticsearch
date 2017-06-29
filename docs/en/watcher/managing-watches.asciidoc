@@ -3,12 +3,12 @@
 
 {watcher} provides as set of APIs you can use to manage your watches:
 
-* Use the <<watcher-api-put-watch>> to add or update watches
-* Use the <<watcher-api-get-watch>> to retrieve watches
-* Use the <<watcher-api-delete-watch>> to delete watches
-* Use the <<watcher-api-activate-watch>> to activate watches
-* Use the <<watcher-api-deactivate-watch>> to deactivate watches
-* Use the <<watcher-api-ack-watch>> to acknowledge watches
+* Use the {ref}/watcher-api-put-watch.html[Put Watch API] to add or update watches
+* Use the {ref}/watcher-api-get-watch.html[Get Watch API] to retrieve watches
+* Use the {ref}/watcher-api-delete-watch.html[Delete Watch API] to delete watches
+* Use the {ref}/watcher-api-activate-watch.html[Activate Watch API] to activate watches
+* Use the {ref}/watcher-api-deactivate-watch.html[Deactivate Watch API] to deactivate watches
+* Use the {ref}/watcher-api-ack-watch.html[Ack Watch API] to acknowledge watches
 
 [float]
 [[listing-watches]]

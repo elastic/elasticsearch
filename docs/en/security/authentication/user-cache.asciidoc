@@ -35,7 +35,8 @@ setting the `cache_hash_algo` setting to any of the following:
 [[cache-eviction-api]]
 ==== Evicting Users from the Cache
 
-{security} exposes a <<security-api-clear-cache, Clear Cache API>> you can use
+{security} exposes a
+{ref}/security-api-clear-cache.html[Clear Cache API] you can use
 to force the eviction of cached users. For example, the following request evicts
 all users from the `ad1` realm:
 

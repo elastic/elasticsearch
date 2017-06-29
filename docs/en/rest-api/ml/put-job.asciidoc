@@ -32,6 +32,11 @@ The create job API enables you to instantiate a job.
 `description`::
   (string) An optional description of the job.
 
+`model_plot`::
+  (object) This advanced configuration option stores model information along with the
+  results. This adds overhead to the performance of the system and 
+  is not feasible for jobs with many entities, see <<ml-apimodelplotconfig>>.
+
 `model_snapshot_retention_days`::
   (long) The time in days that model snapshots are retained for the job.
   Older snapshots are deleted. The default value is 1 day.

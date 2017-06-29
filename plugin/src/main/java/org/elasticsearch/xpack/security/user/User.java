@@ -252,5 +252,6 @@ public class User implements ToXContentObject {
         ParseField EMAIL = new ParseField("email");
         ParseField METADATA = new ParseField("metadata");
         ParseField ENABLED = new ParseField("enabled");
+        ParseField TYPE = new ParseField("type");
     }
 }

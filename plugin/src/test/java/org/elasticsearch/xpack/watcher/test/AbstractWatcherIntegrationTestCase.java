@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.test;
 
 import io.netty.util.internal.SystemPropertyUtil;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.Plugin;
@@ -83,6 +81,7 @@ import org.junit.Before;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -149,6 +148,39 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 // Disable native ML autodetect_process as the c++ controller won't be available
                 .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
                 .build();
+    }
+
+    @Override
+    protected Path nodeConfigPath(final int nodeOrdinal) {
+        if (!securityEnabled) {
+            return null;
+        }
+        final Path conf = createTempDir().resolve("watcher_security");
+        final Path xpackConf = conf.resolve(XPackPlugin.NAME);
+        try {
+            Files.createDirectories(xpackConf);
+            writeFile(xpackConf, "users", SecuritySettings.USERS);
+            writeFile(xpackConf, "users_roles", SecuritySettings.USER_ROLES);
+            writeFile(xpackConf, "roles.yml", SecuritySettings.ROLES);
+            writeFile(xpackConf, "system_key", SecuritySettings.systemKey);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return conf;
+    }
+
+    private static void writeFile(final Path folder, final String name, final String content) throws IOException {
+        final Path file = folder.resolve(name);
+        try (BufferedWriter stream = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+            Streams.copy(content, stream);
+        }
+    }
+
+    public static void writeFile(final Path folder, final String name, final byte[] content) throws IOException {
+        final Path file = folder.resolve(name);
+        try (OutputStream stream = Files.newOutputStream(file)) {
+            Streams.copy(content, stream);
+        }
     }
 
     @Override
@@ -696,28 +728,18 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             if (!enabled) {
                 return builder.put("xpack.security.enabled", false).build();
             }
-            try {
-                Path conf = createTempDir().resolve("watcher_security");
-                Path xpackConf = conf.resolve(XPackPlugin.NAME);
-                Files.createDirectories(xpackConf);
-                writeFile(xpackConf, "users", USERS);
-                writeFile(xpackConf, "users_roles", USER_ROLES);
-                writeFile(xpackConf, "roles.yml", ROLES);
-                writeFile(xpackConf, "system_key", systemKey);
 
-                builder.put("xpack.security.enabled", true)
-                        .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
-                        .put("xpack.security.authc.realms.esusers.order", 0)
-                        .put("xpack.security.audit.enabled", auditLogsEnabled)
-                        .put(Environment.PATH_CONF_SETTING.getKey(), conf);
-                        // security should always use one of its transports so if it is enabled explicitly declare one otherwise a local
-                        // transport could be used
-                        builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
-                        builder.put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4);
-                return builder.build();
-            } catch (IOException ex) {
-                throw new RuntimeException("failed to build settings for security", ex);
-            }
+            builder.put("xpack.security.enabled", true)
+                    .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
+                    .put("xpack.security.authc.realms.esusers.order", 0)
+                    .put("xpack.security.audit.enabled", auditLogsEnabled);
+            /*
+             * Security should always use one of its transports so if it is enabled explicitly declare one otherwise a local transport could
+             * be used.
+             */
+            builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
+            builder.put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4);
+            return builder.build();
         }
 
         static byte[] generateKey() {
@@ -726,26 +748,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
-        }
-
-        public static String writeFile(Path folder, String name, String content) throws IOException {
-            Path file = folder.resolve(name);
-            try (BufferedWriter stream = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
-                Streams.copy(content, stream);
-            } catch (IOException e) {
-                throw new ElasticsearchException("error writing file in test", e);
-            }
-            return file.toAbsolutePath().toString();
-        }
-
-        public static String writeFile(Path folder, String name, byte[] content) throws IOException {
-            Path file = folder.resolve(name);
-            try (OutputStream stream = Files.newOutputStream(file)) {
-                Streams.copy(content, stream);
-            } catch (IOException e) {
-                throw new ElasticsearchException("error writing file in test", e);
-            }
-            return file.toAbsolutePath().toString();
         }
     }
 

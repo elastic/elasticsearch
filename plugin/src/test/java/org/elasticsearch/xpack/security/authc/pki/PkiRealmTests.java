@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -139,9 +140,11 @@ public class PkiRealmTests extends ESTestCase {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
 
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("truststore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("truststore.path", getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks"))
-                .put("truststore.password", "testnode")
+                .setSecureSettings(secureSettings)
                 .build();
         PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings, new Environment(globalSettings),
                 new ThreadContext(globalSettings)), roleMapper);
@@ -167,10 +170,12 @@ public class PkiRealmTests extends ESTestCase {
     public void testVerificationFailsUsingADifferentTruststore() throws Exception {
         X509Certificate certificate = readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"));
         UserRoleMapper roleMapper = mock(UserRoleMapper.class);
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("truststore.secure_password", "testnode-client-profile");
         Settings settings = Settings.builder()
                 .put("truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-client-profile.jks"))
-                .put("truststore.password", "testnode-client-profile")
+                .setSecureSettings(secureSettings)
                 .build();
         PkiRealm realm = new PkiRealm(new RealmConfig("", settings, globalSettings, new Environment(globalSettings),
                 new ThreadContext(globalSettings)), roleMapper);
@@ -200,7 +205,7 @@ public class PkiRealmTests extends ESTestCase {
                     new ThreadContext(globalSettings)), mock(UserRoleMapper.class));
             fail("exception should have been thrown");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[xpack.security.authc.realms.mypki.truststore.password] is not configured"));
+            assertThat(e.getMessage(), containsString("[xpack.security.authc.realms.mypki.truststore.secure_password] is not configured"));
         }
     }
 

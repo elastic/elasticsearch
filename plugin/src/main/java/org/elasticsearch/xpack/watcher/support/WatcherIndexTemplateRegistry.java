@@ -31,6 +31,12 @@ import java.util.regex.Pattern;
 
 public class WatcherIndexTemplateRegistry extends AbstractComponent implements ClusterStateListener {
 
+    // history (please add a comment why you increased the version here)
+    // version 1: initial
+    // version 2: added mappings for jira action
+    // version 3: include watch status in history
+    // version 6: upgrade to ES 6, removal of _status field
+    // Note: if you change this, also inform the kibana team around the watcher-ui
     public static final String INDEX_TEMPLATE_VERSION = "6";
 
     public static final String HISTORY_TEMPLATE_NAME = ".watch-history-" + INDEX_TEMPLATE_VERSION;

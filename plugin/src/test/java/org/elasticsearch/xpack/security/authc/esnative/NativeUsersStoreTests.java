@@ -27,6 +27,8 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.authc.ContainerSettings;
+import org.elasticsearch.xpack.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.LogstashSystemUser;
@@ -36,6 +38,8 @@ import org.junit.Before;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -94,7 +98,38 @@ public class NativeUsersStoreTests extends ESTestCase {
 
         final GetResult result = new GetResult(
                 SecurityLifecycleService.SECURITY_INDEX_NAME,
-                NativeUsersStore.RESERVED_USER_DOC_TYPE,
+                NativeUsersStore.INDEX_TYPE,
+                NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
+                1L,
+                true,
+                jsonBuilder().map(values).bytes(),
+                Collections.emptyMap());
+
+        final PlainActionFuture<NativeUsersStore.ReservedUserInfo> future = new PlainActionFuture<>();
+        nativeUsersStore.getReservedUserInfo(user, future);
+
+        actionRespond(GetRequest.class, new GetResponse(result));
+
+        final NativeUsersStore.ReservedUserInfo userInfo = future.get();
+        assertThat(userInfo.hasDefaultPassword, equalTo(true));
+        assertThat(userInfo.enabled, equalTo(true));
+        assertThat(userInfo.passwordHash, equalTo(ReservedRealm.DEFAULT_PASSWORD_HASH));
+    }
+
+    public void testInContainerTrueReturnsEmptyPasswordForNonElasticReservedUsers() throws Exception {
+        char[] passwordHash = randomAlphaOfLength(10).toCharArray();
+
+        final NativeUsersStore nativeUsersStore = startNativeUsersStore(new ContainerSettings(true, passwordHash));
+
+        final String user = randomFrom(BeatsSystemUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME);
+        final Map<String, Object> values = new HashMap<>();
+        values.put(ENABLED_FIELD, Boolean.TRUE);
+        values.put(PASSWORD_FIELD, BLANK_PASSWORD);
+
+
+        final GetResult result = new GetResult(
+                SecurityLifecycleService.SECURITY_INDEX_NAME,
+                NativeUsersStore.INDEX_TYPE,
                 randomAlphaOfLength(12),
                 1L,
                 true,
@@ -110,6 +145,35 @@ public class NativeUsersStoreTests extends ESTestCase {
         assertThat(userInfo.hasDefaultPassword, equalTo(true));
         assertThat(userInfo.enabled, equalTo(true));
         assertThat(userInfo.passwordHash, equalTo(ReservedRealm.DEFAULT_PASSWORD_HASH));
+    }
+
+    public void testInContainerTrueReturnsBootstrapPasswordForElastic() throws Exception {
+        char[] passwordHash = randomAlphaOfLength(10).toCharArray();
+
+        final NativeUsersStore nativeUsersStore = startNativeUsersStore(new ContainerSettings(true, passwordHash));
+
+        final Map<String, Object> values = new HashMap<>();
+        values.put(ENABLED_FIELD, Boolean.TRUE);
+        values.put(PASSWORD_FIELD, BLANK_PASSWORD);
+
+        final GetResult result = new GetResult(
+                SecurityLifecycleService.SECURITY_INDEX_NAME,
+                NativeUsersStore.INDEX_TYPE,
+                randomAlphaOfLength(12),
+                1L,
+                true,
+                jsonBuilder().map(values).bytes(),
+                Collections.emptyMap());
+
+        final PlainActionFuture<NativeUsersStore.ReservedUserInfo> future = new PlainActionFuture<>();
+        nativeUsersStore.getReservedUserInfo(ElasticUser.NAME, future);
+
+        actionRespond(GetRequest.class, new GetResponse(result));
+
+        final NativeUsersStore.ReservedUserInfo userInfo = future.get();
+        assertThat(userInfo.hasDefaultPassword, equalTo(false));
+        assertThat(userInfo.enabled, equalTo(true));
+        assertThat(userInfo.passwordHash, equalTo(passwordHash));
     }
 
     private <ARequest extends ActionRequest, AResponse extends ActionResponse> ARequest actionRespond(Class<ARequest> requestClass,
@@ -128,12 +192,24 @@ public class NativeUsersStoreTests extends ESTestCase {
     }
 
     private NativeUsersStore startNativeUsersStore() {
+        return startNativeUsersStore(new ContainerSettings(false, null));
+    }
+
+    private NativeUsersStore startNativeUsersStore(ContainerSettings containerSettings) {
         SecurityLifecycleService securityLifecycleService = mock(SecurityLifecycleService.class);
         when(securityLifecycleService.isSecurityIndexAvailable()).thenReturn(true);
         when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
         when(securityLifecycleService.isSecurityIndexWriteable()).thenReturn(true);
-        final NativeUsersStore nativeUsersStore = new NativeUsersStore(Settings.EMPTY, internalClient, securityLifecycleService);
-        return nativeUsersStore;
+        when(securityLifecycleService.isSecurityIndexOutOfDate()).thenReturn(false);
+        when(securityLifecycleService.isSecurityIndexUpToDate()).thenReturn(true);
+        doAnswer((i) -> {
+            Runnable action = (Runnable) i.getArguments()[1];
+            action.run();
+            ActionListener listener = (ActionListener) i.getArguments()[0];
+            listener.onResponse(null);
+            return null;
+        }).when(securityLifecycleService).createIndexIfNeededThenExecute(any(ActionListener.class), any(Runnable.class));
+        return new NativeUsersStore(Settings.EMPTY, internalClient, securityLifecycleService, containerSettings);
     }
 
 }

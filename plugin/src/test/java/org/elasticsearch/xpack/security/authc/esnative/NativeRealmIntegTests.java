@@ -54,6 +54,7 @@ import java.util.concurrent.CountDownLatch;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.elasticsearch.xpack.security.support.IndexLifecycleManager.INTERNAL_SECURITY_INDEX;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -131,7 +132,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         GetUsersResponse resp = c.prepareGetUsers("joe").get();
         assertTrue("user should exist", resp.hasUsers());
         User joe = resp.users()[0];
-        assertEquals(joe.principal(), "joe");
+        assertEquals("joe", joe.principal());
         assertArrayEquals(joe.roles(), new String[]{"role1", "user"});
 
         logger.info("--> adding two more users");
@@ -503,9 +504,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         IndicesStatsResponse response = client().admin().indices().prepareStats("foo", SecurityLifecycleService.SECURITY_INDEX_NAME).get();
         assertThat(response.getFailedShards(), is(0));
         assertThat(response.getIndices().size(), is(2));
-        assertThat(response.getIndices().get(SecurityLifecycleService.SECURITY_INDEX_NAME), notNullValue());
-        assertThat(response.getIndices().get(SecurityLifecycleService.SECURITY_INDEX_NAME).getIndex(),
-                is(SecurityLifecycleService.SECURITY_INDEX_NAME));
+        assertThat(response.getIndices().get(INTERNAL_SECURITY_INDEX), notNullValue());
+        assertThat(response.getIndices().get(INTERNAL_SECURITY_INDEX).getIndex(),
+                is(INTERNAL_SECURITY_INDEX));
     }
 
     public void testOperationsOnReservedUsers() throws Exception {
@@ -601,6 +602,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     public void testRolesUsageStats() throws Exception {
         NativeRolesStore rolesStore = internalCluster().getInstance(NativeRolesStore.class);
         long roles = anonymousEnabled && roleExists ? 1L: 0L;
+        logger.info("--> running testRolesUsageStats with anonymousEnabled=[{}], roleExists=[{}]",
+                    anonymousEnabled, roleExists);
         PlainActionFuture<Map<String, Object>> future = new PlainActionFuture<>();
         rolesStore.usageStats(future);
         Map<String, Object> usage = future.get();

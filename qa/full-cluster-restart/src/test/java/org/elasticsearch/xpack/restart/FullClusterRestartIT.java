@@ -84,6 +84,8 @@ public class FullClusterRestartIT extends ESRestTestCase {
         assertThat(toStr(client().performRequest("GET", docLocation)), containsString(doc));
     }
 
+    // This will only work when the upgrade API is in place!
+    @AwaitsFix(bugUrl = "https://github.com/elastic/dev/issues/741")
     public void testSecurityNativeRealm() throws IOException {
         XContentBuilder userBuilder = JsonXContent.contentBuilder().startObject();
         userBuilder.field("password", "j@rV1s");

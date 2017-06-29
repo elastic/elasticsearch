@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.ml.job.process.NativeControllerHolder;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ControlMsgToProcessWriter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.LengthEncodedWriter;
@@ -157,9 +157,9 @@ class NativeAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public String flushJob(InterimResultsParams params) throws IOException {
+    public String flushJob(FlushJobParams params) throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(recordWriter, numberOfAnalysisFields);
-        writer.writeCalcInterimMessage(params);
+        writer.writeFlushControlMessage(params);
         return writer.writeFlushMessage();
     }
 

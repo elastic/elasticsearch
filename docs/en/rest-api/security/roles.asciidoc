@@ -1,3 +1,4 @@
+[role="xpack"]
 [[security-api-roles]]
 === Role Management APIs
 
@@ -40,7 +41,8 @@ Within the `metadata` object, keys beginning with `_` are reserved for system
 usage.
 
 The `field_security` and `query` fields are both optional. They are used to
-implement <<field-and-document-access-control, Field and Document Level Security>>.
+implement field and document level security. For more information, see
+{xpack-ref}/field-and-document-access-control.html[Setting Up Field and Document Level Security].
 
 A successful call returns a JSON structure that shows whether the role has been
 created or updated.

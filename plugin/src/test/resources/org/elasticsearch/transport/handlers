@@ -121,6 +121,8 @@ internal:index/shard/recovery/prepare_translog
 internal:index/shard/recovery/wait_clusterstate
 internal:index/shard/recovery/start_recovery
 internal:index/shard/recovery/translog_ops
+internal:index/shard/recovery/translog_ops
+internal:index/shard/recovery/handoff_primary_context
 internal:indices/admin/upgrade
 internal:indices/flush/synced/in_flight
 internal:indices/flush/synced/pre
@@ -128,6 +130,8 @@ internal:indices/flush/synced/sync
 internal:admin/repository/verify
 internal:transport/handshake
 cluster:admin/reindex/rethrottle[n]
+cluster:admin/xpack/upgrade
 indices:data/write/update/byquery
 indices:data/write/delete/byquery
 indices:data/write/reindex
+cluster:admin/xpack/deprecation/info

@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.env.Environment;
-
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
@@ -29,39 +24,43 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.env.Environment;
+
 /**
  * Implementation of a key configuration that is backed by a PEM encoded key file and one or more certificates
  */
 class PEMKeyConfig extends KeyConfig {
 
     private final String keyPath;
-    private final String keyPassword;
+    private final SecureString keyPassword;
     private final String certPath;
 
     /**
      * Creates a new key configuration backed by the key and certificate chain provided
      * @param keyPath the path to the key file
-     * @param keyPassword the password for the key. May be {@code null}
+     * @param keyPassword the password for the key.
      * @param certChainPath the path to the file containing the certificate chain
      */
-    PEMKeyConfig(String keyPath, String keyPassword, String certChainPath) {
+    PEMKeyConfig(String keyPath, SecureString keyPassword, String certChainPath) {
         this.keyPath = Objects.requireNonNull(keyPath, "key file must be specified");
-        this.keyPassword = keyPassword;
+        this.keyPassword = Objects.requireNonNull(keyPassword).clone();
         this.certPath = Objects.requireNonNull(certChainPath, "certificate must be specified");
     }
 
     @Override
     X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
         try {
-            PrivateKey privateKey = readPrivateKey(CertUtils.resolvePath(keyPath, environment));
+            PrivateKey privateKey = readPrivateKey(CertUtils.resolvePath(keyPath, environment), keyPassword);
             if (privateKey == null) {
                 throw new IllegalArgumentException("private key [" + keyPath + "] could not be loaded");
             }
             Certificate[] certificateChain = CertUtils.readCertificates(Collections.singletonList(certPath), environment);
-            // password must be non-null for keystore...
-            try (SecureString securedKeyPasswordChars = new SecureString(keyPassword == null ? new char[0] : keyPassword.toCharArray())) {
-                return CertUtils.keyManager(certificateChain, privateKey, securedKeyPasswordChars.getChars());
-            }
+
+            return CertUtils.keyManager(certificateChain, privateKey, keyPassword.getChars());
         } catch (IOException | UnrecoverableKeyException | NoSuchAlgorithmException | CertificateException | KeyStoreException e) {
             throw new ElasticsearchException("failed to initialize a KeyManagerFactory", e);
         }
@@ -70,22 +69,15 @@ class PEMKeyConfig extends KeyConfig {
     @Override
     List<PrivateKey> privateKeys(@Nullable Environment environment) {
         try {
-            return Collections.singletonList(readPrivateKey(CertUtils.resolvePath(keyPath, environment)));
+            return Collections.singletonList(readPrivateKey(CertUtils.resolvePath(keyPath, environment), keyPassword));
         } catch (IOException e) {
             throw new UncheckedIOException("failed to read key", e);
         }
     }
 
-    private PrivateKey readPrivateKey(Path keyPath) throws IOException {
-        try (Reader reader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8);
-             SecureString secureString = new SecureString(keyPassword == null ? new char[0] : keyPassword.toCharArray())) {
-            return CertUtils.readPrivateKey(reader, () -> {
-                if (keyPassword == null) {
-                    return null;
-                } else {
-                    return secureString.getChars();
-                }
-            });
+    private static PrivateKey readPrivateKey(Path keyPath, SecureString keyPassword) throws IOException {
+        try (Reader reader = Files.newBufferedReader(keyPath, StandardCharsets.UTF_8)) {
+            return CertUtils.readPrivateKey(reader, keyPassword::getChars);
         }
     }
 

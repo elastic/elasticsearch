@@ -39,6 +39,8 @@ import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
+import static org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.INDEX_TYPE;
+import static org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.RESERVED_USER_TYPE;
 
 /**
  * Performs migration steps for the {@link NativeRealm} and {@link ReservedRealm}.
@@ -123,15 +125,16 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
         // otherwise the license management checks will prevent it from completing successfully.
         final boolean clearCache = licenseState.isAuthAllowed();
         final String userName = info.getName();
-        client.prepareGet(SECURITY_INDEX_NAME, NativeUsersStore.RESERVED_USER_DOC_TYPE, userName).execute(
+        client.prepareGet(SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(userName)).execute(
             ActionListener.wrap(getResponse -> {
                 if (getResponse.isExists()) {
                     // the document exists - we shouldn't do anything
                     listener.onResponse(null);
                 } else {
-                    client.prepareIndex(SECURITY_INDEX_NAME, NativeUsersStore.RESERVED_USER_DOC_TYPE, userName)
+                    client.prepareIndex(SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(userName))
                           .setSource(Requests.INDEX_CONTENT_TYPE, User.Fields.ENABLED.getPreferredName(), false,
-                                     User.Fields.PASSWORD.getPreferredName(), "")
+                                     User.Fields.PASSWORD.getPreferredName(), "",
+                                     User.Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
                           .setCreate(true)
                           .execute(ActionListener.wrap(r -> {
                               if (clearCache) {
@@ -161,36 +164,36 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
     @SuppressWarnings("unused")
     private void doConvertDefaultPasswords(@Nullable Version previousVersion, ActionListener<Void> listener) {
         client.prepareSearch(SECURITY_INDEX_NAME)
-        .setTypes(NativeUsersStore.RESERVED_USER_DOC_TYPE)
-        .setQuery(QueryBuilders.matchAllQuery())
-        .setFetchSource(true)
-        .execute(ActionListener.wrap(searchResponse -> {
-            assert searchResponse.getHits().getTotalHits() <= 10 :
-            "there are more than 10 reserved users we need to change this to retrieve them all!";
-            Set<String> toConvert = new HashSet<>();
-            for (SearchHit searchHit : searchResponse.getHits()) {
-                Map<String, Object> sourceMap = searchHit.getSourceAsMap();
-                if (hasOldStyleDefaultPassword(sourceMap)) {
-                    toConvert.add(searchHit.getId());
+            .setQuery(QueryBuilders.termQuery(User.Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE))
+            .setFetchSource(true)
+            .execute(ActionListener.wrap(searchResponse -> {
+                assert searchResponse.getHits().getTotalHits() <= 10 :
+                    "there are more than 10 reserved users we need to change this to retrieve them all!";
+                Set<String> toConvert = new HashSet<>();
+                for (SearchHit searchHit : searchResponse.getHits()) {
+                    Map<String, Object> sourceMap = searchHit.getSourceAsMap();
+                    if (hasOldStyleDefaultPassword(sourceMap)) {
+                        toConvert.add(searchHit.getId());
+                    }
                 }
-            }
 
-            if (toConvert.isEmpty()) {
-                listener.onResponse(null);
-            } else {
-                GroupedActionListener<UpdateResponse> countDownListener = new GroupedActionListener<>(
-                    ActionListener.wrap((r) -> listener.onResponse(null), listener::onFailure), toConvert.size(), emptyList()
-                );
-                toConvert.forEach(username -> {
-                    logger.debug("Upgrading security from version [{}] - marking reserved user [{}] as having default password",
-                                 previousVersion, username);
-                    client.prepareUpdate(SECURITY_INDEX_NAME, NativeUsersStore.RESERVED_USER_DOC_TYPE, username)
-                          .setDoc(User.Fields.PASSWORD.getPreferredName(), "")
-                          .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                          .execute(countDownListener);
-                });
-            }
-        }, listener::onFailure));
+                if (toConvert.isEmpty()) {
+                    listener.onResponse(null);
+                } else {
+                    GroupedActionListener<UpdateResponse> countDownListener = new GroupedActionListener<>(
+                        ActionListener.wrap((r) -> listener.onResponse(null), listener::onFailure), toConvert.size(), emptyList()
+                    );
+                    toConvert.forEach(username -> {
+                        logger.debug("Upgrading security from version [{}] - marking reserved user [{}] as having default password",
+                                     previousVersion, username);
+                        client.prepareUpdate(SECURITY_INDEX_NAME, INDEX_TYPE, getIdForUser(username))
+                              .setDoc(User.Fields.PASSWORD.getPreferredName(), "",
+                                      User.Fields.TYPE.getPreferredName(), RESERVED_USER_TYPE)
+                              .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                              .execute(countDownListener);
+                    });
+                }
+            }, listener::onFailure));
     }
 
     /**
@@ -209,5 +212,12 @@ public class NativeRealmMigrator implements IndexLifecycleManager.IndexDataMigra
         try (SecureString secureString = new SecureString(passwordHash.toCharArray())) {
             return Hasher.BCRYPT.verify(ReservedRealm.DEFAULT_PASSWORD_TEXT, secureString.getChars());
         }
+    }
+
+    /**
+     * Gets the document's id field for the given user name.
+     */
+    private static String getIdForUser(final String userName) {
+        return RESERVED_USER_TYPE + "-" + userName;
     }
 }

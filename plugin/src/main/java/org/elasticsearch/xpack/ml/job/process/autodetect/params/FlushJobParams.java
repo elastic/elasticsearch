@@ -12,12 +12,12 @@ import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
 import java.util.Objects;
 
-public class InterimResultsParams {
+public class FlushJobParams {
     private final boolean calcInterim;
     private final TimeRange timeRange;
     private final Long advanceTimeSeconds;
 
-    private InterimResultsParams(boolean calcInterim, TimeRange timeRange, Long advanceTimeSeconds) {
+    private FlushJobParams(boolean calcInterim, TimeRange timeRange, Long advanceTimeSeconds) {
         this.calcInterim = calcInterim;
         this.timeRange = Objects.requireNonNull(timeRange);
         this.advanceTimeSeconds = advanceTimeSeconds;
@@ -54,7 +54,7 @@ public class InterimResultsParams {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        InterimResultsParams that = (InterimResultsParams) o;
+        FlushJobParams that = (FlushJobParams) o;
         return calcInterim == that.calcInterim &&
                 Objects.equals(timeRange, that.timeRange) &&
                 Objects.equals(advanceTimeSeconds, that.advanceTimeSeconds);
@@ -91,10 +91,10 @@ public class InterimResultsParams {
             return this;
         }
 
-        public InterimResultsParams build() {
+        public FlushJobParams build() {
             checkValidFlushArgumentsCombination();
             Long advanceTimeSeconds = checkAdvanceTimeParam();
-            return new InterimResultsParams(calcInterim, timeRange, advanceTimeSeconds);
+            return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds);
         }
 
         private void checkValidFlushArgumentsCombination() {

@@ -41,6 +41,8 @@ import java.util.Map;
  */
 public class RoleDescriptor implements ToXContentObject {
 
+    public static final String ROLE_TYPE = "role";
+
     private final String name;
     private final String[] clusterPrivileges;
     private final IndicesPrivileges[] indicesPrivileges;
@@ -149,10 +151,21 @@ public class RoleDescriptor implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContent(builder, params, true);
+        return toXContent(builder, params, false);
     }
 
-    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeTransient) throws IOException {
+    /**
+     * Generates x-content for this {@link RoleDescriptor} instance.
+     *
+     * @param builder the x-content builder
+     * @param params the parameters for x-content generation directives
+     * @param docCreation {@code true} if the x-content is being generated for creating a document
+     *                    in the security index, {@code false} if the x-content being generated
+     *                    is for API display purposes
+     * @return x-content builder
+     * @throws IOException if there was an error writing the x-content to the builder
+     */
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean docCreation) throws IOException {
         builder.startObject();
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
         builder.array(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
@@ -160,7 +173,9 @@ public class RoleDescriptor implements ToXContentObject {
             builder.array(Fields.RUN_AS.getPreferredName(), runAs);
         }
         builder.field(Fields.METADATA.getPreferredName(), metadata);
-        if (includeTransient) {
+        if (docCreation) {
+            builder.field(Fields.TYPE.getPreferredName(), ROLE_TYPE);
+        } else {
             builder.field(Fields.TRANSIENT_METADATA.getPreferredName(), transientMetadata);
         }
         return builder.endObject();
@@ -251,6 +266,8 @@ public class RoleDescriptor implements ToXContentObject {
                     throw new ElasticsearchParseException("expected field [{}] to be an object, but found [{}] instead",
                             currentFieldName, token);
                 }
+            } else if (Fields.TYPE.match(currentFieldName)) {
+                // don't need it
             } else {
                 throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
             }
@@ -687,5 +704,6 @@ public class RoleDescriptor implements ToXContentObject {
         ParseField EXCEPT_FIELDS = new ParseField("except");
         ParseField METADATA = new ParseField("metadata");
         ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");
+        ParseField TYPE = new ParseField("type");
     }
 }

@@ -119,8 +119,8 @@ public class TokenServiceTests extends ESTestCase {
         try (ThreadContext.StoredContext ignore = requestContext.newStoredContext(true)) {
             // verify a second separate token service with its own passphrase cannot verify
             MockSecureSettings secureSettings = new MockSecureSettings();
-            Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
             secureSettings.setString(TokenService.TOKEN_PASSPHRASE.getKey(), randomAlphaOfLengthBetween(8, 30));
+            Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
             TokenService anotherService = new TokenService(settings, Clock.systemUTC(), internalClient, lifecycleService);
             PlainActionFuture<UserToken> future = new PlainActionFuture<>();
             anotherService.getAndValidateToken(requestContext, future);

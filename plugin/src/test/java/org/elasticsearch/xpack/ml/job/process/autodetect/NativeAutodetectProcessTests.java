@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
-import org.elasticsearch.xpack.ml.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ControlMsgToProcessWriter;
 import org.junit.Assert;
@@ -110,7 +110,7 @@ public class NativeAutodetectProcessTests extends ESTestCase {
                 new AutodetectResultsParser(Settings.EMPTY), mock(Runnable.class))) {
             process.start(executorService, mock(StateProcessor.class), mock(InputStream.class));
 
-            InterimResultsParams params = InterimResultsParams.builder().build();
+            FlushJobParams params = FlushJobParams.builder().build();
             process.flushJob(params);
 
             ByteBuffer bb = ByteBuffer.wrap(bos.toByteArray());

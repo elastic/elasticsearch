@@ -16,6 +16,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -89,10 +90,12 @@ public class SSLClientAuthTests extends SecurityIntegTestCase {
             throw new ElasticsearchException("store path doesn't exist");
         }
 
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.ssl.keystore.secure_password", "testclient-client-profile");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)
                 .put("xpack.ssl.keystore.path", store)
-                .put("xpack.ssl.keystore.password", "testclient-client-profile")
+                .setSecureSettings(secureSettings)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put(Security.USER_SETTING.getKey(),
                         transportClientUsername() + ":" + new String(transportClientPassword().getChars()))

@@ -203,8 +203,8 @@ xpack.notification.slack:
       url: https://hooks.slack.com/services/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
 --------------------------------------------------
 
-You can also specify defaults for the <<slack-account-attributes, Slack
-notification attributes>>:
+You can also specify defaults for the {ref}/notification-settings.html#slack-account-attributes[Slack
+notification attributes]:
 
 [source,yaml]
 --------------------------------------------------

@@ -7,6 +7,7 @@ package org.elasticsearch.integration;
 
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -37,6 +38,7 @@ import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
@@ -71,7 +73,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, ParentJoinPlugin.class);
+        return Arrays.asList(XPackPlugin.class, ParentJoinPlugin.class,
+                InternalSettingsPlugin.class);
     }
 
     @Override
@@ -584,7 +587,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testChildrenAggregation() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .setSettings("mapping.single_type", false)
+                        .setSettings("index.version.created", Version.V_5_6_0.id)
                         .addMapping("type1", "field1", "type=text", "field2", "type=text")
                         .addMapping("type2", "_parent", "type=type1", "field3", "type=text,fielddata=true")
         );
@@ -641,7 +644,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
 
     public void testParentChild_parentField() {
         assertAcked(prepareCreate("test")
-                .setSettings("mapping.single_type", false)
+                .setSettings("index.version.created", Version.V_5_6_0.id)
                 .addMapping("parent")
                 .addMapping("child", "_parent", "type=parent", "field1", "type=text", "field2", "type=text", "field3", "type=text"));
         ensureGreen();

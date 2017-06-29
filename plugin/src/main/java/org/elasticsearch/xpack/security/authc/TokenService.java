@@ -92,7 +92,6 @@ public final class TokenService extends AbstractComponent {
             "\", error=\"invalid_token\", error_description=\"The access token is malformed\"";
     private static final String TYPE = "doc";
 
-    public static final String INDEX_NAME = SecurityLifecycleService.SECURITY_INDEX_NAME;
     public static final String THREAD_POOL_NAME = XPackPlugin.SECURITY + "-token-key";
     public static final Setting<SecureString> TOKEN_PASSPHRASE = SecureSetting.secureString("xpack.security.authc.token.passphrase", null);
     public static final Setting<TimeValue> TOKEN_EXPIRATION = Setting.timeSetting("xpack.security.authc.token.timeout",
@@ -255,7 +254,11 @@ public final class TokenService extends AbstractComponent {
      */
     public void invalidateToken(String tokenString, ActionListener<Boolean> listener) {
         ensureEnabled();
-        if (lifecycleService.isSecurityIndexWriteable() == false) {
+        if (lifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
+        } else if (lifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("cannot write to the tokens index"));
         } else if (Strings.isNullOrEmpty(tokenString)) {
             listener.onFailure(new IllegalArgumentException("token must be provided"));
@@ -270,7 +273,8 @@ public final class TokenService extends AbstractComponent {
                         listener.onResponse(false);
                     } else {
                         final String id = getDocumentId(userToken);
-                        internalClient.prepareIndex(INDEX_NAME, TYPE, id)
+                        lifecycleService.createIndexIfNeededThenExecute(listener, () -> {
+                            internalClient.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, id)
                                 .setOpType(OpType.CREATE)
                                 .setSource("doc_type", DOC_TYPE, "expiration_time", getExpirationTime().toEpochMilli())
                                 .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
@@ -290,6 +294,7 @@ public final class TokenService extends AbstractComponent {
                                         }
                                     }
                                 });
+                        });
                     }
                 }, listener::onFailure));
             } catch (IOException e) {
@@ -315,7 +320,12 @@ public final class TokenService extends AbstractComponent {
      */
     private void checkIfTokenIsRevoked(UserToken userToken, ActionListener<UserToken> listener) {
         if (lifecycleService.isSecurityIndexAvailable()) {
-            internalClient.prepareGet(INDEX_NAME, TYPE, getDocumentId(userToken))
+            if (lifecycleService.isSecurityIndexOutOfDate()) {
+                listener.onFailure(new IllegalStateException(
+                    "Security index is not on the current version - please upgrade with the upgrade api"));
+                return;
+            }
+            internalClient.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, TYPE, getDocumentId(userToken))
                     .execute(new ActionListener<GetResponse>() {
 
                         @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.xpack.deprecation.Deprecation;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -136,6 +137,9 @@ public class KnownActionsTests extends SecurityIntegTestCase {
 
         // also load stuff from Reindex in org.elasticsearch.index.reindex package
         loadActions(collectSubClasses(Action.class, ReindexPlugin.class), actions);
+
+        // also load stuff from Deprecation in org.elasticsearch.deprecation
+        loadActions(collectSubClasses(Action.class, Deprecation.class), actions);
 
         return unmodifiableSet(actions);
     }

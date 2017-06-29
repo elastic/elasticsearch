@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.test;
 
-import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.After;
 import org.junit.Before;

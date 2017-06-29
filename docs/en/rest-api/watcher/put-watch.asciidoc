@@ -1,3 +1,4 @@
+[role="xpack"]
 [[watcher-api-put-watch]]
 === Put Watch API
 
@@ -77,17 +78,17 @@ A watch has the following fields:
 |======
 | Name              | Description
 
-| `trigger`         | The <<trigger, trigger>> that defines when the watch
-                      should run.
+| `trigger`         | The {xpack-ref}/trigger.html[trigger] that defines when
+                      the watch should run.
 
-| `input`           | The <<input, input>> that defines the input that loads the
-                      data for the watch.
+| `input`           | The {xpack-ref}/input.html[input] that defines the input
+                      that loads the data for the watch.
 
-| `condition`       | The <<condition, condition>> that defines if the actions
-                      should be run.
+| `condition`       | The {xpack-ref}/condition.html[condition] that defines if
+                      the actions should be run.
 
-| `actions`         | The list of <<actions, actions>> that will be run if the
-                      condition matches
+| `actions`         | The list of {xpack-ref}/actions.html[actions] that will be
+                      run if the condition matches
 
 | `metadata`        | Metadata json that will be copied into the history entries.
 
@@ -116,9 +117,10 @@ PUT _xpack/watcher/watch/my-watch?master_timeout=30s
 [[watcher-api-put-watch-active-state]]
 ==== Controlling Default Active State
 
-When adding a watch you can also define its initial <<watch-active-state, active state>>.
-You do that by setting the `active` parameter. The following command add a watch
-and sets it to be inactive by default:
+When adding a watch you can also define its initial
+{xpack-ref}/how-watcher-works.html#watch-active-state[active state]. You do that
+by setting the `active` parameter. The following command add a watch and sets it
+to be inactive by default:
 
 [source,js]
 --------------------------------------------------

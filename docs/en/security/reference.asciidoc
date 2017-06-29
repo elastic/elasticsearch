@@ -1,12 +1,10 @@
 [[security-reference]]
 == Reference
 * <<security-privileges, Security Privileges>>
-* <<security-settings, Security Settings>>
+* {ref}/security-settings.html[Security Settings]
 * <<security-files, Security Files>>
-* <<security-api, Security API>>
+* {ref}/security-api.html[Security API]
 
 include::reference/privileges.asciidoc[]
-
-// include::reference/settings.asciidoc[]
 
 include::reference/files.asciidoc[]

@@ -10,7 +10,6 @@ import org.apache.http.auth.UsernamePasswordCredentials;
 import org.apache.http.client.CredentialsProvider;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.BasicCredentialsProvider;
@@ -38,7 +37,7 @@ import java.security.KeyStore;
 import java.security.SecureRandom;
 import java.util.Locale;
 
-import static org.elasticsearch.test.SecuritySettingsSource.getSSLSettingsForStore;
+import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -95,10 +94,9 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
     }
 
     public void testThatConnectionToHTTPWorks() throws Exception {
-        Settings settings = Settings.builder()
-                .put(getSSLSettingsForStore("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient"))
-                .build();
-        SSLService service = new SSLService(settings, null);
+        Settings.Builder builder = Settings.builder();
+        addSSLSettingsForStore(builder, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testclient.jks", "testclient");
+        SSLService service = new SSLService(builder.build(), null);
 
         CredentialsProvider provider = new BasicCredentialsProvider();
         provider.setCredentials(AuthScope.ANY, new UsernamePasswordCredentials(nodeClientUsername(),

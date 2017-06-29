@@ -108,7 +108,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     public static final String NAME = "index";
     public static final String INDEX_NAME_PREFIX = ".security_audit_log";
-    public static final String DOC_TYPE = "event";
+    public static final String DOC_TYPE = "doc";
     public static final String INDEX_TEMPLATE_NAME = "security_audit_log";
 
     private static final int DEFAULT_BULK_SIZE = 1000;

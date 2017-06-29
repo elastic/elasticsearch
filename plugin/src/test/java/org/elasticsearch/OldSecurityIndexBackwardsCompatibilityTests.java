@@ -5,6 +5,8 @@
  */
 package org.elasticsearch;
 
+import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -68,6 +70,8 @@ import static org.hamcrest.Matchers.hasSize;
  *  <li>This document in {@code index3}: {@code {"title": "bwc_test_user should not see this index"}}</li>
  * </ul>
  **/
+// This will only work when the upgrade API is in place!
+@AwaitsFix(bugUrl = "https://github.com/elastic/dev/issues/741")
 public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
 
     protected void checkVersion(Version version) throws Exception {

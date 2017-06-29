@@ -1,3 +1,4 @@
+[role="xpack"]
 [[security-api-clear-cache]]
 === Clear Cache API
 
@@ -29,4 +30,5 @@ POST _xpack/security/realm/default_file,ldap1/_clear_cache
 ------------------------------------------------------------
 // CONSOLE
 
-For more information, see <<controlling-user-cache, Controlling the User Cache>>.
+For more information, see 
+{xpack-ref}/controlling-user-cache.html[Controlling the User Cache].

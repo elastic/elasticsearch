@@ -2,7 +2,9 @@
 [[ml-apis]]
 == Machine Learning APIs
 
-You can use APIs to perform the following {ml} activities:
+You can use the following APIs to perform {ml} activities.
+See <<ml-api-definitions, Definitions>> for the resource definitions used by the
+machine learning APIs and in advanced job configuration options in Kibana.
 
 [float]
 [[ml-api-datafeed-endpoint]]

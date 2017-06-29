@@ -151,7 +151,10 @@ cluster:admin/persistent/completion
 cluster:admin/persistent/update_status
 cluster:admin/persistent/remove
 cluster:internal/xpack/ml/job/finalize_job_execution
+cluster:admin/xpack/upgrade/info
+cluster:admin/xpack/upgrade
 cluster:admin/reindex/rethrottle
 indices:data/write/update/byquery
 indices:data/write/delete/byquery
 indices:data/write/reindex
+cluster:admin/xpack/deprecation/info

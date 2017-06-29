@@ -1,7 +1,8 @@
-[float]
-=== {component} TLS/SSL Settings
+
+==== {component} TLS/SSL Settings
 You can configure the following TLS/SSL settings. If the settings are not configured,
-the <<ssl-tls-settings, {xpack} defaults>> will be used.
+the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings]
+are used.
 
 ifdef::server[]
 +{ssl-prefix}.ssl.enabled+::
@@ -38,13 +39,12 @@ Supported cipher suites can be found in Oracle's http://docs.oracle.com/javase/8
 Java Cryptography Architecture documentation]. Defaults to the value of
 `xpack.ssl.cipher_suites`.
 
-[float]
-==== {component} TLS/SSL Key and Trusted Certificate Settings
+
+===== {component} TLS/SSL Key and Trusted Certificate Settings
 
 The following settings are used to specify a private key, certificate, and the
 trusted certificates that should be used when communicating over an SSL/TLS connection.
-If none of the settings below are specified, this will default to the <<ssl-tls-settings, {xpack}
-defaults>>.
+If none of the settings below are specified, the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings] are used.
 ifdef::server[]
 A private key and certificate must be configured.
 endif::server[]
@@ -52,9 +52,9 @@ ifndef::server[]
 A private key and certificate are optional and would be used if the server requires client authentication for PKI
 authentication.
 endif::server[]
-If none of the settings below are specified, the <<ssl-tls-settings, {xpack} defaults>> will be used.
+If none of the settings below are specified, the {ref}/security-settings.html#ssl-tls-settings[Default TLS/SSL Settings] are used.
 
-[float]
+
 ===== PEM Encoded Files
 
 When using PEM encoded files, use the following settings:
@@ -73,7 +73,6 @@ that will be presented when requested.
 +{ssl-prefix}.ssl.certificate_authorities+::
 List of paths to the PEM encoded certificate files that should be trusted.
 
-[float]
 ===== Java Keystore Files
 
 When using Java keystore files (JKS), which contain the private key, certificate

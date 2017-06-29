@@ -27,7 +27,8 @@ _realms_. {security} provides the following built-in realms:
 | `native`            | | | An internal realm where users are stored in a dedicated
                             Elasticsearch index. With this realm, users are
                             authenticated by usernames and passwords. The users
-                            are managed via the <<security-api-users,User Management API>>.
+                            are managed via the
+                            {ref}/security-api-users.html[User Management API].
 
 | `ldap`              | | | A realm that uses an external LDAP server to authenticate
                             the users. With this realm, users are authenticated by
@@ -124,9 +125,9 @@ to, from and within the cluster. This support accounts for:
 For more information, see <<encrypting-communications, Encrypting Communications>>.
 
 {security} also enables you to <<ip-filtering, configure IP Filters>> which can
-be seen as a light mechanism for node/client authentication. With IP Filtering 
-you can restrict the nodes and clients that can connect to the cluster based 
-on their IP addresses. The IP filters configuration provides whitelisting 
+be seen as a light mechanism for node/client authentication. With IP Filtering
+you can restrict the nodes and clients that can connect to the cluster based
+on their IP addresses. The IP filters configuration provides whitelisting
 and blacklisting of IPs, subnets and DNS domains.
 
 

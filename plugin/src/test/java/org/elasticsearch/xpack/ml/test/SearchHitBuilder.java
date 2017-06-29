@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.ml.test;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -20,7 +20,7 @@ import java.util.Map;
 public class SearchHitBuilder {
 
     private final SearchHit hit;
-    private final Map<String, SearchHitField> fields;
+    private final Map<String, DocumentField> fields;
 
     public SearchHitBuilder(int docId) {
         hit = new SearchHit(docId);
@@ -32,7 +32,7 @@ public class SearchHitBuilder {
     }
 
     public SearchHitBuilder addField(String name, List<Object> values) {
-        fields.put(name, new SearchHitField(name, values));
+        fields.put(name, new DocumentField(name, values));
         return this;
     }
 

@@ -72,9 +72,9 @@ xpack:
           unmapped_groups_as_roles: false
 ------------------------------------------------------------
 +
-IMPORTANT: When you configure realms in `elasticsearch.yml`, only the 
-realms you specify are used for authentication. If you also want to use the 
-`native` or `file` realms, you must include them in the realm chain. 
+IMPORTANT: When you configure realms in `elasticsearch.yml`, only the
+realms you specify are used for authentication. If you also want to use the
+`native` or `file` realms, you must include them in the realm chain.
 
 . Restart Elasticsearch
 
@@ -278,7 +278,7 @@ failover and load balancing modes of operation.
                                                         impact, `bind_dn` is not exposed via the
                                                         {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].
 | `bind_password`                          | no       | The password for the user that is used to bind to the
-                                                        LDAP. Due to its potential security impact,  
+                                                        LDAP. Due to its potential security impact,
                                                         `bind_password` is not exposed via the
                                                         {ref}/cluster-nodes-info.html#cluster-nodes-info[nodes info API].
 | `user_search.base_dn`                    | yes      | Specifies a container DN to search for users.
@@ -337,7 +337,7 @@ systems in the organization.
 
 The `ldap` realm enables you to map LDAP users to to roles via their LDAP
 groups, or other metadata. This role mapping can be configured via the
-<<security-api-role-mapping, role-mapping API>>, or by using a file stored
+{ref}/security-api-role-mapping.html[role-mapping API], or by using a file stored
 on each node. When a user authenticates with LDAP, the privileges
 for that user are the union of all privileges defined by the roles to which
 the user is mapped.
@@ -395,7 +395,7 @@ For more information, see <<mapping-roles, Mapping Users and Groups to Roles>>.
 ==== User Metadata in LDAP Realms
 When a user is authenticated via an LDAP realm, the following properties are
 populated in user's _metadata_. This metadata is returned in the
-<<security-api-authenticate,authenticate API>>, and can be used with
+{ref}/security-api-authenticate.html[authenticate API], and can be used with
 <<templating-role-query, templated queries>> in roles.
 
 |=======================

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.monitoring.test;
 
 import io.netty.util.internal.SystemPropertyUtil;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -55,6 +53,7 @@ import org.junit.Before;
 
 import java.io.BufferedWriter;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -123,6 +122,31 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         SecuritySettings.apply(securityEnabled, builder);
 
         return builder.build();
+    }
+
+    @Override
+    protected Path nodeConfigPath(final int nodeOrdinal) {
+        if (!securityEnabled) {
+            return null;
+        }
+        final Path conf = createTempDir().resolve("monitoring_security");
+        final Path xpackConf = conf.resolve(XPackPlugin.NAME);
+        try {
+            Files.createDirectories(xpackConf);
+            writeFile(xpackConf, "users", SecuritySettings.USERS);
+            writeFile(xpackConf, "users_roles", SecuritySettings.USER_ROLES);
+            writeFile(xpackConf, "roles.yml", SecuritySettings.ROLES);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return conf;
+    }
+
+    static void writeFile(final Path folder, final String name, final String content) throws IOException {
+        final Path file = folder.resolve(name);
+        try (BufferedWriter stream = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
+            Streams.copy(content, stream);
+        }
     }
 
     @Override
@@ -480,40 +504,19 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
                 ;
 
 
-        public static void apply(boolean enabled, Settings.Builder builder)  {
+        public static void apply(boolean enabled, Settings.Builder builder) {
             if (!enabled) {
                 builder.put("xpack.security.enabled", false);
                 return;
             }
-            try {
-                Path conf = createTempDir().resolve("monitoring_security");
-                Path xpackConf = conf.resolve(XPackPlugin.NAME);
-                Files.createDirectories(xpackConf);
-                writeFile(xpackConf, "users", USERS);
-                writeFile(xpackConf, "users_roles", USER_ROLES);
-                writeFile(xpackConf, "roles.yml", ROLES);
-
-                builder.put("xpack.security.enabled", true)
-                        .put("xpack.ml.autodetect_process", false)
-                        .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
-                        .put("xpack.security.authc.realms.esusers.order", 0)
-                        .put("xpack.security.audit.enabled", auditLogsEnabled)
-                        .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
-                        .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
-                        .put(Environment.PATH_CONF_SETTING.getKey(), conf);
-            } catch (IOException ex) {
-                throw new RuntimeException("failed to build settings for security", ex);
-            }
-        }
-
-        static String writeFile(Path folder, String name, String content) throws IOException {
-            Path file = folder.resolve(name);
-            try (BufferedWriter stream = Files.newBufferedWriter(file, StandardCharsets.UTF_8)) {
-                Streams.copy(content, stream);
-            } catch (IOException e) {
-                throw new ElasticsearchException("error writing file in test", e);
-            }
-            return file.toAbsolutePath().toString();
+            builder.put("xpack.security.enabled", true)
+                    .put("xpack.ml.autodetect_process", false)
+                    .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
+                    .put("xpack.security.authc.realms.esusers.order", 0)
+                    .put("xpack.security.audit.enabled", auditLogsEnabled)
+                    .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
+                    .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4);
         }
     }
+
 }

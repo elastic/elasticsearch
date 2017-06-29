@@ -221,8 +221,7 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
     }
 
     private void checkMappingUpdateWorkCorrectly(ClusterState.Builder clusterStateBuilder, Version expectedOldVersion) {
-        final int numberOfSecurityTypes = 4; // we have 4 types in the security mapping
-        final int totalNumberOfTypes = numberOfSecurityTypes ;
+        final int totalNumberOfTypes = 1;
 
         AtomicReference<Version> migratorVersionRef = new AtomicReference<>(null);
         AtomicReference<ActionListener<Boolean>> migratorListenerRef = new AtomicReference<>(null);
@@ -283,11 +282,11 @@ public class SecurityLifecycleServiceTests extends ESTestCase {
         this.listeners.clear();
         securityLifecycleService.clusterChanged(new ClusterChangedEvent("test-event",
                 clusterStateBuilder.build(), EMPTY_CLUSTER_STATE));
-        assertThat(this.listeners.size(), equalTo(numberOfSecurityTypes));
+        assertThat(this.listeners.size(), equalTo(totalNumberOfTypes));
         int counter = 0;
         for (ActionListener actionListener : this.listeners) {
             actionListener.onResponse(new TestPutMappingResponse(true));
-            if (++counter < numberOfSecurityTypes) {
+            if (++counter < totalNumberOfTypes) {
                 assertThat(securityIndex.isMappingUpdatePending(), equalTo(true));
             } else {
                 assertThat(securityIndex.isMappingUpdatePending(), equalTo(false));

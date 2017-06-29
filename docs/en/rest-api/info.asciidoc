@@ -1,18 +1,4 @@
-[[xpack-api]]
-= {xpack} APIs
-
-[partintro]
---
-{xpack} exposes a wide range of REST APIs to manage and monitor its features.
-
-* <<info-api, Info API>>
-* <<security-api, Security APIs>>
-* <<watcher-api, Watcher APIs>>
-* <<graph-api, Graph APIs>>
-* {ref}/ml-apis.html[Machine Learning APIs]
-* {ref}/ml-api-definitions.html[Definitions]
---
-
+[role="xpack"]
 [[info-api]]
 == Info API
 
@@ -112,9 +98,3 @@ The following example removes the descriptions from the response:
 GET /_xpack?human=false
 ------------------------------------------------------------
 // CONSOLE
-
-include::security.asciidoc[]
-
-include::watcher.asciidoc[]
-
-include::graph.asciidoc[]

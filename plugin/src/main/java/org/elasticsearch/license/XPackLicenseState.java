@@ -51,6 +51,12 @@ public class XPackLicenseState {
         messages.put(XPackPlugin.LOGSTASH, new String[] {
             "Logstash specific APIs are disabled. You can continue to manage and poll stored configurations"
         });
+        messages.put(XPackPlugin.DEPRECATION, new String[] {
+            "Deprecation APIs are disabled"
+        });
+        messages.put(XPackPlugin.UPGRADE, new String[] {
+            "Upgrade API is disabled"
+        });
         EXPIRATION_MESSAGES = Collections.unmodifiableMap(messages);
     }
 
@@ -173,9 +179,9 @@ public class XPackLicenseState {
 
     private static String[] logstashAcknowledgementMessages(OperationMode currentMode, OperationMode newMode) {
         switch (newMode) {
-            case TRIAL:
+            case BASIC:
                 switch (currentMode) {
-                    case BASIC:
+                    case TRIAL:
                     case STANDARD:
                     case GOLD:
                     case PLATINUM:
@@ -426,10 +432,47 @@ public class XPackLicenseState {
     }
 
     /**
-     * Logstash is always allowed as long as there is an active license
+     * Logstash is allowed as long as there is an active license of type TRIAL, STANDARD, GOLD or PLATINUM
      * @return {@code true} as long as there is a valid license
      */
     public boolean isLogstashAllowed() {
+        Status localStatus = status;
+
+        if (localStatus.active == false) {
+            return false;
+        }
+
+        switch (localStatus.mode) {
+            case TRIAL:
+            case GOLD:
+            case PLATINUM:
+            case STANDARD:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Deprecation APIs are always allowed as long as there is an active license
+     * @return {@code true} as long as there is a valid license
+     */
+    public boolean isDeprecationAllowed() {
         return status.active;
+    }
+
+    /**
+     * Determine if Upgrade API should be enabled.
+     * <p>
+     *  Upgrade API is not available in for all license types except {@link OperationMode#MISSING}
+     *
+     * @return {@code true} as long as the license is valid. Otherwise
+     *         {@code false}.
+     */
+    public boolean isUpgradeAllowed() {
+        // status is volatile
+        Status localStatus = status;
+        // Should work on all active licenses
+        return localStatus.active;
     }
 }

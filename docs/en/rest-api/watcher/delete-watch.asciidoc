@@ -1,3 +1,4 @@
+[role="xpack"]
 [[watcher-api-delete-watch]]
 === Delete Watch API
 
@@ -52,4 +53,3 @@ DELETE _xpack/watcher/watch/my_watch?master_timeout=30s
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:my_active_watch]
-

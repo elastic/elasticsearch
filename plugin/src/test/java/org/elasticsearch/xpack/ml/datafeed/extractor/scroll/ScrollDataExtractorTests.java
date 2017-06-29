@@ -10,13 +10,13 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -453,10 +453,10 @@ public class ScrollDataExtractorTests extends ESTestCase {
         List<SearchHit> hits = new ArrayList<>();
         for (int i = 0; i < timestamps.size(); i++) {
             SearchHit hit = new SearchHit(randomInt());
-            Map<String, SearchHitField> fields = new HashMap<>();
-            fields.put(extractedFields.timeField(), new SearchHitField("time", Arrays.asList(timestamps.get(i))));
-            fields.put("field_1", new SearchHitField("field_1", Arrays.asList(field1Values.get(i))));
-            fields.put("field_2", new SearchHitField("field_2", Arrays.asList(field2Values.get(i))));
+            Map<String, DocumentField> fields = new HashMap<>();
+            fields.put(extractedFields.timeField(), new DocumentField("time", Arrays.asList(timestamps.get(i))));
+            fields.put("field_1", new DocumentField("field_1", Arrays.asList(field1Values.get(i))));
+            fields.put("field_2", new DocumentField("field_2", Arrays.asList(field2Values.get(i))));
             hit.fields(fields);
             hits.add(hit);
         }

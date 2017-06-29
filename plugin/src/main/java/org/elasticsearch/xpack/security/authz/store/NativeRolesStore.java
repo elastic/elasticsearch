@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -58,6 +60,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.xpack.security.Security.setting;
+import static org.elasticsearch.xpack.security.authz.RoleDescriptor.ROLE_TYPE;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -74,8 +77,7 @@ public class NativeRolesStore extends AbstractComponent {
             Setting.intSetting(setting("authz.store.roles.index.cache.max_size"), 10000, Property.NodeScope, Property.Deprecated);
     private static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting(setting("authz.store.roles.index.cache.ttl"),
             TimeValue.timeValueMinutes(20), Property.NodeScope, Property.Deprecated);
-
-    private static final String ROLE_DOC_TYPE = "role";
+    private static final String ROLE_DOC_TYPE = "doc";
 
     private final InternalClient client;
     private final XPackLicenseState licenseState;
@@ -102,16 +104,20 @@ public class NativeRolesStore extends AbstractComponent {
             getRoleDescriptor(Objects.requireNonNull(names[0]), ActionListener.wrap(roleDescriptor ->
                     listener.onResponse(roleDescriptor == null ? Collections.emptyList() : Collections.singletonList(roleDescriptor)),
                     listener::onFailure));
+        } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
         } else {
             try {
                 QueryBuilder query;
                 if (names == null || names.length == 0) {
-                    query = QueryBuilders.matchAllQuery();
+                    query = QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE);
                 } else {
-                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(ROLE_DOC_TYPE).addIds(names));
+                    final String[] roleNames = Arrays.asList(names).stream().map(s -> getIdForUser(s)).toArray(String[]::new);
+                    query = QueryBuilders.boolQuery().filter(QueryBuilders.idsQuery(ROLE_DOC_TYPE).addIds(roleNames));
                 }
                 SearchRequest request = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                        .setTypes(ROLE_DOC_TYPE)
                         .setScroll(TimeValue.timeValueSeconds(10L))
                         .setQuery(query)
                         .setSize(1000)
@@ -131,6 +137,10 @@ public class NativeRolesStore extends AbstractComponent {
         if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("roles may not be deleted using a tribe node"));
             return;
+        } else if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
         } else if (securityLifecycleService.isSecurityIndexWriteable() == false) {
             listener.onFailure(new IllegalStateException("role cannot be deleted as service cannot write until template and " +
                     "mappings are up to date"));
@@ -139,7 +149,7 @@ public class NativeRolesStore extends AbstractComponent {
 
         try {
             DeleteRequest request = client.prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME,
-                    ROLE_DOC_TYPE, deleteRoleRequest.name()).request();
+                    ROLE_DOC_TYPE, getIdForUser(deleteRoleRequest.name())).request();
             request.setRefreshPolicy(deleteRoleRequest.getRefreshPolicy());
             client.delete(request, new ActionListener<DeleteResponse>() {
                 @Override
@@ -179,9 +189,22 @@ public class NativeRolesStore extends AbstractComponent {
 
     // pkg-private for testing
     void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
+        if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
+        }
         try {
-            client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role.getName())
-                    .setSource(role.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, false))
+            securityLifecycleService.createIndexIfNeededThenExecute(listener, () -> {
+                final XContentBuilder xContentBuilder;
+                try {
+                    xContentBuilder = role.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                client.prepareIndex(SecurityLifecycleService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, getIdForUser(role.getName()))
+                    .setSource(xContentBuilder)
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .execute(new ActionListener<IndexResponse>() {
                         @Override
@@ -195,7 +218,8 @@ public class NativeRolesStore extends AbstractComponent {
                             logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to put role [{}]", request.name()), e);
                             listener.onFailure(e);
                         }
-                    });
+                });
+            });
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to put role [{}]", request.name()), e);
             listener.onFailure(e);
@@ -210,23 +234,29 @@ public class NativeRolesStore extends AbstractComponent {
             usageStats.put("dls", false);
             listener.onResponse(usageStats);
         } else {
+            if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+                listener.onFailure(new IllegalStateException(
+                    "Security index is not on the current version - please upgrade with the upgrade api"));
+                return;
+            }
             client.prepareMultiSearch()
                     .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                            .setTypes(ROLE_DOC_TYPE)
-                            .setQuery(QueryBuilders.matchAllQuery())
+                            .setQuery(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
                             .setSize(0))
                     .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                        .setTypes(ROLE_DOC_TYPE)
                         .setQuery(QueryBuilders.boolQuery()
-                                .should(existsQuery("indices.field_security.grant"))
-                                .should(existsQuery("indices.field_security.except"))
-                                // for backwardscompat with 2.x
-                                .should(existsQuery("indices.fields")))
+                                  .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                  .must(QueryBuilders.boolQuery()
+                                        .should(existsQuery("indices.field_security.grant"))
+                                        .should(existsQuery("indices.field_security.except"))
+                                        // for backwardscompat with 2.x
+                                        .should(existsQuery("indices.fields"))))
                         .setSize(0)
                         .setTerminateAfter(1))
                     .add(client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
-                        .setTypes(ROLE_DOC_TYPE)
-                        .setQuery(existsQuery("indices.query"))
+                        .setQuery(QueryBuilders.boolQuery()
+                                    .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                    .filter(existsQuery("indices.query")))
                         .setSize(0)
                         .setTerminateAfter(1))
                     .execute(new ActionListener<MultiSearchResponse>() {
@@ -289,15 +319,22 @@ public class NativeRolesStore extends AbstractComponent {
     }
 
     private void executeGetRoleRequest(String role, ActionListener<GetResponse> listener) {
+        if (securityLifecycleService.isSecurityIndexOutOfDate()) {
+            listener.onFailure(new IllegalStateException(
+                "Security index is not on the current version - please upgrade with the upgrade api"));
+            return;
+        }
         try {
-            GetRequest request = client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role).request();
+            GetRequest request = client.prepareGet(SecurityLifecycleService.SECURITY_INDEX_NAME,
+                ROLE_DOC_TYPE, getIdForUser(role)).request();
             client.get(request, listener);
         } catch (IndexNotFoundException e) {
             logger.trace(
                     (Supplier<?>) () -> new ParameterizedMessage(
                             "unable to retrieve role [{}] since security index does not exist", role), e);
             listener.onResponse(new GetResponse(
-                    new GetResult(SecurityLifecycleService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role, -1, false, null, null)));
+                    new GetResult(SecurityLifecycleService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE,
+                                  getIdForUser(role), -1, false, null, null)));
         } catch (Exception e) {
             logger.error("unable to retrieve role", e);
             listener.onFailure(e);
@@ -332,7 +369,9 @@ public class NativeRolesStore extends AbstractComponent {
     }
 
     @Nullable
-    static RoleDescriptor transformRole(String name, BytesReference sourceBytes, Logger logger, XPackLicenseState licenseState) {
+    static RoleDescriptor transformRole(String id, BytesReference sourceBytes, Logger logger, XPackLicenseState licenseState) {
+        assert id.startsWith(ROLE_TYPE) : "[" + id + "] does not have role prefix";
+        final String name = id.substring(ROLE_TYPE.length() + 1);
         try {
             // we pass true as last parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
@@ -371,5 +410,12 @@ public class NativeRolesStore extends AbstractComponent {
     public static void addSettings(List<Setting<?>> settings) {
         settings.add(CACHE_SIZE_SETTING);
         settings.add(CACHE_TTL_SETTING);
+    }
+
+    /**
+     * Gets the document's id field for the given role name.
+     */
+    private static String getIdForUser(final String roleName) {
+        return ROLE_TYPE + "-" + roleName;
     }
 }

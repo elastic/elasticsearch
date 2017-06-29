@@ -172,7 +172,7 @@ integTestCluster {
 
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.http.ssl.keystore.path', nodeKeystore.name
-  setting 'xpack.security.http.ssl.keystore.password', 'keypass'
+  keystoreSetting 'xpack.security.http.ssl.keystore.secure_password', 'keypass'
 
   setting 'xpack.ml.enabled', 'false'
 

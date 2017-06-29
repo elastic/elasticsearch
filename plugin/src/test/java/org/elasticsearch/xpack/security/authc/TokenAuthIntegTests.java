@@ -17,6 +17,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
+import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.action.token.CreateTokenResponse;
 import org.elasticsearch.xpack.security.action.token.InvalidateTokenResponse;
 import org.elasticsearch.xpack.security.client.SecurityClient;
@@ -57,7 +58,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         InvalidateTokenResponse invalidateResponse = securityClient.prepareInvalidateToken(response.getTokenString()).get();
         assertTrue(invalidateResponse.isCreated());
         assertBusy(() -> {
-            SearchResponse searchResponse = client.prepareSearch(TokenService.INDEX_NAME)
+            SearchResponse searchResponse = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", TokenService.DOC_TYPE)))
                     .setSize(0)
                     .setTerminateAfter(1)
@@ -76,8 +77,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     assertEquals("token malformed", e.getMessage());
                 }
             }
-            client.admin().indices().prepareRefresh(TokenService.INDEX_NAME).get();
-            SearchResponse searchResponse = client.prepareSearch(TokenService.INDEX_NAME)
+            client.admin().indices().prepareRefresh(SecurityLifecycleService.SECURITY_INDEX_NAME).get();
+            SearchResponse searchResponse = client.prepareSearch(SecurityLifecycleService.SECURITY_INDEX_NAME)
                     .setSource(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", TokenService.DOC_TYPE)))
                     .setSize(0)
                     .setTerminateAfter(1)
@@ -123,7 +124,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         try {
             // this is a hack to clean up the .security index since only superusers can delete it and the default test user is not a
             // superuser since the role used there is a file based role since we cannot guarantee the superuser role is always available
-            internalClient().admin().indices().prepareDelete(TokenService.INDEX_NAME).get();
+            internalClient().admin().indices().prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME).get();
         } catch (IndexNotFoundException e) {
             logger.warn("security index does not exist", e);
         }

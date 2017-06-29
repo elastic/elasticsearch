@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.deprecation.Deprecation;
 import org.elasticsearch.xpack.extensions.XPackExtension;
 import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.graph.Graph;
@@ -99,6 +100,7 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.sql.plugin.SqlPlugin;
 import org.elasticsearch.xpack.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.upgrade.Upgrade;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.WatcherFeatureSet;
 
@@ -144,6 +146,12 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     /** Name constant for the Logstash feature. */
     public static final String LOGSTASH = "logstash";
+
+    /** Name constant for the Deprecation API feature. */
+    public static final String DEPRECATION = "deprecation";
+
+    /** Name constant for the upgrade feature. */
+    public static final String UPGRADE = "upgrade";
 
     // inside of YAML settings we still use xpack do not having handle issues with dashes
     private static final String SETTINGS_NAME = "xpack";
@@ -195,12 +203,16 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     protected Graph graph;
     protected MachineLearning machineLearning;
     protected Logstash logstash;
+    protected Deprecation deprecation;
+    protected Upgrade upgrade;
     protected SqlPlugin sql;
 
-    public XPackPlugin(Settings settings) throws IOException, DestroyFailedException, OperatorCreationException, GeneralSecurityException {
+    public XPackPlugin(
+            final Settings settings,
+            final Path configPath) throws IOException, DestroyFailedException, OperatorCreationException, GeneralSecurityException {
         this.settings = settings;
         this.transportClientMode = transportClientMode(settings);
-        this.env = transportClientMode ? null : new Environment(settings);
+        this.env = transportClientMode ? null : new Environment(settings, configPath);
         this.licenseState = new XPackLicenseState();
         this.sslService = new SSLService(settings, env);
 
@@ -211,6 +223,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         this.graph = new Graph(settings);
         this.machineLearning = new MachineLearning(settings, env, licenseState);
         this.logstash = new Logstash(settings);
+        this.deprecation = new Deprecation();
+        this.upgrade = new Upgrade(settings);
         this.sql = new SqlPlugin();
         // Check if the node is a transport client.
         if (transportClientMode == false) {
@@ -258,7 +272,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.add(internalClient);
 
         LicenseService licenseService = new LicenseService(settings, clusterService, getClock(),
-            env, resourceWatcherService, licenseState);
+                env, resourceWatcherService, licenseState);
         components.add(licenseService);
         components.add(licenseState);
 
@@ -291,6 +305,9 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         components.addAll(machineLearning.createComponents(internalClient, clusterService, threadPool, xContentRegistry));
 
         components.addAll(logstash.createComponents(internalClient, clusterService));
+
+        components.addAll(upgrade.createComponents(internalClient, clusterService, threadPool, resourceWatcherService,
+                scriptService, xContentRegistry));
 
         components.addAll(
                 sql.createComponents(internalClient, clusterService, threadPool, resourceWatcherService, scriptService, xContentRegistry));
@@ -418,6 +435,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         actions.addAll(watcher.getActions());
         actions.addAll(graph.getActions());
         actions.addAll(machineLearning.getActions());
+        actions.addAll(deprecation.getActions());
+        actions.addAll(upgrade.getActions());
         actions.addAll(sql.getActions());
         return actions;
     }
@@ -430,6 +449,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         filters.addAll(security.getActionFilters());
         filters.addAll(watcher.getActionFilters());
         filters.addAll(machineLearning.getActionFilters());
+        filters.addAll(upgrade.getActionFilters());
         return filters;
     }
 
@@ -451,6 +471,10 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         handlers.addAll(graph.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         handlers.addAll(machineLearning.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
+                indexNameExpressionResolver, nodesInCluster));
+        handlers.addAll(deprecation.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
+            indexNameExpressionResolver, nodesInCluster));
+        handlers.addAll(upgrade.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
         handlers.addAll(sql.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
                 indexNameExpressionResolver, nodesInCluster));
@@ -560,4 +584,5 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     public List<BootstrapCheck> getBootstrapChecks() {
         return security.getBootstrapChecks();
     }
+
 }

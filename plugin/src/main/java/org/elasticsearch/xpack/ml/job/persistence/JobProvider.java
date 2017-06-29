@@ -250,11 +250,7 @@ public class JobProvider {
         Iterator<MappingMetaData> mappings = indexMetaData.getMappings().valuesIt();
         while (mappings.hasNext()) {
             MappingMetaData mapping = mappings.next();
-            try {
-                numFields += countFields(mapping.sourceAsMap());
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            numFields += countFields(mapping.sourceAsMap());
         }
         return numFields + additionalFieldCount > fieldCountLimit;
     }

@@ -1,13 +1,15 @@
+[role="xpack"]
 [[notification-settings]]
-== {watcher} Settings
+=== {watcher} Settings
 
-You configure `xpack.notification` settings in `elasticsearch.yml` to 
-send set up {watcher} and send notifications via <<email-notification-settings, email>>, <<hipchat-notification-settings, HipChat>>, <<slack-notification-settings, 
+You configure `xpack.notification` settings in `elasticsearch.yml` to
+send set up {watcher} and send notifications via <<email-notification-settings, email>>,
+<<hipchat-notification-settings, HipChat>>, <<slack-notification-settings,
 Slack>>, and <<pagerduty-notification-settings, PagerDuty>>.
 
 [float]
 [[general-notification-settings]]
-=== General Watcher Settings
+==== General Watcher Settings
 `xpack.watcher.enabled`::
 Set to `false` to disable {watcher}.
 
@@ -31,159 +33,159 @@ include::ssl-settings.asciidoc[]
 
 [float]
 [[email-notification-settings]]
-=== Email Notification Settings
-You can configure the following email notification settings in 
-`elasticsearch.yml`. For more information about sending notifications 
-via email, see <<configuring-email, Configuring Email>>.
+==== Email Notification Settings
+You can configure the following email notification settings in
+`elasticsearch.yml`. For more information about sending notifications
+via email, see {xpack-ref}/actions-email.html#configuring-email-actions[Configuring Email].
 
 `xpack.notification.email.account`::
-Specifies account information for sending notifications via email. You 
+Specifies account information for sending notifications via email. You
 can specify the following email account attributes:
 
 [[email-account-attributes]]
-  `profile`;; 
-  The <<email-profile, profile>> to use to build the MIME messages
-  that are sent from the account. Valid values: `standard`, `gmail` and 
+  `profile`;;
+  The {xpack-ref}/actions-email.html#configuring-email[email profile] to use to build the MIME
+  messages that are sent from the account. Valid values: `standard`, `gmail` and
   `outlook`. Defaults to `standard`.
 
-  `email_defaults.*`;; 
-  An optional set of email attributes to use as defaults 
-  for the emails sent from the account. See <<email-action-attributes, Email Action 
-  Attributes>> for the supported attributes.
+  `email_defaults.*`;;
+  An optional set of email attributes to use as defaults
+  for the emails sent from the account. See {xpack-ref}/actions-email.html#email-action-attributes[
+  Email Action Attributes] for the supported attributes.
 
-  `smtp.auth`;; 
-  Set to `true` to attempt to authenticate the user using the 
+  `smtp.auth`;;
+  Set to `true` to attempt to authenticate the user using the
   AUTH command. Defaults to `false`.
 
-  `smtp.host`;; 
+  `smtp.host`;;
   The SMTP server to connect to. Required.
 
-  `smtp.port`;; 
+  `smtp.port`;;
   The SMTP server port to connect to. Defaults to 25.
 
-  `smtp.user`;; 
+  `smtp.user`;;
   The user name for SMTP. Required.
 
-  `smtp.password`;; 
+  `smtp.password`;;
   The password for the specified SMTP user.
 
-  `smtp.starttls.enable`;; 
-  Set to `true` to enable the use of the `STARTTLS` 
-  command (if supported by the server) to switch the connection to a 
-  TLS-protected connection before issuing any login commands. Note that 
-  an appropriate trust store must configured so that the client will 
+  `smtp.starttls.enable`;;
+  Set to `true` to enable the use of the `STARTTLS`
+  command (if supported by the server) to switch the connection to a
+  TLS-protected connection before issuing any login commands. Note that
+  an appropriate trust store must configured so that the client will
   trust the server's certificate. Defaults to `false`.
 
-  `smtp.*`;; 
-  SMTP attributes that enable fine control over the SMTP 
-  protocol when sending messages. See 
+  `smtp.*`;;
+  SMTP attributes that enable fine control over the SMTP
+  protocol when sending messages. See
   https://javaee.github.io/javamail/docs/api/com/sun/mail/smtp/package-summary.html[com.sun.mail.smtp]
-  for the full list of SMTP properties you can set. Note that all timeouts 
+  for the full list of SMTP properties you can set. Note that all timeouts
   (`writetimeout`, `connection_timeout` and `timeout`) default to 2 minutes.
 
 `xpack.notification.email.html.sanitization.allow`::
 Specifies the HTML elements that are allowed in email notifications. For
-more information, see <<email-html-sanitization, Configuring HTML 
-Sanitization Options>>. You can specify individual HTML elements
+more information, see {xpack-ref}/actions-email.html#email-html-sanitization[Configuring HTML
+Sanitization Options]. You can specify individual HTML elements
 and the following HTML feature groups:
 
 [[html-feature-groups]]
-  `_tables`;;   
-  All table related elements: `<table>`, `<th>`, `<tr>` 
+  `_tables`;;
+  All table related elements: `<table>`, `<th>`, `<tr>`
                       and `<td>`.
 
-  `_blocks`;;   
+  `_blocks`;;
   The following block elements: `<p>`, `<div>`, `<h1>`,
                       `<h2>`, `<h3>`, `<h4>`, `<h5>`, `<h6>`, `<ul>`, `<ol>`,
                       `<li>`, and `<blockquote>`.
 
-  `_formatting`;;   
+  `_formatting`;;
   The following inline formatting elements: `<b>`, `<i>`,
                       `<s>`, `<u>`, `<o>`, `<sup>`, `<sub>`, `<ins>`, `<del>`,
                       `<strong>`, `<strike>`, `<tt>`, `<code>`, `<big>`,
                       `<small>`, `<br>`, `<span>`, and `<em>`.
 
-  `_links`;;   
+  `_links`;;
   The `<a>` element with an `href` attribute that points
                       to a URL using the following protocols: `http`, `https`
                       and `mailto`.
-  
-  `_styles`;;   
+
+  `_styles`;;
   The `style` attribute on all elements. Note that CSS
                       attributes are also sanitized to prevent XSS attacks.
 
   `img`;;
-  `img:all`;;    
+  `img:all`;;
   All images (external and embedded).
 
-  `img:embedded`;;  
+  `img:embedded`;;
   Only embedded images. Embedded images can only use the
                     `cid:` URL protocol in their `src` attribute.
 
 `xpack.notification.email.html.sanitization.disallow`::
-Specifies the HTML elements that are NOT allowed in email notifications. 
-You can specify individual HTML elements and <<html-feature-groups, 
+Specifies the HTML elements that are NOT allowed in email notifications.
+You can specify individual HTML elements and <<html-feature-groups,
 HTML feature groups>>.
 
-`xpack.notification.email.html.sanitization.enabled` :: 
-Set to `false` to completely disable HTML sanitation. Not recommended. 
+`xpack.notification.email.html.sanitization.enabled` ::
+Set to `false` to completely disable HTML sanitation. Not recommended.
 Defaults to `true`.
 
 [float]
 [[hipchat-notification-settings]]
-=== HipChat Notification Settings
-You can configure the following HipChat notification settings in 
-`elasticsearch.yml`. For more information about sending notifications 
-via HipChat, see <<configuring-hipchat, Configuring HipChat>>.
+==== HipChat Notification Settings
+You can configure the following HipChat notification settings in
+`elasticsearch.yml`. For more information about sending notifications
+via HipChat, see {xpack-ref}/actions-hipchat.html#configuring-hipchat-actions[Configuring HipChat].
 
 `xpack.notification.hipchat` ::
 Specifies account information for sending notifications
 via HipChat. You can specify the following HipChat account attributes:
 
 [[hipchat-account-attributes]]
-  `profile`;; 
-  The HipChat account profile to use: `integration`, 
+  `profile`;;
+  The HipChat account profile to use: `integration`,
                       `user`, or `v1`. Required.
 
-  `auth_token`;; 
-  The authentication token to use to access 
+  `auth_token`;;
+  The authentication token to use to access
                       the HipChat API. Required.
 
-  `host`;; 
+  `host`;;
   The HipChat server hostname. Defaults to `api.hipchat.com`.
-  
-  `port`;; 
+
+  `port`;;
   The HipChat server port number. Defaults to 443.
 
-  `room`;; 
-  The room you want to send messages to. Must be specified 
-                      if the `profile` is set to `integration`. Not valid for  
+  `room`;;
+  The room you want to send messages to. Must be specified
+                      if the `profile` is set to `integration`. Not valid for
                       the `user` or `vi` profiles.
-  
-  `user`;; 
-  The HipChat user account to use to send messages. 
+
+  `user`;;
+  The HipChat user account to use to send messages.
                       Specified as an email address. Must be specified if the
-                      `profile` is set to `user`. Not valid for the `integration` 
+                      `profile` is set to `user`. Not valid for the `integration`
                       or `v1` profiles.
 
-  `message.format`;; 
-  The format of the message: `text` or `html`. 
+  `message.format`;;
+  The format of the message: `text` or `html`.
                       Defaults to `html`.
 
-  `message.color`;; 
-  The background color of the notification in the room. 
+  `message.color`;;
+  The background color of the notification in the room.
                       Defaults to  `yellow`.
-  `message.notify`;; 
+  `message.notify`;;
   Indicates whether people in the room should be
                       actively notified. Defaults to `false`.
 
 
 [float]
 [[slack-notification-settings]]
-=== Slack Notification Settings
+==== Slack Notification Settings
 You can configure the following Slack notification settings in
 `elasticsearch.yml`. For more information about sending notifications
-via Slack, see  <<configuring-slack, Configuring Slack>>.
+via Slack, see  {xpack-ref}/actions-slack.html#configuring-slack-actions[Configuring Slack].
 
 `xpack.notification.slack` ::
 Specifies account information for sending notifications
@@ -221,10 +223,10 @@ via Slack. You can specify the following Slack account attributes:
 
 [float]
 [[jira-notification-settings]]
-=== Jira Notification Settings
+==== Jira Notification Settings
 You can configure the following Jira notification settings in
 `elasticsearch.yml`. For more information about using notifications
-to create issues in Jira, see  <<configuring-jira, Configuring Jira>>.
+to create issues in Jira, see  {xpack-ref}/actions-jira.html#configuring-jira-actions[Configuring Jira].
 
 `xpack.notification.jira` ::
 Specifies account information for using notifications to create
@@ -232,7 +234,7 @@ issues in Jira. You can specify the following Jira account attributes:
 
 [[jira-account-attributes]]
 
-  `url`;; 
+  `url`;;
   The URL of the Jira Software server. Required.
 
   `user`;;
@@ -243,16 +245,16 @@ issues in Jira. You can specify the following Jira account attributes:
 
   `issue_defaults`;;
   Default fields values for the issue created in Jira. See
-  <<jira-action-attributes, Jira Action Attributes>> for more information.
+  {xpack-ref}/actions-jira.html#jira-action-attributes[Jira Action Attributes] for more information.
   Optional.
 
 
 [float]
 [[pagerduty-notification-settings]]
-=== PagerDuty Notification Settings
-You can configure the following PagerDuty notification settings in 
-`elasticsearch.yml`. For more information about sending notifications 
-via PagerDuty, see  <<configuring-pagerduty, Configuring PagerDuty>>.
+==== PagerDuty Notification Settings
+You can configure the following PagerDuty notification settings in
+`elasticsearch.yml`. For more information about sending notifications
+via PagerDuty, see  {xpack-ref}/actions-pagerduty.html#configuring-pagerduty-actions[Configuring PagerDuty].
 
 
 [[pagerduty-account-attributes]]
@@ -263,34 +265,34 @@ via PagerDuty. You can specify the following PagerDuty account attributes:
   `name`;;
   A name for the PagerDuty account associated with the API key you
   are using to access PagerDuty. Required.
-                                    
+
   `service_api_key`;;
    The https://developer.pagerduty.com/documentation/rest/authentication[
    PagerDuty API key] to use to access PagerDuty. Required.
 
-  
+
   `event_defaults`;;
-  Default values for  <<pagerduty-event-trigger-incident-attributes,PagerDuty event attributes>>. Optional.
+  Default values for  {xpack-ref}/actions-pagerduty.html#pagerduty-event-trigger-incident-attributes[
+  PagerDuty event attributes]. Optional.
 
         `description`::
         A string that contains the default description for PagerDuty events.
         If no default is configured, each PagerDuty action must specify a
         `description`.
-        
-        `incident_key`:: 
+
+        `incident_key`::
         A string that contains the default incident key to use when sending
         PagerDuty events.
-        
+
         `client`::
         A string that specifies the default monitoring client.
 
         `client_url`::
-        The URL of the default monitoring client. 
-        
+        The URL of the default monitoring client.
+
         `event_type`::
         The default event type. Valid values: `trigger`,`resolve`, `acknowledge`.
-        
-        `attach_payload`::
-        Whether or not to provide the watch payload as context for 
-        the event by default. Valid values: `true`, `false`.
 
+        `attach_payload`::
+        Whether or not to provide the watch payload as context for
+        the event by default. Valid values: `true`, `false`.

@@ -69,5 +69,5 @@ to specify a different configuration directory, the command would look like:
 
 [source, sh]
 ----------------------------------------------------------------------
-$ bin/x-pack/migrate native -U http://localhost:9200 -u elastic -p changeme -Epath.conf=/etc/elasticsearch
+$ bin/x-pack/migrate native -U http://localhost:9200 -u elastic -p changeme --path.conf /etc/elasticsearch
 ----------------------------------------------------------------------

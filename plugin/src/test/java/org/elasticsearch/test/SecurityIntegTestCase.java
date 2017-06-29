@@ -9,6 +9,8 @@ import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
@@ -19,6 +21,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -32,7 +35,6 @@ import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -51,6 +53,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
+import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingAndTemplateSufficientToRead;
 import static org.elasticsearch.xpack.security.SecurityLifecycleService.securityIndexMappingAndTemplateUpToDate;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
@@ -198,11 +201,22 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-                .put(customSecuritySettingsSource.nodeSettings(nodeOrdinal))
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 // Disable native ML autodetect_process as the c++ controller won't be available
-                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false)
-                .build();
+                .put(MachineLearning.AUTODETECT_PROCESS.getKey(), false);
+        Settings customSettings = customSecuritySettingsSource.nodeSettings(nodeOrdinal);
+        builder.put(customSettings.getAsMap()); // handle secure settings separately
+        Settings.Builder customBuilder = Settings.builder().put(customSettings);
+        if (customBuilder.getSecureSettings() != null) {
+            SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
+                secureSettings.merge((MockSecureSettings) customBuilder.getSecureSettings()));
+        }
+        return builder.build();
+    }
+
+    @Override
+    protected Path nodeConfigPath(int nodeOrdinal) {
+        return customSecuritySettingsSource.nodeConfigPath(nodeOrdinal);
     }
 
     @Override
@@ -467,14 +481,17 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     protected void deleteSecurityIndex() {
         try {
             // this is a hack to clean up the .security index since only the XPack user can delete it
-            internalClient().admin().indices().prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME).get();
+            final IndicesAliasesRequest request = new IndicesAliasesRequest();
+            final AliasActions aliasActions = AliasActions.removeIndex().index(SECURITY_INDEX_NAME);
+            request.addAliasAction(aliasActions);
+            internalClient().admin().indices().aliases(request).actionGet();
         } catch (IndexNotFoundException e) {
             // ignore it since not all tests create this index...
         }
     }
 
     private static Index resolveSecurityIndex(MetaData metaData) {
-        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(SecurityLifecycleService.SECURITY_INDEX_NAME);
+        final AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(SECURITY_INDEX_NAME);
         if (aliasOrIndex != null) {
             return aliasOrIndex.getIndices().get(0).getIndex();
         }

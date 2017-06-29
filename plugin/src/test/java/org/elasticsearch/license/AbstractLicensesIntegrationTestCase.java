@@ -75,6 +75,10 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
         latch.await();
     }
 
+    protected void putLicenseTombstone() throws InterruptedException {
+        putLicense(LicensesMetaData.LICENSE_TOMBSTONE);
+    }
+
     protected void wipeAllLicenses() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(1);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());

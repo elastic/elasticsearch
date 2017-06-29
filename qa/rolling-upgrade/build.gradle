@@ -148,7 +148,7 @@ subprojects {
       dataDir = { nodeNumber -> oldClusterTest.nodes[1].dataDir }
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.ssl.keystore.password', 'testnode'
+      keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
       setting 'node.attr.upgraded', 'first'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
@@ -176,7 +176,7 @@ subprojects {
       dataDir = { nodeNumber -> oldClusterTest.nodes[0].dataDir }
       waitCondition = waitWithAuth
       setting 'xpack.ssl.keystore.path', 'testnode.jks'
-      setting 'xpack.ssl.keystore.password', 'testnode'
+      keystoreSetting 'xpack.ssl.keystore.secure_password', 'testnode'
       dependsOn copyTestNodeKeystore
       extraConfigFile 'testnode.jks', new File(outputDir + '/testnode.jks')
       if (withSystemKey) {

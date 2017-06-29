@@ -9,6 +9,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -164,25 +165,28 @@ public class HttpClientTests extends ESTestCase {
 
     public void testHttps() throws Exception {
         Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/truststore-testnode-only.jks");
-
+        MockSecureSettings secureSettings = new MockSecureSettings();
         Settings settings;
         if (randomBoolean()) {
+            secureSettings.setString("xpack.http.ssl.truststore.secure_password", "truststore-testnode-only");
             settings = Settings.builder()
                     .put("xpack.http.ssl.truststore.path", resource.toString())
-                    .put("xpack.http.ssl.truststore.password", "truststore-testnode-only")
+                    .setSecureSettings(secureSettings)
                     .build();
         } else {
+            secureSettings.setString("xpack.ssl.truststore.secure_password", "truststore-testnode-only");
             settings = Settings.builder()
                     .put("xpack.ssl.truststore.path", resource.toString())
-                    .put("xpack.ssl.truststore.password", "truststore-testnode-only")
+                    .setSecureSettings(secureSettings)
                     .build();
         }
         httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
-
+        secureSettings = new MockSecureSettings();
         // We can't use the client created above for the server since it is only a truststore
+        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings2 = Settings.builder()
                 .put("xpack.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
-                .put("xpack.ssl.keystore.password", "testnode")
+                .setSecureSettings(secureSettings)
                 .build();
 
         TestsSSLService sslService = new TestsSSLService(settings2, environment);
@@ -191,28 +195,32 @@ public class HttpClientTests extends ESTestCase {
 
     public void testHttpsDisableHostnameVerification() throws Exception {
         Path resource = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.jks");
-
         Settings settings;
         if (randomBoolean()) {
+            MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString("xpack.http.ssl.truststore.secure_password", "testnode-no-subjaltname");
             settings = Settings.builder()
                     .put("xpack.http.ssl.truststore.path", resource.toString())
-                    .put("xpack.http.ssl.truststore.password", "testnode-no-subjaltname")
                     .put("xpack.http.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE))
+                    .setSecureSettings(secureSettings)
                     .build();
         } else {
+            MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString("xpack.ssl.truststore.secure_password", "testnode-no-subjaltname");
             settings = Settings.builder()
                     .put("xpack.ssl.truststore.path", resource.toString())
-                    .put("xpack.ssl.truststore.password", "testnode-no-subjaltname")
                     .put("xpack.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE))
+                    .setSecureSettings(secureSettings)
                     .build();
         }
         httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
-
+        MockSecureSettings secureSettings = new MockSecureSettings();
         // We can't use the client created above for the server since it only defines a truststore
+        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode-no-subjaltname");
         Settings settings2 = Settings.builder()
                 .put("xpack.ssl.keystore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.jks"))
-                .put("xpack.ssl.keystore.password", "testnode-no-subjaltname")
+                .setSecureSettings(secureSettings)
                 .build();
 
         TestsSSLService sslService = new TestsSSLService(settings2, environment);
@@ -221,9 +229,11 @@ public class HttpClientTests extends ESTestCase {
 
     public void testHttpsClientAuth() throws Exception {
         Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
                 .put("xpack.ssl.keystore.path", resource.toString())
-                .put("xpack.ssl.keystore.password", "testnode")
+                .setSecureSettings(secureSettings)
                 .build();
 
         TestsSSLService sslService = new TestsSSLService(settings, environment);
@@ -417,7 +427,7 @@ public class HttpClientTests extends ESTestCase {
             });
             HttpRequest request = HttpRequest.builder("localhost", serverSocket.getLocalPort()).path("/").build();
             expectThrows(ClientProtocolException.class, () -> httpClient.execute(request));
-            assertThat("A server side exception occured, but shouldnt", hasExceptionHappened.get(), is(nullValue()));
+            assertThat("A server side exception occured, but shouldn't", hasExceptionHappened.get(), is(nullValue()));
         } finally {
             terminate(executor);
         }

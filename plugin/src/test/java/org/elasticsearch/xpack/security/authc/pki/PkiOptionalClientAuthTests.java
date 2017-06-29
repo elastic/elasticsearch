@@ -11,6 +11,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -42,7 +43,7 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         String randomClientPortRange = randomClientPort + "-" + (randomClientPort+100);
 
-        return Settings.builder()
+        Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .put("xpack.security.http.ssl.enabled", true)
@@ -53,12 +54,15 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
                 .put("xpack.security.authc.realms.pki1.order", "1")
                 .put("xpack.security.authc.realms.pki1.truststore.path",
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/truststore-testnode-only.jks"))
-                .put("xpack.security.authc.realms.pki1.truststore.password", "truststore-testnode-only")
                 .put("xpack.security.authc.realms.pki1.files.role_mapping", getDataPath("role_mapping.yml"))
                 .put("transport.profiles.want_client_auth.port", randomClientPortRange)
                 .put("transport.profiles.want_client_auth.bind_host", "localhost")
-                .put("transport.profiles.want_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.OPTIONAL)
-                .build();
+                .put("transport.profiles.want_client_auth.xpack.security.ssl.client_authentication", SSLClientAuth.OPTIONAL);
+
+        SecuritySettingsSource.addSecureSettings(builder, secureSettings ->
+                secureSettings.setString("xpack.security.authc.realms.pki1.truststore.secure_password", "truststore-testnode-only"));
+        return builder.build();
+
     }
 
     @Override

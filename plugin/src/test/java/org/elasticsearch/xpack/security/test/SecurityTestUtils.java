@@ -32,23 +32,21 @@ import static org.elasticsearch.xpack.security.SecurityLifecycleService.SECURITY
 
 public class SecurityTestUtils {
 
-    public static Path createFolder(Path parent, String name) {
-        Path createdFolder = parent.resolve(name);
+    public static void createFolder(Path path) {
         //the directory might exist e.g. if the global cluster gets restarted, then we recreate the directory as well
-        if (Files.exists(createdFolder)) {
+        if (Files.exists(path)) {
             try {
-                FileSystemUtils.deleteSubDirectories(createdFolder);
+                FileSystemUtils.deleteSubDirectories(path);
             } catch (IOException e) {
-                throw new RuntimeException("could not delete existing temporary folder: " + createdFolder.toAbsolutePath(), e);
+                throw new RuntimeException("could not delete existing temporary folder: " + path.toAbsolutePath(), e);
             }
         } else {
             try {
-                Files.createDirectories(createdFolder);
+                Files.createDirectories(path);
             } catch (IOException e) {
-                throw new RuntimeException("could not create temporary folder: " + createdFolder.toAbsolutePath());
+                throw new RuntimeException("could not create temporary folder: " + path.toAbsolutePath());
             }
         }
-        return createdFolder;
     }
 
     public static String writeFile(Path folder, String name, byte[] content) {

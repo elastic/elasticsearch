@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.settings.MockSecureSettings;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -31,6 +33,7 @@ import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.support.IndexLifecycleManager;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -109,7 +112,7 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                 try {
                     // this is a hack to clean up the .security index since only the XPack user or superusers can delete it
                     cluster2.getInstance(InternalClient.class)
-                            .admin().indices().prepareDelete(SecurityLifecycleService.SECURITY_INDEX_NAME).get();
+                            .admin().indices().prepareDelete(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get();
                 } catch (IndexNotFoundException e) {
                     // ignore it since not all tests create this index...
                 }
@@ -149,6 +152,18 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
             tribe1Defaults.put("tribe.t1." + entry.getKey(), entry.getValue());
             tribe2Defaults.put("tribe.t2." + entry.getKey(), entry.getValue());
         }
+        // TODO: rethink how these settings are generated for tribes once we support more than just string settings...
+        MockSecureSettings secureSettingsTemplate =
+            (MockSecureSettings) Settings.builder().put(cluster2SettingsSource.nodeSettings(0)).getSecureSettings();
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        if (secureSettingsTemplate != null) {
+            for (String settingName : secureSettingsTemplate.getSettingNames()) {
+                String settingValue = secureSettingsTemplate.getString(settingName).toString();
+                secureSettings.setString(settingName, settingValue);
+                secureSettings.setString("tribe.t1." + settingName, settingValue);
+                secureSettings.setString("tribe.t2." + settingName, settingValue);
+            }
+        }
 
         Settings merged = Settings.builder()
                 .put(internalCluster().getDefaultSettings())
@@ -161,11 +176,12 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
                 .put(tribe2Defaults.build())
                 .put(settings)
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
+                .setSecureSettings(secureSettings)
                 .build();
 
         final List<Class<? extends Plugin>> classpathPlugins = new ArrayList<>(nodePlugins());
         classpathPlugins.addAll(getMockPlugins());
-        tribeNode = new MockNode(merged, classpathPlugins).start();
+        tribeNode = new MockNode(merged, classpathPlugins, cluster2SettingsSource.nodeConfigPath(0)).start();
         tribeClient = getClientWrapper().apply(tribeNode.client());
         ClusterService tribeClusterService = tribeNode.injector().getInstance(ClusterService.class);
         ClusterState clusterState = tribeClusterService.state();
@@ -241,9 +257,9 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         List<String> shouldFailUsers = new ArrayList<>();
         final Client preferredClient = "t1".equals(preferredTribe) ? cluster1Client : cluster2Client;
         // always ensure the index exists on all of the clusters in this test
-        assertAcked(internalClient().admin().indices().prepareCreate(SecurityLifecycleService.SECURITY_INDEX_NAME).get());
+        assertAcked(internalClient().admin().indices().prepareCreate(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get());
         assertAcked(cluster2.getInstance(InternalClient.class).admin().indices()
-                .prepareCreate(SecurityLifecycleService.SECURITY_INDEX_NAME).get());
+                .prepareCreate(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get());
         for (int i = 0; i < randomUsers; i++) {
             final String username = "user" + i;
             Client clusterClient = randomBoolean() ? cluster1Client : cluster2Client;
@@ -329,9 +345,9 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         List<String> shouldFailRoles = new ArrayList<>();
         final Client preferredClient = "t1".equals(preferredTribe) ? cluster1Client : cluster2Client;
         // always ensure the index exists on all of the clusters in this test
-        assertAcked(internalClient().admin().indices().prepareCreate(SecurityLifecycleService.SECURITY_INDEX_NAME).get());
+        assertAcked(internalClient().admin().indices().prepareCreate(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get());
         assertAcked(cluster2.getInstance(InternalClient.class).admin().indices()
-                .prepareCreate(SecurityLifecycleService.SECURITY_INDEX_NAME).get());
+                .prepareCreate(IndexLifecycleManager.INTERNAL_SECURITY_INDEX).get());
 
         for (int i = 0; i < randomRoles; i++) {
             final String rolename = "role" + i;

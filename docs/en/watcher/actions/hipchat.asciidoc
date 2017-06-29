@@ -232,8 +232,8 @@ xpack.notification.hipchat:
       room: monitoring
 --------------------------------------------------
 
-You can also specify defaults for the <<hipchat-account-attributes,
-message attributes>>:
+You can also specify defaults for the {ref}/notification-settings.html#hipchat-account-attributes[
+message attributes]:
 
 [source,yaml]
 --------------------------------------------------
@@ -295,8 +295,8 @@ xpack.notification.hipchat:
       auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
 --------------------------------------------------
 
-You can also specify defaults for the <<hipchat-account-attributes,
-message attributes>>:
+You can also specify defaults for the <{ref}/notification-settings.html#hipchat-account-attributes[
+message attributes]:
 
 [source,yaml]
 --------------------------------------------------
@@ -360,8 +360,8 @@ xpack.notification.hipchat:
       auth_token: 3eLB803Nyp7UBmegJwP1rMdUmzk5HqnzJCgflrhv
 --------------------------------------------------
 
-You can also specify defaults for the <<hipchat-account-attributes,
-message attributes>>.
+You can also specify defaults for the {ref}/notification-settings.html#hipchat-account-attributes[
+message attributes].
 
 [source,yaml]
 --------------------------------------------------

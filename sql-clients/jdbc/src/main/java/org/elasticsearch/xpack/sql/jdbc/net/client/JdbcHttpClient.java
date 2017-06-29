@@ -136,7 +136,7 @@ public class JdbcHttpClient implements Closeable {
     }
 
     private InfoResponse fetchServerInfo() throws SQLException {
-        BytesArray ba = http.put(out -> ProtoUtils.write(out, new InfoRequest(System.getProperties())));
+        BytesArray ba = http.put(out -> ProtoUtils.write(out, new InfoRequest()));
         return doIO(ba, in -> readResponse(in, Action.INFO));
     }
 

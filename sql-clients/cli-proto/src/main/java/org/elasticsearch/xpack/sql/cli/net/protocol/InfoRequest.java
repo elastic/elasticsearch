@@ -17,13 +17,16 @@ public class InfoRequest extends Request {
 
     public final String jvmVersion, jvmVendor, jvmClassPath, osName, osVersion;
 
-    public InfoRequest(Properties props) {
+    /**
+     * Build the info request containing information about the current JVM.
+     */
+    public InfoRequest() {
         super(Action.INFO);
-        jvmVersion = props.getProperty("java.version", EMPTY);
-        jvmVendor = props.getProperty("java.vendor", EMPTY);
-        jvmClassPath = props.getProperty("java.class.path", EMPTY);
-        osName = props.getProperty("os.name", EMPTY);
-        osVersion = props.getProperty("os.version", EMPTY);
+        jvmVersion = System.getProperty("java.version", EMPTY);
+        jvmVendor = System.getProperty("java.vendor", EMPTY);
+        jvmClassPath = System.getProperty("java.class.path", EMPTY);
+        osName = System.getProperty("os.name", EMPTY);
+        osVersion = System.getProperty("os.version", EMPTY);
     }
 
     public InfoRequest(String jvmVersion, String jvmVendor, String jvmClassPath, String osName, String osVersion) {

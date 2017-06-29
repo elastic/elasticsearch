@@ -1,0 +1,383 @@
+[[release-notes-5.5.0]]
+== 5.5.0 Release Notes
+
+See https://www.elastic.co/blog/multi-data-path-bug-in-elasticsearch-5-3-0[Multi data path bug in Elasticsearch 5.3.0].
+
+Also see <<breaking-changes-5.5>>.
+
+
+[[breaking-5.5.0]]
+[float]
+=== Breaking changes
+
+Plugins::
+* Remove hidden file leniency from spawner {pull}24079[#24079] (issue: {issue}23980[#23980])
+
+Settings::
+* Remove support for default settings {pull}24093[#24093] (issues: {issue}23981[#23981], {issue}24052[#24052], {issue}24074[#24074])
+
+
+
+[[breaking-java-5.5.0]]
+[float]
+=== Breaking Java changes
+
+Aggregations::
+* Remove the unused SignificantTerms.compareTerm() method {pull}24714[#24714]
+* Make SignificantTerms.Bucket an interface rather than an abstract class {pull}24670[#24670] (issue: {issue}24492[#24492])
+* Make Terms.Bucket an interface rather than an abstract class {pull}24492[#24492]
+
+Plugin Delete By Query::
+* Move DeleteByQuery and Reindex requests into core {pull}24578[#24578]
+
+
+
+[[deprecation-5.5.0]]
+[float]
+=== Deprecations
+
+Index APIs::
+* Deprecated use of + in index expressions {pull}24585[#24585] (issue: {issue}24515[#24515])
+
+Packaging::
+* Add deprecation warnings for $ES_USER and $ES_GROUP {pull}24190[#24190] (issue: {issue}23989[#23989])
+
+Plugin Repository S3::
+* S3 Repository: Deprecate remaining `repositories.s3.*` settings {pull}24144[#24144] (issue: {issue}24143[#24143])
+
+REST::
+* Add deprecation logging for comma-separated feature parsing {pull}25040[#25040] (issue: {issue}24723[#24723])
+
+Scripting::
+* Scripting: Deprecate native scripts {pull}24692[#24692] (issue: {issue}19966[#19966])
+* Scripting: Deprecate index lookup {pull}24691[#24691] (issue: {issue}19359[#19359])
+* Deprecate Fine Grain Settings for Scripts {pull}24573[#24573] (issue: {issue}24532[#24532])
+* Scripting: Deprecate file script settings {pull}24555[#24555] (issue: {issue}21798[#21798])
+* Scripting: Deprecate file scripts {pull}24552[#24552] (issue: {issue}21798[#21798])
+
+Settings::
+* Settings: Update settings deprecation from yml to yaml {pull}24663[#24663] (issue: {issue}19391[#19391])
+* Deprecate settings in .yml and .json {pull}24059[#24059] (issue: {issue}19391[#19391])
+
+Tribe Node::
+* Deprecate tribe service {pull}24598[#24598] (issue: {issue}24581[#24581])
+
+
+
+[[feature-5.5.0]]
+[float]
+=== New features
+
+Mapping::
+* Add new ip_range field type {pull}24433[#24433]
+
+Plugin Analysis ICU::
+* Add ICUCollationFieldMapper {pull}24126[#24126]
+
+
+
+[[enhancement-5.5.0]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Add superset size to Significant Term REST response {pull}24865[#24865]
+* Add document count to Matrix Stats aggregation response {pull}24776[#24776]
+*  Share XContent rendering code in significant terms aggregations {pull}24677[#24677]
+* Add `count` to rest output of `geo_centroid` {pull}24387[#24387] (issue: {issue}24366[#24366])
+* Allow scripted metric agg to access `_score` {pull}24295[#24295]
+
+Aliases::
+* Handle multiple aliases in _cat/aliases api {pull}23698[#23698] (issue: {issue}23661[#23661])
+
+Circuit Breakers::
+* Closing a ReleasableBytesStreamOutput closes the underlying BigArray {pull}23941[#23941]
+
+Cluster::
+* Add a cluster block that allows to delete indices that are read-only {pull}24678[#24678]
+* Extract a common base class to allow services to listen to remote cluster config updates {pull}24367[#24367]
+
+Core::
+* Explicitly reject duplicate data paths {pull}25178[#25178]
+* Use SPI in High Level Rest Client to load XContent parsers {pull}25097[#25097]
+* Improve bootstrap checks error messages {pull}24548[#24548]
+* Regex upgrades {pull}24316[#24316] (issue: {issue}24226[#24226])
+* Detect remnants of path.data/default.path.data bug {pull}24099[#24099] (issues: {issue}23981[#23981], {issue}24052[#24052], {issue}24074[#24074], {issue}24093[#24093])
+
+Engine::
+* Add refresh stats tracking for realtime get {pull}25052[#25052] (issue: {issue}24806[#24806])
+* Engine: store maxUnsafeAutoIdTimestamp in commit {pull}24149[#24149]
+
+Exceptions::
+* IllegalStateException: Only duplicated jar instead of classpath {pull}24953[#24953]
+
+Index APIs::
+* Open and close index to honour allow_no_indices option {pull}24222[#24222] (issue: {issue}24031[#24031])
+
+Ingest::
+* add `exclude_keys` option to KeyValueProcessor {pull}24876[#24876] (issue: {issue}23856[#23856])
+
+Inner Hits::
+* Reuse inner hit query weight {pull}24571[#24571] (issue: {issue}23917[#23917])
+
+Internal::
+* "shard started" should show index and shard ID {pull}25157[#25157]
+* Add the ability to set eager_global_ordinals in the new parent-join field {pull}25019[#25019]
+* Add assertions enabled helper {pull}24834[#24834]
+* Add cross cluster support to `_field_caps` {pull}24463[#24463] (issue: {issue}24334[#24334])
+* Log JVM arguments on startup {pull}24451[#24451]
+* Preserve cluster alias throughout search execution to lookup nodes by cluster and ID {pull}24438[#24438]
+* Move RemoteClusterService into TransportService {pull}24424[#24424]
+* Enum related performance additions. {pull}24274[#24274] (issue: {issue}24226[#24226])
+
+Java API::
+* Always Accumulate Transport Exceptions {pull}25017[#25017] (issue: {issue}23099[#23099])
+
+Java High Level REST Client::
+* Add doc_count to ParsedMatrixStats {pull}24952[#24952] (issue: {issue}24776[#24776])
+* Add fromXContent method to ClearScrollResponse {pull}24909[#24909]
+* ClearScrollRequest to implement ToXContentObject {pull}24907[#24907]
+* SearchScrollRequest to implement ToXContentObject {pull}24906[#24906] (issue: {issue}3889[#3889])
+* Backport aggs parsers for high level REST Client {pull}24844[#24844] (issues: {issue}22278[#22278], {issue}22668[#22668], {issue}23826[#23826], {issue}23965[#23965], {issue}23973[#23973], {issue}23974[#23974], {issue}24085[#24085], {issue}24155[#24155], {issue}24160[#24160], {issue}24162[#24162], {issue}24182[#24182], {issue}24183[#24183], {issue}24208[#24208], {issue}24213[#24213], {issue}24239[#24239], {issue}24284[#24284], {issue}24291[#24291], {issue}24312[#24312], {issue}24330[#24330], {issue}24365[#24365], {issue}24371[#24371], {issue}24442[#24442], {issue}24521[#24521], {issue}24524[#24524], {issue}24559[#24559], {issue}24564[#24564], {issue}24583[#24583], {issue}24589[#24589], {issue}24648[#24648], {issue}24667[#24667], {issue}24675[#24675], {issue}24682[#24682], {issue}24700[#24700], {issue}24706[#24706], {issue}24717[#24717], {issue}24720[#24720], {issue}24738[#24738], {issue}24746[#24746], {issue}24789[#24789], {issue}24791[#24791], {issue}24794[#24794], {issue}24822[#24822], {issue}24824[#24824])
+* Add utility method to parse named XContent objects with typed prefix {pull}24240[#24240] (issue: {issue}22965[#22965])
+
+Logging::
+* Warn on not enough masters during election {pull}20063[#20063] (issue: {issue}8362[#8362])
+
+Mapping::
+* Do not index `_type` when there is at most one type. {pull}24363[#24363]
+* Only allow one type on 6.0 indices {pull}24317[#24317] (issue: {issue}15613[#15613])
+* token_count type : add an option to count tokens (fix #23227) {pull}24175[#24175] (issue: {issue}23227[#23227])
+
+Network::
+* Disable the Netty recycler in the client {pull}24793[#24793] (issues: {issue}22452[#22452], {issue}24721[#24721])
+* Remove Netty logging hack {pull}24653[#24653] (issues: {issue}24469[#24469], {issue}5624[#5624], {issue}6568[#6568], {issue}6696[#6696])
+* Set available processors for Netty {pull}24420[#24420] (issue: {issue}6224[#6224])
+
+Packaging::
+* Set number of processes in systemd unit file {pull}24970[#24970] (issue: {issue}20874[#20874])
+
+Plugin Lang Painless::
+* Optimize instance creation in LambdaBootstrap {pull}24618[#24618]
+* Allow painless to load stored fields {pull}24290[#24290]
+
+Plugin Repository GCS::
+* GCS Repository: Add secure storage of credentials {pull}24697[#24697]
+
+Plugins::
+* Add purge option to remove plugin CLI {pull}24981[#24981]
+* Move ReindexAction class to core {pull}24684[#24684] (issue: {issue}24578[#24578])
+* Plugins: Add support for platform specific plugins {pull}24265[#24265]
+
+REST::
+* Make ObjectParser support string to boolean conversion {pull}24668[#24668] (issue: {issue}21802[#21802])
+* Allow passing single scrollID in clear scroll API body {pull}24242[#24242] (issue: {issue}24233[#24233])
+
+Scripting::
+* Add Ability to Specify No Types/Contexts Allowed For Scripts {pull}24782[#24782]
+* Add New Security Script Settings {pull}24637[#24637] (issue: {issue}24532[#24532])
+
+Search::
+* Eliminate array access in tight loops when profiling is enabled. {pull}24959[#24959]
+* Support Multiple Inner Hits on a Field Collapse Request {pull}24517[#24517]
+* Expand cross cluster search indices for search requests to the concrete index or to it's aliases {pull}24502[#24502]
+* Remove leniency when merging fetched hits in a search response phase {pull}24158[#24158]
+
+Search Templates::
+* Add max concurrent searches to multi template search {pull}24255[#24255] (issues: {issue}20912[#20912], {issue}21907[#21907])
+
+Settings::
+* Emit settings deprecation logging at most once {pull}25457[#25457]
+
+Snapshot/Restore::
+* Improves snapshot logging and snapshot deletion error handling {pull}25264[#25264]
+* Enhances get snapshots API to allow retrieving repository index only {pull}24477[#24477] (issue: {issue}24288[#24288])
+* Ensure every repository has an incompatible-snapshots blob {pull}24403[#24403] (issue: {issue}22267[#22267])
+* Change snapshot status error to use generic SnapshotException {pull}24355[#24355] (issue: {issue}24225[#24225])
+
+Stats::
+* Show JVM arguments {pull}24450[#24450]
+
+Suggesters::
+* Provide informative error message in case of unknown suggestion context. {pull}24241[#24241]
+* Allow different data types for category in Context suggester {pull}23491[#23491] (issue: {issue}22358[#22358])
+
+Upgrade API::
+* Allow plugins to upgrade templates and index metadata on startup {pull}24379[#24379]
+
+
+
+[[bug-5.5.0]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Terms aggregation should remap global ordinal buckets when a sub-aggregator is used to sort the terms {pull}24941[#24941] (issue: {issue}24788[#24788])
+* Correctly set doc_count when MovAvg "predicts" values on existing buckets {pull}24892[#24892] (issue: {issue}24327[#24327])
+* InternalPercentilesBucket should not rely on ordered percents array {pull}24336[#24336] (issue: {issue}24331[#24331])
+* Align behavior HDR percentiles iterator with percentile() method {pull}24206[#24206]
+* DateHistogram: Fix `extended_bounds` with `offset` {pull}23789[#23789] (issue: {issue}23776[#23776])
+* Fix ArrayIndexOutOfBoundsException when no ranges are specified in the query {pull}23241[#23241] (issue: {issue}22881[#22881])
+
+Aliases::
+* GET aliases should 404 if aliases are missing {pull}25043[#25043] (issue: {issue}24644[#24644])
+
+Allocation::
+* Discard stale node responses from async shard fetching {pull}24434[#24434] (issue: {issue}24007[#24007])
+
+Analysis::
+* PatternAnalyzer should lowercase wildcard queries when `lowercase` is true. {pull}24967[#24967]
+
+Bulk::
+* Reject empty IDs {pull}24118[#24118] (issue: {issue}24116[#24116])
+
+Cache::
+* fix bug of weight computation {pull}24856[#24856]
+
+Circuit Breakers::
+* Checks the circuit breaker before allocating bytes for a new big array {pull}25010[#25010] (issue: {issue}24790[#24790])
+
+Core::
+* Fix cache expire after access {pull}24546[#24546]
+* Check for default.path.data included in path.data {pull}24285[#24285] (issue: {issue}24283[#24283])
+
+Geo::
+* Fix GeoPoint FieldStats ternary logic bug {pull}25211[#25211] (issue: {issue}24275[#24275])
+* Fix GeoDistance Ordinal for BWC {pull}25033[#25033] (issue: {issue}24816[#24816])
+
+Highlighting::
+* Higlighters: Fix MultiPhrasePrefixQuery rewriting {pull}25103[#25103] (issue: {issue}25088[#25088])
+
+Index APIs::
+* Rollover max docs should only count primaries {pull}24977[#24977] (issue: {issue}24217[#24217])
+* Fix legacy GeoPointField decoding in FieldStats {pull}24534[#24534] (issue: {issue}24275[#24275])
+* Validates updated settings on closed indices {pull}24487[#24487] (issue: {issue}23787[#23787])
+* Fixes restore of a shrunken index when initial recovery node is gone {pull}24322[#24322] (issue: {issue}24257[#24257])
+
+Ingest::
+* fix grok's pattern parsing to validate pattern names in expression {pull}25063[#25063] (issue: {issue}22831[#22831])
+* Fix floating-point error when DateProcessor parses UNIX {pull}24947[#24947]
+* add option for _ingest.timestamp to use new ZonedDateTime (5.x backport) {pull}24030[#24030] (issues: {issue}23168[#23168], {issue}23174[#23174])
+
+Inner Hits::
+* Fix Source filtering in new field collapsing feature {pull}24068[#24068] (issue: {issue}24063[#24063])
+
+Internal::
+* Fix race condition in RemoteClusterConnection node supplier {pull}25432[#25432]
+* Initialise empty lists in BaseTaskResponse constructor {pull}25290[#25290]
+* Extract a common base class for scroll executions {pull}24979[#24979] (issue: {issue}16555[#16555])
+* Ensure remote cluster is connected before fetching `_field_caps` {pull}24845[#24845] (issue: {issue}24763[#24763])
+* Obey lock order if working with store to get metadata snapshots {pull}24787[#24787] (issue: {issue}24481[#24481])
+* Remove `_UNRELEASED` from Version constants for released versions {pull}24764[#24764]
+* Fix `_field_caps` serialization in order to support cross cluster search {pull}24722[#24722]
+* Avoid race when shutting down controller processes {pull}24579[#24579]
+* Fix NPE if field caps request has a field that exists not in all indices {pull}24504[#24504]
+
+More Like This::
+* Pass over _routing value with more_like_this items to be retrieved {pull}24679[#24679] (issue: {issue}23699[#23699])
+
+Nested Docs::
+* In case of a single type the _id field should be added to the nested document instead of _uid field {pull}25149[#25149]
+
+Network::
+* Ensure pending transport handlers are invoked for all channel failures {pull}25150[#25150]
+* Notify onConnectionClosed rather than onNodeDisconnect to prune transport handlers {pull}24639[#24639] (issues: {issue}24557[#24557], {issue}24575[#24575], {issue}24632[#24632])
+* SniffNodesSampler should close connection after handling responses {pull}24632[#24632] (issues: {issue}22828[#22828], {issue}24557[#24557], {issue}24575[#24575])
+
+Packaging::
+* When stopping via systemd only kill the JVM, not its control group {pull}25195[#25195]
+* Handle parentheses in batch file path {pull}24731[#24731] (issue: {issue}24712[#24712])
+
+Percolator::
+* Fix range queries with date range based on current time in percolator queries. {pull}24666[#24666] (issue: {issue}23921[#23921])
+* For legacy indices rewrite percolator query upon percolation time {pull}24617[#24617] (issue: {issue}24485[#24485])
+* Fix memory leak when percolator uses bitset or field data cache {pull}24115[#24115] (issue: {issue}24108[#24108])
+
+Plugin Lang Painless::
+* painless: Fix method references to ctor with the new LambdaBootstrap and cleanup code {pull}24406[#24406]
+* Fix Painless Lambdas for Java 9 {pull}24070[#24070] (issue: {issue}23473[#23473])
+
+Plugins::
+* X-Pack plugin download fails on Windows desktop [ISSUE] {pull}24570[#24570]
+* Fix plugin installation permissions {pull}24527[#24527] (issue: {issue}24480[#24480])
+* Fix delete of plugin directory on remove plugin {pull}24266[#24266] (issue: {issue}24252[#24252])
+* Use a marker file when removing a plugin {pull}24252[#24252] (issue: {issue}24231[#24231])
+* Remove hidden file leniency from plugin service {pull}23982[#23982] (issue: {issue}12465[#12465])
+
+Query DSL::
+* Thread falls into infinite loop when processing Indices query {pull}24736[#24736] (issue: {issue}24735[#24735])
+
+REST::
+* Fix handling of exceptions thrown on HEAD requests {pull}25172[#25172] (issue: {issue}21125[#21125])
+* Fixed NPEs caused by requests without content. {pull}23497[#23497] (issue: {issue}24701[#24701])
+* Fix get mappings HEAD requests {pull}23192[#23192] (issue: {issue}21125[#21125])
+
+Recovery::
+* Provide target allocation id as part of start recovery request {pull}24333[#24333] (issue: {issue}24167[#24167])
+
+Reindex API::
+* Reindex: don't duplicate _source parameter {pull}24629[#24629] (issue: {issue}24628[#24628])
+* Add qa module that tests reindex-from-remote against pre-5.0 versions of Elasticsearch {pull}24561[#24561] (issues: {issue}23828[#23828], {issue}24520[#24520])
+
+Scroll::
+* Fix single shard scroll within a cluster with nodes in version `>= 5.3` and `<= 5.3` {pull}24512[#24512]
+
+Search::
+* Adds check for negative search request size [OPEN] {pull}25397[#25397] (issue: {issue}22530[#22530])
+* Do not search locally if remote index pattern resolves to no indices {pull}25436[#25436] (issue: {issue}25426[#25426])
+* Make sure range queries are correctly profiled. {pull}25108[#25108]
+* Compute the took time of the query after the expand phase of field collapsing {pull}24902[#24902] (issue: {issue}24900[#24900])
+* Fix RangeFieldMapper rangeQuery to properly handle relations {pull}24808[#24808] (issue: {issue}24744[#24744])
+* Fix ExpandSearchPhase when response contains no hits {pull}24688[#24688] (issue: {issue}24672[#24672])
+* Include all aliases including non-filtering in  `_search_shards` response {pull}24489[#24489]
+* Cross Cluster Search: propagate original indices per cluster {pull}24328[#24328]
+
+Search Templates::
+* No longer add illegal content type option to stored search templates {pull}24251[#24251] (issue: {issue}24227[#24227])
+
+Settings::
+* Keystore CLI should use the AddFileKeyStoreCommand for files {pull}25298[#25298]
+* Settings: Fix setting groups to include secure settings {pull}25076[#25076] (issue: {issue}25069[#25069])
+* Allow resetting settings that use an IP validator {pull}24713[#24713] (issue: {issue}24709[#24709])
+* Do not set path.data in environment if not set {pull}24132[#24132] (issue: {issue}24099[#24099])
+
+Snapshot/Restore::
+* Output all empty snapshot info fields if in verbose mode {pull}25455[#25455] (issue: {issue}24477[#24477])
+* Remove redundant and broken MD5 checksum from repository-s3 {pull}25270[#25270] (issue: {issue}25269[#25269])
+* Consolidates the logic for cleaning up snapshots on master election {pull}24894[#24894] (issue: {issue}24605[#24605])
+* Removes completed snapshot from cluster state on master change {pull}24605[#24605] (issue: {issue}24452[#24452])
+* Fix inefficient (worst case exponential) loading of snapshot repository {pull}24510[#24510] (issue: {issue}24509[#24509])
+* Fixes maintaining the shards a snapshot is waiting on {pull}24289[#24289]
+
+Stats::
+* _nodes/stats should not fail due to concurrent AlreadyClosedException {pull}25016[#25016] (issue: {issue}23099[#23099])
+* Avoid double decrement on current query counter {pull}24922[#24922] (issues: {issue}22996[#22996], {issue}24872[#24872])
+
+Suggesters::
+* Fix context suggester to read values from keyword type field {pull}24200[#24200] (issue: {issue}24129[#24129])
+
+Task Manager::
+* Task Management: Make TaskInfo parsing forwards compatible {pull}24073[#24073] (issue: {issue}23250[#23250])
+
+
+
+[[regression-5.5.0]]
+[float]
+=== Regressions
+
+Highlighting::
+* Fix Fast Vector Highlighter NPE on match phrase prefix {pull}25116[#25116] (issue: {issue}25088[#25088])
+
+
+
+[[upgrade-5.5.0]]
+[float]
+=== Upgrades
+
+Core::
+* Upgrade to Lucene 6.5.1 {pull}24399[#24399]
+
+Network::
+* Upgrade to Netty 4.1.11.Final {pull}24652[#24652]
+* Upgrade Netty to 4.1.10.Final {pull}24414[#24414]
+

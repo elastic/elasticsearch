@@ -1,13 +1,18 @@
+"bad cluster shard allocation explanation request":
+  - skip:
+      version: " - 5.5.99"
+      reason: response status on bad request was changed starting in 5.6.0
+
+  - do:
+      # there aren't any unassigned shards to explain
+      catch: /illegal_argument_exception/
+      cluster.allocation_explain: {}
+
 ---
 "cluster shard allocation explanation test":
   - skip:
       version: " - 5.1.99"
-      reason: allocation explain api format is different in versions < 5.2.0
-
-  - do:
-      # there aren't any unassigned shards to explain
-      catch: /illegal_state_exception/
-      cluster.allocation_explain: {}
+      reason: explain API response output was changed starting in 5.2.0
 
   - do:
       indices.create:
@@ -37,7 +42,7 @@
 "cluster shard allocation explanation test with empty request":
   - skip:
       version: " - 5.1.99"
-      reason: allocation explain api format is different in versions < 5.2.0
+      reason: explain API response output was changed starting in 5.2.0
 
   - do:
       indices.create:

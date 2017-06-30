@@ -151,7 +151,8 @@ public class TransportClusterAllocationExplainAction
                     DiscoveryNode primaryNode = allocation.nodes().resolveNode(request.getCurrentNode());
                     // the primary is assigned to a node other than the node specified in the request
                     if (primaryNode.getId().equals(foundShard.currentNodeId()) == false) {
-                        throw new IllegalArgumentException("unable to find primary shard assigned to node [" + request.getCurrentNode() + "]");
+                        throw new IllegalArgumentException(
+                                "unable to find primary shard assigned to node [" + request.getCurrentNode() + "]");
                     }
                 }
             } else {

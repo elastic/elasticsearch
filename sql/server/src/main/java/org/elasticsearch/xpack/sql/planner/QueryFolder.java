@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -53,8 +48,12 @@ import org.elasticsearch.xpack.sql.rule.RuleExecutor;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
-import static java.util.Collections.emptyMap;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.and;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toAgg;
 import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toQuery;
@@ -83,7 +82,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         return Arrays.asList(rollup, finish);
     }
 
-    private class FoldProject extends FoldingRule<ProjectExec> {
+    private static class FoldProject extends FoldingRule<ProjectExec> {
 
         @Override
         protected PhysicalPlan rule(ProjectExec project) {
@@ -141,7 +140,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private class FoldFilter extends FoldingRule<FilterExec> {
+    private static class FoldFilter extends FoldingRule<FilterExec> {
         @Override
         protected PhysicalPlan rule(FilterExec plan) {
 
@@ -214,7 +213,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private class FoldAggregate extends FoldingRule<AggregateExec> {
+    private static class FoldAggregate extends FoldingRule<AggregateExec> {
         @Override
         protected PhysicalPlan rule(AggregateExec a) {
 
@@ -380,7 +379,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private class FoldOrderBy extends FoldingRule<OrderExec> {
+    private static class FoldOrderBy extends FoldingRule<OrderExec> {
         @Override
         protected PhysicalPlan rule(OrderExec plan) {
 
@@ -444,7 +443,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     }
 
 
-    private class FoldLimit extends FoldingRule<LimitExec> {
+    private static class FoldLimit extends FoldingRule<LimitExec> {
 
         @Override
         protected PhysicalPlan rule(LimitExec plan) {
@@ -459,7 +458,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private class FoldQueryless extends FoldingRule<PhysicalPlan> {
+    private static class FoldQueryless extends FoldingRule<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(PhysicalPlan plan) {
@@ -470,7 +469,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private class PlanOutputToQueryRef extends FoldingRule<EsQueryExec> {
+    private static class PlanOutputToQueryRef extends FoldingRule<EsQueryExec> {
         @Override
         protected PhysicalPlan rule(EsQueryExec exec) {
             QueryContainer qContainer = exec.queryContainer();

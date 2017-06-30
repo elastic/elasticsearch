@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression;
 
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
+
+import java.util.List;
 
 abstract class UnresolvedNamedExpression extends NamedExpression implements Unresolvable {
 

@@ -19,15 +19,6 @@
 
 package org.elasticsearch.repositories.hdfs;
 
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.AbstractFileSystem;
-import org.apache.hadoop.fs.FileContext;
-import org.apache.hadoop.fs.UnsupportedFileSystemException;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
-
-import javax.security.auth.Subject;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -37,7 +28,18 @@ import java.security.AccessController;
 import java.security.Principal;
 import java.security.PrivilegedAction;
 import java.util.Collections;
+import javax.security.auth.Subject;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.AbstractFileSystem;
+import org.apache.hadoop.fs.FileContext;
+import org.apache.hadoop.fs.UnsupportedFileSystemException;
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.repositories.ESBlobStoreContainerTestCase;
+
+@ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
 public class HdfsBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
     @Override

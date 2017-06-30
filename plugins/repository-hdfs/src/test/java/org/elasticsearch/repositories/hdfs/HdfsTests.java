@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.greaterThan;
 
 import java.util.Collection;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -35,6 +36,7 @@ import org.elasticsearch.repositories.hdfs.HdfsPlugin;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+@ThreadLeakFilters(filters = {HdfsClientThreadLeakFilter.class})
 public class HdfsTests extends ESSingleNodeTestCase {
 
     @Override

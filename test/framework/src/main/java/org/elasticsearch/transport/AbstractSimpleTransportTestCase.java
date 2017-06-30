@@ -30,12 +30,15 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -54,6 +57,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
@@ -2418,5 +2423,156 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } finally {
             serviceC.close();
         }
+    }
+
+    public void testTransportProfilesWithPortAndHost() {
+        boolean doIPV6 = NetworkUtils.SUPPORTS_V6;
+        List<String> hosts;
+        if (doIPV6) {
+            hosts = Arrays.asList("_local:ipv6_", "_local:ipv4_");
+        } else {
+            hosts = Arrays.asList("_local:ipv4_");
+        }
+        try (MockTransportService serviceC = build(Settings.builder()
+            .put("name", "TS_TEST")
+            .put("transport.profiles.default.bind_host", "_local:ipv4_")
+            .put("transport.profiles.some_profile.port", "8900-9000")
+            .put("transport.profiles.some_profile.bind_host", "_local:ipv4_")
+            .put("transport.profiles.some_other_profile.port", "8700-8800")
+            .putArray("transport.profiles.some_other_profile.bind_host", hosts)
+            .putArray("transport.profiles.some_other_profile.publish_host", "_local:ipv4_")
+            .build(), version0, null, true)) {
+
+            serviceC.start();
+            serviceC.acceptIncomingRequests();
+            Map<String, BoundTransportAddress> profileBoundAddresses = serviceC.transport.profileBoundAddresses();
+            assertTrue(profileBoundAddresses.containsKey("some_profile"));
+            assertTrue(profileBoundAddresses.containsKey("some_other_profile"));
+            assertTrue(profileBoundAddresses.get("some_profile").publishAddress().getPort() >= 8900);
+            assertTrue(profileBoundAddresses.get("some_profile").publishAddress().getPort() < 9000);
+            assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().getPort() >= 8700);
+            assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().getPort() < 8800);
+            assertEquals(profileBoundAddresses.get("some_profile").boundAddresses().length, 1);
+            if (doIPV6) {
+                assertTrue(profileBoundAddresses.get("some_other_profile").boundAddresses().length >= 2);
+                int ipv4 = 0;
+                int ipv6 = 0;
+                for (TransportAddress addr : profileBoundAddresses.get("some_other_profile").boundAddresses()) {
+                    if (addr.address().getAddress() instanceof Inet4Address) {
+                        ipv4++;
+                    } else if (addr.address().getAddress() instanceof Inet6Address) {
+                        ipv6++;
+                    } else {
+                        fail("what kind of address is this: " + addr.address().getAddress());
+                    }
+                }
+                assertTrue("num ipv4 is wrong: " + ipv4, ipv4 >= 1);
+                assertTrue("num ipv6 is wrong: " + ipv6, ipv6 >= 1);
+            } else {
+                assertEquals(profileBoundAddresses.get("some_other_profile").boundAddresses().length, 1);
+            }
+            assertTrue(profileBoundAddresses.get("some_other_profile").publishAddress().address().getAddress() instanceof Inet4Address);
+        }
+    }
+
+    public void testProfileSettings() {
+        boolean enable = randomBoolean();
+        Settings globalSettings = Settings.builder()
+            .put("network.tcp.no_delay", enable)
+            .put("network.tcp.keep_alive", enable)
+            .put("network.tcp.reuse_address", enable)
+            .put("network.tcp.send_buffer_size", "43000b")
+            .put("network.tcp.receive_buffer_size", "42000b")
+            .put("network.publish_host", "the_publish_host")
+            .put("network.bind_host", "the_bind_host")
+            .build();
+
+        Settings globalSettings2 = Settings.builder()
+            .put("network.tcp.no_delay", !enable)
+            .put("network.tcp.keep_alive", !enable)
+            .put("network.tcp.reuse_address", !enable)
+            .put("network.tcp.send_buffer_size", "4b")
+            .put("network.tcp.receive_buffer_size", "3b")
+            .put("network.publish_host", "another_publish_host")
+            .put("network.bind_host", "another_bind_host")
+            .build();
+
+        Settings transportSettings = Settings.builder()
+            .put("transport.tcp_no_delay", enable)
+            .put("transport.tcp.keep_alive", enable)
+            .put("transport.tcp.reuse_address", enable)
+            .put("transport.tcp.send_buffer_size", "43000b")
+            .put("transport.tcp.receive_buffer_size", "42000b")
+            .put("transport.publish_host", "the_publish_host")
+            .put("transport.tcp.port", "9700-9800")
+            .put("transport.bind_host", "the_bind_host")
+            .put(globalSettings2)
+            .build();
+
+        Settings transportSettings2 = Settings.builder()
+            .put("transport.tcp_no_delay", !enable)
+            .put("transport.tcp.keep_alive", !enable)
+            .put("transport.tcp.reuse_address", !enable)
+            .put("transport.tcp.send_buffer_size", "5b")
+            .put("transport.tcp.receive_buffer_size", "6b")
+            .put("transport.publish_host", "another_publish_host")
+            .put("transport.tcp.port", "9702-9802")
+            .put("transport.bind_host", "another_bind_host")
+            .put(globalSettings2)
+            .build();
+        Settings defaultProfileSettings = Settings.builder()
+            .put("transport.profiles.default.tcp_no_delay", enable)
+            .put("transport.profiles.default.tcp_keep_alive", enable)
+            .put("transport.profiles.default.reuse_address", enable)
+            .put("transport.profiles.default.send_buffer_size", "43000b")
+            .put("transport.profiles.default.receive_buffer_size", "42000b")
+            .put("transport.profiles.default.port", "9700-9800")
+            .put("transport.profiles.default.publish_host", "the_publish_host")
+            .put("transport.profiles.default.bind_host", "the_bind_host")
+            .put("transport.profiles.default.publish_port", 42)
+            .put(randomBoolean() ? transportSettings2 : globalSettings2) // ensure that we have profile precedence
+            .build();
+
+        Settings profileSettings = Settings.builder()
+            .put("transport.profiles.some_profile.tcp_no_delay", enable)
+            .put("transport.profiles.some_profile.tcp_keep_alive", enable)
+            .put("transport.profiles.some_profile.reuse_address", enable)
+            .put("transport.profiles.some_profile.send_buffer_size", "43000b")
+            .put("transport.profiles.some_profile.receive_buffer_size", "42000b")
+            .put("transport.profiles.some_profile.port", "9700-9800")
+            .put("transport.profiles.some_profile.publish_host", "the_publish_host")
+            .put("transport.profiles.some_profile.bind_host", "the_bind_host")
+            .put("transport.profiles.some_profile.publish_port", 42)
+            .put(randomBoolean() ? transportSettings2 : globalSettings2) // ensure that we have profile precedence
+            .put(randomBoolean() ? defaultProfileSettings : Settings.EMPTY)
+            .build();
+
+        Settings randomSettings = randomFrom(random(), globalSettings, transportSettings, profileSettings);
+        ClusterSettings clusterSettings = new ClusterSettings(randomSettings, ClusterSettings
+            .BUILT_IN_CLUSTER_SETTINGS);
+        clusterSettings.validate(randomSettings);
+        TcpTransport.ProfileSettings settings = new TcpTransport.ProfileSettings(
+            randomSettings, "some_profile");
+
+        assertEquals(enable, settings.tcpNoDelay);
+        assertEquals(enable, settings.tcpKeepAlive);
+        assertEquals(enable, settings.reuseAddress);
+        assertEquals(43000, settings.sendBufferSize.getBytes());
+        assertEquals(42000, settings.receiveBufferSize.getBytes());
+        if (randomSettings == profileSettings) {
+            assertEquals(42, settings.publishPort);
+        } else {
+            assertEquals(-1, settings.publishPort);
+        }
+
+        if (randomSettings == globalSettings) { // publish host has no global fallback for the profile since we later resolve it based on
+            // the bound address
+            assertEquals(Collections.emptyList(), settings.publishHosts);
+            assertEquals("9300-9400", settings.portOrRange); // no global port range
+        } else {
+            assertEquals(Collections.singletonList("the_publish_host"), settings.publishHosts);
+            assertEquals("9700-9800", settings.portOrRange);
+        }
+        assertEquals(Collections.singletonList("the_bind_host"), settings.bindHosts);
     }
 }

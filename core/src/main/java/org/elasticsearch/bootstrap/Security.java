@@ -23,6 +23,7 @@ import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -324,21 +325,19 @@ final class Security {
         final Permissions policy,
         final Settings settings) {
         // transport is way over-engineered
-        final Map<String, Settings> profiles = new HashMap<>(TcpTransport.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups());
-        profiles.putIfAbsent(TcpTransport.DEFAULT_PROFILE, Settings.EMPTY);
+        Set<String> profiles = TcpTransport.getProfiles(settings);
 
         // loop through all profiles and add permissions for each one, if it's valid; otherwise Netty transports are lenient and ignores it
-        for (final Map.Entry<String, Settings> entry : profiles.entrySet()) {
-            final Settings profileSettings = entry.getValue();
-            final String name = entry.getKey();
+        for (final String profile : profiles) {
 
             // a profile is only valid if it's the default profile, or if it has an actual name and specifies a port
             // TODO: can this leniency be removed?
+            Setting<String> portSetting = TcpTransport.PORT_PROFILE.getConcreteSettingForNamespace(profile);
             final boolean valid =
-                TcpTransport.DEFAULT_PROFILE.equals(name) ||
-                    (name != null && name.length() > 0 && profileSettings.get("port") != null);
+                TcpTransport.DEFAULT_PROFILE.equals(profile) ||
+                    (profile != null && profile.length() > 0 && portSetting.exists(settings));
             if (valid) {
-                final String transportRange = profileSettings.get("port");
+                final String transportRange = portSetting.get(settings);
                 if (transportRange != null) {
                     addSocketPermissionForPortRange(policy, transportRange);
                 } else {

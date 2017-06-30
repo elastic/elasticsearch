@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.session;
 
-import java.util.function.Function;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
@@ -19,6 +17,9 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.Planner;
+
+import java.util.TimeZone;
+import java.util.function.Function;
 
 public class SqlSession {
 
@@ -78,12 +79,12 @@ public class SqlSession {
         return optimizer;
     }
 
-    public LogicalPlan parse(String sql) {
-        return parser.createStatement(sql);
+    public LogicalPlan parse(String sql, TimeZone timeZone) {
+        return parser.createStatement(sql, timeZone);
     }
 
-    public Expression expression(String expression) {
-        return parser.createExpression(expression);
+    public Expression expression(String expression, TimeZone timeZone) {
+        return parser.createExpression(expression, timeZone);
     }
 
     public LogicalPlan analyzedPlan(LogicalPlan plan, boolean verify) {
@@ -98,8 +99,8 @@ public class SqlSession {
         return planner.plan(optimizedPlan(optimized), verify);
     }
 
-    public PhysicalPlan executable(String sql) {
-        return physicalPlan(parse(sql), true);
+    public PhysicalPlan executable(String sql, TimeZone timeZone) {
+        return physicalPlan(parse(sql, timeZone), true);
     }
 
     public SqlSettings defaults() {

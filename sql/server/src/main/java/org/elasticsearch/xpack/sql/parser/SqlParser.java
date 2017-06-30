@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
-import java.util.function.Function;
-
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CommonToken;
 import org.antlr.v4.runtime.CommonTokenStream;
@@ -18,33 +16,33 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.misc.Pair;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.xpack.sql.parser.SqlBaseBaseListener;
-import org.elasticsearch.xpack.sql.parser.SqlBaseLexer;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.plan.logical.LogicalPlan;
+
+import java.util.TimeZone;
+import java.util.function.Function;
 
 public class SqlParser {
 
     private static final Logger log = Loggers.getLogger(SqlParser.class);
 
-    public LogicalPlan createStatement(String sql) {
+    public LogicalPlan createStatement(String sql, TimeZone timeZone) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", sql);
         }
-        return invokeParser("statement", sql, SqlBaseParser::singleStatement);
+        return invokeParser("statement", sql, timeZone, SqlBaseParser::singleStatement);
     }
 
-    public Expression createExpression(String expression) {
+    public Expression createExpression(String expression, TimeZone timeZone) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as expression: {}", expression);
         }
 
-        return invokeParser("expression", expression, SqlBaseParser::singleExpression);
+        return invokeParser("expression", expression, timeZone, SqlBaseParser::singleExpression);
     }
 
     @SuppressWarnings("unchecked")
-    private <T> T invokeParser(String name, String sql, Function<SqlBaseParser, ParserRuleContext> parseFunction) {
+    private <T> T invokeParser(String name, String sql, TimeZone timeZone, Function<SqlBaseParser, ParserRuleContext> parseFunction) {
         try {
             SqlBaseLexer lexer = new SqlBaseLexer(new CaseInsensitiveStream(sql));
 
@@ -75,7 +73,7 @@ public class SqlParser {
 
             postProcess(lexer, parser, tree);
 
-            return (T) new AstBuilder().visit(tree);
+            return (T) new AstBuilder(timeZone).visit(tree);
         }
 
         catch (StackOverflowError e) {

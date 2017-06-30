@@ -1,4 +1,4 @@
-"birth_date","emp_no","first_name","gender","hire_date","last_name"
+birth_date,emp_no,first_name,gender,hire_date,last_name
 1953-09-02T00:00:00Z,10001,Georgi,M,1986-06-26T00:00:00Z,Facello
 1964-06-02T00:00:00Z,10002,Bezalel,F,1985-11-21T00:00:00Z,Simmel
 1959-12-03T00:00:00Z,10003,Parto,M,1986-08-28T00:00:00Z,Bamford

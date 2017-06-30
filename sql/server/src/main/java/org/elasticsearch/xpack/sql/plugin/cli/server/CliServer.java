@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
 import org.elasticsearch.xpack.sql.plugin.cli.http.CliServerProtoUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.util.TimeZone;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -60,8 +61,9 @@ public class CliServer {
 
     public void command(CommandRequest req, ActionListener<Response> listener) {
         final long start = System.currentTimeMillis();
-        
-        executor.sql(req.command, wrap(
+
+        // TODO support non-utc for cli server
+        executor.sql(req.command, TimeZone.getTimeZone("UTC"), wrap(
                 c -> {
                     long stop = System.currentTimeMillis();
                     String requestId = EMPTY;

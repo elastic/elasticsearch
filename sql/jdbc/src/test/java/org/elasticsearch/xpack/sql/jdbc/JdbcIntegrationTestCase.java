@@ -33,6 +33,7 @@ import java.nio.file.Path;
 import java.sql.DriverManager;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.TimeZone;
 import java.util.function.Function;
 
 import static java.util.Collections.emptySet;
@@ -117,7 +118,8 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
 
     @Before
     public void setupJdbcTemplate() throws Exception {
-        j = new JdbcTemplate(() -> DriverManager.getConnection("jdbc:es://" + System.getProperty("tests.rest.cluster")));
+        j = new JdbcTemplate(() -> DriverManager.getConnection(
+                "jdbc:es://" + System.getProperty("tests.rest.cluster") + "/?time_zone=" + TimeZone.getDefault().getID()));
     }
 
     protected void index(String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {

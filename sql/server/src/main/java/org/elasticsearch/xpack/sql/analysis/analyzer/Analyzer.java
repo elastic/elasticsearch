@@ -281,7 +281,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             else if (plan instanceof Aggregate) {
                 Aggregate a = (Aggregate) plan;
                 if (hasStar(a.aggregates())) {
-                    return new Aggregate(a.location(), a.child(), a.groupings(), expandProjections(a.aggregates(), a.child()));
+                    return new Aggregate(a.location(), a.child(), a.groupings(),
+                            expandProjections(a.aggregates(), a.child()));
                 }
                 // if the grouping is unresolved but the aggs are, use the latter to resolve the former
                 // solves the case of queries declaring an alias in SELECT and referring to it in GROUP BY
@@ -640,7 +641,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         // TODO: might be removed
                         // dedicated count optimization
                         if (name.toUpperCase(Locale.ROOT).equals("COUNT")) {
-                            uf = new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), singletonList(Literal.of(uf.arguments().get(0).location(), Integer.valueOf(1))));
+                            uf = new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), uf.timeZone(),
+                                    singletonList(Literal.of(uf.arguments().get(0).location(), Integer.valueOf(1))));
                         }
                     }
 
@@ -916,7 +918,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     // Replace the resolved expression 
                     if (!resolvedAggExp.isEmpty()) {
                         // push them down to the agg
-                        Aggregate newAgg = new Aggregate(agg.location(), agg.child(), agg.groupings(), combine(agg.aggregates(), resolvedAggExp));
+                        Aggregate newAgg = new Aggregate(agg.location(), agg.child(), agg.groupings(),
+                                combine(agg.aggregates(), resolvedAggExp));
                         // wire it up to the filter with the new condition
                         Filter newFilter = new Filter(f.location(), newAgg, analyzedFilterCondition);
                         // and finally project the fluff away

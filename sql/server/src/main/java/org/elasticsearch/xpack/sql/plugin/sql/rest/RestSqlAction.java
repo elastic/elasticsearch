@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.plugin.sql.rest;
 
 import java.io.IOException;
+import java.util.TimeZone;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.client.node.NodeClient;
@@ -35,17 +36,16 @@ public class RestSqlAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        Payload p = null;
+        Payload p;
         
         try {
             p = Payload.from(request);
         } catch (IOException ex) {
             return channel -> error(channel, ex);
         }
-        
-        final String query = p.query;
 
-        return channel -> client.executeLocally(SqlAction.INSTANCE, new SqlRequest(query, null), new CursorRestResponseListener(channel));
+        return channel -> client.executeLocally(SqlAction.INSTANCE, new SqlRequest(p.query, p.timeZone, null),
+                new CursorRestResponseListener(channel));
     }
     
     private void error(RestChannel channel, Exception ex) {
@@ -69,9 +69,11 @@ public class RestSqlAction extends BaseRestHandler {
 
         static {
             PARSER.declareString(Payload::setQuery, new ParseField("query"));
+            PARSER.declareString(Payload::setTimeZone, new ParseField("time_zone"));
         }
 
         String query;
+        TimeZone timeZone;
 
         static Payload from(RestRequest request) throws IOException {
             Payload payload = new Payload();
@@ -81,8 +83,13 @@ public class RestSqlAction extends BaseRestHandler {
 
             return payload;
         }
+
         public void setQuery(String query) {
             this.query = query;
+        }
+
+        public void setTimeZone(String timeZone) {
+            this.timeZone = TimeZone.getTimeZone(timeZone);
         }
     }
 }

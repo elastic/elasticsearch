@@ -14,7 +14,7 @@ import static org.elasticsearch.xpack.sql.test.RoundTripTestUtils.assertRoundTri
 
 public class QueryInitRequestTests extends ESTestCase {
     public static QueryInitRequest randomQueryInitRequest() {
-        return new QueryInitRequest(between(0, Integer.MAX_VALUE), randomAlphaOfLength(5), randomTimeoutInfo());
+        return new QueryInitRequest(between(0, Integer.MAX_VALUE), randomAlphaOfLength(5), randomTimeZone(random()), randomTimeoutInfo());
     }
 
     public void testRoundTrip() throws IOException {

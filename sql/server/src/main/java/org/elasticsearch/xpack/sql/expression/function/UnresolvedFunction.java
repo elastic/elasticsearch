@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.sql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.sql.expression.Attribute;
@@ -14,15 +12,20 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
+import java.util.List;
+import java.util.TimeZone;
+
 public class UnresolvedFunction extends Function implements Unresolvable {
 
     private final String name;
     private final boolean distinct;
+    private final TimeZone timeZone;
 
-    public UnresolvedFunction(Location location, String name, boolean distinct, List<Expression> children) {
+    public UnresolvedFunction(Location location, String name, boolean distinct, TimeZone timeZone, List<Expression> children) {
         super(location, children);
         this.name = name;
         this.distinct = distinct;
+        this.timeZone = timeZone;
     }
 
     @Override
@@ -42,6 +45,10 @@ public class UnresolvedFunction extends Function implements Unresolvable {
 
     public boolean distinct() {
         return distinct;
+    }
+
+    public TimeZone timeZone() {
+        return timeZone;
     }
 
     @Override

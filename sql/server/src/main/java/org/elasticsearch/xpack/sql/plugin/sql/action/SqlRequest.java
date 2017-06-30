@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.sql.plugin.sql.action;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.TimeZone;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -21,13 +22,15 @@ public class SqlRequest extends ActionRequest implements CompositeIndicesRequest
 
     // initialized on the first request
     private String query;
+    private TimeZone timeZone;
     // initialized after the plan has been translated
     private String sessionId;
 
     public SqlRequest() {}
 
-    public SqlRequest(String query, String sessionId) {
+    public SqlRequest(String query, TimeZone timeZone, String sessionId) {
         this.query = query;
+        this.timeZone = timeZone;
         this.sessionId = sessionId;
     }
 
@@ -48,6 +51,10 @@ public class SqlRequest extends ActionRequest implements CompositeIndicesRequest
         return sessionId;
     }
 
+    public TimeZone timeZone() {
+        return timeZone;
+    }
+
     public SqlRequest query(String query) {
         this.query = query;
         return this;
@@ -62,6 +69,7 @@ public class SqlRequest extends ActionRequest implements CompositeIndicesRequest
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         query = in.readString();
+        timeZone = TimeZone.getTimeZone(in.readString());
         sessionId = in.readOptionalString();
     }
 
@@ -69,6 +77,7 @@ public class SqlRequest extends ActionRequest implements CompositeIndicesRequest
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(query);
+        out.writeString(timeZone.getID());
         out.writeOptionalString(sessionId);
     }
 

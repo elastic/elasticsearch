@@ -5,43 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.parser;
 
-import java.math.BigDecimal;
-import java.util.List;
-import java.util.Locale;
-import java.util.stream.Collectors;
-
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnExpressionContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnReferenceContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DereferenceContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExistsContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExtractContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FunctionCallContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IntegerLiteralContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalBinaryContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalNotContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MultiMatchQueryContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NullLiteralContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ParenthesizedExpressionContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PredicateContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PredicatedContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PrimitiveDataTypeContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SelectExpressionContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SingleExpressionContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StarContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringLiteralContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringQueryContext;
-import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContext;
 import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -69,14 +36,64 @@ import org.elasticsearch.xpack.sql.expression.predicate.fulltext.MultiMatchQuery
 import org.elasticsearch.xpack.sql.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.sql.expression.regex.Like;
 import org.elasticsearch.xpack.sql.expression.regex.RLike;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.BooleanLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.CastContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ColumnReferenceContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ComparisonContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DecimalLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DereferenceContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExistsContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExtractContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.FunctionCallContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.IntegerLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalBinaryContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.LogicalNotContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MatchQueryContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.MultiMatchQueryContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.NullLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.OrderByContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ParenthesizedExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PredicateContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PredicatedContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.PrimitiveDataTypeContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SelectExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SingleExpressionContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StarContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringLiteralContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.StringQueryContext;
+import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SubqueryExpressionContext;
 import org.elasticsearch.xpack.sql.plan.TableIdentifier;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
+import java.util.stream.Collectors;
+
 import static java.lang.String.format;
 
 abstract class ExpressionBuilder extends IdentifierBuilder {
+    /**
+     * Time zone in which to execute the query. Used by date time
+     * functions and the rounding in date histograms.
+     */
+    private final TimeZone timeZone;
+
+    ExpressionBuilder(TimeZone timeZone) {
+        this.timeZone = timeZone;
+    }
+
+    /**
+     * Time zone in which to execute the query. Used by date time
+     * functions and the rounding in date histograms.
+     */
+    protected TimeZone timeZone() {
+        return timeZone;
+    }
 
     protected Expression expression(ParseTree ctx) {
         return typedParsing(ctx, Expression.class);
@@ -287,7 +304,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         if (ctx.setQuantifier() != null) {
             isDistinct = (ctx.setQuantifier().DISTINCT() != null);
         }
-        return new UnresolvedFunction(source(ctx), name, isDistinct, expressions(ctx.expression()));
+        return new UnresolvedFunction(source(ctx), name, isDistinct, timeZone, expressions(ctx.expression()));
     }
 
     @Override
@@ -300,7 +317,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         } catch (IllegalArgumentException ex) {
             throw new ParsingException(source, format(Locale.ROOT, "Invalid EXTRACT field %s", fieldString));
         }
-        return extract.toFunction(source, expression(ctx.valueExpression()));
+        return extract.toFunction(source, expression(ctx.valueExpression()), timeZone);
     }
 
     @Override

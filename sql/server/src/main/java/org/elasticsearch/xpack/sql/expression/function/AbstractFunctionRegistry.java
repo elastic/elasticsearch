@@ -5,14 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
-import java.lang.reflect.InvocationTargetException;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.regex.Pattern;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.Expression;
@@ -23,6 +15,15 @@ import org.elasticsearch.xpack.sql.tree.NodeUtils;
 import org.elasticsearch.xpack.sql.tree.NodeUtils.NodeInfo;
 import org.elasticsearch.xpack.sql.util.Assert;
 import org.elasticsearch.xpack.sql.util.StringUtils;
+
+import java.lang.reflect.InvocationTargetException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TimeZone;
+import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -101,6 +102,7 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
 
         boolean distinctAware = true;
         boolean noArgument = false;
+        boolean tzAware = false;
         // distinct ctor
         if (!Arrays.equals(new Class[] { Location.class, exp, boolean.class }, info.ctr.getParameterTypes())) {
             if (ur.distinct()) {
@@ -112,6 +114,9 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
             if (expVal instanceof List && ((List) expVal).isEmpty()) {
                 noArgument = Arrays.equals(new Class[] { Location.class }, info.ctr.getParameterTypes());
             }
+            else if (Arrays.equals(new Class[] { Location.class, exp, TimeZone.class }, info.ctr.getParameterTypes())) {
+                tzAware = true;
+            }
             // distinctless
             else if (!Arrays.equals(new Class[] { Location.class, exp }, info.ctr.getParameterTypes())) {
                 throw new SqlIllegalArgumentException("No constructor with signature [%s, %s (,%s)?] found for [%s]",
@@ -120,7 +125,13 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
         }
         
         try {
-            Object[] args = noArgument ? new Object[] { ur.location() } : (distinctAware ? new Object[] { ur.location(), expVal, ur.distinct() } : new Object[] { ur.location(), expVal }); 
+            // NOCOMMIT reflection here feels icky
+            Object[] args;
+            if (tzAware) {
+                args = new Object[] { ur.location(), expVal, ur.timeZone() };
+            } else {
+                args = noArgument ? new Object[] { ur.location() } : (distinctAware ? new Object[] { ur.location(), expVal, ur.distinct() } : new Object[] { ur.location(), expVal });
+            } 
             return (Function) info.ctr.newInstance(args);
         } catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
             throw new SqlIllegalArgumentException(ex, "Cannot create instance of function %s", ur.name());

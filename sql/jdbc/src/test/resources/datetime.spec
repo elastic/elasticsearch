@@ -16,7 +16,7 @@
 
 //
 // Date
-// 
+//
 
 //dateTimeDay
 //SELECT DAY(birth_date) d, last_name l FROM "emp.emp" WHERE emp_no < 10010 ORDER BY emp_no;

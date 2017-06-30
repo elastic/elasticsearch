@@ -19,16 +19,19 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableDateTime;
 
-import java.util.Locale;
+import java.time.temporal.ChronoField;
+import java.util.TimeZone;
 
-import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate.formatTemplate;
 
 public abstract class DateTimeFunction extends ScalarFunction {
+    private final TimeZone timeZone;
 
-    public DateTimeFunction(Location location, Expression argument) {
+    // NOCOMMIT I feel like our lives could be made a lot simpler with composition instead of inheritance here
+    public DateTimeFunction(Location location, Expression argument, TimeZone timeZone) {
         super(location, argument);
+        this.timeZone = timeZone;
     }
     
     @Override
@@ -45,8 +48,11 @@ public abstract class DateTimeFunction extends ScalarFunction {
 
     @Override
     protected ScriptTemplate asScriptFrom(FieldAttribute field) {
-        return new ScriptTemplate(createTemplate("doc[{}].date"), 
-                paramsBuilder().variable(field.name()).build(),
+        // NOCOMMIT I think we should investigate registering SQL as a script engine so we don't need to generate painless
+        return new ScriptTemplate(createTemplate(), 
+                paramsBuilder()
+                    .variable(field.name())
+                    .build(),
                 dataType());
     }
 
@@ -55,8 +61,18 @@ public abstract class DateTimeFunction extends ScalarFunction {
         throw new UnsupportedOperationException();
     }
 
-    private String createTemplate(String template) {
-        return format(Locale.ROOT, "%s.get%s()", formatTemplate(template), extractFunction());
+    private String createTemplate() {
+        if (timeZone.getID().equals("UTC")) {
+            return formatTemplate("doc[{}].value.get" + extractFunction() + "()");
+        } else {
+            // NOCOMMIT ewwww
+            /* This uses the Java 9 time API because Painless doesn't whitelist creation of new
+             * Joda classes. */
+            String asInstant = formatTemplate("Instant.ofEpochMilli(doc[{}].value.millis)");
+            String zoneId = "ZoneId.of(\"" + timeZone.toZoneId().getId() + "\"";
+            String asZonedDateTime = "ZonedDateTime.ofInstant(" + asInstant + ", " + zoneId + "))";
+            return asZonedDateTime + ".get(ChronoField." + chronoField().name() + ")";
+        }
     }
 
     protected String extractFunction() {
@@ -75,6 +91,10 @@ public abstract class DateTimeFunction extends ScalarFunction {
             else {
                 dt = (ReadableDateTime) l;
             }
+            if (false == timeZone.getID().equals("UTC")) {
+                // TODO probably faster to use `null` for UTC like core does
+                dt = dt.toDateTime().withZone(DateTimeZone.forTimeZone(timeZone));
+            }
             return Integer.valueOf(extract(dt));
         };
     }
@@ -84,6 +104,10 @@ public abstract class DateTimeFunction extends ScalarFunction {
         return DataTypes.INTEGER;
     }
 
+    public TimeZone timeZone() {
+        return timeZone;
+    }
+
     protected abstract int extract(ReadableDateTime dt);
 
     // used for aggregration (date histogram)
@@ -91,4 +115,7 @@ public abstract class DateTimeFunction extends ScalarFunction {
 
     // used for applying ranges
     public abstract String dateTimeFormat();
+
+    // used for generating the painless script version of this function when the time zone is not utc
+    protected abstract ChronoField chronoField();
 }

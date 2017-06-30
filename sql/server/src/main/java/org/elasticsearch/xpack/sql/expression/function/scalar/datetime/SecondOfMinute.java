@@ -9,10 +9,13 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.ReadableDateTime;
 
+import java.time.temporal.ChronoField;
+import java.util.TimeZone;
+
 public class SecondOfMinute extends DateTimeFunction {
 
-    public SecondOfMinute(Location location, Expression argument) {
-        super(location, argument);
+    public SecondOfMinute(Location location, Expression argument, TimeZone timeZone) {
+        super(location, argument, timeZone);
     }
 
     @Override
@@ -28,5 +31,10 @@ public class SecondOfMinute extends DateTimeFunction {
     @Override
     protected int extract(ReadableDateTime dt) {
         return dt.getSecondOfMinute();
+    }
+
+    @Override
+    protected ChronoField chronoField() {
+        return ChronoField.SECOND_OF_MINUTE;
     }
 }

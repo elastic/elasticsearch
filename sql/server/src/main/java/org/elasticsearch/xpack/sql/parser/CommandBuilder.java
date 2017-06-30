@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import java.util.Locale;
+import java.util.TimeZone;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DebugContext;
@@ -31,6 +32,9 @@ import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.tree.Location;
 
 abstract class CommandBuilder extends LogicalPlanBuilder {
+    CommandBuilder(TimeZone timeZone) {
+        super(timeZone);
+    }
 
     @Override
     public Command visitDebug(DebugContext ctx) {

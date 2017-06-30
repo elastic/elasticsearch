@@ -9,10 +9,13 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.joda.time.ReadableDateTime;
 
+import java.time.temporal.ChronoField;
+import java.util.TimeZone;
+
 public class Year extends DateTimeFunction {
 
-    public Year(Location location, Expression argument) {
-        super(location, argument);
+    public Year(Location location, Expression argument, TimeZone timeZone) {
+        super(location, argument, timeZone);
     }
 
     @Override
@@ -33,5 +36,10 @@ public class Year extends DateTimeFunction {
     @Override
     public Expression orderBy() {
         return argument();
+    }
+
+    @Override
+    protected ChronoField chronoField() {
+        return ChronoField.YEAR;
     }
 }

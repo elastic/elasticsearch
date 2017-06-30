@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.jdbc.net.client.RequestMeta;
 class JdbcStatement implements Statement, JdbcWrapper {
 
     final JdbcConnection con;
+    final JdbcConfiguration info;
 
     private boolean closed = false;
     private boolean closeOnCompletion = false;
@@ -27,8 +28,9 @@ class JdbcStatement implements Statement, JdbcWrapper {
     protected JdbcResultSet rs;
     final RequestMeta requestMeta = new RequestMeta();
 
-    JdbcStatement(JdbcConnection jdbcConnection) {
+    JdbcStatement(JdbcConnection jdbcConnection, JdbcConfiguration info) {
         this.con = jdbcConnection;
+        this.info = info;
     }
 
     @Override
@@ -153,7 +155,7 @@ class JdbcStatement implements Statement, JdbcWrapper {
         // close previous result set
         closeResultSet();
 
-        Cursor cursor = con.client.query(sql, requestMeta);
+        Cursor cursor = con.client.query(sql, info.timeZone(), requestMeta);
         rs = new JdbcResultSet(this, cursor);
     }
 

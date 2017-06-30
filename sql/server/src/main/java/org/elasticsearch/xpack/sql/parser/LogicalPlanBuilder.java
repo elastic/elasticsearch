@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.parser;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TimeZone;
 
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedQueryContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.AliasedRelationContext;
@@ -47,6 +48,9 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 abstract class LogicalPlanBuilder extends ExpressionBuilder {
+    LogicalPlanBuilder(TimeZone timeZone) {
+        super(timeZone);
+    }
 
     @Override
     public LogicalPlan visitQuery(QueryContext ctx) {

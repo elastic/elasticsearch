@@ -95,6 +95,7 @@ public abstract class GroupingAgg extends Agg {
         return Objects.equals(this.order.get(leafAggId), order) ? this : clone(id(), propertyPath(), fieldName(), subAggs, subPipelines, combine(this.order, singletonMap(leafAggId, order)));
     }
 
+    // NOCOMMIT clone is a scary name.
     protected abstract GroupingAgg clone(String id, String propertyPath, String fieldName, List<LeafAgg> subAggs, List<PipelineAgg> subPipelines, Map<String, Direction> order);
 
     @Override

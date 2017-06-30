@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.plan.physical;
 
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
+
+import java.util.List;
+import java.util.Objects;
 
 public class AggregateExec extends UnaryExec implements Unexecutable {
 

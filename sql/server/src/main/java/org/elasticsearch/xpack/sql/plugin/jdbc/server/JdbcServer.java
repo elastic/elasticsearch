@@ -113,7 +113,7 @@ public class JdbcServer {
     public void queryInit(QueryInitRequest req, ActionListener<Response> listener) {
         final long start = System.currentTimeMillis();
 
-        executor.sql(req.query, wrap(c -> {
+        executor.sql(req.query, req.timeZone, wrap(c -> {
             long stop = System.currentTimeMillis();
             String requestId = EMPTY;
             if (c.hasNextSet() && c instanceof SearchHitRowSetCursor) {

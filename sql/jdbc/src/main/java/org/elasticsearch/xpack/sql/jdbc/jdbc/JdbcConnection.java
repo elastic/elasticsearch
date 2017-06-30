@@ -61,13 +61,13 @@ public class JdbcConnection implements Connection, JdbcWrapper {
     @Override
     public Statement createStatement() throws SQLException {
         checkOpen();
-        return new JdbcStatement(this);
+        return new JdbcStatement(this, info);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         checkOpen();
-        return new JdbcPreparedStatement(this, sql);
+        return new JdbcPreparedStatement(this, info, sql);
     }
 
     @Override

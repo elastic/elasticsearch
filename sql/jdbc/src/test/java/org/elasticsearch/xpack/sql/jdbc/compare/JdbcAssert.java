@@ -8,15 +8,16 @@ package org.elasticsearch.xpack.sql.jdbc.compare;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.sql.Types;
+import java.time.Instant;
 import java.util.Locale;
+import java.util.TimeZone;
 
-import static java.lang.String.format;
-
+import static org.elasticsearch.xpack.sql.jdbc.compare.CompareToH2BaseTestCase.UTC_FORMATTER;
+import static org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcUtils.nameOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-
-import static org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcUtils.nameOf;
 
 public class JdbcAssert {
     public static void assertResultSets(ResultSet expected, ResultSet actual) throws SQLException {
@@ -35,6 +36,7 @@ public class JdbcAssert {
             String actualName = actualMeta.getColumnName(column);
             
             if (!expectedName.equals(actualName)) {
+                // NOCOMMIT this needs a comment explaining it....
                 String expectedSet = expectedName;
                 String actualSet = actualName;
                 if (column > 1) {
@@ -42,14 +44,16 @@ public class JdbcAssert {
                     actualSet = actualMeta.getColumnName(column - 1) + "," + actualName;
                 }
 
-                assertEquals(f("Different column name %d", column), expectedSet, actualSet);
+                assertEquals("Different column name [" + column + "]", expectedSet, actualSet);
             }
 
             // use the type not the name (timestamp with timezone returns spaces for example)
             int expectedType = expectedMeta.getColumnType(column);
             int actualType = actualMeta.getColumnType(column);
 
-            assertEquals(f("Different column type for column '%s' (%s vs %s), ", expectedName, nameOf(expectedType), nameOf(actualType)), expectedType, actualType);
+            assertEquals(
+                    "Different column type for column [" + expectedName + "] (" + nameOf(expectedType) + " != " + nameOf(actualType) + ")",
+                    expectedType, actualType);
         }
     }
 
@@ -59,26 +63,32 @@ public class JdbcAssert {
 
         long count = 0;
         while (expected.next()) {
-            assertTrue(f("Expected more data but no more entries found after %d", count++), actual.next());
+            assertTrue("Expected more data but no more entries found after [" + count + "]", actual.next());
+            count++;
 
             for (int column = 1; column <= columns; column++) {
                 Object expectedObject = expected.getObject(column);
                 Object actualObject = actual.getObject(column);
                 int type = metaData.getColumnType(column);
 
-                // handle timestamps with care because h2 returns "funny" objects
-                if (type == Types.TIMESTAMP_WITH_TIMEZONE) {
-                    expectedObject = expected.getTimestamp(column);
-                    actualObject = actual.getTimestamp(column);
-                } else if (type == Types.TIME) {
-                    expectedObject = expected.getTime(column);
-                    actualObject = actual.getTime(column);
-                } else if (type == Types.DATE) {
-                    expectedObject = expected.getDate(column);
-                    actualObject = actual.getDate(column);
-                }
+                String msg = "Different result for column [" + metaData.getColumnName(column)  + "], entry [" + count + "]";
 
-                String msg = f("Different result for column %s, entry %d", metaData.getColumnName(column), count);
+                if (type == Types.TIMESTAMP) {
+                    /*
+                     * Life is just too confusing with timestamps and default
+                     * time zones and default locales. Instead we compare the
+                     * string representations of the dates converted into UTC
+                     * in the ROOT locale. This gives us error messages in UTC
+                     * on failure which is *way* easier to reason about.
+                     *
+                     * Life is confusing because H2 always uses the default
+                     * locale and time zone for date functions.
+                     */
+                    msg += " locale is [" + Locale.getDefault() + "] and time zone is [" + TimeZone.getDefault() + "]";
+                    expectedObject = UTC_FORMATTER.format(Instant.ofEpochMilli(((Timestamp) expectedObject).getTime()));
+                    actualObject = UTC_FORMATTER.format(Instant.ofEpochMilli(((Timestamp) actualObject).getTime()));
+                    // NOCOMMIT look at ResultSet.getTimestamp(int, Calendar)
+                }
 
                 if (type == Types.DOUBLE) {
                     // NOCOMMIT 1d/1f seems like a huge difference.
@@ -90,10 +100,6 @@ public class JdbcAssert {
                 }
             }
         }
-        assertEquals(f("%s still has data after %d entries", actual, count), expected.next(), actual.next());
-    }
-
-    private static String f(String message, Object... args) {
-        return format(Locale.ROOT, message, args);
+        assertEquals("[" + actual + "] still has data after [" + count + "] entries", expected.next(), actual.next());
     }
 }

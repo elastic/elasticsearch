@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.sql.analysis.catalog.EsCatalog;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 
+import java.util.TimeZone;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.sql.util.ActionUtils.chain;
@@ -59,6 +60,7 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
     protected void doExecute(SqlRequest request, ActionListener<SqlResponse> listener) {
         String sessionId = request.sessionId();
         String query = request.query();
+        TimeZone timeZone = request.timeZone();
         
         try {
             if (sessionId == null) {
@@ -69,7 +71,7 @@ public class TransportSqlAction extends HandledTransportAction<SqlRequest, SqlRe
 
                 // NOCOMMIT move session information somewhere - like into scroll or something. We should be able to reuse something. 
                 // generate the plan and once its done, generate the session id, store it and send back the response
-                planExecutor.sql(query, chain(listener, c -> {
+                planExecutor.sql(query, timeZone, chain(listener, c -> {
                             String id = generateId();
                             SESSIONS.put(id, c);
                             return new SqlResponse(id, c);

@@ -7,13 +7,12 @@ package org.elasticsearch.xpack.sql.jdbc.compare;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.jdbc.JdbcIntegrationTestCase;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -21,9 +20,15 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
@@ -34,6 +39,10 @@ import static org.elasticsearch.xpack.sql.jdbc.compare.JdbcAssert.assertResultSe
  * Compares Elasticsearch's JDBC driver to H2.
  */
 public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
+    static final DateTimeFormatter UTC_FORMATTER = DateTimeFormatter.ISO_DATE_TIME
+            .withLocale(Locale.ROOT)
+            .withZone(ZoneId.of("UTC"));
+
     public final String queryName;
     public final String query;
     public final Integer lineNumber;
@@ -102,6 +111,7 @@ public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
          */
         try (Connection h2 = DriverManager.getConnection(
                 "jdbc:h2:mem:;DATABASE_TO_UPPER=false;ALIAS_COLUMN_NAME=true;INIT=RUNSCRIPT FROM 'classpath:/h2-setup.sql'")) {
+            fillH2(h2);
             try (PreparedStatement h2Query = h2.prepareStatement(query);
                     ResultSet expected = h2Query.executeQuery()) {
                 setupElasticsearchIndex();
@@ -113,7 +123,7 @@ public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    private void setupElasticsearchIndex() throws IOException, URISyntaxException {
+    private void setupElasticsearchIndex() throws Exception {
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings"); {
             createIndex.field("number_of_shards", 1);
@@ -136,32 +146,80 @@ public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
         createIndex.endObject().endObject();
         client().performRequest("PUT", "/emp", emptyMap(), new StringEntity(createIndex.string(), ContentType.APPLICATION_JSON));
 
-        URL dataSet = CompareToH2BaseTestCase.class.getResource("/employees.csv");
-        if (dataSet == null) {
-            throw new IllegalArgumentException("Can't find employees.csv");
-        }
         StringBuilder bulk = new StringBuilder();
-        List<String> lines = Files.readAllLines(PathUtils.get(dataSet.toURI()));
-        if (lines.isEmpty()) {
-            throw new IllegalArgumentException("employees.csv must contain at least a title row");
-        }
-        String[] titles = lines.get(0).split(",");
-        for (int t = 0; t < titles.length; t++) {
-            titles[t] = titles[t].replaceAll("\"", "");
-        }
-        for (int l = 1; l < lines.size(); l++) {
+        csvToLines("employees", (titles, fields) -> {
             bulk.append("{\"index\":{}}\n");
             bulk.append('{');
-            String[] columns = lines.get(l).split(",");
-            for (int c = 0; c < columns.length; c++) {
-                if (c != 0) {
+            for (int f = 0; f < fields.size(); f++) {
+                if (f != 0) {
                     bulk.append(',');
                 }
-                bulk.append('"').append(titles[c]).append("\":\"").append(columns[c]).append('"');
+                bulk.append('"').append(titles.get(f)).append("\":\"").append(fields.get(f)).append('"');
             }
             bulk.append("}\n");
-        }
+        });
         client().performRequest("POST", "/emp/emp/_bulk", singletonMap("refresh", "true"),
                 new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+    }
+
+    /**
+     * Fill the h2 database. Note that we have to parse the CSV ourselves
+     * because h2 interprets the CSV using the default locale which is
+     * randomized by the testing framework. Because some locales (th-TH,
+     * for example) parse dates in very different ways we parse using the
+     * root locale.
+     */
+    private void fillH2(Connection h2) throws Exception {
+        csvToLines("employees", (titles, fields) -> {
+            StringBuilder insert = new StringBuilder("INSERT INTO \"emp.emp\" (");
+            for (int t = 0; t < titles.size(); t++) {
+                if (t != 0) {
+                    insert.append(',');
+                }
+                insert.append('"').append(titles.get(t)).append('"');
+            }
+            insert.append(") VALUES (");
+            for (int t = 0; t < titles.size(); t++) {
+                if (t != 0) {
+                    insert.append(',');
+                }
+                insert.append('?');
+            }
+            insert.append(')');
+
+            PreparedStatement s = h2.prepareStatement(insert.toString());
+            for (int t = 0; t < titles.size(); t++) {
+                String field = fields.get(t);
+                if (titles.get(t).endsWith("date")) {
+                    /* Dates need special handling because H2 uses the default local for
+                     * parsing which doesn't work because Elasticsearch always uses
+                     * the "root" locale. This mismatch would cause the test to fail
+                     * all the time in places like Thailand. Luckily Elasticsearch's
+                     * randomized testing sometimes randomly pretends you are in
+                     * Thailand and caught this.... */
+                    s.setTimestamp(t + 1, new Timestamp(Instant.from(UTC_FORMATTER.parse(field)).toEpochMilli()));
+                } else {
+                    s.setString(t + 1, field);
+                }
+            }
+            assertEquals(1, s.executeUpdate());
+        });
+    }
+
+    private void csvToLines(String name,
+            CheckedBiConsumer<List<String>, List<String>, Exception> consumeLine) throws Exception {
+        String location = "/" + name + ".csv";
+        URL dataSet = CompareToH2BaseTestCase.class.getResource(location);
+        if (dataSet == null) {
+            throw new IllegalArgumentException("Can't find [" + location + "]");
+        }
+        List<String> lines = Files.readAllLines(PathUtils.get(dataSet.toURI()));
+        if (lines.isEmpty()) {
+            throw new IllegalArgumentException("[" + location + "] must contain at least a title row");
+        }
+        List<String> titles = Arrays.asList(lines.get(0).split(","));
+        for (int l = 1; l < lines.size(); l++) {
+            consumeLine.accept(titles, Arrays.asList(lines.get(l).split(",")));
+        }
     }
 }

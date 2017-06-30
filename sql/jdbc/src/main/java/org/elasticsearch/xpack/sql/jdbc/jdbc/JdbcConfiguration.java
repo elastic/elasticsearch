@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.util.Assert;
+import org.elasticsearch.xpack.sql.net.client.ConnectionConfiguration;
+import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.sql.DriverPropertyInfo;
@@ -12,10 +16,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Properties;
-
-import org.elasticsearch.xpack.sql.jdbc.util.Assert;
-import org.elasticsearch.xpack.sql.net.client.ConnectionConfiguration;
-import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
+import java.util.TimeZone;
 
 //
 // Supports the following syntax
@@ -43,7 +44,10 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     // can be out/err/url
     static final String DEBUG_OUTPUT_DEFAULT = "err";
 
-    private static final List<String> KNOWN_OPTIONS = Arrays.asList(DEBUG, DEBUG_OUTPUT);
+    static final String TIME_ZONE = "time_zone";
+    static final String TIME_ZONE_DEFAULT = "UTC";
+
+    private static final List<String> KNOWN_OPTIONS = Arrays.asList(DEBUG, DEBUG_OUTPUT, TIME_ZONE);
 
     private HostAndPort hostAndPort;
     private String originalUrl;
@@ -51,6 +55,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     private boolean debug = false;
     private String debugOut = DEBUG_OUTPUT_DEFAULT;
+    private final TimeZone timeZone;
 
     public JdbcConfiguration(String u, Properties props) {
         super(props);
@@ -60,6 +65,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
         Properties set = settings();
         debug = Boolean.parseBoolean(set.getProperty(DEBUG, DEBUG_DEFAULT));
         debugOut = settings().getProperty(DEBUG_OUTPUT, DEBUG_OUTPUT_DEFAULT);
+        timeZone = TimeZone.getTimeZone(settings().getProperty(TIME_ZONE, TIME_ZONE_DEFAULT));
     }
 
     private void parseUrl(String u) {
@@ -190,6 +196,10 @@ public class JdbcConfiguration extends ConnectionConfiguration {
 
     public String debugOut() {
         return debugOut;
+    }
+
+    public TimeZone timeZone() {
+        return timeZone;
     }
 
     public static boolean canAccept(String url) {

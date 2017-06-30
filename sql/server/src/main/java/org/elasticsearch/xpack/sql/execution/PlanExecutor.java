@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.execution;
 
-import java.io.IOException;
-import java.util.function.Supplier;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,7 +21,13 @@ import org.elasticsearch.xpack.sql.session.RowSetCursor;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.session.SqlSettings;
 
+import java.io.IOException;
+import java.util.TimeZone;
+import java.util.function.Supplier;
+
 public class PlanExecutor extends AbstractLifecycleComponent {
+    // NOCOMMIT prefer not to use AbstractLifecycleComponent because the reasons for its tradeoffs is lost to the mists of time
+    private static final SqlSettings DEFAULTS = SqlSettings.EMPTY;
 
     private final Client client;
 
@@ -34,8 +37,6 @@ public class PlanExecutor extends AbstractLifecycleComponent {
     private final Analyzer analyzer;
     private final Optimizer optimizer;
     private final Planner planner;
-
-    private final SqlSettings DEFAULTS = SqlSettings.EMPTY;
 
     public PlanExecutor(Client client, Supplier<ClusterState> clusterState) {
         super(client.settings());
@@ -58,9 +59,9 @@ public class PlanExecutor extends AbstractLifecycleComponent {
         return new SqlSession(DEFAULTS, client, parser, catalog, functionRegistry, analyzer, optimizer, planner);
     }
 
-    public void sql(String sql, ActionListener<RowSetCursor> listener) {
+    public void sql(String sql, TimeZone timeZone, ActionListener<RowSetCursor> listener) {
         SqlSession session = newSession();
-        session.executable(sql).execute(session, listener);
+        session.executable(sql, timeZone).execute(session, listener);
     }
 
     @Override

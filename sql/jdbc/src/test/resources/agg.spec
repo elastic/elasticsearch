@@ -194,4 +194,3 @@ aggAvgWithMultipleHavingWithLimit
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "emp.emp" GROUP BY g HAVING a > 10 AND a < 10000000 LIMIT 1;
 aggAvgWithMultipleHavingOnAliasAndFunction
 SELECT gender g, CAST(AVG(emp_no) AS FLOAT) a FROM "emp.emp" GROUP BY g HAVING a > 10 AND AVG(emp_no) > 10000000;
-

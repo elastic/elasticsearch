@@ -8,104 +8,106 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
 
+import java.util.TimeZone;
+
 public enum Extract {
 
     YEAR {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return new Year(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return new Year(source, argument, timeZone);
         }
     },
     MONTH {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return new MonthOfYear(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return new MonthOfYear(source, argument, timeZone);
         }
     },
     WEEK {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return new WeekOfWeekYear(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return new WeekOfWeekYear(source, argument, timeZone);
         }
     },
     DAY {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return new DayOfMonth(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return new DayOfMonth(source, argument, timeZone);
         }
     },
     DAY_OF_MONTH {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return DAY.toFunction(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return DAY.toFunction(source, argument, timeZone);
         }
     },
     DOM {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return DAY.toFunction(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return DAY.toFunction(source, argument, timeZone);
         }
     },
     DAY_OF_WEEK {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return new DayOfWeek(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return new DayOfWeek(source, argument, timeZone);
         }
     },
     DOW {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return DAY_OF_WEEK.toFunction(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return DAY_OF_WEEK.toFunction(source, argument, timeZone);
         }
     },
     DAY_OF_YEAR {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return new DayOfYear(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return new DayOfYear(source, argument, timeZone);
         }
     },
     DOY {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return DAY_OF_YEAR.toFunction(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return DAY_OF_YEAR.toFunction(source, argument, timeZone);
         }
     },
     HOUR {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return new HourOfDay(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return new HourOfDay(source, argument, timeZone);
         }
     },
     MINUTE {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return new MinuteOfHour(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return new MinuteOfHour(source, argument, timeZone);
         }
     },
     MINUTE_OF_HOUR {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return MINUTE.toFunction(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return MINUTE.toFunction(source, argument, timeZone);
         }
     },
     MINUTE_OF_DAY {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return new MinuteOfDay(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return new MinuteOfDay(source, argument, timeZone);
         }
     },
     SECOND {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return new SecondOfMinute(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return new SecondOfMinute(source, argument, timeZone);
         }
     },
     SECOND_OF_MINUTE {
         @Override
-        public DateTimeFunction toFunction(Location source, Expression argument) {
-            return SECOND.toFunction(source, argument);
+        public DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone) {
+            return SECOND.toFunction(source, argument, timeZone);
         }
     };
 
-    public abstract DateTimeFunction toFunction(Location source, Expression argument);
+    public abstract DateTimeFunction toFunction(Location source, Expression argument, TimeZone timeZone);
 }

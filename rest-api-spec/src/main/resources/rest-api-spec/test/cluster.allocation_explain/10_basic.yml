@@ -1,6 +1,6 @@
 "bad cluster shard allocation explanation request":
   - skip:
-      version: " - 5.99.99"
+      version: " - 5.5.99"
       reason: response status on bad request was changed starting in 5.6.0
 
   - do:

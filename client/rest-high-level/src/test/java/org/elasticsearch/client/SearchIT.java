@@ -269,7 +269,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(5, matrixStats.getFieldCount("num2"));
         assertEquals(29d, matrixStats.getMean("num2"), 0d);
         assertEquals(330d, matrixStats.getVariance("num2"), 0d);
-        assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 0d);
+        assertEquals(-0.13568039346585542, matrixStats.getSkewness("num2"), 1.0e-16);
         assertEquals(1.3517561983471074, matrixStats.getKurtosis("num2"), 0d);
         assertEquals(-767.5, matrixStats.getCovariance("num", "num2"), 0d);
         assertEquals(-0.9876336291667923, matrixStats.getCorrelation("num", "num2"), 0d);

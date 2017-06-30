@@ -1,14 +1,23 @@
 [[java-rest-high]]
 == Java High Level REST Client
 
-The <<java-rest-high>>'s features include:
+The Java High Level REST Client works on top of the Java Low Level REST client.
+Its main goal is to expose API specific methods, that accept request objects as
+an argument and return response objects, so that request marshalling and
+response un-marshalling is handled by the client itself.
 
-include::apis.asciidoc[]
+Each API can be called synchronously or asynchronously. The synchronous
+methods return a response object, while the asynchronous methods, whose names
+end with the `async` suffix, require a listener argument that is notified
+(on the thread pool managed by the low level client) once a response or an
+error is received.
 
-It depends on elasticsearch core project as it uses elasticsearch request and response
-objects so it will simplify a migration from the transport client.
-
+The Java High Level REST Client depends on the Elasticsearch core project.
+It accepts the same request arguments as the `TransportClient` and returns
+the same response objects.
 
 include::usage.asciidoc[]
 
-include::document/index.asciidoc[]
+include::apis.asciidoc[]
+
+include::apis/index.asciidoc[]

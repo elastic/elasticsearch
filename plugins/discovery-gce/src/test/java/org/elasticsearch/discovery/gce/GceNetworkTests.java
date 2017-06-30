@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
-import java.util.List;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
@@ -81,7 +80,7 @@ public class GceNetworkTests extends ESTestCase {
      * network.host: _local_
      */
     public void networkHostCoreLocal() throws IOException {
-        resolveGce("_local_", new NetworkService(Settings.EMPTY, Collections.emptyList())
+        resolveGce("_local_", new NetworkService(Collections.emptyList())
             .resolveBindHostAddresses(new String[] { NetworkService.DEFAULT_NETWORK_HOST }));
     }
 
@@ -107,7 +106,7 @@ public class GceNetworkTests extends ESTestCase {
                 .build();
 
         GceMetadataServiceMock mock = new GceMetadataServiceMock(nodeSettings);
-        NetworkService networkService = new NetworkService(nodeSettings, Collections.singletonList(new GceNameResolver(nodeSettings, mock)));
+        NetworkService networkService = new NetworkService(Collections.singletonList(new GceNameResolver(nodeSettings, mock)));
         try {
             InetAddress[] addresses = networkService.resolveBindHostAddresses(null);
             if (expected == null) {

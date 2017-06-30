@@ -107,7 +107,7 @@ public class GceDiscoveryTests extends ESTestCase {
 
     protected List<DiscoveryNode> buildDynamicNodes(GceInstancesServiceImpl gceInstancesService, Settings nodeSettings) {
         GceUnicastHostsProvider provider = new GceUnicastHostsProvider(nodeSettings, gceInstancesService,
-            transportService, new NetworkService(Settings.EMPTY, Collections.emptyList()));
+            transportService, new NetworkService(Collections.emptyList()));
 
         List<DiscoveryNode> discoveryNodes = provider.buildDynamicNodes();
         logger.info("--> nodes found: {}", discoveryNodes);

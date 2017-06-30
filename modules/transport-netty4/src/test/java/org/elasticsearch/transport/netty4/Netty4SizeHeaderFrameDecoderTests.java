@@ -29,7 +29,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.junit.After;
 import org.junit.Before;
 
@@ -50,8 +50,8 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
 
     private final Settings settings = Settings.builder()
         .put("node.name", "NettySizeHeaderFrameDecoderTests")
-        .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
-        .put(TransportSettings.PORT.getKey(), "0")
+        .put(TcpTransport.BIND_HOST.getKey(), "127.0.0.1")
+        .put(TcpTransport.PORT.getKey(), "0")
         .build();
 
     private ThreadPool threadPool;
@@ -62,7 +62,7 @@ public class Netty4SizeHeaderFrameDecoderTests extends ESTestCase {
     @Before
     public void startThreadPool() {
         threadPool = new ThreadPool(settings);
-        NetworkService networkService = new NetworkService(settings, Collections.emptyList());
+        NetworkService networkService = new NetworkService(Collections.emptyList());
         BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
         nettyTransport = new Netty4Transport(settings, threadPool, networkService, bigArrays,
             new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());

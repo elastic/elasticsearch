@@ -390,9 +390,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 // loop through all profiles and start them up, special handling for default one
                 for (Map.Entry<String, Settings> entry : buildProfileSettings().entrySet()) {
-                    final Settings settings = Settings.builder()
+                    final Settings profileSettings = Settings.builder()
                         .put(entry.getValue()).build();
-                    bindServer(entry.getKey(), settings);
+                    bindServer(entry.getKey(), profileSettings);
                 }
             }
             super.doStart();

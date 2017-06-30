@@ -32,6 +32,8 @@ import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -78,7 +80,15 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             doAuthenticate(token, listener, false);
         } else {
             InetAddress address = incomingRequest.getRemoteAddress().getAddress();
-            doAuthenticate(token, listener, address.isAnyLocalAddress() || address.isLoopbackAddress());
+
+            try {
+                // This checks if the address is the loopback address or if it is bound to one of this machine's
+                // network interfaces. This is because we want to allow requests that originate from this machine.
+                final boolean isLocalMachine = address.isLoopbackAddress() || NetworkInterface.getByInetAddress(address) != null;
+                doAuthenticate(token, listener, isLocalMachine);
+            } catch (SocketException e) {
+                listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]", e, token.principal()));
+            }
         }
     }
 

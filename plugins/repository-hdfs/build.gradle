@@ -211,12 +211,15 @@ if (secureFixtureSupported) {
 thirdPartyAudit.excludes = [
   // classes are missing, because we added hadoop jars one by one until tests pass.
   'com.google.gson.stream.JsonReader', 
-  'com.google.gson.stream.JsonWriter', 
-  'com.jcraft.jsch.ChannelExec', 
-  'com.jcraft.jsch.JSch', 
-  'com.jcraft.jsch.Logger', 
-  'com.jcraft.jsch.Session', 
-  'com.sun.jersey.api.ParamException', 
+  'com.google.gson.stream.JsonWriter',
+  'com.jcraft.jsch.ChannelExec',
+  'com.jcraft.jsch.ChannelSftp',
+  'com.jcraft.jsch.ChannelSftp$LsEntry',
+  'com.jcraft.jsch.JSch',
+  'com.jcraft.jsch.Logger',
+  'com.jcraft.jsch.Session',
+  'com.jcraft.jsch.SftpATTRS',
+  'com.sun.jersey.api.ParamException',
   'com.sun.jersey.api.core.HttpContext', 
   'com.sun.jersey.core.spi.component.ComponentContext', 
   'com.sun.jersey.core.spi.component.ComponentScope', 
@@ -240,6 +243,7 @@ thirdPartyAudit.excludes = [
   'io.netty.channel.ChannelHandlerContext',
   'io.netty.channel.ChannelInboundHandlerAdapter',
   'io.netty.channel.ChannelInitializer',
+  'io.netty.channel.ChannelOption',
   'io.netty.channel.ChannelPipeline',
   'io.netty.channel.EventLoopGroup',
   'io.netty.channel.SimpleChannelInboundHandler',
@@ -268,7 +272,8 @@ thirdPartyAudit.excludes = [
   'io.netty.handler.stream.ChunkedStream',
   'io.netty.handler.stream.ChunkedWriteHandler',
   'io.netty.util.concurrent.GlobalEventExecutor',
-  'javax.ws.rs.core.Context', 
+  'io.netty.util.ReferenceCountUtil',
+  'javax.ws.rs.core.Context',
   'javax.ws.rs.core.MediaType', 
   'javax.ws.rs.core.MultivaluedMap', 
   'javax.ws.rs.core.Response$ResponseBuilder', 
@@ -368,7 +373,8 @@ thirdPartyAudit.excludes = [
   'org.apache.curator.utils.EnsurePath', 
   'org.apache.curator.utils.PathUtils', 
   'org.apache.curator.utils.ThreadUtils', 
-  'org.apache.curator.utils.ZKPaths', 
+  'org.apache.curator.utils.ZKPaths',
+  'org.apache.directory.shared.kerberos.components.EncryptionKey',
   'org.apache.directory.server.kerberos.shared.keytab.Keytab', 
   'org.apache.directory.server.kerberos.shared.keytab.KeytabEntry', 
   'org.apache.http.NameValuePair', 
@@ -411,22 +417,23 @@ thirdPartyAudit.excludes = [
   'org.fusesource.leveldbjni.JniDBFactory', 
   'org.iq80.leveldb.DB', 
   'org.iq80.leveldb.Options', 
-  'org.iq80.leveldb.WriteBatch', 
-  'org.mortbay.jetty.Connector', 
-  'org.mortbay.jetty.Handler', 
-  'org.mortbay.jetty.InclusiveByteRange', 
-  'org.mortbay.jetty.MimeTypes', 
-  'org.mortbay.jetty.NCSARequestLog', 
-  'org.mortbay.jetty.RequestLog', 
-  'org.mortbay.jetty.Server', 
-  'org.mortbay.jetty.handler.ContextHandler$SContext', 
-  'org.mortbay.jetty.handler.ContextHandler', 
-  'org.mortbay.jetty.handler.ContextHandlerCollection', 
-  'org.mortbay.jetty.handler.HandlerCollection', 
-  'org.mortbay.jetty.handler.RequestLogHandler', 
-  'org.mortbay.jetty.nio.SelectChannelConnector', 
-  'org.mortbay.jetty.security.SslSocketConnector', 
-  'org.mortbay.jetty.servlet.AbstractSessionManager', 
+  'org.iq80.leveldb.WriteBatch',
+  'org.mortbay.jetty.Connector',
+  'org.mortbay.jetty.Handler',
+  'org.mortbay.jetty.InclusiveByteRange',
+  'org.mortbay.jetty.MimeTypes',
+  'org.mortbay.jetty.NCSARequestLog',
+  'org.mortbay.jetty.RequestLog',
+  'org.mortbay.jetty.Server',
+  'org.mortbay.jetty.handler.ContextHandler$SContext',
+  'org.mortbay.jetty.handler.ContextHandler',
+  'org.mortbay.jetty.handler.ContextHandlerCollection',
+  'org.mortbay.jetty.handler.HandlerCollection',
+  'org.mortbay.jetty.handler.RequestLogHandler',
+  'org.mortbay.jetty.nio.SelectChannelConnector',
+  'org.mortbay.jetty.security.SslSelectChannelConnector',
+  'org.mortbay.jetty.security.SslSocketConnector',
+  'org.mortbay.jetty.servlet.AbstractSessionManager',
   'org.mortbay.jetty.servlet.Context', 
   'org.mortbay.jetty.servlet.DefaultServlet', 
   'org.mortbay.jetty.servlet.FilterHolder', 
@@ -472,34 +479,18 @@ thirdPartyAudit.excludes = [
   'org.apache.log4j.helpers.ISO8601DateFormat',
   'org.apache.log4j.spi.ThrowableInformation',
 
-  // Not pulled in for the plugin, but third party checker complains that they're missing
-  // Their absence is not missed.
-
-  // Hadoop Common
-  'com.jcraft.jsch.ChannelSftp$LsEntry',
-  'com.jcraft.jsch.ChannelSftp',
-  'com.jcraft.jsch.SftpATTRS',
-  'org.mortbay.jetty.security.SslSelectChannelConnector',
-
-  // Hadoop Auth
+  // New optional dependencies in 2.8
   'com.nimbusds.jose.JWSObject$State',
   'com.nimbusds.jose.crypto.RSASSAVerifier',
   'com.nimbusds.jwt.ReadOnlyJWTClaimsSet',
   'com.nimbusds.jwt.SignedJWT',
-  'org.apache.directory.shared.kerberos.components.EncryptionKey',
-
-  // HDFS Client
   'com.squareup.okhttp.Call',
   'com.squareup.okhttp.MediaType',
   'com.squareup.okhttp.OkHttpClient',
   'com.squareup.okhttp.Request$Builder',
   'com.squareup.okhttp.RequestBody',
   'com.squareup.okhttp.Response',
-  'com.squareup.okhttp.ResponseBody',
-
-  // HDFS
-  'io.netty.channel.ChannelOption',
-  'io.netty.util.ReferenceCountUtil'
+  'com.squareup.okhttp.ResponseBody'
 ]
 
 // Gradle 2.13 bundles org.slf4j.impl.StaticLoggerBinder in its core.jar which leaks into the forbidden APIs ant task

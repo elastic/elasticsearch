@@ -24,7 +24,7 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
 /**
  * In Hadoop 2.8.0, there is a thread that is started by the filesystem to clean up old execution stats.
  * This thread ignores all interrupts, catching InterruptedException, logging it, and continuing on
- * with it's work. The thread is a daemon, so it thankfully does not stop the JVM from closing, and it
+ * with its work. The thread is a daemon, so it thankfully does not stop the JVM from closing, and it
  * is started only once in a class's static initialization. This currently breaks our testing as this
  * thread leaks out of the client and is picked up by the test framework. This thread filter is meant
  * to ignore the offending thread until a version of Hadoop is released that addresses the incorrect
@@ -34,13 +34,13 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
  * @see "org.apache.hadoop.fs.FileSystem.Statistics.StatisticsDataReferenceCleaner"
  * @see "org.apache.hadoop.fs.FileSystem.Statistics"
  */
-public class HdfsClientThreadLeakFilter implements ThreadFilter {
+final class HdfsClientThreadLeakFilter implements ThreadFilter {
 
     private static final String OFFENDING_THREAD_NAME =
         "org.apache.hadoop.fs.FileSystem$Statistics$StatisticsDataReferenceCleaner";
 
     @Override
     public boolean reject(Thread t) {
-        return t.getName().equalsIgnoreCase(OFFENDING_THREAD_NAME);
+        return t.getName().equals(OFFENDING_THREAD_NAME);
     }
 }

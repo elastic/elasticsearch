@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
@@ -86,9 +85,5 @@ public abstract class PipelineAggregationBuilder extends ToXContentToBytes
     @Override
     public PipelineAggregationBuilder subAggregations(Builder subFactories) {
         throw new IllegalArgumentException("Aggregation [" + name + "] cannot define sub-aggregations");
-    }
-
-    public PipelineAggregationBuilder rewrite(QueryRewriteContext context) {
-        return this;
     }
 }

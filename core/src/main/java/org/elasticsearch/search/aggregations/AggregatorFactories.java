@@ -476,15 +476,10 @@ public class AggregatorFactories {
                 newBuilder.addAggregator(result);
             }
 
-            for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
-                PipelineAggregationBuilder result = builder.rewrite(context);
-                if (result != builder) {
-                    changed = true;
-                }
-                newBuilder.addPipelineAggregator(result);
-            }
-
             if (changed) {
+                for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
+                    newBuilder.addPipelineAggregator(builder);
+                }
                 return newBuilder;
             } else {
                 return this;

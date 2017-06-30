@@ -23,6 +23,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.nio.ESSelector;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 import org.junit.After;
 import org.junit.Before;
@@ -67,6 +68,8 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
 
     public abstract NioChannel channelToClose() throws IOException;
 
+    public abstract ESSelector channelSelector() throws IOException;
+
     public void testClose() throws IOException, TimeoutException, InterruptedException {
         AtomicReference<NioChannel> ref = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
@@ -80,12 +83,17 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
 
         socketChannel.closeAsync();
 
+        Thread thread = new Thread(channelSelector()::singleLoop);
+        thread.start();
+
         closeFuture.awaitClose(100, TimeUnit.SECONDS);
 
         assertFalse(socketChannel.getRawChannel().isOpen());
         assertTrue(closeFuture.isClosed());
         latch.await();
         assertSame(socketChannel, ref.get());
+
+        thread.join();
     }
 
     protected Runnable wrappedRunnable(CheckedRunnable<Exception> runnable) {

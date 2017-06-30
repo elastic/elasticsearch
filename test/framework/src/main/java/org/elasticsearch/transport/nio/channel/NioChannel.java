@@ -40,7 +40,7 @@ public interface NioChannel {
 
     void closeFromSelector();
 
-    boolean register(ESSelector selector) throws ClosedChannelException;
+    boolean register() throws ClosedChannelException;
 
     ESSelector getSelector();
 

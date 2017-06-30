@@ -66,7 +66,7 @@ public class AcceptingSelectorTests extends ESTestCase {
     public void testRegisteredChannel() throws IOException, PrivilegedActionException {
         selector.registerServerChannel(serverChannel);
 
-        when(serverChannel.register(selector)).thenReturn(true);
+        when(serverChannel.register()).thenReturn(true);
 
         selector.doSelect(0);
 
@@ -100,7 +100,7 @@ public class AcceptingSelectorTests extends ESTestCase {
     public void testCleanup() throws IOException {
         selector.registerServerChannel(serverChannel);
 
-        when(serverChannel.register(selector)).thenReturn(true);
+        when(serverChannel.register()).thenReturn(true);
 
         selector.doSelect(0);
 

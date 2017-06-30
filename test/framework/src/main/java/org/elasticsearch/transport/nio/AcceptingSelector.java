@@ -68,6 +68,7 @@ public class AcceptingSelector extends ESSelector {
 
     @Override
     void cleanup() {
+        channelsToClose.addAll(registeredChannels);
         closePendingChannels();
     }
 
@@ -85,7 +86,7 @@ public class AcceptingSelector extends ESSelector {
     private void setUpNewServerChannels() throws ClosedChannelException {
         NioServerSocketChannel newChannel;
         while ((newChannel = this.newChannels.poll()) != null) {
-            if (newChannel.register(this)) {
+            if (newChannel.register()) {
                 SelectionKey selectionKey = newChannel.getSelectionKey();
                 selectionKey.attach(newChannel);
                 addRegisteredChannel(newChannel);

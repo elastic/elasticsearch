@@ -97,8 +97,9 @@ public class NioTransport extends TcpTransport<NioChannel> {
     @Override
     protected NioServerSocketChannel bind(String name, InetSocketAddress address) throws IOException {
         ChannelFactory channelFactory = this.profileToChannelFactory.get(name);
-        NioServerSocketChannel serverSocketChannel = channelFactory.openNioServerSocketChannel(name, address);
-        acceptors.get(++acceptorNumber % NioTransport.NIO_ACCEPTOR_COUNT.get(settings)).registerServerChannel(serverSocketChannel);
+        AcceptingSelector selector = acceptors.get(++acceptorNumber % NioTransport.NIO_ACCEPTOR_COUNT.get(settings));
+        NioServerSocketChannel serverSocketChannel = channelFactory.openNioServerSocketChannel(name, address, selector);
+        selector.registerServerChannel(serverSocketChannel);
         return serverSocketChannel;
     }
 
@@ -175,6 +176,25 @@ public class NioTransport extends TcpTransport<NioChannel> {
                     AcceptingSelector acceptor = new AcceptingSelector(eventHandler);
                     acceptors.add(acceptor);
                 }
+
+                client = createClient();
+
+                for (SocketSelector selector : socketSelectors) {
+                    if (selector.isRunning() == false) {
+                        ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX);
+                        threadFactory.newThread(selector::runLoop).start();
+                        selector.isRunningFuture().actionGet();
+                    }
+                }
+
+                for (AcceptingSelector acceptor : acceptors) {
+                    if (acceptor.isRunning() == false) {
+                        ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
+                        threadFactory.newThread(acceptor::runLoop).start();
+                        acceptor.isRunningFuture().actionGet();
+                    }
+                }
+
                 // loop through all profiles and start them up, special handling for default one
                 for (Map.Entry<String, Settings> entry : buildProfileSettings().entrySet()) {
                     // merge fallback settings with default settings with profile settings so we have complete settings with default values
@@ -183,23 +203,6 @@ public class NioTransport extends TcpTransport<NioChannel> {
                         .put(entry.getValue()).build();
                     profileToChannelFactory.putIfAbsent(entry.getKey(), new ChannelFactory(settings, tcpReadHandler));
                     bindServer(entry.getKey(), settings);
-                }
-            }
-            client = createClient();
-
-            for (SocketSelector selector : socketSelectors) {
-                if (selector.isRunning() == false) {
-                    ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_WORKER_THREAD_NAME_PREFIX);
-                    threadFactory.newThread(selector::runLoop).start();
-                    selector.isRunningFuture().actionGet();
-                }
-            }
-
-            for (AcceptingSelector acceptor : acceptors) {
-                if (acceptor.isRunning() == false) {
-                    ThreadFactory threadFactory = daemonThreadFactory(this.settings, TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX);
-                    threadFactory.newThread(acceptor::runLoop).start();
-                    acceptor.isRunningFuture().actionGet();
                 }
             }
 

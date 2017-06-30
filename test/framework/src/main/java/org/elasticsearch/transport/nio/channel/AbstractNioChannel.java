@@ -35,14 +35,12 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A channel is open once it is constructed. The channel remains open and {@link #isOpen()} will return
  * true until the channel is explicitly closed.
  * <p>
- * A channel lifecycle has four stages:
+ * A channel lifecycle has three stages:
  * <ol>
- * <li>UNREGISTERED - When a channel is created and prior to it being registered with a selector.
- * <li>REGISTERED - When a channel has been registered with a selector. This is the state of a channel that
- * can perform normal operations.
+ * <li>OPEN - When a channel has been created. This is the state of a channel that can perform normal operations.
  * <li>CLOSING - When a channel has been marked for closed, but is not yet closed. {@link #isOpen()} will
  * still return true. Normal operations should be rejected. The most common scenario for a channel to be
- * CLOSING is when channel that was REGISTERED has {@link #closeAsync()} called, but the selector thread
+ * CLOSING is when channel that was OPEN has {@link #closeAsync()} called, but the selector thread
  * has not yet closed the channel.
  * <li>CLOSED - The channel has been closed.
  * </ol>
@@ -51,24 +49,24 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkChannel> implements NioChannel {
 
-    static final int UNREGISTERED = 0;
-    static final int REGISTERED = 1;
-    static final int CLOSING = 2;
-    static final int CLOSED = 3;
+    static final int OPEN = 0;
+    static final int CLOSING = 1;
+    static final int CLOSED = 2;
 
     final S socketChannel;
-    final AtomicInteger state = new AtomicInteger(UNREGISTERED);
+    final AtomicInteger state = new AtomicInteger(OPEN);
 
     private final InetSocketAddress localAddress;
     private final String profile;
     private final CloseFuture closeFuture = new CloseFuture();
-    private volatile ESSelector selector;
+    private final ESSelector selector;
     private SelectionKey selectionKey;
 
-    public AbstractNioChannel(String profile, S socketChannel) throws IOException {
+    public AbstractNioChannel(String profile, S socketChannel, ESSelector selector) throws IOException {
         this.profile = profile;
         this.socketChannel = socketChannel;
         this.localAddress = (InetSocketAddress) socketChannel.getLocalAddress();
+        this.selector = selector;
     }
 
     @Override
@@ -89,11 +87,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     /**
      * Schedules a channel to be closed by the selector event loop with which it is registered.
      * <p>
-     * If the current state is UNREGISTERED, the call will attempt to transition the state from UNREGISTERED
-     * to CLOSING. If this transition is successful, the channel can no longer be registered with an event
-     * loop and the channel will be synchronously closed in this method call.
-     * <p>
-     * If the channel is REGISTERED and the state can be transitioned to CLOSING, the close operation will
+     * If the channel is OPEN and the state can be transitioned to CLOSING, the close operation will
      * be scheduled with the event loop.
      * <p>
      * If the channel is CLOSING or CLOSED, nothing will be done.
@@ -104,10 +98,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     public CloseFuture closeAsync() {
         for (; ; ) {
             int state = this.state.get();
-            if (state == UNREGISTERED && this.state.compareAndSet(UNREGISTERED, CLOSING)) {
-                close0();
-                break;
-            } else if (state == REGISTERED && this.state.compareAndSet(REGISTERED, CLOSING)) {
+            if (state == OPEN && this.state.compareAndSet(OPEN, CLOSING)) {
                 selector.queueChannelClose(this);
                 break;
             } else if (state == CLOSING || state == CLOSED) {
@@ -139,22 +130,17 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     /**
-     * This method attempts to registered a channel with a selector. If method returns true the channel was
+     * This method attempts to registered a channel with its selector. If method returns true the channel was
      * successfully registered. If it returns false, the registration failed. The reason a registered might
      * fail is if something else closed this channel.
      *
-     * @param selector to register the channel
      * @return if the channel was successfully registered
      * @throws ClosedChannelException if the raw channel was closed
      */
     @Override
-    public boolean register(ESSelector selector) throws ClosedChannelException {
-        if (markRegistered(selector)) {
-            setSelectionKey(socketChannel.register(selector.rawSelector(), 0));
-            return true;
-        } else {
-            return false;
-        }
+    public boolean register() throws ClosedChannelException {
+        setSelectionKey(socketChannel.register(selector.rawSelector(), 0));
+        return true;
     }
 
     @Override
@@ -180,11 +166,6 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     // Package visibility for testing
     void setSelectionKey(SelectionKey selectionKey) {
         this.selectionKey = selectionKey;
-    }
-
-    boolean markRegistered(ESSelector selector) {
-        this.selector = selector;
-        return state.compareAndSet(UNREGISTERED, REGISTERED);
     }
 
     private void close0() {

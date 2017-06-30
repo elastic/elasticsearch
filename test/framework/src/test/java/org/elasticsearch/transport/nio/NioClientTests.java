@@ -80,7 +80,7 @@ public class NioClientTests extends ESTestCase {
         ConnectFuture connectFuture2 = mock(ConnectFuture.class);
         CloseFuture closeFuture2 = mock(CloseFuture.class);
 
-        when(channelFactory.openNioChannel(address.address())).thenReturn(channel1, channel2);
+        when(channelFactory.openNioChannel(address.address(), selector)).thenReturn(channel1, channel2);
         when(channel1.getCloseFuture()).thenReturn(closeFuture1);
         when(channel1.getConnectFuture()).thenReturn(connectFuture1);
         when(channel2.getCloseFuture()).thenReturn(closeFuture2);
@@ -104,7 +104,7 @@ public class NioClientTests extends ESTestCase {
         ConnectFuture connectFuture1 = mock(ConnectFuture.class);
         CloseFuture closeFuture1 = mock(CloseFuture.class);
 
-        when(channelFactory.openNioChannel(address.address())).thenReturn(channel1);
+        when(channelFactory.openNioChannel(address.address(), selector)).thenReturn(channel1);
         when(channel1.getCloseFuture()).thenReturn(closeFuture1);
         when(channel1.getConnectFuture()).thenReturn(connectFuture1);
         when(connectFuture1.awaitConnectionComplete(3, TimeUnit.MILLISECONDS)).thenReturn(true);
@@ -126,7 +126,7 @@ public class NioClientTests extends ESTestCase {
         ConnectFuture connectFuture2 = mock(ConnectFuture.class);
         CloseFuture closeFuture2 = mock(CloseFuture.class);
 
-        when(channelFactory.openNioChannel(address.address())).thenReturn(channel1, channel2);
+        when(channelFactory.openNioChannel(address.address(), selector)).thenReturn(channel1, channel2);
         when(channel1.getCloseFuture()).thenReturn(closeFuture1);
         when(channel1.getConnectFuture()).thenReturn(connectFuture1);
         when(channel2.getCloseFuture()).thenReturn(closeFuture2);
@@ -157,7 +157,7 @@ public class NioClientTests extends ESTestCase {
         CloseFuture closeFuture2 = mock(CloseFuture.class);
         IOException ioException = new IOException();
 
-        when(channelFactory.openNioChannel(address.address())).thenReturn(channel1, channel2);
+        when(channelFactory.openNioChannel(address.address(), selector)).thenReturn(channel1, channel2);
         when(channel1.getCloseFuture()).thenReturn(closeFuture1);
         when(channel1.getConnectFuture()).thenReturn(connectFuture1);
         when(channel2.getCloseFuture()).thenReturn(closeFuture2);

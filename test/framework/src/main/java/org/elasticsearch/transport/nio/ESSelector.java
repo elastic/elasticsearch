@@ -77,7 +77,6 @@ public abstract class ESSelector implements Closeable {
                 }
             } finally {
                 try {
-                    channelsToClose.addAll(registeredChannels);
                     cleanup();
                 } finally {
                     runLock.unlock();
@@ -88,7 +87,7 @@ public abstract class ESSelector implements Closeable {
         }
     }
 
-    void singleLoop() {
+    public void singleLoop() {
         try {
             closePendingChannels();
             doSelect(300);

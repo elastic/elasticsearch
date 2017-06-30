@@ -23,6 +23,8 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.nio.AcceptingSelector;
+import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 
 import java.io.IOException;
@@ -53,32 +55,32 @@ public class ChannelFactory {
         this.handler = handler;
     }
 
-    public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress) throws IOException {
+    public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector) throws IOException {
         SocketChannel rawChannel = SocketChannel.open();
         configureSocketChannel(rawChannel);
         PrivilegedSocketAccess.connect(rawChannel, remoteAddress);
-        NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel);
+        NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel, selector);
         channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
         return channel;
     }
 
-    public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel) throws IOException {
+    public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector) throws IOException {
         ServerSocketChannel serverSocketChannel = serverChannel.getRawChannel();
         SocketChannel rawChannel = PrivilegedSocketAccess.accept(serverSocketChannel);
         configureSocketChannel(rawChannel);
-        NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel);
+        NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel, selector);
         channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
         return channel;
     }
 
-    public NioServerSocketChannel openNioServerSocketChannel(String profileName, InetSocketAddress address)
+    public NioServerSocketChannel openNioServerSocketChannel(String profileName, InetSocketAddress address, AcceptingSelector selector)
         throws IOException {
         ServerSocketChannel socketChannel = ServerSocketChannel.open();
         socketChannel.configureBlocking(false);
         ServerSocket socket = socketChannel.socket();
         socket.setReuseAddress(tcpReusedAddress);
         socketChannel.bind(address);
-        return new NioServerSocketChannel(profileName, socketChannel, this);
+        return new NioServerSocketChannel(profileName, socketChannel, this, selector);
     }
 
     private void configureSocketChannel(SocketChannel channel) throws IOException {

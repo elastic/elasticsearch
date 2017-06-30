@@ -81,7 +81,7 @@ public class SocketSelectorTests extends ESTestCase {
     public void testRegisterChannel() throws Exception {
         socketSelector.registerSocketChannel(channel);
 
-        when(channel.register(socketSelector)).thenReturn(true);
+        when(channel.register()).thenReturn(true);
 
         socketSelector.doSelect(0);
 
@@ -95,7 +95,7 @@ public class SocketSelectorTests extends ESTestCase {
     public void testRegisterChannelFails() throws Exception {
         socketSelector.registerSocketChannel(channel);
 
-        when(channel.register(socketSelector)).thenReturn(false);
+        when(channel.register()).thenReturn(false);
 
         socketSelector.doSelect(0);
 
@@ -110,7 +110,7 @@ public class SocketSelectorTests extends ESTestCase {
         socketSelector.registerSocketChannel(channel);
 
         ClosedChannelException closedChannelException = new ClosedChannelException();
-        when(channel.register(socketSelector)).thenThrow(closedChannelException);
+        when(channel.register()).thenThrow(closedChannelException);
 
         socketSelector.doSelect(0);
 
@@ -125,7 +125,7 @@ public class SocketSelectorTests extends ESTestCase {
     public void testSuccessfullyRegisterChannelWillConnect() throws Exception {
         socketSelector.registerSocketChannel(channel);
 
-        when(channel.register(socketSelector)).thenReturn(true);
+        when(channel.register()).thenReturn(true);
         when(channel.finishConnect()).thenReturn(true);
 
         socketSelector.doSelect(0);
@@ -136,7 +136,7 @@ public class SocketSelectorTests extends ESTestCase {
     public void testConnectIncompleteWillNotNotify() throws Exception {
         socketSelector.registerSocketChannel(channel);
 
-        when(channel.register(socketSelector)).thenReturn(true);
+        when(channel.register()).thenReturn(true);
         when(channel.finishConnect()).thenReturn(false);
 
         socketSelector.doSelect(0);
@@ -318,7 +318,7 @@ public class SocketSelectorTests extends ESTestCase {
     public void testCleanup() throws Exception {
         NioSocketChannel unRegisteredChannel = mock(NioSocketChannel.class);
 
-        when(channel.register(socketSelector)).thenReturn(true);
+        when(channel.register()).thenReturn(true);
         socketSelector.registerSocketChannel(channel);
 
         socketSelector.doSelect(0);

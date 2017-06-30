@@ -692,12 +692,18 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
-    public void testThrowbackLocalCheckpointOnReplica() throws IOException, InterruptedException {
+    public void testThrowBackLocalCheckpointOnReplica() throws IOException, InterruptedException {
         final IndexShard indexShard = newStartedShard(false);
 
         // most of the time this is large enough that most of the time there will be at least one gap
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
         indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED));
+
+        final long globalCheckpointOnReplica =
+                randomIntBetween(
+                        Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED),
+                        Math.toIntExact(indexShard.getLocalCheckpoint()));
+        indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica);
 
         final int globalCheckpoint =
                 randomIntBetween(
@@ -721,9 +727,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 ThreadPool.Names.SAME);
 
         latch.await();
-        assertThat(indexShard.getLocalCheckpoint(), equalTo((long) globalCheckpoint));
+        assertThat(indexShard.getLocalCheckpoint(), equalTo(Math.max(globalCheckpoint, globalCheckpointOnReplica)));
 
-        // ensure that after the local checkpoint throwback and indexing again, the local checkpoint advances
+        // ensure that after the local checkpoint throw back and indexing again, the local checkpoint advances
         final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(indexShard.getLocalCheckpoint()));
         assertThat(indexShard.getLocalCheckpoint(), equalTo((long) result.localCheckpoint));
 

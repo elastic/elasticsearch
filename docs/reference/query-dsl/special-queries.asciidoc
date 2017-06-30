@@ -19,9 +19,15 @@ This query allows a script to act as a filter.  Also see the
 This query finds queries that are stored as documents that match with
 the specified document.
 
+<<query-dsl-random-sample-query,`random_sample` query>>::
+
+A query that matches documents randomly according to a user-defined
+probability.
+
 include::mlt-query.asciidoc[]
 
 include::script-query.asciidoc[]
 
 include::percolate-query.asciidoc[]
 
+include::random-sample-query.asciidoc[]

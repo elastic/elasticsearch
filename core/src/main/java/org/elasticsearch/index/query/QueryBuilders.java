@@ -686,6 +686,25 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * Creates a random sampler query
+     *
+     * @param probability The probability that a document is randomly sampled
+     */
+    public static RandomSampleQueryBuilder randomSampleQuery(double probability) {
+        return new RandomSampleQueryBuilder(probability);
+    }
+
+    /**
+     * Creates a random sampler query
+     *
+     * @param probability The probability that a document is randomly sampled
+     * @param seed  A seed to use with the random generator
+     */
+    public static RandomSampleQueryBuilder randomSampleQuery(double probability, Long seed) {
+        return new RandomSampleQueryBuilder(probability, seed);
+    }
+
+    /**
      * A filter to filter only documents where a field exists in them.
      *
      * @param name The name of the field

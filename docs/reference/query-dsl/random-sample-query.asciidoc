@@ -1,0 +1,62 @@
+[[query-dsl-random-sample-query]]
+=== Random Sample Query
+
+This query matches documents randomly according to the user-provided probability.
+For example, if there are 100 documents in the index and `probability = 0.5`,
+roughly 50 of the documents will be matched.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "random_sample" : {
+            "probability" : 0.5
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+The `probability` parameter is required, and accepts values ` 0.0 > p > 1.0`.
+
+==== Seeding
+
+Optionally, the random number generator can be seeded with a Long.  This allows
+deterministic operation of the query so that the same documents are matched each
+time.
+
+This can be accomplished by adding the `seed` parameter:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "random_sample" : {
+            "probability" : 0.5,
+            "seed": 1234
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+==== Boosting
+
+Like all other queries, the `random_sample` query can accept an optional boost.
+This is a convenient way to boost a subset of random documents:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query": {
+        "random_sample" : {
+            "probability" : 0.5,
+            "boost": 5.0
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE

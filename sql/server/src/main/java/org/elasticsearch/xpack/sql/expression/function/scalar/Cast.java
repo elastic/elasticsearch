@@ -77,7 +77,7 @@ public class Cast extends ScalarFunction {
     }
 
     @Override
-    public ColumnsProcessor asProcessor() {
+    public ColumnProcessor asProcessor() {
         return c -> DataTypeConvertion.convert(c, from(), to());
     }
 

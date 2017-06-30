@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.sql.type.DataTypes;
 
 public class FullTextPredicate extends Expression {
 
-    public enum Operator {
+    public static enum Operator {
         AND,
         OR;
         

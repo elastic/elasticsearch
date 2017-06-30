@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.xpack.sql.util;
 
-import org.elasticsearch.common.Strings;
-
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
+
+import org.elasticsearch.common.Strings;
 
 import static java.util.stream.Collectors.joining;
 
@@ -59,6 +59,7 @@ public abstract class StringUtils {
         return strings.stream().collect(joining("."));
     }
 
+    //CamelCase to camel_case
     public static String camelCaseToUnderscore(String string) {
         if (!Strings.hasText(string)) {
             return EMPTY;

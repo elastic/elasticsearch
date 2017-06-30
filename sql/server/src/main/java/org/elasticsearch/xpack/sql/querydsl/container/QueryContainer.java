@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.querydsl.container;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -20,8 +19,8 @@ import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.NestedFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnsProcessor;
-import org.elasticsearch.xpack.sql.querydsl.agg.Agg;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
+import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupingAgg;
 import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
@@ -29,6 +28,7 @@ import org.elasticsearch.xpack.sql.querydsl.query.AndQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.sql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.sql.querydsl.query.Query;
+import org.elasticsearch.xpack.sql.util.CollectionUtils;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -45,7 +45,7 @@ public class QueryContainer {
     // aliases (maps an alias to its actual resolved attribute)
     private final Map<Attribute, Attribute> aliases;
     // processors for a given attribute - wraps the processor over the resolved ref
-    private final Map<Attribute, ColumnsProcessor> processors;
+    private final Map<Attribute, ColumnProcessor> processors;
     // pseudo functions (like count) - that are 'extracted' from other aggs
     private final Map<String, GroupingAgg> pseudoFunctions;
 
@@ -60,7 +60,7 @@ public class QueryContainer {
         this(null, null, null, null, null, null, null, -1);
     }
 
-    public QueryContainer(Query query, Aggs aggs, List<Reference> refs, Map<Attribute, Attribute> aliases, Map<Attribute, ColumnsProcessor> processors, Map<String, GroupingAgg> pseudoFunctions, Set<Sort> sort, int limit) {
+    public QueryContainer(Query query, Aggs aggs, List<Reference> refs, Map<Attribute, Attribute> aliases, Map<Attribute, ColumnProcessor> processors, Map<String, GroupingAgg> pseudoFunctions, Set<Sort> sort, int limit) {
         this.query = query;
         this.aggs = aggs == null ? new Aggs() : aggs;
         this.aliases = aliases == null || aliases.isEmpty() ? emptyMap() : aliases;
@@ -105,7 +105,7 @@ public class QueryContainer {
         return aliases;
     }
 
-    public Map<Attribute, ColumnsProcessor> processors() {
+    public Map<Attribute, ColumnProcessor> processors() {
         return processors;
     }
     
@@ -149,7 +149,7 @@ public class QueryContainer {
         return new QueryContainer(query, aggs, refs, a, processors, pseudoFunctions, sort, limit);
     }
 
-    public QueryContainer withProcessors(Map<Attribute, ColumnsProcessor> p) {
+    public QueryContainer withProcessors(Map<Attribute, ColumnProcessor> p) {
         return new QueryContainer(query, aggs, refs, aliases, p, pseudoFunctions, sort, limit);
     }
 
@@ -177,7 +177,7 @@ public class QueryContainer {
     }
 
     private Reference wrapProcessorIfNeeded(Attribute attr, Reference ref) {
-        ColumnsProcessor columnProcessor = processors.get(attr);
+        ColumnProcessor columnProcessor = processors.get(attr);
         return columnProcessor != null ? new ProcessingRef(columnProcessor, ref) : ref;
     }
 
@@ -244,24 +244,28 @@ public class QueryContainer {
         return addAggRef(aggPath, null);
     }
 
-    public QueryContainer addAggRef(String aggPath, ColumnsProcessor processor) {
-        Reference ref = new AggRef(aggPath);
-        ref = processor != null ? new ProcessingRef(processor, ref) : ref;
+    public QueryContainer addAggRef(String aggPath, ColumnProcessor processor) {
+        return addAggRef(new AggRef(aggPath), processor);
+    }
+
+    public QueryContainer addAggRef(AggRef customRef, ColumnProcessor processor) {
+        Reference ref = processor != null ? new ProcessingRef(processor, customRef) : customRef;
         return addRef(ref);
     }
 
-    public QueryContainer addAggCount(GroupingAgg parentGroup, String functionId, ColumnsProcessor processor) {
-        Reference ref = parentGroup == null ? TotalCountRef.INSTANCE : new AggRef(parentGroup.asParentPath() + Agg.PATH_BUCKET_COUNT);
+    public QueryContainer addAggCount(GroupingAgg parentGroup, String functionId, ColumnProcessor processor) {
+        Reference ref = parentGroup == null ? TotalCountRef.INSTANCE : new AggRef(AggPath.bucketCount(parentGroup.asParentPath()));
         ref = processor != null ? new ProcessingRef(processor, ref) : ref;
-        Map<String, GroupingAgg> newFunc = new LinkedHashMap<>(pseudoFunctions);
-        newFunc.put(functionId, parentGroup);
-        return new QueryContainer(query, aggs, combine(refs, ref), aliases, processors, newFunc, sort, limit);
+        return new QueryContainer(query, aggs, combine(refs, ref), aliases, processors, combine(pseudoFunctions, CollectionUtils.of(functionId, parentGroup)), sort, limit);
     }
 
-    public QueryContainer addAgg(String groupId, LeafAgg agg, ColumnsProcessor processor) {
-        Reference ref = new AggRef(agg.propertyPath());
-        ref = processor != null ? new ProcessingRef(processor, ref) : ref;
+    public QueryContainer addAgg(String groupId, LeafAgg agg, ColumnProcessor processor) {
+        return addAgg(groupId, agg, agg.propertyPath(), processor);
+    }
 
+    public QueryContainer addAgg(String groupId, LeafAgg agg, String aggRefPath, ColumnProcessor processor) {
+        AggRef aggRef = new AggRef(aggRefPath);
+        Reference ref = processor != null ? new ProcessingRef(processor, aggRef) : aggRef;
         return new QueryContainer(query, aggs.addAgg(groupId, agg), combine(refs, ref), aliases, processors, pseudoFunctions, sort, limit);
     }
 

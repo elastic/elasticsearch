@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.stream.Stream;
-
 import org.elasticsearch.xpack.sql.analysis.AnalysisException;
 import org.elasticsearch.xpack.sql.analysis.UnknownFunctionException;
 import org.elasticsearch.xpack.sql.analysis.UnknownIndexException;
@@ -60,11 +51,20 @@ import org.elasticsearch.xpack.sql.tree.Node;
 import org.elasticsearch.xpack.sql.type.CompoundDataType;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Stream;
+
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
-
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
@@ -97,7 +97,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         
         return Arrays.asList(substitution, resolution);
     }
-    
+
     public LogicalPlan analyze(LogicalPlan plan) {
         return analyze(plan, true);
     }
@@ -467,14 +467,12 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         if (ordinal > 0 && ordinal <= max) {
                             NamedExpression reference = aggregates.get(ordinal);
                             if (containsAggregate(reference)) {
-                                throw new AnalysisException(exp,  
-                                        "Group ordinal %d refers to an aggregate function %s which is not compatible/allowed with GROUP BY", ordinal, reference.nodeName());
+                                throw new AnalysisException(exp, "Group ordinal %d refers to an aggregate function %s which is not compatible/allowed with GROUP BY", ordinal, reference.nodeName());
                             }
                             newGroupings.add(reference);
                         }
                         else {
-                            throw new AnalysisException(exp, 
-                                    "Invalid ordinal %d specified in Aggregate (valid range is [1, %d])", ordinal, max);
+                            throw new AnalysisException(exp, "Invalid ordinal %d specified in Aggregate (valid range is [1, %d])", ordinal, max);
                         }
                     }
                     else {
@@ -581,21 +579,18 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 if (plan instanceof Aggregate) {
                     Aggregate a = (Aggregate) plan;
                     // missing attributes can only be grouping expressions
-                    for (Expression g : a.groupings()) {
-                        for (Attribute m : missing) {
-                            if (!g.anyMatch(e -> e.canonicalEquals(m))) {
-                                // no match - bail out
-                                return a;
-                            }
+                    for (Attribute m : missing) {
+                        // but we don't can't add an agg if the group is missing
+                        if (!Expressions.anyMatchInList(a.groupings(), g -> g.canonicalEquals(m))) {
+                            // we cannot propagate the missing attribute, bail out
+                            //throw new AnalysisException(logicalPlan, "Cannot add missing attribute %s to %s", m.name(), plan);
+                            return plan;
                         }
                     }
                     return new Aggregate(a.location(), a.child(), a.groupings(), combine(a.aggregates(), missing));
                 }
 
                 return plan;
-
-                // we cannot propagate the missing attribute, bail out
-                //throw new AnalysisException(format("Cannot add missing attribute %s to node %s", missing, plan), plan);
             });
         }
     }
@@ -644,7 +639,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         }
                         // TODO: might be removed
                         // dedicated count optimization
-                        if (uf.name().equals("COUNT")) {
+                        if (name.toUpperCase(Locale.ROOT).equals("COUNT")) {
                             uf = new UnresolvedFunction(uf.location(), uf.name(), uf.distinct(), singletonList(Literal.of(uf.arguments().get(0).location(), Integer.valueOf(1))));
                         }
                     }
@@ -969,7 +964,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    abstract static class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
+    static abstract class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 
         // transformUp (post-order) - that is first children and then the node
         // but with a twist; only if the tree is not resolved or analyzed

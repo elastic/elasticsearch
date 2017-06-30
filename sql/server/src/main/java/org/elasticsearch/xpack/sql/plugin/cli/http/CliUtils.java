@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.elasticsearch.xpack.sql.session.RowSetCursor;
 
-public abstract class CliUtils { // TODO made public so it could be shared with tests
+abstract class CliUtils {
 
     // this toString is a bit convoluted since it tries to be smart and pad the columns according to their values
     // as such it will look inside the row, find the max for each column and pad all the values accordingly
@@ -17,7 +17,7 @@ public abstract class CliUtils { // TODO made public so it could be shared with 
     // a row needs to be iterated upon to fill up the values that don't take extra lines
 
     // Warning: this method _consumes_ a rowset
-    public static String toString(RowSetCursor cursor) {
+    static String toString(RowSetCursor cursor) {
         if (cursor.rowSize() == 1 && cursor.size() == 1 && cursor.column(0).toString().startsWith("digraph ")) {
             return cursor.column(0).toString();
         }

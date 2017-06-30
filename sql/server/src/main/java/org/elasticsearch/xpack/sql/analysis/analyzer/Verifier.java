@@ -93,7 +93,7 @@ abstract class Verifier {
             //
             
             // first look at expressions
-            p.forEachExpressionsUp(e -> e.forEachUp(ae -> {
+            p.forEachExpressions(e -> e.forEachUp(ae -> {
                 if (ae.typeResolved().unresolved()) {
                     localFailures.add(fail(ae, ae.typeResolved().message()));
                 }

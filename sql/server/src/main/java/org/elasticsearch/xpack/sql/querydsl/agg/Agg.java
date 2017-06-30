@@ -14,14 +14,6 @@ import org.elasticsearch.xpack.sql.util.StringUtils;
 import static java.lang.String.format;
 
 public abstract class Agg {
-
-    public static final char PATH_DELIMITER_CHAR = '>';
-    public static final String PATH_DELIMITER = String.valueOf(PATH_DELIMITER_CHAR);
-    public static final String PATH_BUCKET_VALUE = "._key";
-    public static final String PATH_BUCKET_COUNT = "._count";
-    public static final String PATH_BUCKET_VALUE_FORMATTED = "._key_as_string";
-    public static final String PATH_VALUE = ".value";
-
     private final String id;
     private final String fieldName;
     private final String propertyPath;

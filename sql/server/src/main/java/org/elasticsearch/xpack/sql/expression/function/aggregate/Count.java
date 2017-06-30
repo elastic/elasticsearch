@@ -29,13 +29,19 @@ public class Count extends AggregateFunction {
         return DataTypes.LONG;
     }
 
+
     @Override
-    public AggregateFunctionAttribute toAttribute() {
+    public String functionId() {
         String functionId = id().toString();
         // if count works against a given expression, use its id (to identify the group)
         if (argument() instanceof NamedExpression) {
             functionId = ((NamedExpression) argument()).id().toString();
         }
-        return new AggregateFunctionAttribute(location(), name(), dataType(), id(), functionId, "_count");
+        return functionId;
+    }
+
+    @Override
+    public AggregateFunctionAttribute toAttribute() {
+        return new AggregateFunctionAttribute(location(), name(), dataType(), id(), functionId(), "_count");
     }
 }

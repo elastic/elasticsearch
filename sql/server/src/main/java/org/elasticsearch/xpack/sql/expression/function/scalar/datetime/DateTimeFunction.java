@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.Expressions;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnsProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
 import org.elasticsearch.xpack.sql.tree.Location;
@@ -64,7 +64,7 @@ public abstract class DateTimeFunction extends ScalarFunction {
     }
 
     @Override
-    public ColumnsProcessor asProcessor() {
+    public ColumnProcessor asProcessor() {
         return l -> {
             ReadableDateTime dt = null;
             // most dates are returned as long

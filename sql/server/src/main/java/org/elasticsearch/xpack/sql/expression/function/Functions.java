@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.expression.Alias;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.NamedExpression;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnsProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 
 import static java.util.Collections.emptyList;
@@ -80,13 +80,13 @@ public abstract class Functions {
         return exps;
     }
 
-    public static ColumnsProcessor chainProcessors(List<Expression> unwrappedScalar) {
-        ColumnsProcessor proc = null;
+    public static ColumnProcessor chainProcessors(List<Expression> unwrappedScalar) {
+        ColumnProcessor proc = null;
         for (Expression e : unwrappedScalar) {
             if (e instanceof ScalarFunction) {
                 ScalarFunction sf = (ScalarFunction) e;
                 // A(B(C)) is applied backwards first C then B then A, the last function first
-                proc = proc != null ? sf.asProcessor().andThen(proc) : sf.asProcessor();
+                proc = sf.asProcessor().andThen(proc);
             }
             else {
                 return proc;

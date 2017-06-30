@@ -7,10 +7,21 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
+import org.elasticsearch.xpack.sql.type.DataType;
 
-public class Min extends NumericAggregateFunction {
+public class Min extends NumericAggregate implements EnclosedAgg {
 
     public Min(Location location, Expression argument) {
         super(location, argument);
+    }
+
+    @Override
+    public DataType dataType() {
+        return argument().dataType();
+    }
+
+    @Override
+    public String innerName() {
+        return "min";
     }
 }

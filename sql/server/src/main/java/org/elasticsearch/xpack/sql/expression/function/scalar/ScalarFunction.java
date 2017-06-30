@@ -81,7 +81,7 @@ public abstract class ScalarFunction extends Function {
     protected abstract String chainScalarTemplate(String template);
 
 
-    public abstract ColumnsProcessor asProcessor();
+    public abstract ColumnProcessor asProcessor();
 
     // used if the function is monotonic and thus does not have to be computed for ordering purposes 
     public Expression orderBy() {

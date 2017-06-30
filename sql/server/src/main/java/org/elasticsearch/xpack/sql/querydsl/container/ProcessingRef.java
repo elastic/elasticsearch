@@ -5,19 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.querydsl.container;
 
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnsProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
 
 public class ProcessingRef implements Reference {
 
-    private final ColumnsProcessor processor;
+    private final ColumnProcessor processor;
     private final Reference ref;
 
-    public ProcessingRef(ColumnsProcessor processor, Reference ref) {
+    public ProcessingRef(ColumnProcessor processor, Reference ref) {
         this.processor = processor;
         this.ref = ref;
     }
 
-    public ColumnsProcessor processor() {
+    public ColumnProcessor processor() {
         return processor;
     }
 

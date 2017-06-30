@@ -6,11 +6,18 @@
 package org.elasticsearch.xpack.sql.expression.function;
 
 import org.elasticsearch.xpack.sql.SqlException;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Mean;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.StddevPop;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Sum;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.SumOfSquares;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.VarPop;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfMonth;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DayOfWeek;
@@ -72,13 +79,21 @@ public class DefaultFunctionRegistry extends AbstractFunctionRegistry {
         return ALIASES;
     }
 
-    private static Collection<Class<? extends Function>> agg() {
+    private static Collection<Class<? extends AggregateFunction>> agg() {
         return Arrays.asList(
                 Avg.class,
                 Count.class,
                 Max.class,
                 Min.class,
-                Sum.class
+                Sum.class,
+                // statistics
+                Mean.class,
+                StddevPop.class,
+                VarPop.class,
+                SumOfSquares.class,
+                Skewness.class,
+                Kurtosis.class
+                // TODO: add multi arg functions like Covariance, Correlate, Percentiles and percentiles rank
                 );
     }
     
@@ -127,6 +142,7 @@ public class DefaultFunctionRegistry extends AbstractFunctionRegistry {
                 Tan.class
                 );
     }
+
 
     @SuppressWarnings("unchecked")
     private static Collection<Class<? extends ScalarFunction>> functions(Class<? extends ScalarFunction> type) {

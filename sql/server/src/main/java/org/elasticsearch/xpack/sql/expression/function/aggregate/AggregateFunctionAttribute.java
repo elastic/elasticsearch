@@ -49,6 +49,10 @@ public class AggregateFunctionAttribute extends TypedAttribute {
         return new AggregateFunctionAttribute(location, name, dataType, qualifier, nullable, id, synthetic, functionId, propertyPath);
     }
 
+    public AggregateFunctionAttribute withFunctionId(String functionId, String propertyPath) {
+        return new AggregateFunctionAttribute(location(), name(), dataType(), qualifier(), nullable(), id(), synthetic(), functionId, propertyPath);
+    }
+    
     @Override
     public boolean equals(Object obj) {
         if (super.equals(obj)) {

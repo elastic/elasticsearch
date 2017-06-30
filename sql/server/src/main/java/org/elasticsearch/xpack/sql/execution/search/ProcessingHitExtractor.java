@@ -6,14 +6,14 @@
 package org.elasticsearch.xpack.sql.execution.search;
 
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnsProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
 
 class ProcessingHitExtractor implements HitExtractor {
 
     final HitExtractor delegate;
-    private final ColumnsProcessor processor;
+    private final ColumnProcessor processor;
 
-    ProcessingHitExtractor(HitExtractor delegate, ColumnsProcessor processor) {
+    ProcessingHitExtractor(HitExtractor delegate, ColumnProcessor processor) {
         this.delegate = delegate;
         this.processor = processor;
     }

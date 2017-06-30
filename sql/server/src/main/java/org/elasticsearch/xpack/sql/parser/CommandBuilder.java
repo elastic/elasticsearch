@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.parser;
 import java.util.Locale;
 
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.xpack.sql.parser.SqlBaseLexer;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.DebugContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.ExplainContext;
 import org.elasticsearch.xpack.sql.parser.SqlBaseParser.SessionResetContext;

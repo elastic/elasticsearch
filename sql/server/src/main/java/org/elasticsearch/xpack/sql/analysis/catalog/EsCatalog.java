@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -14,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -105,28 +102,30 @@ public class EsCatalog implements Catalog {
     }
 
     @Override
-    public Collection<EsType> listTypes(String indexPattern, String typePattern) {
+    public Collection<EsType> listTypes(String indexPattern, String pattern) {
         if (!Strings.hasText(indexPattern)) {
             indexPattern = WILDCARD;
         }
 
-        String[] indices = indexNameExpressionResolver.concreteIndexNames(clusterState.get(),
-                IndicesOptions.strictExpandOpenAndForbidClosed(), indexPattern);
+        String[] iName = indexNameExpressionResolver.concreteIndexNames(clusterState.get(), IndicesOptions.strictExpandOpenAndForbidClosed(), indexPattern);
+        
+        List<EsType> types = new ArrayList<>();
 
-        List<EsType> results = new ArrayList<>();
-        for (String index : indices) {
-            IndexMetaData imd = metadata().index(index);
-            for (ObjectObjectCursor<String, MappingMetaData> entry : imd.getMappings()) {
-                if (false == Strings.hasLength(typePattern) || Regex.simpleMatch(typePattern, entry.key)) {
-                    results.add(EsType.build(index, entry.key, entry.value));
-                }
+        for (String cIndex : iName) {
+            IndexMetaData imd = metadata().index(cIndex);
+
+            if (Strings.hasText(pattern)) {
+                types.add(EsType.build(cIndex, pattern, imd.mapping(pattern)));
+            }
+            else {
+                types.addAll(EsType.build(cIndex, imd.getMappings()));
             }
         }
-        return results;
+
+        return types;
     }
     
     private String[] resolveIndex(String pattern) {
-        return indexNameExpressionResolver.concreteIndexNames(clusterState.get(), IndicesOptions.strictExpandOpenAndForbidClosed(),
-                pattern);
+        return indexNameExpressionResolver.concreteIndexNames(clusterState.get(), IndicesOptions.strictExpandOpenAndForbidClosed(), pattern);
     }
 }

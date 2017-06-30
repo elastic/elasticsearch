@@ -12,8 +12,9 @@ import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyList;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
+import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 public abstract class InMemoryCatalog implements Catalog {
@@ -53,7 +54,7 @@ public abstract class InMemoryCatalog implements Catalog {
 
     @Override
     public Collection<EsIndex> listIndices(String pattern) {
-        Pattern p = Pattern.compile(pattern);
+        Pattern p = StringUtils.likeRegex(pattern);
         return indices.entrySet().stream()
             .filter(e -> p.matcher(e.getKey()).matches())
             .map(Map.Entry::getValue)
@@ -89,7 +90,7 @@ public abstract class InMemoryCatalog implements Catalog {
             return emptyList();
         }
 
-        Pattern p = Pattern.compile(pattern);
+        Pattern p = StringUtils.likeRegex(pattern);
         return typs.entrySet().stream()
                 .filter(e -> p.matcher(e.getKey()).matches())
                 .map(Map.Entry::getValue)

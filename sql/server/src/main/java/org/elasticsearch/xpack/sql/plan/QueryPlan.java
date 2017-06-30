@@ -97,21 +97,25 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     }
 
     public void forEachExpressionsDown(Consumer<? super Expression> rule) {
-        forEachPropertiesDown(p -> doForEachExpression(p, rule), Object.class);
+        forEachPropertiesDown(e -> doForEachExpression(e, exp -> exp.forEachDown(rule)), Object.class);
     }
 
     public void forEachExpressionsUp(Consumer<? super Expression> rule) {
-        forEachPropertiesUp(p -> doForEachExpression(p, rule), Object.class);
+        forEachPropertiesUp(e -> doForEachExpression(e, exp -> exp.forEachUp(rule)), Object.class);
     }
 
-    private void doForEachExpression(Object arg, Consumer<? super Expression> f) {
+    public void forEachExpressions(Consumer<? super Expression> rule) {
+        forEachPropertiesOnly(e -> doForEachExpression(e, rule::accept), Object.class);
+    }
+
+    private void doForEachExpression(Object arg, Consumer<? super Expression> traversal) {
         if (arg instanceof Expression) {
-            f.accept((Expression) arg);
+            traversal.accept((Expression) arg);
         }
         else if (arg instanceof Collection) {
             Collection<?> c = (Collection<?>) arg;
             for (Object o : c) {
-                doForEachExpression(o, f);
+                doForEachExpression(o, traversal);
             }
         }
     }

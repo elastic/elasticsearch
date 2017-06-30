@@ -77,21 +77,20 @@ public abstract class Node<T extends Node<T>> {
         });
     }
 
-    @SuppressWarnings("unchecked")
     public <E> void forEachPropertiesOnly(Consumer<? super E> rule, Class<E> typeToken) {
-        forEachProperty((T) this, rule, typeToken);
+        forEachProperty(rule, typeToken);
     }
 
     public <E> void forEachPropertiesDown(Consumer<? super E> rule, Class<E> typeToken) {
-        forEachDown(e -> forEachProperty(e, rule, typeToken));
+        forEachDown(e -> e.forEachProperty(rule, typeToken));
     }
 
     public <E> void forEachPropertiesUp(Consumer<? super E> rule, Class<E> typeToken) {
-        forEachUp(e -> forEachProperty(e, rule, typeToken));
+        forEachUp(e -> e.forEachProperty(rule, typeToken));
     }
 
     @SuppressWarnings("unchecked")
-    private <E> void forEachProperty(T node, Consumer<? super E> rule, Class<E> typeToken) {
+    protected <E> void forEachProperty(Consumer<? super E> rule, Class<E> typeToken) {
         for (Object prop : NodeUtils.properties(this)) {
             // skip children (only properties are interesting)
             if (prop != children && !children.contains(prop) && typeToken.isInstance(prop)) {

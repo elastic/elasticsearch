@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnsProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataType;
 
@@ -17,7 +17,7 @@ public class Abs extends MathFunction {
     }
 
     @Override
-    public ColumnsProcessor asProcessor() {
+    public ColumnProcessor asProcessor() {
         return l -> {
             if (l instanceof Float) {
                 return Math.abs(((Float) l).floatValue());

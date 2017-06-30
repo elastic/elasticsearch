@@ -22,12 +22,16 @@ public abstract class Types {
 
     @SuppressWarnings("unchecked")
     public static Map<String, DataType> fromEs(Map<String, Object> asMap) {
-        return startWalking((Map<String, Object>) asMap.get("properties"));
+        Map<String, Object> props = (Map<String, Object>) asMap.get("properties");
+        return props == null || props.isEmpty() ? emptyMap() : startWalking(props);
     }
 
     private static Map<String, DataType> startWalking(Map<String, Object> mapping) {
         Map<String, DataType> translated = new LinkedHashMap<>();
 
+        if (mapping == null) {
+            return emptyMap();
+        }
         for (Entry<String, Object> entry : mapping.entrySet()) {
             walkMapping(entry.getKey(), entry.getValue(), translated);
         }

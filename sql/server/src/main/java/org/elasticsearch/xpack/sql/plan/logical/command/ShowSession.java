@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
@@ -57,7 +58,7 @@ public class ShowSession extends Command {
         }
         else {
             if (pattern != null) {
-                Pattern p = Pattern.compile(pattern);
+                Pattern p = StringUtils.likeRegex(pattern);
                 s = s.filter(k -> p.matcher(k).matches());
             }
             

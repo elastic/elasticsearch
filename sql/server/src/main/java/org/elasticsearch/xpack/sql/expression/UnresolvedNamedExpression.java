@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.sql.type.DataType;
 
 abstract class UnresolvedNamedExpression extends NamedExpression implements Unresolvable {
 
-    UnresolvedNamedExpression(Location location, List<Expression> children) {
+    public UnresolvedNamedExpression(Location location, List<Expression> children) {
         super(location, "<unresolved>", children, ExpressionIdGenerator.EMPTY);
     }
 

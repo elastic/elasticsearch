@@ -71,7 +71,7 @@ abstract class AbstractFunctionRegistry implements FunctionRegistry {
 
     @Override
     public Collection<FunctionDefinition> listFunctions(String pattern) {
-        Pattern p = Strings.hasText(pattern) ? Pattern.compile(normalize(pattern)) : null;
+        Pattern p = Strings.hasText(pattern) ? StringUtils.likeRegex(normalize(pattern)) : null;
         return defs.entrySet().stream()
                 .filter(e -> p == null || p.matcher(e.getKey()).matches())
                 .map(e -> new FunctionDefinition(e.getKey(), emptyList(), e.getValue().clazz()))

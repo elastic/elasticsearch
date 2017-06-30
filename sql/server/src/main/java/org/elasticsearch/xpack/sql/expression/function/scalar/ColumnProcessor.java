@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar;
 
-import java.util.Objects;
-
 @FunctionalInterface
-public interface ColumnsProcessor {
+public interface ColumnProcessor {
 
-    Object apply(Object t);
+    Object apply(Object r);
 
-    default ColumnsProcessor andThen(ColumnsProcessor after) {
-        Objects.requireNonNull(after);
-        return t -> after.apply(apply(t));
+    default ColumnProcessor andThen(ColumnProcessor after) {
+        return after != null ? r -> after.apply(apply(r)) : this;
     }
 }

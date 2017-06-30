@@ -51,6 +51,7 @@ public class SearchHitRowSetCursor extends AbstractRowSetCursor {
             InnerHitExtractor ie = getInnerHitExtractor(ex);
             if (ie != null) {
                 innerH = ie.parent();
+                innerHits.add(innerH);
             }
         }
 

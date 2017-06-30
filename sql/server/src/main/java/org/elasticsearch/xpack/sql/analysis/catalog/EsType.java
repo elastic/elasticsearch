@@ -5,12 +5,17 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
-import org.elasticsearch.ElasticsearchParseException;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.xpack.sql.type.DataType;
 import org.elasticsearch.xpack.sql.type.Types;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 public class EsType {
@@ -40,15 +45,20 @@ public class EsType {
     }
 
     static EsType build(String index, String type, MappingMetaData metaData) {
-        Map<String, Object> asMap;
-        try {
-            asMap = metaData.sourceAsMap();
-        } catch (ElasticsearchParseException ex) {
-            throw new MappingException("Cannot get mapping info", ex);
-        }
+        Map<String, Object> asMap = metaData.sourceAsMap();
 
         Map<String, DataType> mapping = Types.fromEs(asMap);
         return new EsType(index, type, mapping);
+    }
+
+    static Collection<EsType> build(String index, ImmutableOpenMap<String, MappingMetaData> mapping) {
+        List<EsType> tps = new ArrayList<>();
+
+        for (ObjectObjectCursor<String, MappingMetaData> entry : mapping) {
+            tps.add(build(index, entry.key, entry.value));
+        }
+
+        return tps;
     }
 
     @Override

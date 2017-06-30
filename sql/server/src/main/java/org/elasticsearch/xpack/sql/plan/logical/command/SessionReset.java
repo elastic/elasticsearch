@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
+import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -52,7 +53,7 @@ public class SessionReset extends Command {
             Settings defaults = session.defaults().cfg();
             Builder builder = Settings.builder().put(s);
             if (pattern != null) {
-                Pattern p = Pattern.compile(pattern);
+                Pattern p = StringUtils.likeRegex(pattern);
                 s.getAsMap().forEach((k, v) -> {
                     if (p.matcher(k).matches()) {
                         builder.put(k, defaults.get(k));

@@ -22,8 +22,10 @@ import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.Function;
 import org.elasticsearch.xpack.sql.expression.function.Functions;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.CompoundAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnsProcessor;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.InnerAggregate;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
@@ -34,11 +36,13 @@ import org.elasticsearch.xpack.sql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.sql.plan.physical.QuerylessExec;
-import org.elasticsearch.xpack.sql.planner.QueryTranslator.GroupInfo;
+import org.elasticsearch.xpack.sql.planner.QueryTranslator.GroupingContext;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
+import org.elasticsearch.xpack.sql.querydsl.agg.AggPath;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupingAgg;
+import org.elasticsearch.xpack.sql.querydsl.agg.LeafAgg;
 import org.elasticsearch.xpack.sql.querydsl.container.AttributeSort;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptSort;
@@ -90,7 +94,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 QueryContainer queryC = exec.queryContainer();
                 
                 Map<Attribute, Attribute> aliases = new LinkedHashMap<>(queryC.aliases());
-                Map<Attribute, ColumnsProcessor> processors = new LinkedHashMap<>(queryC.processors());
+                Map<Attribute, ColumnProcessor> processors = new LinkedHashMap<>(queryC.processors());
                 
                 for (NamedExpression pj : project.projections()) {
                     if (pj instanceof Alias) {
@@ -122,11 +126,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return project;
         }
 
-        private Attribute scalarToProcessor(ScalarFunction e, Map<Attribute, ColumnsProcessor> processors) {
+        private Attribute scalarToProcessor(ScalarFunction e, Map<Attribute, ColumnProcessor> processors) {
             List<Expression> trail = Functions.unwrapScalarFunctionWithTail(e);
             Expression tail = trail.get(trail.size() - 1);
 
-            ColumnsProcessor proc = Functions.chainProcessors(trail);
+            ColumnProcessor proc = Functions.chainProcessors(trail);
 
             // in projection, scalar functions can only be applied to constants (in which case they are folded) or columns aka NamedExpressions
             if (!(tail instanceof NamedExpression)) {
@@ -222,16 +226,18 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // build the group aggregation
                 // and also collect info about it (since the group columns might be used inside the select)
 
-                GroupInfo groupInfo = QueryTranslator.groupBy(a.groupings());
+                GroupingContext groupingContext = QueryTranslator.groupBy(a.groupings());
                 // shortcut used in several places
-                Map<ExpressionId, GroupingAgg> aggMap = groupInfo != null ? groupInfo.aggMap : emptyMap();
+                Map<ExpressionId, GroupingAgg> groupMap = groupingContext != null ? groupingContext.groupMap : emptyMap();
 
                 QueryContainer queryC = exec.queryContainer();
-                if (groupInfo != null) {
-                    queryC = queryC.addGroups(groupInfo.aggMap.values());
+                if (groupingContext != null) {
+                    queryC = queryC.addGroups(groupingContext.groupMap.values());
                 }
 
                 Map<Attribute, Attribute> aliases = new LinkedHashMap<>();
+                // tracker for compound aggs seen in a group
+                Map<CompoundAggregate, String> compoundAggMap = new LinkedHashMap<>();
 
                 // followed by actual aggregates
                 for (NamedExpression ne : a.aggregates()) {
@@ -257,14 +263,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         //
 
                         List<Expression> wrappingFunctions = Functions.unwrapScalarFunctionWithTail(child);
-                        ColumnsProcessor proc = null;
+                        ColumnProcessor proc = null;
                         Expression resolvedGroupedExp = null;
                         int resolvedExpIndex = -1;
 
                         // look-up the hierarchy to match the group
                         for (int i = wrappingFunctions.size() - 1; i >= 0 && resolvedGroupedExp == null; i--) {
                             Expression exp = wrappingFunctions.get(i);
-                            parentGroup = groupInfo != null ? groupInfo.parentGroupFor(exp) : null;
+                            parentGroup = groupingContext != null ? groupingContext.parentGroupFor(exp) : null;
 
                             // found group for expression or bumped into an aggregate (can happen when dealing with a root group)
                             if (parentGroup != null || Functions.isAggregateFunction(exp)) {
@@ -284,10 +290,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         }
 
                         // initialize parent if needed
-                        parentGroup = parentGroup == null && groupInfo != null ? groupInfo.parentGroupFor(resolvedGroupedExp) : parentGroup;
+                        parentGroup = parentGroup == null && groupingContext != null ? groupingContext.parentGroupFor(resolvedGroupedExp) : parentGroup;
 
                         if (resolvedGroupedExp instanceof Attribute) {
-                            queryC = useNamedReference(((Attribute) resolvedGroupedExp), proc, aggMap, queryC);
+                            queryC = useNamedReference(((Attribute) resolvedGroupedExp), proc, groupMap, queryC);
                         }
 
                         // a scalar function can be used only if has been already used for grouping
@@ -308,12 +314,12 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                                 throw new SqlIllegalArgumentException("Expected aggregate function inside alias; got %s", child.nodeString());
                             }
                             AggregateFunction f = (AggregateFunction) resolvedGroupedExp;
-                            queryC = addFunction(parentGroup, f, proc, queryC);
+                            queryC = addFunction(parentGroup, f, proc, compoundAggMap, queryC);
                         }
                     }
                     // not an Alias, means it's an Attribute
                     else {
-                        queryC = useNamedReference(ne, null, aggMap, queryC);
+                        queryC = useNamedReference(ne, null, groupMap, queryC);
                     }
                 }
 
@@ -327,7 +333,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         // the agg is an actual value (field) that points to a group 
         // so look it up and create an extractor for it
-        private QueryContainer useNamedReference(NamedExpression ne, ColumnsProcessor proc, Map<ExpressionId, GroupingAgg> groupMap, QueryContainer queryC) {
+        private QueryContainer useNamedReference(NamedExpression ne, ColumnProcessor proc, Map<ExpressionId, GroupingAgg> groupMap, QueryContainer queryC) {
             GroupingAgg aggInfo = groupMap.get(ne.id());
             if (aggInfo == null) {
                 throw new SqlIllegalArgumentException("Cannot find group '%s'", ne.name());
@@ -335,8 +341,8 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return queryC.addAggRef(aggInfo.propertyPath(), proc);
         }
 
-        private QueryContainer addFunction(GroupingAgg parentAgg, Function f, ColumnsProcessor proc, QueryContainer queryC) {
-            String functionId = f.id().toString();
+        private QueryContainer addFunction(GroupingAgg parentAgg, AggregateFunction f, ColumnProcessor proc, Map<CompoundAggregate, String> compoundAggMap, QueryContainer queryC) {
+            String functionId = f.functionId();
             // handle count as a special case agg
             if (f instanceof Count) {
                 Count c = (Count) f;
@@ -344,9 +350,34 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                     return queryC.addAggCount(parentAgg, functionId, proc);
                 }
             }
+
             // otherwise translate it to an agg
             String parentPath = parentAgg != null ? parentAgg.asParentPath() : null;
             String groupId = parentAgg != null ? parentAgg.id() : null;
+
+            if (f instanceof InnerAggregate) {
+                InnerAggregate ia = (InnerAggregate) f;
+                CompoundAggregate outer = ia.outer();
+                String cAggPath = compoundAggMap.get(outer);
+
+                // the compound agg hasn't been seen before so initialize it
+                if (cAggPath == null) {
+                    LeafAgg leafAgg = toAgg(parentPath, functionId, outer);
+                    cAggPath = leafAgg.propertyPath();
+                    compoundAggMap.put(outer, cAggPath);
+                    // add the agg without the default ref to it
+                    queryC = queryC.with(queryC.aggs().addAgg(leafAgg));
+                }
+                
+                String aggPath = AggPath.metricValue(cAggPath, ia.innerId());
+                // FIXME: concern leak - hack around MatrixAgg which is not generalized (afaik)
+                if (ia.innerKey() != null) {
+                    proc = QueryTranslator.matrixFieldExtractor(ia.innerKey()).andThen(proc);
+                }
+
+                return queryC.addAggRef(aggPath, proc);
+            }
+
             return queryC.addAgg(groupId, toAgg(parentPath, functionId, f), proc);
         }
     }
@@ -470,19 +501,16 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return exec.with(qContainer);
         }
     }
-   
-    /**
-     * Rule for folding physical plans together.
-     */
-    abstract static class FoldingRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
-
-        @Override
-        public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, typeToken());
-        }
-
-        @Override
-        protected abstract PhysicalPlan rule(SubPlan plan);
-    }
 }
 
+// rule for folding physical plans together
+abstract class FoldingRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
+
+    @Override
+    public final PhysicalPlan apply(PhysicalPlan plan) {
+        return plan.transformUp(this::rule, typeToken());
+    }
+
+    @Override
+    protected abstract PhysicalPlan rule(SubPlan plan);
+}

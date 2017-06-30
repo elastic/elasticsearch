@@ -67,4 +67,8 @@ public abstract class Function extends NamedExpression {
         }
         return sj.toString();
     }
+
+    public boolean functionEquals(Function f) {
+        return f != null && getClass() == f.getClass() && arguments().equals(f.arguments());
+    }
 }

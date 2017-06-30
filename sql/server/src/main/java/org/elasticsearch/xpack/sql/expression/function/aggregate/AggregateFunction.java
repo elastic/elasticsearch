@@ -24,9 +24,13 @@ public abstract class AggregateFunction extends Function {
         return argument;
     }
 
+    public String functionId() {
+        return id().toString();
+    }
+
     @Override
     public AggregateFunctionAttribute toAttribute() {
         // this is highly correlated with QueryFolder$FoldAggregate#addFunction (regarding the function name within the querydsl)
-        return new AggregateFunctionAttribute(location(), name(), dataType(), id(), id().toString(), null);
+        return new AggregateFunctionAttribute(location(), name(), dataType(), id(), functionId(), null);
     }
 }

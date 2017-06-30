@@ -10,7 +10,7 @@ import java.util.Locale;
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.expression.FieldAttribute;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.AggregateFunctionAttribute;
-import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnsProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.ColumnProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.ScalarFunctionAttribute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.script.ScriptTemplate;
@@ -79,7 +79,7 @@ public abstract class MathFunction extends ScalarFunction {
     }
 
     @Override
-    public ColumnsProcessor asProcessor() {
+    public ColumnProcessor asProcessor() {
         return l -> {
             double d = ((Number) l).doubleValue();
             return math(d);

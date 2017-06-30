@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.tree;
 
+import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.util.Assert;
+import org.elasticsearch.xpack.sql.util.ObjectUtils;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -16,11 +20,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
-
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.util.Assert;
-import org.elasticsearch.xpack.sql.util.ObjectUtils;
-
 import java.util.Objects;
 import java.util.Set;
 
@@ -42,6 +41,7 @@ public abstract class NodeUtils {
 
     private static final String TO_STRING_IGNORE_PROP = "location";
     private static final int TO_STRING_MAX_PROP = 10;
+    private static final int TO_STRING_MAX_WIDTH = 100;
 
     private static final Map<Class<?>, NodeInfo> CACHE = new LinkedHashMap<>();
     
@@ -146,9 +146,7 @@ public abstract class NodeUtils {
             Parameter[] parameters = ctr.getParameters();
             for (int paramIndex = 0; paramIndex < parameters.length; paramIndex++) {
                 Parameter param = parameters[paramIndex];
-                // NOCOMMIT - oh boy. this is worth digging into. I suppose we preserve these for now but I don't think this is safe to rely on.
-                Assert.isTrue(param.isNamePresent(), "Can't find constructor parameter names for [%s]. Is class debug information available?", 
-                                clazz.toGenericString());
+                Assert.isTrue(param.isNamePresent(), "Can't find constructor parameter names for [%s]. Is class debug information available?", clazz.toGenericString());
                 String paramName = param.getName();
 
                 if (paramName.equals("children")) {
@@ -225,6 +223,7 @@ public abstract class NodeUtils {
         List<?> children = tree.children();
         // eliminate children (they are rendered as part of the tree)
         int maxProperties = TO_STRING_MAX_PROP;
+        int maxWidth = 0;
         Iterator<String> nameIterator = keySet.iterator();
         boolean needsComma = false;
 
@@ -242,7 +241,12 @@ public abstract class NodeUtils {
                 if (needsComma) {
                     sb.append(",");
                 }
-                sb.append(Objects.toString(object));
+                String stringValue = Objects.toString(object);
+                if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
+                    stringValue = stringValue.substring(0, Math.max(0, TO_STRING_MAX_WIDTH - maxWidth)) + "~";
+                }
+                maxWidth += stringValue.length();
+                sb.append(stringValue);
 
                 needsComma = true;
             }

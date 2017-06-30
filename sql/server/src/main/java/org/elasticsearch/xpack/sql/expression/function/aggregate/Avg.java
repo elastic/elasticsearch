@@ -7,17 +7,15 @@ package org.elasticsearch.xpack.sql.expression.function.aggregate;
 
 import org.elasticsearch.xpack.sql.expression.Expression;
 import org.elasticsearch.xpack.sql.tree.Location;
-import org.elasticsearch.xpack.sql.type.DataType;
-import org.elasticsearch.xpack.sql.type.DataTypes;
 
-public class Avg extends NumericAggregateFunction {
+public class Avg extends NumericAggregate implements EnclosedAgg {
 
     public Avg(Location location, Expression argument) {
         super(location, argument);
     }
 
     @Override
-    public DataType dataType() {
-        return DataTypes.DOUBLE;
+    public String innerName() {
+        return "avg";
     }
 }

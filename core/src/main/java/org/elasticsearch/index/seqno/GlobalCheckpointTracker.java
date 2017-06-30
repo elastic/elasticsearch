@@ -223,6 +223,10 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          */
         assert !primaryMode || localCheckpoints.values().stream().anyMatch(lcps -> lcps.inSync);
         /**
+         * during relocation handoff there are no entries blocking global checkpoint advancement
+         */
+        assert !handOffInProgress || localCheckpoints.values().stream().noneMatch(lcps -> lcps.blockGCPAdvance);
+        /**
          * the computed global checkpoint is always up-to-date
          */
         assert !primaryMode || globalCheckpoint == computeGlobalCheckPoint(localCheckpoints.values(), globalCheckpoint);

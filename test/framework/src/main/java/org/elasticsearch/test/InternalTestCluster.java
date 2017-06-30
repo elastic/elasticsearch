@@ -53,6 +53,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -102,6 +103,7 @@ import org.junit.Assert;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -605,7 +607,13 @@ public final class InternalTestCluster extends TestCluster {
         } else if (!usingSingleNodeDiscovery && finalSettings.get(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey()) == null) {
             throw new IllegalArgumentException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured");
         }
-        MockNode node = new MockNode(finalSettings.build(), plugins);
+        SecureSettings secureSettings = finalSettings.getSecureSettings();
+        MockNode node = new MockNode(finalSettings.build(), plugins, nodeConfigurationSource.nodeConfigPath(nodeId));
+        try {
+            IOUtils.close(secureSettings);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         return new NodeAndClient(name, node, nodeId);
     }
 

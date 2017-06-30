@@ -85,9 +85,7 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
         builder.endObject();
     }
 
-    public static ConstantScoreQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static ConstantScoreQueryBuilder fromXContent(XContentParser parser) throws IOException {
         QueryBuilder query = null;
         boolean queryFound = false;
         String queryName = null;
@@ -98,15 +96,13 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (INNER_QUERY_FIELD.match(currentFieldName)) {
                     if (queryFound) {
                         throw new ParsingException(parser.getTokenLocation(), "[" + ConstantScoreQueryBuilder.NAME + "]"
                                 + " accepts only one 'filter' element.");
                     }
-                    query = parseContext.parseInnerQueryBuilder();
+                    query = parseInnerQueryBuilder(parser);
                     queryFound = true;
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

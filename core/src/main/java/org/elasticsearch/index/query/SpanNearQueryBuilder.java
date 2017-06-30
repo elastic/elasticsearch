@@ -143,9 +143,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         builder.endObject();
     }
 
-    public static SpanNearQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static SpanNearQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         Integer slop = null;
         boolean inOrder = SpanNearQueryBuilder.DEFAULT_IN_ORDER;
@@ -161,7 +159,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (CLAUSES_FIELD.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                        QueryBuilder query = parseInnerQueryBuilder(parser);
                         if (query instanceof SpanQueryBuilder == false) {
                             throw new ParsingException(parser.getTokenLocation(), "spanNear [clauses] must be of type span query");
                         }

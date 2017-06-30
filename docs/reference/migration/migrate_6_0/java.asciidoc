@@ -41,3 +41,8 @@ Use `BucketOrder.key(boolean)` to order the `terms` aggregation buckets by `_ter
 In `BulkResponse`, `SearchResponse` and `TermVectorsResponse` `getTookInMiilis()` method
 has been removed in favor of `getTook` method. `getTookInMiilis()` is easily replaced by
 `getTook().getMillis()`.
+
+=== `GetField` and `SearchHitField` replaced by `DocumentField`
+
+As `GetField` and `SearchHitField` have the same members, they have been unified into
+`DocumentField`.

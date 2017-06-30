@@ -32,7 +32,6 @@ import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
@@ -206,9 +205,8 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(itemParser);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortBuilder.fromXContent(context, ""));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> GeoDistanceSortBuilder.fromXContent(itemParser, ""));
         assertEquals("sort_mode [sum] isn't supported for sorting by geo distance", e.getMessage());
     }
 
@@ -231,9 +229,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(itemParser);
-
-        GeoDistanceSortBuilder result = GeoDistanceSortBuilder.fromXContent(context, json);
+        GeoDistanceSortBuilder result = GeoDistanceSortBuilder.fromXContent(itemParser, json);
         assertEquals("[-19.700583312660456, -2.8225036337971687, "
                 + "31.537466906011105, -74.63590376079082, "
                 + "43.71844606474042, -5.548660643398762, "
@@ -353,14 +349,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
 
     private GeoDistanceSortBuilder parse(XContentBuilder sortBuilder) throws Exception {
         XContentParser parser = createParser(sortBuilder);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         parser.nextToken();
-        return GeoDistanceSortBuilder.fromXContent(parseContext, null);
+        return GeoDistanceSortBuilder.fromXContent(parser, null);
     }
 
     @Override
-    protected GeoDistanceSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
-        return GeoDistanceSortBuilder.fromXContent(context, fieldName);
+    protected GeoDistanceSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
+        return GeoDistanceSortBuilder.fromXContent(parser, fieldName);
     }
 
     public void testCommonCaseIsOptimized() throws IOException {

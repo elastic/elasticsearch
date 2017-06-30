@@ -29,6 +29,7 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.text.Text;
@@ -42,11 +43,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.InnerHitsFetchSubPhase;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -186,11 +186,11 @@ public class FetchPhase implements SearchPhase {
         loadStoredFields(context, subReaderContext, fieldsVisitor, subDocId);
         fieldsVisitor.postProcess(context.mapperService());
 
-        Map<String, SearchHitField> searchFields = null;
+        Map<String, DocumentField> searchFields = null;
         if (!fieldsVisitor.fields().isEmpty()) {
             searchFields = new HashMap<>(fieldsVisitor.fields().size());
             for (Map.Entry<String, List<Object>> entry : fieldsVisitor.fields().entrySet()) {
-                searchFields.put(entry.getKey(), new SearchHitField(entry.getKey(), entry.getValue()));
+                searchFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
             }
         }
 
@@ -219,7 +219,7 @@ public class FetchPhase implements SearchPhase {
         loadStoredFields(context, subReaderContext, rootFieldsVisitor, rootSubDocId);
         rootFieldsVisitor.postProcess(context.mapperService());
 
-        Map<String, SearchHitField> searchFields = getSearchFields(context, nestedSubDocId, fieldNames, fieldNamePatterns, subReaderContext);
+        Map<String, DocumentField> searchFields = getSearchFields(context, nestedSubDocId, fieldNames, fieldNamePatterns, subReaderContext);
         DocumentMapper documentMapper = context.mapperService().documentMapper(rootFieldsVisitor.uid().type());
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, nestedSubDocId);
@@ -272,8 +272,8 @@ public class FetchPhase implements SearchPhase {
         return new SearchHit(nestedTopDocId, rootFieldsVisitor.uid().id(), documentMapper.typeText(), nestedIdentity, searchFields);
     }
 
-    private Map<String, SearchHitField> getSearchFields(SearchContext context, int nestedSubDocId, Set<String> fieldNames, List<String> fieldNamePatterns, LeafReaderContext subReaderContext) {
-        Map<String, SearchHitField> searchFields = null;
+    private Map<String, DocumentField> getSearchFields(SearchContext context, int nestedSubDocId, Set<String> fieldNames, List<String> fieldNamePatterns, LeafReaderContext subReaderContext) {
+        Map<String, DocumentField> searchFields = null;
         if (context.hasStoredFields() && !context.storedFieldsContext().fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = new CustomFieldsVisitor(fieldNames == null ? Collections.emptySet() : fieldNames,
                 fieldNamePatterns == null ? Collections.emptyList() : fieldNamePatterns, false);
@@ -283,7 +283,7 @@ public class FetchPhase implements SearchPhase {
                 if (!nestedFieldsVisitor.fields().isEmpty()) {
                     searchFields = new HashMap<>(nestedFieldsVisitor.fields().size());
                     for (Map.Entry<String, List<Object>> entry : nestedFieldsVisitor.fields().entrySet()) {
-                        searchFields.put(entry.getKey(), new SearchHitField(entry.getKey(), entry.getValue()));
+                        searchFields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
                     }
                 }
             }

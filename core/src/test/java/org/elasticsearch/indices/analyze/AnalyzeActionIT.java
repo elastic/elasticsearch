@@ -93,16 +93,16 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
         assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
 
-        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("standard").addTokenFilter("lowercase").addTokenFilter("reverse").get();
+        analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setTokenizer("standard").addTokenFilter("lowercase").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
         AnalyzeResponse.AnalyzeToken token = analyzeResponse.getTokens().get(0);
-        assertThat(token.getTerm(), equalTo("siht"));
+        assertThat(token.getTerm(), equalTo("this"));
         token = analyzeResponse.getTokens().get(1);
-        assertThat(token.getTerm(), equalTo("si"));
+        assertThat(token.getTerm(), equalTo("is"));
         token = analyzeResponse.getTokens().get(2);
         assertThat(token.getTerm(), equalTo("a"));
         token = analyzeResponse.getTokens().get(3);
-        assertThat(token.getTerm(), equalTo("tset"));
+        assertThat(token.getTerm(), equalTo("test"));
 
         analyzeResponse = client().admin().indices().prepareAnalyze("of course").setTokenizer("standard").addTokenFilter("stop").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(1));
@@ -383,7 +383,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeResponse.detail().tokenfilters()[0].getTokens()[2].getPositionLength(), equalTo(1));
 
         // tokenfilter({"type": "stop", "stopwords": ["foo", "buzz"]})
-        assertThat(analyzeResponse.detail().tokenfilters()[1].getName(), equalTo("_anonymous_tokenfilter_[1]"));
+        assertThat(analyzeResponse.detail().tokenfilters()[1].getName(), equalTo("_anonymous_tokenfilter"));
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens().length, equalTo(1));
 
         assertThat(analyzeResponse.detail().tokenfilters()[1].getTokens()[0].getTerm(), equalTo("test"));

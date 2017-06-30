@@ -410,7 +410,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             });
                         failLatch.await();
                         assertNotNull(ex.get());
-                        assertTrue(ex.get().getClass().toString(), ex.get() instanceof TransportException);
+                        if (ex.get() instanceof TransportException == false) {
+                            // we have an issue for this see #25301
+                            logger.error("expected TransportException but got a different one see #25301", ex.get());
+                        }
+                        assertTrue("expected TransportException but got a different one [" + ex.get().getClass().toString() + "]",
+                            ex.get() instanceof TransportException);
                     }
                 }
             }

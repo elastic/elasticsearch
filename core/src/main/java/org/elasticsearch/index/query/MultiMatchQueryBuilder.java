@@ -554,9 +554,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         builder.endObject();
     }
 
-    public static MultiMatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static MultiMatchQueryBuilder fromXContent(XContentParser parser) throws IOException {
         Object value = null;
         Map<String, Float> fieldsBoosts = new HashMap<>();
         MultiMatchQueryBuilder.Type type = DEFAULT_TYPE;

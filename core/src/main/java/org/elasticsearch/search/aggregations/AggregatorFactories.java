@@ -343,8 +343,8 @@ public class AggregatorFactories {
                 aggBuildersMap.put(aggBuilder.name, aggBuilder);
             }
             List<PipelineAggregationBuilder> orderedPipelineAggregatorrs = new LinkedList<>();
-            List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<PipelineAggregationBuilder>(pipelineAggregatorBuilders);
-            Set<PipelineAggregationBuilder> temporarilyMarked = new HashSet<PipelineAggregationBuilder>();
+            List<PipelineAggregationBuilder> unmarkedBuilders = new ArrayList<>(pipelineAggregatorBuilders);
+            Set<PipelineAggregationBuilder> temporarilyMarked = new HashSet<>();
             while (!unmarkedBuilders.isEmpty()) {
                 PipelineAggregationBuilder builder = unmarkedBuilders.get(0);
                 resolvePipelineAggregatorOrder(aggBuildersMap, pipelineAggregatorBuildersMap, orderedPipelineAggregatorrs, unmarkedBuilders,

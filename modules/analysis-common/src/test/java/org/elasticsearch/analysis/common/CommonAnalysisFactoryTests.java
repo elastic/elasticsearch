@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
+import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.List;
@@ -67,6 +68,39 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("uppercase", UpperCaseTokenFilterFactory.class);
         filters.put("ngram", NGramTokenFilterFactory.class);
         filters.put("edgengram", EdgeNGramTokenFilterFactory.class);
+        filters.put("bulgarianstem", StemmerTokenFilterFactory.class);
+        filters.put("englishminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("englishpossessive", StemmerTokenFilterFactory.class);
+        filters.put("finnishlightstem", StemmerTokenFilterFactory.class);
+        filters.put("frenchlightstem", StemmerTokenFilterFactory.class);
+        filters.put("frenchminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("galicianminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("galicianstem", StemmerTokenFilterFactory.class);
+        filters.put("germanlightstem", StemmerTokenFilterFactory.class);
+        filters.put("germanminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("greekstem", StemmerTokenFilterFactory.class);
+        filters.put("hindistem", StemmerTokenFilterFactory.class);
+        filters.put("hungarianlightstem", StemmerTokenFilterFactory.class);
+        filters.put("indonesianstem", StemmerTokenFilterFactory.class);
+        filters.put("italianlightstem", StemmerTokenFilterFactory.class);
+        filters.put("latvianstem", StemmerTokenFilterFactory.class);
+        filters.put("norwegianlightstem", StemmerTokenFilterFactory.class);
+        filters.put("norwegianminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("portuguesestem", StemmerTokenFilterFactory.class);
+        filters.put("portugueselightstem", StemmerTokenFilterFactory.class);
+        filters.put("portugueseminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("russianlightstem", StemmerTokenFilterFactory.class);
+        filters.put("soranistem", StemmerTokenFilterFactory.class);
+        filters.put("spanishlightstem", StemmerTokenFilterFactory.class);
+        filters.put("swedishlightstem", StemmerTokenFilterFactory.class);
+        filters.put("stemmeroverride", StemmerOverrideTokenFilterFactory.class);
+        filters.put("kstem", KStemTokenFilterFactory.class);
+        filters.put("synonym", SynonymTokenFilterFactory.class);
+        filters.put("dictionarycompoundword", DictionaryCompoundWordTokenFilterFactory.class);
+        filters.put("hyphenationcompoundword", HyphenationCompoundWordTokenFilterFactory.class);
+        filters.put("reversestring", ReverseTokenFilterFactory.class);
+        filters.put("elision", ElisionTokenFilterFactory.class);
+        filters.put("truncate", TruncateTokenFilterFactory.class);
         return filters;
     }
 

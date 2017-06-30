@@ -27,14 +27,14 @@
     - match:  { detail.tokenizer.tokens.2.token: od }
 
 ---
-"simplepattern":
+"simple_pattern":
     - do:
         indices.analyze:
           body:
             text: "a6bf fooo ff61"
             explain: true
             tokenizer:
-              type: simplepattern
+              type: simple_pattern
               pattern: "[abcdef0123456789]{4}"
     - length: { detail.tokenizer.tokens: 2 }
     - match:  { detail.tokenizer.name: _anonymous_tokenizer }
@@ -42,14 +42,14 @@
     - match:  { detail.tokenizer.tokens.1.token: ff61 }
 
 ---
-"simplepatternsplit":
+"simple_pattern_split":
     - do:
         indices.analyze:
           body:
             text: "foo==bar"
             explain: true
             tokenizer:
-              type: simplepatternsplit
+              type: simple_pattern_split
               pattern: ==
     - length: { detail.tokenizer.tokens: 2 }
     - match:  { detail.tokenizer.name: _anonymous_tokenizer }

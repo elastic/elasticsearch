@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -28,12 +29,15 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -47,6 +51,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        return Collections.singleton(InternalSettingsPlugin.class);
+    }
 
     public void testTypeNameStartsWithIllegalDot() {
         String index = "test-index";
@@ -74,7 +83,8 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testTypes() throws Exception {
-        IndexService indexService1 = createIndex("index1", Settings.builder().put("index.mapping.single_type", false).build());
+        IndexService indexService1 = createIndex("index1", Settings.builder().put("index.version.created", Version.V_5_6_0) // multi types
+            .build());
         MapperService mapperService = indexService1.mapperService();
         assertEquals(Collections.emptySet(), mapperService.types());
 
@@ -207,7 +217,8 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testOtherDocumentMappersOnlyUpdatedWhenChangingFieldType() throws IOException {
-        IndexService indexService = createIndex("test", Settings.builder().put("index.mapping.single_type", false).build());
+        IndexService indexService = createIndex("test",
+            Settings.builder().put("index.version.created", Version.V_5_6_0).build()); // multiple types
 
         CompressedXContent simpleMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
             .startObject("properties")

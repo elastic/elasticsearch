@@ -256,7 +256,7 @@ final class Security {
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.libFile(), "read,readlink");
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink");
         addPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink");
-        addPath(policy, Environment.PATH_CONF_SETTING.getKey(), environment.configFile(), "read,readlink");
+        addPath(policy, "path.conf'", environment.configFile(), "read,readlink");
         // read-write dirs
         addPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete");
         addPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete");
@@ -280,26 +280,6 @@ final class Security {
                 throw new IllegalStateException("unable to access [" + path + "]", e);
             }
         }
-        /*
-         * If path.data and default.path.data are set, we need read access to the paths in default.path.data to check for the existence of
-         * index directories there that could have arisen from a bug in the handling of simultaneous configuration of path.data and
-         * default.path.data that was introduced in Elasticsearch 5.3.0.
-         *
-         * If path.data is not set then default.path.data would take precedence in setting the data paths for the environment and
-         * permissions would have been granted above.
-         *
-         * If path.data is not set and default.path.data is not set, then we would fallback to the default data directory under
-         * Elasticsearch home and again permissions would have been granted above.
-         *
-         * If path.data is set and default.path.data is not set, there is nothing to do here.
-         */
-        if (Environment.PATH_DATA_SETTING.exists(environment.settings())
-                && Environment.DEFAULT_PATH_DATA_SETTING.exists(environment.settings())) {
-            for (final String path : Environment.DEFAULT_PATH_DATA_SETTING.get(environment.settings())) {
-                // write permissions are not needed here, we are not going to be writing to any paths here
-                addPath(policy, Environment.DEFAULT_PATH_DATA_SETTING.getKey(), getPath(path), "read,readlink");
-            }
-        }
         for (Path path : environment.repoFiles()) {
             addPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete");
         }
@@ -307,11 +287,6 @@ final class Security {
             // we just need permission to remove the file if its elsewhere.
             policy.add(new FilePermission(environment.pidFile().toString(), "delete"));
         }
-    }
-
-    @SuppressForbidden(reason = "read path that is not configured in environment")
-    private static Path getPath(final String path) {
-        return PathUtils.get(path);
     }
 
     /**
@@ -426,27 +401,6 @@ final class Security {
         policy.add(new FilePermission(path.toString(), permissions));
         policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
     }
-
-    /**
-     * Add access to a directory iff it exists already
-     * @param policy current policy to add permissions to
-     * @param configurationName the configuration name associated with the path (for error messages only)
-     * @param path the path itself
-     * @param permissions set of file permissions to grant to the path
-     */
-    static void addPathIfExists(Permissions policy, String configurationName, Path path, String permissions) {
-        if (Files.isDirectory(path)) {
-            // add each path twice: once for itself, again for files underneath it
-            policy.add(new FilePermission(path.toString(), permissions));
-            policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", permissions));
-            try {
-                path.getFileSystem().provider().checkAccess(path.toRealPath(), AccessMode.READ);
-            } catch (IOException e) {
-                throw new IllegalStateException("Unable to access '" + configurationName + "' (" + path + ")", e);
-            }
-        }
-    }
-
 
     /**
      * Ensures configured directory {@code path} exists.

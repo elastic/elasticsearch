@@ -22,6 +22,7 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
@@ -88,7 +89,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -139,6 +139,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public class IndicesService extends AbstractLifecycleComponent
     implements IndicesClusterStateService.AllocatedIndices<IndexShard, IndexService>, IndexService.ShardStoreDeleter {
@@ -292,35 +293,49 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
-        for (IndexService indexService : this) {
-            for (IndexShard indexShard : indexService) {
+        return new NodeIndicesStats(oldStats, statsByShard(this, flags));
+    }
+
+    Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
+        final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
+
+        for (final IndexService indexService : indicesService) {
+            for (final IndexShard indexShard : indexService) {
                 try {
-                    if (indexShard.routingEntry() == null) {
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags);
+
+                    if (indexShardStats == null) {
                         continue;
                     }
-                    IndexShardStats indexShardStats =
-                        new IndexShardStats(indexShard.shardId(),
-                            new ShardStats[]{
-                                new ShardStats(
-                                    indexShard.routingEntry(),
-                                    indexShard.shardPath(),
-                                    new CommonStats(indicesQueryCache, indexShard, flags),
-                                    indexShard.commitStats(),
-                                    indexShard.seqNoStats())});
 
-                    if (!statsByShard.containsKey(indexService.index())) {
+                    if (statsByShard.containsKey(indexService.index()) == false) {
                         statsByShard.put(indexService.index(), arrayAsArrayList(indexShardStats));
                     } else {
                         statsByShard.get(indexService.index()).add(indexShardStats);
                     }
-                } catch (IllegalIndexShardStateException e) {
+                } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
                     // we can safely ignore illegal state on ones that are closing for example
                     logger.trace((Supplier<?>) () -> new ParameterizedMessage("{} ignoring shard stats", indexShard.shardId()), e);
                 }
             }
         }
-        return new NodeIndicesStats(oldStats, statsByShard);
+
+        return statsByShard;
+    }
+
+    IndexShardStats indexShardStats(final IndicesService indicesService, final IndexShard indexShard, final CommonStatsFlags flags) {
+        if (indexShard.routingEntry() == null) {
+            return null;
+        }
+
+        return new IndexShardStats(indexShard.shardId(),
+                                   new ShardStats[] {
+                                       new ShardStats(indexShard.routingEntry(),
+                                                      indexShard.shardPath(),
+                                                      new CommonStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                                                      indexShard.commitStats(),
+                                                      indexShard.seqNoStats())
+                                   });
     }
 
     /**
@@ -1246,7 +1261,7 @@ public class IndicesService extends AbstractLifecycleComponent
          * of dependencies we pass in a function that can perform the parsing. */
         CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
             try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes)) {
-                return new QueryParseContext(parser).parseInnerQueryBuilder();
+                return parseInnerQueryBuilder(parser);
             }
         };
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, expressions);

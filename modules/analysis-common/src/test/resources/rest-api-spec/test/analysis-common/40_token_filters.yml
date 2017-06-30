@@ -392,3 +392,179 @@
     - match:  { tokens.1.token: foob }
     - match:  { tokens.2.token: fooba }
     - match:  { tokens.3.token: foobar }
+
+---
+"kstem":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_kstem:
+                    type: kstem
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      bricks
+            tokenizer: keyword
+            filter:    [my_kstem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: brick }
+
+    # use preconfigured token filter:
+    - do:
+        indices.analyze:
+          body:
+            text:      bricks
+            tokenizer: keyword
+            filter:    [kstem]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: brick }
+
+---
+"reverse":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_reverse:
+                    type: reverse
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foobar
+            tokenizer: keyword
+            filter:    [my_reverse]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: raboof }
+
+    # use preconfigured token filter:
+    - do:
+        indices.analyze:
+          body:
+            text:      foobar
+            tokenizer: keyword
+            filter:    [reverse]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: raboof }
+
+---
+"elision":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_elision:
+                    type: elision
+                    articles: ["l", "m", "t", "qu", "n", "s", "j"]
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      "l'avion"
+            tokenizer: keyword
+            filter:    [my_elision]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: avion }
+
+---
+"stemmer":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_stemmer:
+                    type: stemmer
+                    language: dutch
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      zoeken
+            tokenizer: keyword
+            filter:    [my_stemmer]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: zoek }
+---
+"stemmer_override":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_stemmer:
+                    type: stemmer
+                    language: dutch
+                  my_stemmer_override:
+                    type: stemmer_override
+                    rules: ["zoeken => override"]
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      zoeken
+            tokenizer: keyword
+            filter:    [my_stemmer_override, my_stemmer]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: override }
+
+---
+"decompounder":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_decompounder:
+                    type: dictionary_decompounder
+                    word_list: [foo, bar]
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foobar
+            tokenizer: keyword
+            filter:    [my_decompounder]
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: foobar }
+    - match:  { tokens.1.token: foo }
+    - match:  { tokens.2.token: bar }
+
+---
+"truncate":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_truncate:
+                    type: truncate
+                    length: 3
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foobar
+            tokenizer: keyword
+            filter:    [my_truncate]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo }

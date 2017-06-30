@@ -32,6 +32,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+
 public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterAggregationBuilder> {
     public static final String NAME = "filter";
 
@@ -83,7 +85,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     public static FilterAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        QueryBuilder filter = context.parseInnerQueryBuilder();
+        QueryBuilder filter = parseInnerQueryBuilder(context.parser());
         return new FilterAggregationBuilder(aggregationName, filter);
     }
 

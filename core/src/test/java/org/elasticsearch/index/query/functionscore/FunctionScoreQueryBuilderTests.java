@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -40,7 +41,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
@@ -796,9 +796,9 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             return NAME;
         }
 
-        public static RandomScoreFunctionBuilder fromXContent(QueryParseContext parseContext)
+        public static RandomScoreFunctionBuilder fromXContent(XContentParser parser)
                 throws IOException, ParsingException {
-            RandomScoreFunctionBuilder builder = RandomScoreFunctionBuilder.fromXContent(parseContext);
+            RandomScoreFunctionBuilder builder = RandomScoreFunctionBuilder.fromXContent(parser);
             RandomScoreFunctionBuilderWithFixedSeed replacement = new RandomScoreFunctionBuilderWithFixedSeed();
             if (builder.getSeed() != null) {
                 replacement.seed(builder.getSeed());

@@ -80,13 +80,10 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
         builder.endObject();
     }
 
-    public static TypeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static TypeQueryBuilder fromXContent(XContentParser parser) throws IOException {
         BytesRef type = null;
-
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
-
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

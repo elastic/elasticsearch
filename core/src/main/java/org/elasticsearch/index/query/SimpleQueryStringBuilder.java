@@ -462,9 +462,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         builder.endObject();
     }
 
-    public static SimpleQueryStringBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static SimpleQueryStringBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         String queryBody = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;

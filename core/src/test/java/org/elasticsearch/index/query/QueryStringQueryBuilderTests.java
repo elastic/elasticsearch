@@ -62,10 +62,10 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDisjunctionSubQuery;
@@ -401,12 +401,18 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             // simple multi-term
             Query query = queryParser.parse("guinea pig");
 
+            Query guineaPig = new BooleanQuery.Builder()
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
+                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST)
+                    .build();
+            TermQuery cavy = new TermQuery(new Term(STRING_FIELD_NAME, "cavy"));
+
             Query expectedQuery = new BooleanQuery.Builder()
                     .add(new BooleanQuery.Builder()
-                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
-                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST).build(), defaultOp)
-                    .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp)
-                    .build();
+                            .add(guineaPig, Occur.SHOULD)
+                            .add(cavy, Occur.SHOULD)
+                            .build(),
+                            defaultOp).build();
             assertThat(query, Matchers.equalTo(expectedQuery));
 
             // simple with additional tokens
@@ -414,11 +420,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             expectedQuery = new BooleanQuery.Builder()
                     .add(new TermQuery(new Term(STRING_FIELD_NAME, "that")), defaultOp)
                     .add(new BooleanQuery.Builder()
-                         .add(new BooleanQuery.Builder()
-                            .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST))
-                            .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST))
-                            .build(), Occur.SHOULD)
-                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), Occur.SHOULD).build(), defaultOp)
+                         .add(guineaPig, Occur.SHOULD)
+                         .add(cavy, Occur.SHOULD).build(), defaultOp)
                     .add(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), defaultOp)
                     .build();
             assertThat(query, Matchers.equalTo(expectedQuery));
@@ -429,10 +432,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     .add(new TermQuery(new Term(STRING_FIELD_NAME, "that")), Occur.MUST)
                     .add(new BooleanQuery.Builder()
                             .add(new BooleanQuery.Builder()
-                                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), Occur.MUST)
-                                 .add(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), Occur.MUST)
-                                 .build(), defaultOp)
-                            .add(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp)
+                                    .add(guineaPig, Occur.SHOULD)
+                                    .add(cavy, Occur.SHOULD)
+                                    .build(), defaultOp)
                             .build(), Occur.MUST_NOT)
                     .add(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), Occur.MUST)
                     .build();
@@ -520,7 +522,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         builder.endObject();
 
-        QueryBuilder queryBuilder = new QueryParseContext(createParser(builder)).parseInnerQueryBuilder();
+        QueryBuilder queryBuilder = parseInnerQueryBuilder(createParser(builder));
         TooComplexToDeterminizeException e = expectThrows(TooComplexToDeterminizeException.class,
                 () -> queryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("Determinizing [ac]*"));
@@ -544,8 +546,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         builder.endObject();
 
-        QueryStringQueryBuilder queryBuilder = (QueryStringQueryBuilder) new QueryParseContext(createParser(builder))
-                .parseInnerQueryBuilder();
+        QueryStringQueryBuilder queryBuilder = (QueryStringQueryBuilder) parseInnerQueryBuilder(createParser(builder));
         assertFalse(queryBuilder.enablePositionIncrements());
     }
 

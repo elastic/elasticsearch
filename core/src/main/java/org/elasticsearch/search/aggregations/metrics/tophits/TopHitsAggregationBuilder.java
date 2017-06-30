@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -671,9 +670,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                     }
                     factory.scriptFields(scriptFields);
                 } else if (SearchSourceBuilder.HIGHLIGHT_FIELD.match(currentFieldName)) {
-                    factory.highlighter(HighlightBuilder.fromXContent(context));
+                    factory.highlighter(HighlightBuilder.fromXContent(parser));
                 } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName)) {
-                    List<SortBuilder<?>> sorts = SortBuilder.fromXContent(context);
+                    List<SortBuilder<?>> sorts = SortBuilder.fromXContent(parser);
                     factory.sorts(sorts);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
@@ -696,7 +695,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                     }
                     factory.fieldDataFields(fieldDataFields);
                 } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName)) {
-                    List<SortBuilder<?>> sorts = SortBuilder.fromXContent(context);
+                    List<SortBuilder<?>> sorts = SortBuilder.fromXContent(parser);
                     factory.sorts(sorts);
                 } else if (SearchSourceBuilder._SOURCE_FIELD.match(currentFieldName)) {
                     factory.fetchSource(FetchSourceContext.fromXContent(context.parser()));

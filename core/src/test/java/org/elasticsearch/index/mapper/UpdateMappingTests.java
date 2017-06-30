@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -150,7 +151,8 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("foo").field("type", "long").endObject()
                 .endObject().endObject().endObject();
         XContentBuilder mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject();
-        MapperService mapperService = createIndex("test", Settings.builder().put("mapping.single_type", false).build()).mapperService();
+        MapperService mapperService = createIndex("test", Settings.builder().put("index.version.created",
+            Version.V_5_6_0).build()).mapperService();
 
         mapperService.merge("type1", new CompressedXContent(mapping1.string()), MapperService.MergeReason.MAPPING_UPDATE, false);
         mapperService.merge("type2", new CompressedXContent(mapping2.string()), MapperService.MergeReason.MAPPING_UPDATE, false);

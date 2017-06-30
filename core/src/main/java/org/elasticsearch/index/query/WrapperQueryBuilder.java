@@ -160,7 +160,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(context.getXContentRegistry(), source)) {
 
-            final QueryBuilder queryBuilder = parseInnerQueryBuilder(qSourceParser);
+            final QueryBuilder queryBuilder = parseInnerQueryBuilder(qSourceParser).rewrite(context);
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);

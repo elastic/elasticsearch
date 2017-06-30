@@ -35,8 +35,7 @@ public class DoNotRegisterServerChannel extends NioServerSocketChannel {
     }
 
     @Override
-    public boolean register() throws ClosedChannelException {
+    public void register() throws ClosedChannelException {
         setSelectionKey(new TestSelectionKey(0));
-        return true;
     }
 }

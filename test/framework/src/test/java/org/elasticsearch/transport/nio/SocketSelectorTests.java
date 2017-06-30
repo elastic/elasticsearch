@@ -76,12 +76,11 @@ public class SocketSelectorTests extends ESTestCase {
         when(channel.getSelectionKey()).thenReturn(selectionKey);
         when(channel.getWriteContext()).thenReturn(writeContext);
         when(channel.isConnectComplete()).thenReturn(true);
+        when(channel.getSelector()).thenReturn(socketSelector);
     }
 
     public void testRegisterChannel() throws Exception {
-        socketSelector.registerSocketChannel(channel);
-
-        when(channel.register()).thenReturn(true);
+        socketSelector.scheduleForRegistration(channel);
 
         socketSelector.doSelect(0);
 
@@ -92,25 +91,11 @@ public class SocketSelectorTests extends ESTestCase {
         assertTrue(registeredChannels.contains(channel));
     }
 
-    public void testRegisterChannelFails() throws Exception {
-        socketSelector.registerSocketChannel(channel);
-
-        when(channel.register()).thenReturn(false);
-
-        socketSelector.doSelect(0);
-
-        verify(channel, times(0)).finishConnect();
-
-        Set<NioChannel> registeredChannels = socketSelector.getRegisteredChannels();
-        assertEquals(0, registeredChannels.size());
-        assertFalse(registeredChannels.contains(channel));
-    }
-
     public void testRegisterChannelFailsDueToException() throws Exception {
-        socketSelector.registerSocketChannel(channel);
+        socketSelector.scheduleForRegistration(channel);
 
         ClosedChannelException closedChannelException = new ClosedChannelException();
-        when(channel.register()).thenThrow(closedChannelException);
+        doThrow(closedChannelException).when(channel).register();
 
         socketSelector.doSelect(0);
 
@@ -123,9 +108,8 @@ public class SocketSelectorTests extends ESTestCase {
     }
 
     public void testSuccessfullyRegisterChannelWillConnect() throws Exception {
-        socketSelector.registerSocketChannel(channel);
+        socketSelector.scheduleForRegistration(channel);
 
-        when(channel.register()).thenReturn(true);
         when(channel.finishConnect()).thenReturn(true);
 
         socketSelector.doSelect(0);
@@ -134,9 +118,8 @@ public class SocketSelectorTests extends ESTestCase {
     }
 
     public void testConnectIncompleteWillNotNotify() throws Exception {
-        socketSelector.registerSocketChannel(channel);
+        socketSelector.scheduleForRegistration(channel);
 
-        when(channel.register()).thenReturn(true);
         when(channel.finishConnect()).thenReturn(false);
 
         socketSelector.doSelect(0);
@@ -145,7 +128,7 @@ public class SocketSelectorTests extends ESTestCase {
     }
 
     public void testQueueWriteWhenNotRunning() throws Exception {
-        socketSelector.close(false);
+        socketSelector.close();
 
         socketSelector.queueWrite(new WriteOperation(channel, bufferReference, listener));
 
@@ -318,16 +301,15 @@ public class SocketSelectorTests extends ESTestCase {
     public void testCleanup() throws Exception {
         NioSocketChannel unRegisteredChannel = mock(NioSocketChannel.class);
 
-        when(channel.register()).thenReturn(true);
-        socketSelector.registerSocketChannel(channel);
+        socketSelector.scheduleForRegistration(channel);
 
         socketSelector.doSelect(0);
 
         NetworkBytesReference networkBuffer = NetworkBytesReference.wrap(new BytesArray(new byte[1]));
         socketSelector.queueWrite(new WriteOperation(mock(NioSocketChannel.class), networkBuffer, listener));
-        socketSelector.registerSocketChannel(unRegisteredChannel);
+        socketSelector.scheduleForRegistration(unRegisteredChannel);
 
-        socketSelector.cleanup();
+        socketSelector.cleanupAndCloseChannels();
 
         verify(listener).onFailure(any(ClosedSelectorException.class));
         verify(eventHandler).handleClose(channel);

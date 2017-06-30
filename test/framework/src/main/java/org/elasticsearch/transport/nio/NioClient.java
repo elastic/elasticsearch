@@ -35,8 +35,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.LockSupport;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -72,12 +70,12 @@ public class NioClient {
         final InetSocketAddress address = node.getAddress().address();
         try {
             for (int i = 0; i < channels.length; i++) {
-                SocketSelector socketSelector = selectorSupplier.get();
-                NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address, socketSelector);
-                openChannels.clientChannelOpened(nioSocketChannel);
+                SocketSelector selector = selectorSupplier.get();
+                NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address, selector);
                 nioSocketChannel.getCloseFuture().setListener(closeListener);
+                openChannels.clientChannelOpened(nioSocketChannel);
                 connections.add(nioSocketChannel);
-                socketSelector.registerSocketChannel(nioSocketChannel);
+                selector.scheduleForRegistration(nioSocketChannel);
             }
 
             Exception ex = null;

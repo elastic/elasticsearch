@@ -72,17 +72,15 @@ public class SocketSelector extends ESSelector {
         while ((op = queuedWrites.poll()) != null) {
             op.getListener().onFailure(new ClosedSelectorException());
         }
-        channelsToClose.addAll(registeredChannels);
         channelsToClose.addAll(newChannels);
-        closePendingChannels();
     }
 
     /**
-     * Registers a NioSocketChannel to be handled by this selector. The channel will by queued and eventually
+     * Schedules a NioSocketChannel to be registered by this selector. The channel will by queued and eventually
      * registered next time through the event loop.
      * @param nioSocketChannel the channel to register
      */
-    public void registerSocketChannel(NioSocketChannel nioSocketChannel) {
+    public void scheduleForRegistration(NioSocketChannel nioSocketChannel) {
         newChannels.offer(nioSocketChannel);
         ensureSelectorOpenForEnqueuing(newChannels, nioSocketChannel);
         wakeup();
@@ -192,14 +190,14 @@ public class SocketSelector extends ESSelector {
     }
 
     private void setupChannel(NioSocketChannel newChannel) {
+        assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
         try {
-            if (newChannel.register()) {
-                addRegisteredChannel(newChannel);
-                SelectionKey key = newChannel.getSelectionKey();
-                key.attach(newChannel);
-                eventHandler.handleRegistration(newChannel);
-                attemptConnect(newChannel);
-            }
+            newChannel.register();
+            addRegisteredChannel(newChannel);
+            SelectionKey key = newChannel.getSelectionKey();
+            key.attach(newChannel);
+            eventHandler.handleRegistration(newChannel);
+            attemptConnect(newChannel);
         } catch (Exception e) {
             eventHandler.registrationException(newChannel, e);
         }

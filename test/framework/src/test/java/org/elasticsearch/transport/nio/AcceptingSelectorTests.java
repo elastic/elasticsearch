@@ -59,14 +59,13 @@ public class AcceptingSelectorTests extends ESTestCase {
         selectionKey = new TestSelectionKey(0);
         selectionKey.attach(serverChannel);
         when(serverChannel.getSelectionKey()).thenReturn(selectionKey);
+        when(serverChannel.getSelector()).thenReturn(selector);
         when(rawSelector.selectedKeys()).thenReturn(keySet);
         when(rawSelector.select(0)).thenReturn(1);
     }
 
     public void testRegisteredChannel() throws IOException, PrivilegedActionException {
-        selector.registerServerChannel(serverChannel);
-
-        when(serverChannel.register()).thenReturn(true);
+        selector.scheduleForRegistration(serverChannel);
 
         selector.doSelect(0);
 
@@ -98,15 +97,13 @@ public class AcceptingSelectorTests extends ESTestCase {
     }
 
     public void testCleanup() throws IOException {
-        selector.registerServerChannel(serverChannel);
-
-        when(serverChannel.register()).thenReturn(true);
+        selector.scheduleForRegistration(serverChannel);
 
         selector.doSelect(0);
 
         assertEquals(1, selector.getRegisteredChannels().size());
 
-        selector.cleanup();
+        selector.cleanupAndCloseChannels();
 
         verify(eventHandler).handleClose(serverChannel);
     }

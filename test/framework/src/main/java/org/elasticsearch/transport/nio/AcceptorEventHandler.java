@@ -65,7 +65,7 @@ public class AcceptorEventHandler extends EventHandler {
         NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioServerChannel, socketSelector);
         openChannels.acceptedChannelOpened(nioSocketChannel);
         nioSocketChannel.getCloseFuture().setListener(openChannels::channelClosed);
-        socketSelector.registerSocketChannel(nioSocketChannel);
+        socketSelector.scheduleForRegistration(nioSocketChannel);
     }
 
     /**

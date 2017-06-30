@@ -68,16 +68,15 @@ public class AcceptingSelector extends ESSelector {
 
     @Override
     void cleanup() {
-        channelsToClose.addAll(registeredChannels);
-        closePendingChannels();
+        channelsToClose.addAll(newChannels);
     }
 
     /**
-     * Registers a NioServerSocketChannel to be handled by this selector. The channel will by queued and
+     * Schedules a NioServerSocketChannel to be registered with this selector. The channel will by queued and
      * eventually registered next time through the event loop.
      * @param serverSocketChannel the channel to register
      */
-    public void registerServerChannel(NioServerSocketChannel serverSocketChannel) {
+    public void scheduleForRegistration(NioServerSocketChannel serverSocketChannel) {
         newChannels.add(serverSocketChannel);
         ensureSelectorOpenForEnqueuing(newChannels, serverSocketChannel);
         wakeup();
@@ -86,12 +85,12 @@ public class AcceptingSelector extends ESSelector {
     private void setUpNewServerChannels() throws ClosedChannelException {
         NioServerSocketChannel newChannel;
         while ((newChannel = this.newChannels.poll()) != null) {
-            if (newChannel.register()) {
-                SelectionKey selectionKey = newChannel.getSelectionKey();
-                selectionKey.attach(newChannel);
-                addRegisteredChannel(newChannel);
-                eventHandler.serverChannelRegistered(newChannel);
-            }
+            assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
+            newChannel.register();
+            SelectionKey selectionKey = newChannel.getSelectionKey();
+            selectionKey.attach(newChannel);
+            addRegisteredChannel(newChannel);
+            eventHandler.serverChannelRegistered(newChannel);
         }
     }
 

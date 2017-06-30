@@ -99,7 +99,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
         ChannelFactory channelFactory = this.profileToChannelFactory.get(name);
         AcceptingSelector selector = acceptors.get(++acceptorNumber % NioTransport.NIO_ACCEPTOR_COUNT.get(settings));
         NioServerSocketChannel serverSocketChannel = channelFactory.openNioServerSocketChannel(name, address, selector);
-        selector.registerServerChannel(serverSocketChannel);
+        selector.scheduleForRegistration(serverSocketChannel);
         return serverSocketChannel;
     }
 

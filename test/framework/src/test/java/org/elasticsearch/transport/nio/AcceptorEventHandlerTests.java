@@ -33,7 +33,6 @@ import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 
@@ -85,7 +84,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
         handler.acceptChannel(channel);
 
-        verify(socketSelector).registerSocketChannel(childChannel);
+        verify(socketSelector).scheduleForRegistration(childChannel);
     }
 
     public void testHandleAcceptAddsToOpenChannelsAndAddsCloseListenerToRemove() throws IOException {

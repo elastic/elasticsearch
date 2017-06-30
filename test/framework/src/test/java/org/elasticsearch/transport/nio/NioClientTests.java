@@ -92,8 +92,8 @@ public class NioClientTests extends ESTestCase {
 
         verify(closeFuture1).setListener(listener);
         verify(closeFuture2).setListener(listener);
-        verify(selector).registerSocketChannel(channel1);
-        verify(selector).registerSocketChannel(channel2);
+        verify(selector).scheduleForRegistration(channel1);
+        verify(selector).scheduleForRegistration(channel2);
 
         assertEquals(channel1, channels[0]);
         assertEquals(channel2, channels[1]);
@@ -113,7 +113,7 @@ public class NioClientTests extends ESTestCase {
         client.connectToChannels(node, channels,  TimeValue.timeValueMillis(3), listener);
 
         verify(closeFuture1).setListener(listener);
-        verify(selector).registerSocketChannel(channel1);
+        verify(selector).scheduleForRegistration(channel1);
 
         assertEquals(channel1, channels[0]);
     }

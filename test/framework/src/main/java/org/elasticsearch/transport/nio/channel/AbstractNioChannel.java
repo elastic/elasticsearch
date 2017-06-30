@@ -62,7 +62,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     private final ESSelector selector;
     private SelectionKey selectionKey;
 
-    public AbstractNioChannel(String profile, S socketChannel, ESSelector selector) throws IOException {
+    AbstractNioChannel(String profile, S socketChannel, ESSelector selector) throws IOException {
         this.profile = profile;
         this.socketChannel = socketChannel;
         this.localAddress = (InetSocketAddress) socketChannel.getLocalAddress();
@@ -130,17 +130,14 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     /**
-     * This method attempts to registered a channel with its selector. If method returns true the channel was
-     * successfully registered. If it returns false, the registration failed. The reason a registered might
-     * fail is if something else closed this channel.
+     * This method attempts to registered a channel with the raw nio selector. It also sets the selection
+     * key.
      *
-     * @return if the channel was successfully registered
      * @throws ClosedChannelException if the raw channel was closed
      */
     @Override
-    public boolean register() throws ClosedChannelException {
+    public void register() throws ClosedChannelException {
         setSelectionKey(socketChannel.register(selector.rawSelector(), 0));
-        return true;
     }
 
     @Override

@@ -190,7 +190,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                 disruptionScheme.stopDisrupting();
                 for (String node : internalCluster().getNodeNames()) {
                     ensureStableCluster(nodes.size(), TimeValue.timeValueMillis(disruptionScheme.expectedTimeToHeal().millis() +
-                        DISRUPTION_HEALING_OVERHEAD.millis()), true, node);
+                        DISRUPTION_HEALING_OVERHEAD.millis()), node);
                 }
                 // in case of a bridge partition, shard allocation can fail "index.allocation.max_retries" times if the master
                 // is the super-connected node and recovery source and target are on opposite sides of the bridge

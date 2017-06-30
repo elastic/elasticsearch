@@ -1151,14 +1151,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected void ensureStableCluster(int nodeCount, TimeValue timeValue) {
-        ensureStableCluster(nodeCount, timeValue, false, null);
+        ensureStableCluster(nodeCount, timeValue, null);
     }
 
     protected void ensureStableCluster(int nodeCount, @Nullable String viaNode) {
-        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), false, viaNode);
+        ensureStableCluster(nodeCount, TimeValue.timeValueSeconds(30), viaNode);
     }
 
-    protected void ensureStableCluster(int nodeCount, TimeValue timeValue, boolean local, @Nullable String viaNode) {
+    protected void ensureStableCluster(int nodeCount, TimeValue timeValue, @Nullable String viaNode) {
         if (viaNode == null) {
             viaNode = randomFrom(internalCluster().getNodeNames());
         }
@@ -1167,7 +1167,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNodes(Integer.toString(nodeCount))
             .setTimeout(timeValue)
-            .setLocal(local)
             .setWaitForNoRelocatingShards(true)
             .get();
         if (clusterHealthResponse.isTimedOut()) {

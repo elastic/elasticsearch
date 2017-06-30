@@ -947,7 +947,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
 
-    static abstract class OptimizerRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
+    abstract static class OptimizerRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 
         private final boolean transformDown;
 
@@ -969,7 +969,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected abstract LogicalPlan rule(SubPlan plan);
     }
 
-    static abstract class OptimizerExpressionUpRule extends Rule<LogicalPlan, LogicalPlan> {
+    abstract static class OptimizerExpressionUpRule extends Rule<LogicalPlan, LogicalPlan> {
 
         private final boolean transformDown;
 

@@ -697,7 +697,7 @@ abstract class QueryTranslator {
     //
     // Agg translators
     //
-    
+
     static class DistinctCounts extends SingleValueAggTranslator<Count> {
     
         @Override
@@ -708,7 +708,7 @@ abstract class QueryTranslator {
             return new CardinalityAgg(id, path, field(c));
         }
     }
-    
+
     static class Sums extends SingleValueAggTranslator<Sum> {
     
         @Override
@@ -716,7 +716,7 @@ abstract class QueryTranslator {
             return new SumAgg(id, path, field(s));
         }
     }
-    
+
     static class Avgs extends SingleValueAggTranslator<Avg> {
     
         @Override
@@ -724,7 +724,7 @@ abstract class QueryTranslator {
             return new AvgAgg(id, path, field(a));
         }
     }
-    
+
     static class Maxes extends SingleValueAggTranslator<Max> {
     
         @Override
@@ -732,7 +732,7 @@ abstract class QueryTranslator {
             return new MaxAgg(id, path, field(m));
         }
     }
-    
+
     static class Mins extends SingleValueAggTranslator<Min> {
     
         @Override
@@ -740,7 +740,7 @@ abstract class QueryTranslator {
             return new MinAgg(id, path, field(m));
         }
     }
-    
+
     static class StatsAggs extends CompoundAggTranslator<Stats> {
     
         @Override
@@ -748,7 +748,7 @@ abstract class QueryTranslator {
             return new StatsAgg(id, path, field(s));
         }
     }
-    
+
     static class ExtendedStatsAggs extends CompoundAggTranslator<ExtendedStats> {
     
         @Override
@@ -756,7 +756,7 @@ abstract class QueryTranslator {
             return new ExtendedStatsAgg(id, path, field(e));
         }
     }
-    
+
     static class MatrixStatsAggs extends CompoundAggTranslator<MatrixStats> {
     
         @Override
@@ -764,7 +764,7 @@ abstract class QueryTranslator {
             return new MatrixStatsAgg(id, path, singletonList(field(m)));
         }
     }
-    
+
     static class DateTimes extends SingleValueAggTranslator<Min> {
     
         @Override
@@ -772,8 +772,8 @@ abstract class QueryTranslator {
             return new MinAgg(id, path, field(m));
         }
     }
-    
-    static abstract class AggTranslator<F extends Function> {
+
+    abstract static class AggTranslator<F extends Function> {
     
         private final Class<F> typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
     
@@ -784,8 +784,8 @@ abstract class QueryTranslator {
     
         protected abstract LeafAgg asAgg(String id, String parent, F f);
     }
-    
-    static abstract class SingleValueAggTranslator<F extends Function> extends AggTranslator<F> {
+
+    abstract static class SingleValueAggTranslator<F extends Function> extends AggTranslator<F> {
     
         @Override
         protected final LeafAgg asAgg(String id, String parent, F function) {
@@ -795,8 +795,8 @@ abstract class QueryTranslator {
     
         protected abstract LeafAgg toAgg(String id, String path, F f);
     }
-    
-    static abstract class CompoundAggTranslator<C extends CompoundAggregate> extends AggTranslator<C> {
+
+    abstract static class CompoundAggTranslator<C extends CompoundAggregate> extends AggTranslator<C> {
     
         @Override
         protected final LeafAgg asAgg(String id, String parent, C function) {
@@ -806,9 +806,8 @@ abstract class QueryTranslator {
     
         protected abstract LeafAgg toAgg(String id, String path, C f);
     }
-    
-    
-    static abstract class ExppressionTranslator<E extends Expression> {
+
+    abstract static class ExppressionTranslator<E extends Expression> {
     
         private final Class<E> typeToken = ReflectionUtils.detectSuperTypeForRuleLike(getClass());
     

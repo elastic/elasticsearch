@@ -61,8 +61,6 @@ import static org.elasticsearch.xpack.sql.planner.QueryTranslator.toQuery;
 import static org.elasticsearch.xpack.sql.util.CollectionUtils.combine;
 
 class QueryFolder extends RuleExecutor<PhysicalPlan> {
-
-
     PhysicalPlan fold(PhysicalPlan plan) {
         return execute(plan);
     }
@@ -501,16 +499,16 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return exec.with(qContainer);
         }
     }
-}
 
-// rule for folding physical plans together
-abstract class FoldingRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
+    // rule for folding physical plans together
+    abstract static class FoldingRule<SubPlan extends PhysicalPlan> extends Rule<SubPlan, PhysicalPlan> {
 
-    @Override
-    public final PhysicalPlan apply(PhysicalPlan plan) {
-        return plan.transformUp(this::rule, typeToken());
+        @Override
+        public final PhysicalPlan apply(PhysicalPlan plan) {
+            return plan.transformUp(this::rule, typeToken());
+        }
+
+        @Override
+        protected abstract PhysicalPlan rule(SubPlan plan);
     }
-
-    @Override
-    protected abstract PhysicalPlan rule(SubPlan plan);
 }

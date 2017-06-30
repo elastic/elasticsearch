@@ -967,7 +967,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static abstract class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
+    abstract static class AnalyzeRule<SubPlan extends LogicalPlan> extends Rule<SubPlan, LogicalPlan> {
 
         // transformUp (post-order) - that is first children and then the node
         // but with a twist; only if the tree is not resolved or analyzed

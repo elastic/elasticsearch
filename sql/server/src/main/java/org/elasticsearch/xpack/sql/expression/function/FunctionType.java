@@ -16,7 +16,7 @@ public enum FunctionType {
 
     private final Class<? extends Function> baseClass;
     
-    private FunctionType(Class<? extends Function> base) {
+    FunctionType(Class<? extends Function> base) {
         this.baseClass = base;
     }
 

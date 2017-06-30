@@ -81,7 +81,7 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
         // We might need to retry this while waiting for a refresh
         assertBusy(() -> {
             List<Bucket> firstInterimBuckets = getInterimResults(job.getId());
-            assertThat(firstInterimBuckets.size(), equalTo(2));
+            assertThat("interim buckets were: " + firstInterimBuckets, firstInterimBuckets.size(), equalTo(2));
             assertThat(firstInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
             assertThat(firstInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
             assertThat(firstInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));

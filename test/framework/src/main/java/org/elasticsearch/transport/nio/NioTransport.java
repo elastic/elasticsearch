@@ -109,7 +109,6 @@ public class NioTransport extends TcpTransport<NioChannel> {
         for (final NioChannel channel : channels) {
             if (channel != null && channel.isOpen()) {
                 try {
-                    // TODO: This is currently broken in that it does not remove the channel from registered with selector
                     // If we are currently on the selector thread that handles this channel, we should prefer
                     // the closeFromSelector method. This method always closes the channel immediately.
                     if (channel.getSelector().isOnCurrentThread()) {

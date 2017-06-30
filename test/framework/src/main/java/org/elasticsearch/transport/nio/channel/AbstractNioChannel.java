@@ -98,9 +98,11 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     public CloseFuture closeAsync() {
         for (; ; ) {
             int state = this.state.get();
-            if (state == OPEN && this.state.compareAndSet(OPEN, CLOSING)) {
-                selector.queueChannelClose(this);
-                break;
+            if (state == OPEN) {
+                if (this.state.compareAndSet(OPEN, CLOSING)) {
+                    selector.queueChannelClose(this);
+                    break;
+                }
             } else if (state == CLOSING || state == CLOSED) {
                 break;
             }
@@ -119,7 +121,7 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         // Whichever thread succeeds in setting the state to CLOSED will close the raw channel.
         for (; ; ) {
             int state = this.state.get();
-            if (state < CLOSING && this.state.compareAndSet(state, CLOSING)) {
+            if (state == OPEN && this.state.compareAndSet(OPEN, CLOSING)) {
                 close0();
             } else if (state == CLOSING) {
                 close0();

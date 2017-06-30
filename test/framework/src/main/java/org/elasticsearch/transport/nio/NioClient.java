@@ -40,8 +40,6 @@ import java.util.function.Supplier;
 
 public class NioClient {
 
-    private static final int CLOSED = -1;
-
     private final Logger logger;
     private final OpenChannels openChannels;
     private final Supplier<SocketSelector> selectorSupplier;

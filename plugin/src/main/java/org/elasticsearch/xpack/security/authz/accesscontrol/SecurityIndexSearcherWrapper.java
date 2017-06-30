@@ -42,7 +42,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
@@ -135,7 +134,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                     String templateResult = evaluateTemplate(bytesReference.utf8ToString());
                     try (XContentParser parser = XContentFactory.xContent(templateResult)
                             .createParser(queryShardContext.getXContentRegistry(), templateResult)) {
-                        QueryBuilder queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
+                        QueryBuilder queryBuilder = queryShardContext.parseInnerQueryBuilder(parser);
                         verifyRoleQuery(queryBuilder);
                         failIfQueryUsesClient(scriptService, queryBuilder, queryShardContext);
                         ParsedQuery parsedQuery = queryShardContext.toFilter(queryBuilder);

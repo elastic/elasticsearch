@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.gce;
 
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -108,7 +109,8 @@ public class GceNetworkTests extends ESTestCase {
         GceMetadataServiceMock mock = new GceMetadataServiceMock(nodeSettings);
         NetworkService networkService = new NetworkService(Collections.singletonList(new GceNameResolver(nodeSettings, mock)));
         try {
-            InetAddress[] addresses = networkService.resolveBindHostAddresses(null);
+            InetAddress[] addresses = networkService.resolveBindHostAddresses(
+                NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.get(nodeSettings).toArray(Strings.EMPTY_ARRAY));
             if (expected == null) {
                 fail("We should get a IllegalArgumentException when setting network.host: _gce:doesnotexist_");
             }

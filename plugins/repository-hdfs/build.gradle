@@ -273,6 +273,7 @@ thirdPartyAudit.excludes = [
   'io.netty.handler.stream.ChunkedWriteHandler',
   'io.netty.util.concurrent.GlobalEventExecutor',
   'io.netty.util.ReferenceCountUtil',
+  'javax.xml.bind.annotation.adapters.HexBinaryAdapter',
   'javax.ws.rs.core.Context',
   'javax.ws.rs.core.MediaType', 
   'javax.ws.rs.core.MultivaluedMap', 

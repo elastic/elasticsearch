@@ -900,7 +900,6 @@ PUT /myindex/type/1?pipeline=monthlyindex
     "successful" : 1,
     "failed" : 0
   },
-  "created" : true,
   "_seq_no" : 0,
   "_primary_term" : 1
 }
@@ -1831,7 +1830,6 @@ The response from the above index request:
   },
   "_seq_no": 0,
   "_primary_term": 1,
-  "created": true
 }
 --------------------------------------------------
 // TESTRESPONSE

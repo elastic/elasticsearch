@@ -61,12 +61,12 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         PARSER.declareField((parser, builder, context) -> {
             XContentParser.Token currentToken = parser.currentToken();
             if (currentToken == XContentParser.Token.START_OBJECT) {
-                builder.setInnerHits(InnerHitBuilder.fromXContent(context));
+                builder.setInnerHits(InnerHitBuilder.fromXContent(parser));
             } else if (currentToken == XContentParser.Token.START_ARRAY) {
                 List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
                 for (currentToken = parser.nextToken(); currentToken != XContentParser.Token.END_ARRAY; currentToken = parser.nextToken()) {
                     if (currentToken == XContentParser.Token.START_OBJECT) {
-                        innerHitBuilders.add(InnerHitBuilder.fromXContent(context));
+                        innerHitBuilders.add(InnerHitBuilder.fromXContent(parser));
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "Invalid token in inner_hits array");
                     }

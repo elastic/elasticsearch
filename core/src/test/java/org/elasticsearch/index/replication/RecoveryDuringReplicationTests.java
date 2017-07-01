@@ -29,11 +29,15 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
@@ -145,6 +149,65 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             docs += shards.indexDocs(randomInt(5));
 
             shards.assertAllEqual(docs);
+        }
+    }
+
+    /*
+     * Simulate a scenario with two replicas where one of the replicas receives an extra document, the other replica is promoted on primary
+     * failure, the receiving replica misses the primary/replica re-sync and then recovers from the primary. We expect that a
+     * sequence-number based recovery is performed and the extra document does not remain after recovery.
+     */
+    public void testRecoveryToReplicaThatReceivedExtraDocument() throws Exception {
+        try (ReplicationGroup shards = createGroup(2)) {
+            shards.startAll();
+            final int docs = randomIntBetween(0, 16);
+            for (int i = 0; i < docs; i++) {
+                shards.index(
+                        new IndexRequest("index", "type", Integer.toString(i)).source("{}", XContentType.JSON));
+            }
+
+            shards.flush();
+            shards.syncGlobalCheckpoint();
+
+            final IndexShard oldPrimary = shards.getPrimary();
+            final IndexShard promotedReplica = shards.getReplicas().get(0);
+            final IndexShard remainingReplica = shards.getReplicas().get(1);
+            // slip the extra document into the replica
+            remainingReplica.applyIndexOperationOnReplica(
+                    remainingReplica.getLocalCheckpoint() + 1,
+                    remainingReplica.getPrimaryTerm(),
+                    1,
+                    VersionType.EXTERNAL,
+                    randomNonNegativeLong(),
+                    false,
+                    SourceToParse.source("index", "type", "replica", new BytesArray("{}"), XContentType.JSON),
+                    mapping -> {});
+            shards.promoteReplicaToPrimary(promotedReplica);
+            oldPrimary.close("demoted", randomBoolean());
+            oldPrimary.store().close();
+            shards.removeReplica(remainingReplica);
+            remainingReplica.close("disconnected", false);
+            remainingReplica.store().close();
+            // randomly introduce a conflicting document
+            final boolean extra = randomBoolean();
+            if (extra) {
+                promotedReplica.applyIndexOperationOnPrimary(
+                        Versions.MATCH_ANY,
+                        VersionType.INTERNAL,
+                        SourceToParse.source("index", "type", "primary", new BytesArray("{}"), XContentType.JSON),
+                        randomNonNegativeLong(),
+                        false,
+                        mapping -> {
+                        });
+            }
+            final IndexShard recoveredReplica =
+                    shards.addReplicaWithExistingPath(remainingReplica.shardPath(), remainingReplica.routingEntry().currentNodeId());
+            shards.recoverReplica(recoveredReplica);
+
+            assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), empty());
+            assertThat(recoveredReplica.recoveryState().getTranslog().recoveredOperations(), equalTo(extra ? 1 : 0));
+
+            shards.assertAllEqual(docs + (extra ? 1 : 0));
         }
     }
 

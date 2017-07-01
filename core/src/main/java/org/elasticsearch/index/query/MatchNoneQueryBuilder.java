@@ -57,9 +57,7 @@ public class MatchNoneQueryBuilder extends AbstractQueryBuilder<MatchNoneQueryBu
         builder.endObject();
     }
 
-    public static MatchNoneQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static MatchNoneQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String currentFieldName = null;
         XContentParser.Token token;
         String queryName = null;

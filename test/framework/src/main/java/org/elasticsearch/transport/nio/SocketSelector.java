@@ -84,6 +84,7 @@ public class SocketSelector extends ESSelector {
      */
     public void registerSocketChannel(NioSocketChannel nioSocketChannel) {
         newChannels.offer(nioSocketChannel);
+        ensureSelectorOpenForEnqueuing(newChannels, nioSocketChannel);
         wakeup();
     }
 

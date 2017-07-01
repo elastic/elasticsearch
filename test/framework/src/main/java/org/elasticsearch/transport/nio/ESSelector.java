@@ -146,8 +146,8 @@ public abstract class ESSelector implements Closeable {
     }
 
     public void queueChannelClose(NioChannel channel) {
-        ensureOpen();
         channelsToClose.offer(channel);
+        ensureSelectorOpenForEnqueuing(channelsToClose, channel);
         wakeup();
     }
 
@@ -180,17 +180,36 @@ public abstract class ESSelector implements Closeable {
         return isRunningFuture;
     }
 
+    /**
+     * This is a convenience method to be called after some object (normally channels) are enqueued with this
+     * selector. This method will check if the selector is still open. If it is open, normal operation can
+     * proceed.
+     *
+     * If the selector is closed, then we attempt to remove the object from the queue. If the removal
+     * succeeds then we throw an {@link IllegalStateException} indicating that normal operation failed. If
+     * the object cannot be removed from the queue, then the object has already been handled by the selector
+     * and operation can proceed normally.
+     *
+     * If this method is called from the selector thread, we will not throw an exception as the selector
+     * thread can manipulate its queues internally even if it is no longer open.
+     *
+     * @param queue the queue to which the object was added
+     * @param objectAdded the objected added
+     * @param <O> the object type
+     */
+    <O> void ensureSelectorOpenForEnqueuing(ConcurrentLinkedQueue<O> queue, O objectAdded) {
+        if (isClosed.get() && isOnCurrentThread() == false) {
+            if (queue.remove(objectAdded)) {
+                throw new IllegalStateException("selector is already closed");
+            }
+        }
+    }
+
     private void closeChannel(NioChannel channel) {
         try {
             eventHandler.handleClose(channel);
         } finally {
             registeredChannels.remove(channel);
-        }
-    }
-
-    private void ensureOpen() {
-        if (isClosed.get()) {
-            throw new IllegalStateException("selector is already closed");
         }
     }
 }

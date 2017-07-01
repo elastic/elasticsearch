@@ -480,6 +480,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 Map<String, Object> rsp2 = toMap(client().performRequest("GET", "/_upgrade"));
                 logger.info("upgrade status response: {}", rsp2);
                 Map<?, ?> indexUpgradeStatus2 = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp2);
+                assertNotNull(indexUpgradeStatus2);
                 int totalBytes2 = (Integer) indexUpgradeStatus2.get("size_in_bytes");
                 assertThat(totalBytes2, greaterThan(0));
                 int toUpgradeBytes2 = (Integer) indexUpgradeStatus2.get("size_to_upgrade_in_bytes");

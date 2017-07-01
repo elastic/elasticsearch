@@ -32,6 +32,7 @@ import org.apache.lucene.search.TopFieldCollector;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -44,7 +45,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.join.mapper.ParentIdFieldMapper;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -126,7 +126,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
             TopDocs[] result = new TopDocs[hits.length];
             for (int i = 0; i < hits.length; i++) {
                 SearchHit hit = hits[i];
-                SearchHitField joinField = hit.getFields().get(joinFieldMapper.name());
+                DocumentField joinField = hit.getFields().get(joinFieldMapper.name());
                 if (joinField == null) {
                     result[i] = Lucene.EMPTY_TOP_DOCS;
                     continue;
@@ -150,7 +150,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                         .add(joinFieldMapper.fieldType().termQuery(typeName, qsc), BooleanClause.Occur.FILTER)
                         .build();
                 } else {
-                    SearchHitField parentIdField = hit.getFields().get(parentIdFieldMapper.name());
+                    DocumentField parentIdField = hit.getFields().get(parentIdFieldMapper.name());
                     q = context.mapperService().fullName(IdFieldMapper.NAME).termQuery(parentIdField.getValue(), qsc);
                 }
 
@@ -206,7 +206,7 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
                 } else if (isChildHit(hit)) {
                     DocumentMapper hitDocumentMapper = mapperService.documentMapper(hit.getType());
                     final String parentType = hitDocumentMapper.parentFieldMapper().type();
-                    SearchHitField parentField = hit.field(ParentFieldMapper.NAME);
+                    DocumentField parentField = hit.field(ParentFieldMapper.NAME);
                     if (parentField == null) {
                         throw new IllegalStateException("All children must have a _parent");
                     }

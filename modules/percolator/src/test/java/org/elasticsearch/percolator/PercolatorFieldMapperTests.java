@@ -58,7 +58,6 @@ import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -85,6 +84,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -474,10 +474,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     private void assertQueryBuilder(BytesRef actual, QueryBuilder expected) throws IOException {
         XContentParser sourceParser = createParser(PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent(),
                 new BytesArray(actual));
-        QueryParseContext qsc = indexService.newQueryShardContext(
-                randomInt(20), null, () -> { throw new UnsupportedOperationException(); })
-                .newParseContext(sourceParser);
-        assertThat(qsc.parseInnerQueryBuilder(), equalTo(expected));
+        assertThat(parseInnerQueryBuilder(sourceParser), equalTo(expected));
     }
 
     public void testEmptyName() throws Exception {

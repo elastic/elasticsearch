@@ -67,6 +67,8 @@ public class TcpReadContext implements ReadContext {
 
         BytesReference message;
 
+        // Frame decoder will throw an exception if the message is improperly formatted, the header is incorrect,
+        // or the message is corrupted
         while ((message = frameDecoder.decode(createCompositeBuffer(), rawBytesCount)) != null) {
             int messageLengthWithHeader = message.length();
             NetworkBytesReference.vectorizedIncrementReadIndexes(references, messageLengthWithHeader);
@@ -75,7 +77,11 @@ public class TcpReadContext implements ReadContext {
 
             try {
                 BytesReference messageWithoutHeader = message.slice(6, message.length() - 6);
-                handler.handleMessage(messageWithoutHeader, channel, channel.getProfile(), messageWithoutHeader.length());
+
+                // A message length of 6 bytes it is just a ping. Ignore for now.
+                if (messageLengthWithHeader != 6) {
+                    handler.handleMessage(messageWithoutHeader, channel, channel.getProfile(), messageWithoutHeader.length());
+                }
             } catch (Exception e) {
                 handler.handleException(channel, e);
             }

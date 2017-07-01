@@ -40,6 +40,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+
 public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder> {
     public static final String NAME = "filters";
 
@@ -171,7 +173,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             throws IOException {
         List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         for(KeyedFilter kf : filters) {
-            rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(), 
+            rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(),
                     context.getQueryShardContext())));
         }
         return new FiltersAggregatorFactory(name, rewrittenFilters, keyed, otherBucket, otherBucketKey, context, parent,
@@ -236,7 +238,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                         if (token == XContentParser.Token.FIELD_NAME) {
                             key = parser.currentName();
                         } else {
-                            QueryBuilder filter = context.parseInnerQueryBuilder();
+                            QueryBuilder filter = parseInnerQueryBuilder(context.parser());
                             keyedFilters.add(new FiltersAggregator.KeyedFilter(key, filter));
                         }
                     }
@@ -248,7 +250,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                 if (FILTERS_FIELD.match(currentFieldName)) {
                     nonKeyedFilters = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        QueryBuilder filter = context.parseInnerQueryBuilder();
+                        QueryBuilder filter = parseInnerQueryBuilder(context.parser());
                         nonKeyedFilters.add(filter);
                     }
                 } else {

@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
@@ -57,9 +58,8 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
 
 public class NioTransport extends TcpTransport<NioChannel> {
 
-    // TODO: Need to add to places where we check if transport thread
-    public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = "transport_worker";
-    public static final String TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX = "transport_acceptor";
+    public static final String TRANSPORT_WORKER_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_WORKER_THREAD_NAME_PREFIX;
+    public static final String TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX = Transports.NIO_TRANSPORT_ACCEPTOR_THREAD_NAME_PREFIX;
 
     public static final Setting<Integer> NIO_WORKER_COUNT =
         new Setting<>("transport.nio.worker_count",
@@ -108,7 +108,14 @@ public class NioTransport extends TcpTransport<NioChannel> {
         for (final NioChannel channel : channels) {
             if (channel != null && channel.isOpen()) {
                 try {
-                    channel.closeAsync().awaitClose();
+                    // If we are currently on the selector thread that handles this channel, we should prefer
+                    // the closeFromSelector method. This method always closes the channel immediately.
+                    ESSelector selector = channel.getSelector();
+                    if (selector != null && selector.isOnCurrentThread()) {
+                        channel.closeFromSelector();
+                    } else {
+                        channel.closeAsync().awaitClose();
+                    }
                 } catch (Exception e) {
                     if (closingExceptions == null) {
                         closingExceptions = new IOException("failed to close channels");

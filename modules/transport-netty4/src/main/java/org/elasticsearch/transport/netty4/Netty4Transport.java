@@ -219,23 +219,21 @@ public class Netty4Transport extends TcpTransport<Channel> {
             fallbackSettingsBuilder.putArray("publish_host", fallbackPublishHost);
         }
 
-        boolean fallbackTcpNoDelay = settings.getAsBoolean("transport.netty.tcp_no_delay", TcpSettings.TCP_NO_DELAY.get(settings));
+        boolean fallbackTcpNoDelay =  TcpSettings.TCP_NO_DELAY.get(settings);
         fallbackSettingsBuilder.put("tcp_no_delay", fallbackTcpNoDelay);
 
-        boolean fallbackTcpKeepAlive = settings.getAsBoolean("transport.netty.tcp_keep_alive", TcpSettings.TCP_KEEP_ALIVE.get(settings));
+        boolean fallbackTcpKeepAlive = TcpSettings.TCP_KEEP_ALIVE.get(settings);
         fallbackSettingsBuilder.put("tcp_keep_alive", fallbackTcpKeepAlive);
 
-        boolean fallbackReuseAddress = settings.getAsBoolean("transport.netty.reuse_address", TcpSettings.TCP_REUSE_ADDRESS.get(settings));
+        boolean fallbackReuseAddress =  TcpSettings.TCP_REUSE_ADDRESS.get(settings);
         fallbackSettingsBuilder.put("reuse_address", fallbackReuseAddress);
 
-        ByteSizeValue fallbackTcpSendBufferSize = settings.getAsBytesSize("transport.netty.tcp_send_buffer_size",
-            TCP_SEND_BUFFER_SIZE.get(settings));
+        ByteSizeValue fallbackTcpSendBufferSize = TCP_SEND_BUFFER_SIZE.get(settings);
         if (fallbackTcpSendBufferSize.getBytes() >= 0) {
             fallbackSettingsBuilder.put("tcp_send_buffer_size", fallbackTcpSendBufferSize);
         }
 
-        ByteSizeValue fallbackTcpBufferSize = settings.getAsBytesSize("transport.netty.tcp_receive_buffer_size",
-            TCP_RECEIVE_BUFFER_SIZE.get(settings));
+        ByteSizeValue fallbackTcpBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
         if (fallbackTcpBufferSize.getBytes() >= 0) {
             fallbackSettingsBuilder.put("tcp_receive_buffer_size", fallbackTcpBufferSize);
         }
@@ -285,7 +283,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
         final boolean reuseAddress = TCP_REUSE_ADDRESS.get(settings);
         serverBootstrap.option(ChannelOption.SO_REUSEADDR, reuseAddress);
         serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, reuseAddress);
-
         serverBootstrap.validate();
 
         serverBootstraps.put(name, serverBootstrap);

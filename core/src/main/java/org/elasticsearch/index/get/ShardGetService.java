@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -173,7 +174,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     }
 
     private GetResult innerGetLoadFromStoredFields(String type, String id, String[] gFields, FetchSourceContext fetchSourceContext, Engine.GetResult get, MapperService mapperService) {
-        Map<String, GetField> fields = null;
+        Map<String, DocumentField> fields = null;
         BytesReference source = null;
         DocIdAndVersion docIdAndVersion = get.docIdAndVersion();
         FieldsVisitor fieldVisitor = buildFieldsVisitors(gFields, fetchSourceContext);
@@ -189,7 +190,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                 fieldVisitor.postProcess(mapperService);
                 fields = new HashMap<>(fieldVisitor.fields().size());
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {
-                    fields.put(entry.getKey(), new GetField(entry.getKey(), entry.getValue()));
+                    fields.put(entry.getKey(), new DocumentField(entry.getKey(), entry.getValue()));
                 }
             }
         }
@@ -200,7 +201,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             if (fields == null) {
                 fields = new HashMap<>(1);
             }
-            fields.put(ParentFieldMapper.NAME, new GetField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
+            fields.put(ParentFieldMapper.NAME, new DocumentField(ParentFieldMapper.NAME, Collections.singletonList(parentId)));
         }
 
         if (gFields != null && gFields.length > 0) {

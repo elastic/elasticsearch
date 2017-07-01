@@ -203,8 +203,8 @@ of dependencies that are NOT Apache Licensed.
    See the License for the specific language governing permissions and
    limitations under the License.
 
-The HTrace Owl logo is from http://www.clker.com/clipart-13653.html.  It is
-public domain.
+Units, a string formatting go library, is Copyright (c) 2014 Alec Thomas
+and MIT licensed: https://github.com/alecthomas/units/blob/master/COPYING
 
 D3, a javascript library for manipulating data, used by htrace-hbase
 is Copyright 2010-2014, Michael Bostock and BSD licensed:
@@ -239,4 +239,7 @@ https://github.com/moment/moment/blob/develop/LICENSE
 CMP is an implementation of the MessagePack serialization format in
 C.  It is licensed under the MIT license:
 https://github.com/camgunz/cmp/blob/master/LICENSE
-See ./htrace-c/src/util/cmp.c and ./htrace-c/src/util/cmp.h.
+
+go-codec is an implementation of several serialization and deserialization
+codecs in Go.  It is licensed under the MIT license:
+https://github.com/ugorji/go/blob/master/LICENSE

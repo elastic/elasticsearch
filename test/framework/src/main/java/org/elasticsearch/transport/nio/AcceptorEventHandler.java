@@ -20,7 +20,9 @@
 package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
+import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.SelectionKeyUtils;
@@ -61,11 +63,9 @@ public class AcceptorEventHandler extends EventHandler {
      */
     public void acceptChannel(NioServerSocketChannel nioServerChannel) throws IOException {
         ChannelFactory channelFactory = nioServerChannel.getChannelFactory();
-        SocketSelector socketSelector = selectorSupplier.get();
-        NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioServerChannel, socketSelector);
+        SocketSelector selector = selectorSupplier.get();
+        NioSocketChannel nioSocketChannel = channelFactory.acceptNioChannel(nioServerChannel, selector, openChannels::channelClosed);
         openChannels.acceptedChannelOpened(nioSocketChannel);
-        nioSocketChannel.getCloseFuture().setListener(openChannels::channelClosed);
-        socketSelector.scheduleForRegistration(nioSocketChannel);
     }
 
     /**

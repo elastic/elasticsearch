@@ -40,6 +40,7 @@ import java.nio.channels.SocketChannel;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
+import java.util.function.Consumer;
 
 public class ChannelFactory {
 
@@ -47,22 +48,42 @@ public class ChannelFactory {
     private final RawChannelFactory rawChannelFactory;
 
     public ChannelFactory(Settings settings, TcpReadHandler handler) {
+        this(new RawChannelFactory(settings), handler);
+    }
+
+    ChannelFactory(RawChannelFactory rawChannelFactory, TcpReadHandler handler) {
         this.handler = handler;
-        this.rawChannelFactory = new RawChannelFactory(settings);
+        this.rawChannelFactory = rawChannelFactory;
     }
 
     public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector) throws IOException {
+        return openNioChannel(remoteAddress, selector, null);
+    }
+
+    public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector,
+                                           Consumer<NioChannel> closeListener) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
         NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel, selector);
         channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
+        if (closeListener != null) {
+            channel.getCloseFuture().setListener(closeListener);
+        }
         scheduleChannel(channel, selector);
         return channel;
     }
 
     public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector) throws IOException {
+        return acceptNioChannel(serverChannel, selector, null);
+    }
+
+    public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector,
+                                             Consumer<NioChannel> closeListener) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
         NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel, selector);
         channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
+        if (closeListener != null) {
+            channel.getCloseFuture().setListener(closeListener);
+        }
         scheduleChannel(channel, selector);
         return channel;
     }
@@ -93,7 +114,7 @@ public class ChannelFactory {
         }
     }
 
-    private static class RawChannelFactory {
+    static class RawChannelFactory {
 
         private final boolean tcpNoDelay;
         private final boolean tcpKeepAlive;
@@ -109,21 +130,21 @@ public class ChannelFactory {
             tcpReceiveBufferSize = Math.toIntExact(TcpTransport.TCP_RECEIVE_BUFFER_SIZE.get(settings).getBytes());
         }
 
-        public SocketChannel openNioChannel(InetSocketAddress remoteAddress) throws IOException {
+        SocketChannel openNioChannel(InetSocketAddress remoteAddress) throws IOException {
             SocketChannel socketChannel = SocketChannel.open();
             configureSocketChannel(socketChannel);
             PrivilegedSocketAccess.connect(socketChannel, remoteAddress);
             return socketChannel;
         }
 
-        public SocketChannel acceptNioChannel(NioServerSocketChannel serverChannel) throws IOException {
+        SocketChannel acceptNioChannel(NioServerSocketChannel serverChannel) throws IOException {
             ServerSocketChannel serverSocketChannel = serverChannel.getRawChannel();
             SocketChannel socketChannel = PrivilegedSocketAccess.accept(serverSocketChannel);
             configureSocketChannel(socketChannel);
             return socketChannel;
         }
 
-        public ServerSocketChannel openNioServerSocketChannel(InetSocketAddress address) throws IOException {
+        ServerSocketChannel openNioServerSocketChannel(InetSocketAddress address) throws IOException {
             ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
             serverSocketChannel.configureBlocking(false);
             ServerSocket socket = serverSocketChannel.socket();

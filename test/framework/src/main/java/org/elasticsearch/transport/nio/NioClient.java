@@ -21,6 +21,7 @@ package org.elasticsearch.transport.nio;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -69,11 +70,9 @@ public class NioClient {
         try {
             for (int i = 0; i < channels.length; i++) {
                 SocketSelector selector = selectorSupplier.get();
-                NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address, selector);
-                nioSocketChannel.getCloseFuture().setListener(closeListener);
+                NioSocketChannel nioSocketChannel = channelFactory.openNioChannel(address, selector, closeListener);
                 openChannels.clientChannelOpened(nioSocketChannel);
                 connections.add(nioSocketChannel);
-                selector.scheduleForRegistration(nioSocketChannel);
             }
 
             Exception ex = null;

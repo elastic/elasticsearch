@@ -22,12 +22,15 @@ package org.elasticsearch.transport.nio;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.DoNotRegisterServerChannel;
+import org.elasticsearch.transport.nio.channel.NioChannel;
 import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
 import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 import org.elasticsearch.transport.nio.channel.ReadContext;
 import org.elasticsearch.transport.nio.channel.WriteContext;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
+import javax.lang.model.util.Types;
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;
@@ -35,7 +38,10 @@ import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.function.Consumer;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -78,26 +84,30 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         assertEquals(SelectionKey.OP_ACCEPT, channel.getSelectionKey().interestOps());
     }
 
-    public void testHandleAcceptRegistersWithSelector() throws IOException {
+    public void testHandleAcceptCallsChannelFactory() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel("", mock(SocketChannel.class), socketSelector);
-        when(channelFactory.acceptNioChannel(channel, socketSelector)).thenReturn(childChannel);
+        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector), any())).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
 
-        verify(socketSelector).scheduleForRegistration(childChannel);
+        verify(channelFactory).acceptNioChannel(same(channel), same(socketSelector), any());
+
     }
 
+    @SuppressWarnings("unchecked")
     public void testHandleAcceptAddsToOpenChannelsAndAddsCloseListenerToRemove() throws IOException {
         NioSocketChannel childChannel = new NioSocketChannel("", SocketChannel.open(), socketSelector);
         childChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
-        when(channelFactory.acceptNioChannel(channel, socketSelector)).thenReturn(childChannel);
+        when(channelFactory.acceptNioChannel(same(channel), same(socketSelector), any())).thenReturn(childChannel);
 
         handler.acceptChannel(channel);
+        Class<Consumer<NioChannel>> clazz = (Class<Consumer<NioChannel>>)(Class)Consumer.class;
+        ArgumentCaptor<Consumer<NioChannel>> listener = ArgumentCaptor.forClass(clazz);
+        verify(channelFactory).acceptNioChannel(same(channel), same(socketSelector), listener.capture());
 
         assertEquals(new HashSet<>(Collections.singletonList(childChannel)), openChannels.getAcceptedChannels());
 
-        when(socketSelector.isOnCurrentThread()).thenReturn(true);
-        childChannel.closeFromSelector();
+        listener.getValue().accept(childChannel);
 
         assertEquals(new HashSet<>(), openChannels.getAcceptedChannels());
     }

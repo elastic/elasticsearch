@@ -156,7 +156,6 @@ public abstract class ESSelector implements Closeable {
 
     public void close(boolean shouldInterrupt) throws IOException {
         if (isClosed.compareAndSet(false, true)) {
-            selector.close();
             if (shouldInterrupt && thread != null) {
                 thread.interrupt();
             } else {

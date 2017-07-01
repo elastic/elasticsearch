@@ -20,7 +20,20 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.nio.TcpReadHandler;
+import org.junit.Before;
+
+import static org.mockito.Mockito.mock;
 
 public class ChannelFactoryTests extends ESTestCase {
-    
+
+    private ChannelFactory channelFactory;
+    private ChannelFactory.RawChannelFactory rawChannelFactory;
+
+    @Before
+    public void setupFactory() {
+        rawChannelFactory = mock(ChannelFactory.RawChannelFactory.class);
+        channelFactory = new ChannelFactory(rawChannelFactory, mock(TcpReadHandler.class));
+    }
+
 }

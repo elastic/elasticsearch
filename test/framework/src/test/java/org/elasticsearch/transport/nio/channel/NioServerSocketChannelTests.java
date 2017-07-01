@@ -38,6 +38,7 @@ public class NioServerSocketChannelTests extends AbstractNioChannelTestCase {
     private AcceptingSelector selector;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setSelector() throws IOException {
         selector = new AcceptingSelector(new AcceptorEventHandler(logger, mock(OpenChannels.class), mock(Supplier.class)),
             mock(Selector.class));

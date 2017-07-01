@@ -1693,12 +1693,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (shardState == IndexShardState.POST_RECOVERY ||
                 shardState == IndexShardState.STARTED ||
                 shardState == IndexShardState.RELOCATED) {
-                assert false :
-                    "supposedly in-sync shard copy received a global checkpoint [" + globalCheckpoint + "] that is higher than its " +
-                    "local checkpoint [" + localCheckpoint + "], fail shard to trigger resync"; // fail hard if assertions are enabled
-                failShard("supposedly in-sync shard copy received a global checkpoint [" + globalCheckpoint + "] that is higher than its " +
-                    "local checkpoint [" + localCheckpoint + "], fail shard to trigger resync", null);
-                throw new IllegalStateException("supposedly in-sync shard copy received a global checkpoint [" + globalCheckpoint + "] " +
+                throw new AssertionError("supposedly in-sync shard copy received a global checkpoint [" + globalCheckpoint + "] " +
                         "that is higher than its local checkpoint [" + localCheckpoint + "]");
             }
             return;

@@ -1803,16 +1803,12 @@ public class IndexShardTests extends IndexShardTestCase {
         if (numDocs > 0) {
             replica.updateGlobalCheckpointOnReplica(randomInt(numDocs - 1));
         }
-        final AtomicReference<IndexShard.ShardFailure> shardFailure = new AtomicReference<>();
-        replica.addShardFailureCallback(shardFailure::set);
         final long globalCheckpoint = numDocs + randomInt(10);
-        final IllegalStateException ise = expectThrows(IllegalStateException.class,
+        final AssertionError ae = expectThrows(AssertionError.class,
             () -> replica.updateGlobalCheckpointOnReplica(globalCheckpoint));
         final String message = "supposedly in-sync shard copy received a global checkpoint [" + globalCheckpoint + "] that is higher " +
             "than its local checkpoint [" + localCheckpoint + "]";
-        assertThat(ise.getMessage(), containsString(message));
-        assertNotNull(shardFailure.get());
-        assertThat(shardFailure.get().reason, containsString(message));
+        assertThat(ae.getMessage(), containsString(message));
         closeShards(replica);
     }
 

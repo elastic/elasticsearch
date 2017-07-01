@@ -36,13 +36,16 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
+import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -59,6 +62,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongConsumer;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -79,7 +83,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     private final String tempFilePrefix;
     private final Store store;
     private final PeerRecoveryTargetService.RecoveryListener listener;
-    private final Callback<Long> ensureClusterStateVersionCallback;
+    private final LongConsumer ensureClusterStateVersionCallback;
 
     private final AtomicBoolean finished = new AtomicBoolean();
 
@@ -107,7 +111,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     public RecoveryTarget(final IndexShard indexShard,
                    final DiscoveryNode sourceNode,
                    final PeerRecoveryTargetService.RecoveryListener listener,
-                   final Callback<Long> ensureClusterStateVersionCallback) {
+                   final LongConsumer ensureClusterStateVersionCallback) {
         super("recovery_status");
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
@@ -371,16 +375,34 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     @Override
     public void ensureClusterStateVersion(long clusterStateVersion) {
-        ensureClusterStateVersionCallback.handle(clusterStateVersion);
+        ensureClusterStateVersionCallback.accept(clusterStateVersion);
     }
 
     @Override
-    public long indexTranslogOperations(
-            List<Translog.Operation> operations, int totalTranslogOps) throws TranslogRecoveryPerformer.BatchOperationException {
+    public void handoffPrimaryContext(final PrimaryContext primaryContext) {
+        indexShard.updateAllocationIdsFromPrimaryContext(primaryContext);
+    }
+
+    @Override
+    public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
         assert indexShard().recoveryState() == state();
-        indexShard().performBatchRecovery(operations);
+        if (indexShard().state() != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, indexShard().state());
+        }
+        for (Translog.Operation operation : operations) {
+            Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY, update -> {
+                throw new MapperException("mapping updates are not allowed [" + operation + "]");
+            });
+            assert result.hasFailure() == false : "unexpected failure while replicating translog entry: " + result.getFailure();
+            ExceptionsHelper.reThrowIfNotNull(result.getFailure());
+        }
+        // update stats only after all operations completed (to ensure that mapping updates don't mess with stats)
+        translog.incrementRecoveredOperations(operations.size());
+        indexShard().sync();
+        // roll over / flush / trim if needed
+        indexShard().afterWriteOperation();
         return indexShard().getLocalCheckpoint();
     }
 
@@ -476,5 +498,4 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     Path translogLocation() {
         return indexShard().shardPath().resolveTranslog();
     }
-
 }

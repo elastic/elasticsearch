@@ -24,6 +24,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.text.Text;
@@ -49,8 +50,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -68,7 +71,7 @@ public class SearchHitTests extends ESTestCase {
         if (randomBoolean()) {
             nestedIdentity = NestedIdentityTests.createTestItem(randomIntBetween(0, 2));
         }
-        Map<String, SearchHitField> fields = new HashMap<>();
+        Map<String, DocumentField> fields = new HashMap<>();
         if (randomBoolean()) {
             int size = randomIntBetween(0, 10);
             for (int i = 0; i < size; i++) {
@@ -76,10 +79,10 @@ public class SearchHitTests extends ESTestCase {
                         XContentType.JSON);
                 if (randomBoolean()) {
                     String metaField = randomFrom(META_FIELDS);
-                    fields.put(metaField, new SearchHitField(metaField, values.v1()));
+                    fields.put(metaField, new DocumentField(metaField, values.v1()));
                 } else {
                     String fieldName = randomAlphaOfLengthBetween(5, 10);
-                    fields.put(fieldName, new SearchHitField(fieldName, values.v1()));
+                    fields.put(fieldName, new DocumentField(fieldName, values.v1()));
                 }
             }
         }
@@ -140,7 +143,6 @@ public class SearchHitTests extends ESTestCase {
         boolean humanReadable = randomBoolean();
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toShuffledXContent(searchHit, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
-
         SearchHit parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             parser.nextToken(); // jump to first START_OBJECT
@@ -149,6 +151,33 @@ public class SearchHitTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, humanReadable), xContentType);
+    }
+
+    /**
+     * This test adds randomized fields on all json objects and checks that we can parse it to
+     * ensure the parsing is lenient for forward compatibility.
+     * We need to exclude json objects with the "highlight" and "fields" field name since these
+     * objects allow arbitrary keys (the field names that are queries). Also we want to exclude
+     * to add anything under "_source" since it is not parsed, and avoid complexity by excluding
+     * everything under "inner_hits". They are also keyed by arbitrary names and contain SearchHits,
+     * which are already tested elsewhere.
+     */
+    public void testFromXContentLenientParsing() throws IOException {
+        SearchHit searchHit = createTestItem(true);
+        XContentType xContentType = randomFrom(XContentType.values());
+        BytesReference originalBytes = toXContent(searchHit, xContentType, true);
+        Predicate<String> pathsToExclude = path -> (path.endsWith("highlight") || path.endsWith("fields") || path.contains("_source")
+                || path.contains("inner_hits"));
+        BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
+
+        SearchHit parsed;
+        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+            parser.nextToken(); // jump to first START_OBJECT
+            parsed = SearchHit.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+        assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, true), xContentType);
     }
 
     /**

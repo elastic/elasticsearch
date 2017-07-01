@@ -19,9 +19,11 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -127,6 +129,24 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         assertEquals(query, builder.rewrite(shardContext));
         builder = new WrapperQueryBuilder(query.toString()).boost(3);
         assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(shardContext));
+    }
+
+    public void testRewriteInnerQueryToo() throws IOException {
+        QueryShardContext shardContext = createShardContext();
+
+        QueryBuilder qb = new WrapperQueryBuilder(
+            new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()).toString()
+        );
+        assertEquals(new TermQuery(new Term("foo", "bar")), qb.rewrite(shardContext).toQuery(shardContext));
+        qb = new WrapperQueryBuilder(
+            new WrapperQueryBuilder(
+                new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()).toString()
+            ).toString()
+        );
+        assertEquals(new TermQuery(new Term("foo", "bar")), qb.rewrite(shardContext).toQuery(shardContext));
+
+        qb = new WrapperQueryBuilder(new BoolQueryBuilder().toString());
+        assertEquals(new MatchAllDocsQuery(), qb.rewrite(shardContext).toQuery(shardContext));
     }
 
     @Override

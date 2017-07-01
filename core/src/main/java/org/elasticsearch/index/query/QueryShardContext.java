@@ -34,6 +34,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -49,11 +50,8 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -61,7 +59,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static java.util.Collections.unmodifiableMap;
@@ -325,51 +322,10 @@ public class QueryShardContext extends QueryRewriteContext {
         return indexSettings.getIndex();
     }
 
-    /**
-     * Compiles (or retrieves from cache) and binds the parameters to the
-     * provided script
-     */
-    public final SearchScript.LeafFactory getSearchScript(Script script, ScriptContext<SearchScript.Factory> context) {
-        failIfFrozen();
-        SearchScript.Factory factory = scriptService.compile(script, context);
-        return factory.newFactory(script.getParams(), lookup());
-    }
-    /**
-     * Returns a lazily created {@link SearchScript} that is compiled immediately but can be pulled later once all
-     * parameters are available.
-     */
-    public final Function<Map<String, Object>, SearchScript.LeafFactory> getLazySearchScript(
-        Script script, ScriptContext<SearchScript.Factory> context) {
-        // TODO: this "lazy" binding can be removed once scripted metric aggs have their own contexts, which take _agg/_aggs as a parameter
-        failIfFrozen();
-        SearchScript.Factory factory = scriptService.compile(script, context);
-        return (p) -> factory.newFactory(p, lookup());
-    }
-
-    /**
-     * Compiles (or retrieves from cache) and binds the parameters to the
-     * provided script
-     */
-    public final ExecutableScript getExecutableScript(Script script, ScriptContext<ExecutableScript.Factory> context) {
-        failIfFrozen();
-        ExecutableScript.Factory factory = scriptService.compile(script, context);
-        return factory.newInstance(script.getParams());
-    }
-
-    /**
-     * Returns a lazily created {@link ExecutableScript} that is compiled immediately but can be pulled later once all
-     * parameters are available.
-     */
-    public final Function<Map<String, Object>, ExecutableScript> getLazyExecutableScript(
-        Script script, ScriptContext<ExecutableScript.Factory> context) {
-        // TODO: this "lazy" binding can be removed once scripted metric aggs have their own contexts, which take _agg/_aggs as a parameter
-        failIfFrozen();
-        ExecutableScript.Factory factory = scriptService.compile(script, context);
-        return factory::newInstance;
-    }
-
     /** Return the script service to allow compiling scripts. */
+    @Override
     public final ScriptService getScriptService() {
+        failIfFrozen();
         return scriptService;
     }
 
@@ -429,5 +385,9 @@ public class QueryShardContext extends QueryRewriteContext {
     public Client getClient() {
         failIfFrozen(); // we somebody uses a terms filter with lookup for instance can't be cached...
         return super.getClient();
+    }
+
+    public QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+        return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
     }
 }

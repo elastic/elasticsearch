@@ -20,50 +20,38 @@
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.query.ScrollQuerySearchResult;
+import org.elasticsearch.transport.Transport;
 
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.elasticsearch.action.search.TransportSearchHelper.internalScrollSearchRequest;
+import java.util.function.BiFunction;
 
 final class SearchScrollQueryAndFetchAsyncAction extends SearchScrollAsyncAction<ScrollQueryFetchSearchResult> {
 
-    private final SearchTransportService searchTransportService;
     private final SearchTask task;
     private final AtomicArray<QueryFetchSearchResult> queryFetchResults;
 
     SearchScrollQueryAndFetchAsyncAction(Logger logger, ClusterService clusterService, SearchTransportService searchTransportService,
                                          SearchPhaseController searchPhaseController, SearchScrollRequest request, SearchTask task,
                                          ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
-        super(scrollId, logger, clusterService.state().nodes(), listener, searchPhaseController, request);
+        super(scrollId, logger, clusterService.state().nodes(), listener, searchPhaseController, request, searchTransportService);
         this.task = task;
-        this.searchTransportService = searchTransportService;
         this.queryFetchResults = new AtomicArray<>(scrollId.getContext().length);
     }
 
     @Override
-    protected void executeInitialPhase(DiscoveryNode node, InternalScrollSearchRequest internalRequest,
+    protected void executeInitialPhase(Transport.Connection connection, InternalScrollSearchRequest internalRequest,
                                        SearchActionListener<ScrollQueryFetchSearchResult> searchActionListener) {
-        searchTransportService.sendExecuteScrollFetch(node, internalRequest, task, searchActionListener);
+        searchTransportService.sendExecuteScrollFetch(connection, internalRequest, task, searchActionListener);
     }
 
     @Override
-    protected SearchPhase moveToNextPhase() {
+    protected SearchPhase moveToNextPhase(BiFunction<String, String, DiscoveryNode> clusterNodeLookup) {
         return sendResponsePhase(searchPhaseController.reducedQueryPhase(queryFetchResults.asList(), true), queryFetchResults);
     }
 

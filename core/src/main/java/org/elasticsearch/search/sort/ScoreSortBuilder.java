@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -76,13 +77,13 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
      * Creates a new {@link ScoreSortBuilder} from the query held by the {@link QueryParseContext} in
      * {@link org.elasticsearch.common.xcontent.XContent} format.
      *
-     * @param context the input parse context. The state on the parser contained in this context will be changed as a side effect of this
+     * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
      *        method call
      * @param fieldName in some sort syntax variations the field name precedes the xContent object that specifies further parameters, e.g.
      *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
      */
-    public static ScoreSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
-        return PARSER.apply(context.parser(), context);
+    public static ScoreSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
+        return PARSER.apply(parser, null);
     }
 
     private static ObjectParser<ScoreSortBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME, ScoreSortBuilder::new);

@@ -54,10 +54,8 @@ public class ScriptServiceTests extends ESTestCase {
 
     @Before
     public void setup() throws IOException {
-        Path genericConfigFolder = createTempDir();
         baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 10000)
                 .build();
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
@@ -240,7 +238,7 @@ public class ScriptServiceTests extends ESTestCase {
         ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id",
             StoredScriptSource.parse("_lang", script, XContentType.JSON));
         assertNotNull(scriptMetaData);
-        assertEquals("abc", scriptMetaData.getStoredScript("_id", "_lang").getCode());
+        assertEquals("abc", scriptMetaData.getStoredScript("_id", "_lang").getSource());
     }
 
     public void testDeleteScript() throws Exception {
@@ -266,7 +264,7 @@ public class ScriptServiceTests extends ESTestCase {
                         StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON)).build()))
             .build();
 
-        assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id", "_lang")).getCode());
+        assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id", "_lang")).getSource());
         assertNull(scriptService.getStoredScript(cs, new GetStoredScriptRequest("_id2", "_lang")));
 
         cs = ClusterState.builder(new ClusterName("_name")).build();

@@ -199,14 +199,14 @@ public final class Definition {
     public static class Method {
         public final String name;
         public final Struct owner;
-        public final boolean augmentation;
+        public final Class<?> augmentation;
         public final Type rtn;
         public final List<Type> arguments;
         public final org.objectweb.asm.commons.Method method;
         public final int modifiers;
         public final MethodHandle handle;
 
-        public Method(String name, Struct owner, boolean augmentation, Type rtn, List<Type> arguments,
+        public Method(String name, Struct owner, Class<?> augmentation, Type rtn, List<Type> arguments,
                       org.objectweb.asm.commons.Method method, int modifiers, MethodHandle handle) {
             this.name = name;
             this.augmentation = augmentation;
@@ -232,10 +232,10 @@ public final class Definition {
             // otherwise compute it
             final Class<?> params[];
             final Class<?> returnValue;
-            if (augmentation) {
+            if (augmentation != null) {
                 // static method disguised as virtual/interface method
                 params = new Class<?>[1 + arguments.size()];
-                params[0] = Augmentation.class;
+                params[0] = augmentation;
                 for (int i = 0; i < arguments.size(); i++) {
                     params[i + 1] = arguments.get(i).clazz;
                 }
@@ -268,9 +268,9 @@ public final class Definition {
 
         public void write(MethodWriter writer) {
             final org.objectweb.asm.Type type;
-            if (augmentation) {
+            if (augmentation != null) {
                 assert java.lang.reflect.Modifier.isStatic(modifiers);
-                type = WriterConstants.AUGMENTATION_TYPE;
+                type = org.objectweb.asm.Type.getType(augmentation);
             } else {
                 type = owner.type;
             }
@@ -731,7 +731,7 @@ public final class Definition {
                 " with arguments " + Arrays.toString(classes) + ".");
         }
 
-        final Method constructor = new Method(name, owner, false, returnType, Arrays.asList(args), asm, reflect.getModifiers(), handle);
+        final Method constructor = new Method(name, owner, null, returnType, Arrays.asList(args), asm, reflect.getModifiers(), handle);
 
         owner.constructors.put(methodKey, constructor);
     }
@@ -775,10 +775,14 @@ public final class Definition {
                 }
                 addConstructorInternal(className, "<init>", args);
             } else {
-                if (methodName.indexOf("*") >= 0) {
-                    addMethodInternal(className, methodName.substring(0, methodName.length() - 1), true, rtn, args);
+                int index = methodName.lastIndexOf(".");
+
+                if (index >= 0) {
+                    String augmentation = methodName.substring(0, index);
+                    methodName = methodName.substring(index + 1);
+                    addMethodInternal(className, methodName, augmentation, rtn, args);
                 } else {
-                    addMethodInternal(className, methodName, false, rtn, args);
+                    addMethodInternal(className, methodName, null, rtn, args);
                 }
             }
         } else {
@@ -787,8 +791,7 @@ public final class Definition {
         }
     }
 
-    private void addMethodInternal(String struct, String name, boolean augmentation,
-                                   Type rtn, Type[] args) {
+    private void addMethodInternal(String struct, String name, String augmentation, Type rtn, Type[] args) {
         final Struct owner = structsMap.get(struct);
 
         if (owner == null) {
@@ -817,14 +820,20 @@ public final class Definition {
         final Class<?> implClass;
         final Class<?>[] params;
 
-        if (augmentation == false) {
+        if (augmentation == null) {
             implClass = owner.clazz;
             params = new Class<?>[args.length];
             for (int count = 0; count < args.length; ++count) {
                 params[count] = args[count].clazz;
             }
         } else {
-            implClass = Augmentation.class;
+            try {
+                implClass = Class.forName(augmentation);
+            } catch (ClassNotFoundException cnfe) {
+                throw new IllegalArgumentException("Augmentation class [" + augmentation + "]" +
+                    " not found for struct [" + struct + "] using method name [" + name + "].", cnfe);
+            }
+
             params = new Class<?>[args.length + 1];
             params[0] = owner.clazz;
             for (int count = 0; count < args.length; ++count) {
@@ -862,9 +871,10 @@ public final class Definition {
         }
 
         final int modifiers = reflect.getModifiers();
-        final Method method = new Method(name, owner, augmentation, rtn, Arrays.asList(args), asm, modifiers, handle);
+        final Method method =
+            new Method(name, owner, augmentation == null ? null : implClass, rtn, Arrays.asList(args), asm, modifiers, handle);
 
-        if (augmentation == false && java.lang.reflect.Modifier.isStatic(modifiers)) {
+        if (augmentation == null && java.lang.reflect.Modifier.isStatic(modifiers)) {
             owner.staticMethods.put(methodKey, method);
         } else {
             owner.methods.put(methodKey, method);
@@ -966,8 +976,8 @@ public final class Definition {
                             // TODO: we *have* to remove all these public members and use getter methods to encapsulate!
                             final Class<?> impl;
                             final Class<?> arguments[];
-                            if (method.augmentation) {
-                                impl = Augmentation.class;
+                            if (method.augmentation != null) {
+                                impl = method.augmentation;
                                 arguments = new Class<?>[method.arguments.size() + 1];
                                 arguments[0] = method.owner.clazz;
                                 for (int i = 0; i < method.arguments.size(); i++) {

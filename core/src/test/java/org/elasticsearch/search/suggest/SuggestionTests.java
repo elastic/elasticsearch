@@ -41,10 +41,12 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SuggestionTests extends ESTestCase {
@@ -98,18 +100,39 @@ public class SuggestionTests extends ESTestCase {
         return suggestion;
     }
 
-    @SuppressWarnings({ "rawtypes" })
     public void testFromXContent() throws IOException {
+        doTestFromXContent(false);
+    }
+
+    public void testFromXContentWithRandomFields() throws IOException {
+        doTestFromXContent(true);
+    }
+
+    @SuppressWarnings({ "rawtypes" })
+    private void doTestFromXContent(boolean addRandomFields) throws IOException {
         ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(RestSearchAction.TYPED_KEYS_PARAM, "true"));
         for (Class<Suggestion<? extends Entry<? extends Option>>> type : SUGGESTION_TYPES) {
             Suggestion suggestion = createTestItem(type);
             XContentType xContentType = randomFrom(XContentType.values());
             boolean humanReadable = randomBoolean();
-            BytesReference originalBytes = toXContent(suggestion, xContentType, params, humanReadable);
+            BytesReference originalBytes = toShuffledXContent(suggestion, xContentType, params, humanReadable);
+            BytesReference mutated;
+            if (addRandomFields) {
+                // - "contexts" is an object consisting of key/array pairs, we shouldn't add anything random there
+                // - there can be inner search hits fields inside this option where we cannot add random stuff
+                // - the root object should be excluded since it contains the named suggestion arrays
+                Predicate<String> excludeFilter = path -> (path.isEmpty()
+                        || path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName()) || path.endsWith("highlight")
+                        || path.endsWith("fields") || path.contains("_source") || path.contains("inner_hits"));
+                mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+            } else {
+                mutated = originalBytes;
+            }
             Suggestion parsed;
-            try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
                 parsed = Suggestion.fromXContent(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
                 assertNull(parser.nextToken());
@@ -123,19 +146,18 @@ public class SuggestionTests extends ESTestCase {
     }
 
     /**
-     * test that we throw error if RestSearchAction.TYPED_KEYS_PARAM isn't set while rendering xContent
+     * test that we parse nothing if RestSearchAction.TYPED_KEYS_PARAM isn't set while rendering xContent and we cannot find
+     * suggestion type information
      */
-    public void testFromXContentFailsWithoutTypeParam() throws IOException {
+    public void testFromXContentWithoutTypeParam() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         BytesReference originalBytes = toXContent(createTestItem(), xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
-            ParsingException e = expectThrows(ParsingException.class, () -> Suggestion.fromXContent(parser));
-            assertEquals(
-                    "Cannot parse object of class [Suggestion] without type information. "
-                    + "Set [typed_keys] parameter on the request to ensure the type information "
-                    + "is added to the response output", e.getMessage());
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            assertNull(Suggestion.fromXContent(parser));
+            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
         }
     }
 
@@ -155,6 +177,7 @@ public class SuggestionTests extends ESTestCase {
         try (XContentParser parser = xContent.createParser(xContentRegistry(), suggestionString)) {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
             ParsingException e = expectThrows(ParsingException.class, () -> Suggestion.fromXContent(parser));
             assertEquals("Unknown Suggestion [unknownType]", e.getMessage());
         }

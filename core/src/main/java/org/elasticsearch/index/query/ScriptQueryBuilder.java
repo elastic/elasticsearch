@@ -84,8 +84,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         builder.endObject();
     }
 
-    public static ScriptQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static ScriptQueryBuilder fromXContent(XContentParser parser) throws IOException {
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
         Script script = null;
 
@@ -97,8 +96,6 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
                     script = Script.parse(parser);
@@ -129,7 +126,9 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.getSearchScript(script, SearchScript.CONTEXT));
+        SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.CONTEXT);
+        SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
+        return new ScriptQuery(script, searchScript);
     }
 
     static class ScriptQuery extends Query {

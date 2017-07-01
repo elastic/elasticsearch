@@ -49,10 +49,18 @@ if (project.name == 'bwc-stable-snapshot') {
 
 if (enabled) {
   apply plugin: 'distribution'
+  // Not published so no need to assemble
+  tasks.remove(assemble)
+  build.dependsOn.remove('assemble')
 
   def (String major, String minor, String bugfix) = bwcVersion.split('\\.')
-  String bwcBranch =
-      project.name == 'bwc-stable-snapshot' ? "${major}.x" : "${major}.${minor}"
+  def (String currentMajor, String currentMinor, String currentBugfix) = version.split('\\.')
+  String bwcBranch
+  if (project.name == 'bwc-stable-snapshot') {
+    bwcBranch = "${major}.x"
+  } else {
+    bwcBranch = "${major}.${minor}"
+  }
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
   task createClone(type: LoggedExec) {
@@ -96,14 +104,15 @@ if (enabled) {
     commandLine = ['git', 'fetch', 'upstream']
   }
 
-  task checkoutBwcBranch(type: LoggedExec) {
+  // this is an Exec task so that the SHA that is checked out is logged
+  task checkoutBwcBranch(type: Exec) {
     dependsOn fetchLatest
     workingDir = checkoutDir
     commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
   }
 
-  File bwcDeb = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.deb")
-  File bwcRpm = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.rpm")
+  File bwcDeb = file("${checkoutDir}/distribution/deb/build/distributions/elasticsearch-${bwcVersion}.deb")
+  File bwcRpm = file("${checkoutDir}/distribution/rpm/build/distributions/elasticsearch-${bwcVersion}.rpm")
   File bwcZip = file("${checkoutDir}/distribution/zip/build/distributions/elasticsearch-${bwcVersion}.zip")
   task buildBwcVersion(type: GradleBuild) {
     dependsOn checkoutBwcBranch

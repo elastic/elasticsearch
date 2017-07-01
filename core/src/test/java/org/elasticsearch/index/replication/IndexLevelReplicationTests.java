@@ -18,17 +18,15 @@
  */
 package org.elasticsearch.index.replication;
 
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -44,7 +42,6 @@ import org.elasticsearch.index.shard.IndexShardTests;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -238,7 +235,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoOpTranslogOperationForDocumentFailure(shards, 1, failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 1, shards.getPrimary().getPrimaryTerm(), failureMessage);
             shards.assertAllEqual(0);
 
             // add some replicas
@@ -252,7 +249,7 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
                             .source("{}", XContentType.JSON)
             );
             assertTrue(response.isFailed());
-            assertNoOpTranslogOperationForDocumentFailure(shards, 2, failureMessage);
+            assertNoOpTranslogOperationForDocumentFailure(shards, 2, shards.getPrimary().getPrimaryTerm(), failureMessage);
             shards.assertAllEqual(0);
         }
     }
@@ -272,9 +269,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
             shards.assertAllEqual(0);
             for (IndexShard indexShard : shards) {
-                try(Translog.View view = indexShard.acquireTranslogView()) {
-                    assertThat(view.totalOperations(), equalTo(0));
-                }
+                assertThat(indexShard.routingEntry() + " has the wrong number of ops in the translog",
+                    indexShard.translogStats().estimatedNumberOfOperations(), equalTo(0));
             }
 
             // add some replicas
@@ -292,9 +288,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             assertThat(response.getFailure().getCause(), instanceOf(VersionConflictEngineException.class));
             shards.assertAllEqual(0);
             for (IndexShard indexShard : shards) {
-                try(Translog.View view = indexShard.acquireTranslogView()) {
-                    assertThat(view.totalOperations(), equalTo(0));
-                }
+                assertThat(indexShard.routingEntry() + " has the wrong number of ops in the translog",
+                    indexShard.translogStats().estimatedNumberOfOperations(), equalTo(0));
             }
         }
     }
@@ -323,16 +318,18 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     private static void assertNoOpTranslogOperationForDocumentFailure(
             Iterable<IndexShard> replicationGroup,
             int expectedOperation,
+            long expectedPrimaryTerm,
             String failureMessage) throws IOException {
         for (IndexShard indexShard : replicationGroup) {
             try(Translog.View view = indexShard.acquireTranslogView()) {
-                assertThat(view.totalOperations(), equalTo(expectedOperation));
-                final Translog.Snapshot snapshot = view.snapshot();
+                assertThat(view.estimateTotalOperations(SequenceNumbersService.NO_OPS_PERFORMED), equalTo(expectedOperation));
+                final Translog.Snapshot snapshot = view.snapshot(SequenceNumbersService.NO_OPS_PERFORMED);
                 long expectedSeqNo = 0L;
                 Translog.Operation op = snapshot.next();
                 do {
                     assertThat(op.opType(), equalTo(Translog.Operation.Type.NO_OP));
                     assertThat(op.seqNo(), equalTo(expectedSeqNo));
+                    assertThat(op.primaryTerm(), equalTo(expectedPrimaryTerm));
                     assertThat(((Translog.NoOp) op).reason(), containsString(failureMessage));
                     op = snapshot.next();
                     expectedSeqNo++;

@@ -26,10 +26,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.get.GetResultTests;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,11 +40,15 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.action.DocWriteResponse.Result.DELETED;
 import static org.elasticsearch.action.DocWriteResponse.Result.NOT_FOUND;
 import static org.elasticsearch.action.DocWriteResponse.Result.UPDATED;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.XContentTestUtils.insertRandomFields;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class UpdateResponseTests extends ESTestCase {
 
@@ -64,9 +68,9 @@ public class UpdateResponseTests extends ESTestCase {
         }
         {
             BytesReference source = new BytesArray("{\"title\":\"Book title\",\"isbn\":\"ABC-123\"}");
-            Map<String, GetField> fields = new HashMap<>();
-            fields.put("title", new GetField("title", Collections.singletonList("Book title")));
-            fields.put("isbn", new GetField("isbn", Collections.singletonList("ABC-123")));
+            Map<String, DocumentField> fields = new HashMap<>();
+            fields.put("title", new DocumentField("title", Collections.singletonList("Book title")));
+            fields.put("isbn", new DocumentField("isbn", Collections.singletonList("ABC-123")));
 
             UpdateResponse updateResponse = new UpdateResponse(new ReplicationResponse.ShardInfo(3, 2),
                     new ShardId("books", "books_uuid", 2), "book", "1", 7, 17, 2, UPDATED);
@@ -81,29 +85,59 @@ public class UpdateResponseTests extends ESTestCase {
     }
 
     public void testToAndFromXContent() throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.values());
+        doFromXContentTestWithRandomFields(false);
+    }
+
+    /**
+     * This test adds random fields and objects to the xContent rendered out to
+     * ensure we can parse it back to be forward compatible with additions to
+     * the xContent
+     */
+    public void testFromXContentWithRandomFields() throws IOException {
+        doFromXContentTestWithRandomFields(true);
+    }
+
+    private void doFromXContentTestWithRandomFields(boolean addRandomFields) throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.JSON);
         final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse(xContentType);
         UpdateResponse updateResponse = tuple.v1();
         UpdateResponse expectedUpdateResponse = tuple.v2();
 
         boolean humanReadable = randomBoolean();
-        BytesReference updateResponseBytes = toShuffledXContent(updateResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
+        BytesReference originalBytes = toShuffledXContent(updateResponse, xContentType, ToXContent.EMPTY_PARAMS, humanReadable);
 
+        BytesReference mutated;
+        if (addRandomFields) {
+            // - The ShardInfo.Failure's exception is rendered out in a "reason" object. We shouldn't add anything random there
+            // because exception rendering and parsing are very permissive: any extra object or field would be rendered as
+            // a exception custom metadata and be parsed back as a custom header, making it impossible to compare the results
+            // in this test.
+            // - The GetResult's "_source" and "fields" just consists of key/value pairs, we shouldn't add anything random there.
+            // It is already randomized in the randomGetResult() method anyway. Also, we cannot add anything within the "get"
+            // object since this is where GetResult's metadata fields are rendered out and they would be parsed back as
+            // extra metadata fields.
+            Predicate<String> excludeFilter = path -> path.contains("reason") || path.contains("get");
+            mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
+        } else {
+            mutated = originalBytes;
+        }
         UpdateResponse parsedUpdateResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), updateResponseBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
             parsedUpdateResponse = UpdateResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
 
-        // We can't use equals() to compare the original and the parsed delete response
-        // because the random delete response can contain shard failures with exceptions,
-        // and those exceptions are not parsed back with the same types.
-        assertUpdateResponse(expectedUpdateResponse, parsedUpdateResponse);
-    }
+        IndexResponseTests.assertDocWriteResponse(expectedUpdateResponse, parsedUpdateResponse);
+        if (addRandomFields == false) {
+            assertEquals(expectedUpdateResponse.getGetResult(), parsedUpdateResponse.getGetResult());
+        }
 
-    public static void assertUpdateResponse(UpdateResponse expected, UpdateResponse actual) {
-        IndexResponseTests.assertDocWriteResponse(expected, actual);
-        assertEquals(expected.getGetResult(), actual.getGetResult());
+        // Prints out the parsed UpdateResponse object to verify that it is the same as the expected output.
+        // If random fields have been inserted, it checks that they have been filtered out and that they do
+        // not alter the final output of the parsed object.
+        BytesReference parsedBytes = toXContent(parsedUpdateResponse, xContentType, humanReadable);
+        BytesReference expectedBytes = toXContent(expectedUpdateResponse, xContentType, humanReadable);
+        assertToXContentEquivalent(expectedBytes, parsedBytes, xContentType);
     }
 
     /**

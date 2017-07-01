@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -221,26 +222,27 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareString(ScriptSortBuilder::setNestedPath , NESTED_PATH_FIELD);
-        PARSER.declareObject(ScriptSortBuilder::setNestedFilter, SortBuilder::parseNestedFilter, NESTED_FILTER_FIELD);
+        PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p,c) -> SortBuilder.parseNestedFilter(p), NESTED_FILTER_FIELD);
     }
 
     /**
      * Creates a new {@link ScriptSortBuilder} from the query held by the {@link QueryParseContext} in
      * {@link org.elasticsearch.common.xcontent.XContent} format.
      *
-     * @param context the input parse context. The state on the parser contained in this context will be changed as a side effect of this
+     * @param parser the input parser. The state on the parser contained in this context will be changed as a side effect of this
      *        method call
      * @param elementName in some sort syntax variations the field name precedes the xContent object that specifies further parameters, e.g.
      *        in '{ "foo": { "order" : "asc"} }'. When parsing the inner object, the field name can be passed in via this argument
      */
-    public static ScriptSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
-        return PARSER.apply(context.parser(), context);
+    public static ScriptSortBuilder fromXContent(XContentParser parser, String elementName) throws IOException {
+        return PARSER.apply(parser, null);
     }
 
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
-        final SearchScript.LeafFactory searchScript = context.getSearchScript(script, SearchScript.CONTEXT);
+        final SearchScript.Factory factory = context.getScriptService().compile(script, SearchScript.CONTEXT);
+        final SearchScript.LeafFactory searchScript = factory.newFactory(script.getParams(), context.lookup());
 
         MultiValueMode valueMode = null;
         if (sortMode != null) {

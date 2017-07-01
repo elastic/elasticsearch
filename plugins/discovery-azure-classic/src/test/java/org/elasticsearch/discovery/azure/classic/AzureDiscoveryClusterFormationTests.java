@@ -106,13 +106,12 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
             throw new RuntimeException(e);
         }
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
+            .put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), AzureDiscoveryPlugin.AZURE)
             .put(Environment.PATH_LOGS_SETTING.getKey(), resolve)
             .put(TransportSettings.PORT.getKey(), 0)
             .put(Node.WRITE_PORTS_FILE_SETTING.getKey(), "true")
             .put(AzureComputeService.Management.ENDPOINT_SETTING.getKey(), "https://" + InetAddress.getLoopbackAddress().getHostAddress() +
                 ":" + httpsServer.getAddress().getPort())
-            .put(Environment.PATH_CONF_SETTING.getKey(), keyStoreFile.getParent().toAbsolutePath())
             .put(AzureComputeService.Management.KEYSTORE_PATH_SETTING.getKey(), keyStoreFile.toAbsolutePath())
             .put(AzureComputeService.Discovery.HOST_TYPE_SETTING.getKey(), AzureUnicastHostsProvider.HostType.PUBLIC_IP.name())
             .put(AzureComputeService.Management.KEYSTORE_PASSWORD_SETTING.getKey(), "keypass")
@@ -123,6 +122,11 @@ public class AzureDiscoveryClusterFormationTests extends ESIntegTestCase {
             .put(AzureComputeService.Discovery.ENDPOINT_NAME_SETTING.getKey(), "myendpoint")
             .put(AzureComputeService.Discovery.DEPLOYMENT_SLOT_SETTING.getKey(), AzureUnicastHostsProvider.Deployment.PRODUCTION.name())
             .build();
+    }
+
+    @Override
+    protected Path nodeConfigPath(int nodeOrdinal) {
+        return keyStoreFile.getParent();
     }
 
     /**

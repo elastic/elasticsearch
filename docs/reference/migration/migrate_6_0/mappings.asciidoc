@@ -29,3 +29,14 @@ now disallowed for these indices' mappings.
 Previously Elasticsearch would silently ignore any dynamic templates that
 included a `match_mapping_type` type that was unrecognized. An exception is now
 thrown on an unrecognized type.
+
+==== Synonym Token Filter
+
+In 6.0, Synonym Token Filter tokenize synonyms with whatever
+tokenizer and token filters appear before it in the chain.
+
+`tokenizer` and `ignore_case` are deprecated.
+These parameters are still left for backwards compatibility
+for indices that created before 6.0.
+And elasticsearch ignores these properties for new indices.
+

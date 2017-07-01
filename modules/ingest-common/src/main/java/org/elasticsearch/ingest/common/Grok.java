@@ -29,7 +29,6 @@ import org.joni.Syntax;
 import org.joni.exception.ValueException;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
@@ -107,7 +106,12 @@ final class Grok {
             // TODO(tal): Support definitions
             String definition = groupMatch(DEFINITION_GROUP, region, grokPattern);
             String patternName = groupMatch(PATTERN_GROUP, region, grokPattern);
+
             String pattern = patternBank.get(patternName);
+
+            if (pattern == null) {
+                throw new IllegalArgumentException("Unable to find pattern [" + patternName + "] in Grok's pattern dictionary");
+            }
 
             String grokPart;
             if (namedCaptures && subName != null) {

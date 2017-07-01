@@ -28,6 +28,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchType;
@@ -731,6 +732,21 @@ public class RequestTests extends ESTestCase {
         assertEquals("/_search/scroll", request.endpoint);
         assertEquals(0, request.params.size());
         assertToXContentBody(searchScrollRequest, request.entity);
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaType(), request.entity.getContentType().getValue());
+    }
+
+    public void testClearScroll() throws IOException {
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+        int numScrolls = randomIntBetween(1, 10);
+        for (int i = 0; i < numScrolls; i++) {
+            clearScrollRequest.addScrollId(randomAlphaOfLengthBetween(5, 10));
+        }
+        Request request = Request.clearScroll(clearScrollRequest);
+        assertEquals("DELETE", request.method);
+        assertEquals("/_search/scroll", request.endpoint);
+        assertEquals(0, request.params.size());
+        assertToXContentBody(clearScrollRequest, request.entity);
+        assertEquals(Request.REQUEST_BODY_CONTENT_TYPE.mediaType(), request.entity.getContentType().getValue());
     }
 
     private static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {

@@ -76,7 +76,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
     public void testSimple() throws IOException {
         String templateString =
                   "{" 
-                + "\"inline\":{\"match_{{template}}\": {}},"
+                + "\"source\":{\"match_{{template}}\": {}},"
                 + "\"params\":{\"template\":\"all\"}"
                 + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
@@ -89,7 +89,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
         String templateString =
                   "{"
-                + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
+                + "  \"source\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
                 + "    \"template\":\"all\","
                 + "    \"use_it\": true"
                 + "  }"

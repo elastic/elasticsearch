@@ -34,6 +34,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.TermQuery;
@@ -71,7 +72,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -150,7 +150,10 @@ public class InternalEngine extends Engine {
         }
         this.uidField = engineConfig.getIndexSettings().isSingleType() ? IdFieldMapper.NAME : UidFieldMapper.NAME;
         this.versionMap = new LiveVersionMap();
-        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy();
+        final TranslogDeletionPolicy translogDeletionPolicy = new TranslogDeletionPolicy(
+            engineConfig.getIndexSettings().getTranslogRetentionSize().getBytes(),
+            engineConfig.getIndexSettings().getTranslogRetentionAge().getMillis()
+        );
         this.deletionPolicy = new CombinedDeletionPolicy(
             new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), translogDeletionPolicy, openMode);
         store.incRef();
@@ -212,8 +215,8 @@ public class InternalEngine extends Engine {
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
-            if (engineConfig.getRefreshListeners() != null) {
-                searcherManager.addListener(engineConfig.getRefreshListeners());
+            for (ReferenceManager.RefreshListener listener: engineConfig.getRefreshListeners()) {
+                searcherManager.addListener(listener);
             }
             success = true;
         } finally {
@@ -285,7 +288,7 @@ public class InternalEngine extends Engine {
                 throw new IllegalStateException("Engine has already been recovered");
             }
             try {
-                recoverFromTranslog(engineConfig.getTranslogRecoveryPerformer());
+                recoverFromTranslogInternal();
             } catch (Exception e) {
                 try {
                     pendingTranslogRecovery.set(true); // just play safe and never allow commits on this see #ensureCanFlush
@@ -301,12 +304,13 @@ public class InternalEngine extends Engine {
         return this;
     }
 
-    private void recoverFromTranslog(TranslogRecoveryPerformer handler) throws IOException {
+    private void recoverFromTranslogInternal() throws IOException {
         Translog.TranslogGeneration translogGeneration = translog.getGeneration();
         final int opsRecovered;
         try {
-            Translog.Snapshot snapshot = translog.newSnapshot();
-            opsRecovered = handler.recoveryFromSnapshot(this, snapshot);
+            final long translogGen = Long.parseLong(lastCommittedSegmentInfos.getUserData().get(Translog.TRANSLOG_GENERATION_KEY));
+            Translog.Snapshot snapshot = translog.newSnapshot(translogGen);
+            opsRecovered = config().getTranslogRecoveryRunner().run(this, snapshot);
         } catch (Exception e) {
             throw new EngineException(shardId, "failed to recover from translog", e);
         }
@@ -321,6 +325,8 @@ public class InternalEngine extends Engine {
         } else if (translog.isCurrent(translogGeneration) == false) {
             commitIndexWriter(indexWriter, translog, lastCommittedSegmentInfos.getUserData().get(Engine.SYNC_COMMIT_ID));
         }
+        // clean up what's not needed
+        translog.trimUnreferencedReaders();
     }
 
     private Translog openTranslog(EngineConfig engineConfig, IndexWriter writer, TranslogDeletionPolicy translogDeletionPolicy, LongSupplier globalCheckpointSupplier) throws IOException {
@@ -1209,7 +1215,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             ensureCanFlush();
             String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
-            if (syncId != null && translog.totalOperations() == 0 && indexWriter.hasUncommittedChanges()) {
+            if (syncId != null && translog.uncommittedOperations() == 0 && indexWriter.hasUncommittedChanges()) {
                 logger.trace("start renewing sync commit [{}]", syncId);
                 commitIndexWriter(indexWriter, translog, syncId);
                 logger.debug("successfully sync committed. sync id [{}].", syncId);
@@ -1309,6 +1315,25 @@ public class InternalEngine extends Engine {
             pruneDeletedTombstones();
         }
         return new CommitId(newCommitId);
+    }
+
+    @Override
+    public void rollTranslogGeneration() throws EngineException {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            translog.rollGeneration();
+            translog.trimUnreferencedReaders();
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("translog trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new EngineException(shardId, "failed to roll translog", e);
+        }
     }
 
     private void pruneDeletedTombstones() {
@@ -1772,7 +1797,7 @@ public class InternalEngine extends Engine {
      * @param syncId   the sync flush ID ({@code null} if not committing a synced flush)
      * @throws IOException if an I/O exception occurs committing the specfied writer
      */
-    private void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
+    protected void commitIndexWriter(final IndexWriter writer, final Translog translog, @Nullable final String syncId) throws IOException {
         ensureCanFlush();
         try {
             final long localCheckpoint = seqNoService().getLocalCheckpoint();
@@ -1851,6 +1876,10 @@ public class InternalEngine extends Engine {
             // the setting will be re-interpreted if it's set to true
             this.maxUnsafeAutoIdTimestamp.set(Long.MAX_VALUE);
         }
+        final TranslogDeletionPolicy translogDeletionPolicy = translog.getDeletionPolicy();
+        final IndexSettings indexSettings = engineConfig.getIndexSettings();
+        translogDeletionPolicy.setRetentionAgeInMillis(indexSettings.getTranslogRetentionAge().getMillis());
+        translogDeletionPolicy.setRetentionSizeInBytes(indexSettings.getTranslogRetentionSize().getBytes());
     }
 
     public MergeStats getMergeStats() {

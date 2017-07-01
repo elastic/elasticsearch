@@ -30,7 +30,7 @@ public final class ScrollContext {
 
     private Map<String, Object> context = null;
 
-    public int totalHits = -1;
+    public long totalHits = -1;
     public float maxScore;
     public ScoreDoc lastEmittedDoc;
     public Scroll scroll;

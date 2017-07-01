@@ -809,9 +809,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         builder.endObject();
     }
 
-    public static MoreLikeThisQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static MoreLikeThisQueryBuilder fromXContent(XContentParser parser) throws IOException {
         // document inputs
         List<String> fields = null;
         List<String> likeTexts = new ArrayList<>();
@@ -846,9 +844,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
                 if (Field.LIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, likeTexts, likeItems);
+                    parseLikeField(parser, likeTexts, likeItems);
                 } else if (Field.UNLIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, unlikeTexts, unlikeItems);
+                    parseLikeField(parser, unlikeTexts, unlikeItems);
                 } else if (Field.LIKE_TEXT.match(currentFieldName)) {
                     likeTexts.add(parser.text());
                 } else if (Field.MAX_QUERY_TERMS.match(currentFieldName)) {
@@ -888,11 +886,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                     }
                 } else if (Field.LIKE.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        parseLikeField(parseContext, likeTexts, likeItems);
+                        parseLikeField(parser, likeTexts, likeItems);
                     }
                 } else if (Field.UNLIKE.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        parseLikeField(parseContext, unlikeTexts, unlikeItems);
+                        parseLikeField(parser, unlikeTexts, unlikeItems);
                     }
                 } else if (Field.IDS.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -918,9 +916,9 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (Field.LIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, likeTexts, likeItems);
+                    parseLikeField(parser, likeTexts, likeItems);
                 } else if (Field.UNLIKE.match(currentFieldName)) {
-                    parseLikeField(parseContext, unlikeTexts, unlikeItems);
+                    parseLikeField(parser, unlikeTexts, unlikeItems);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[mlt] query does not support [" + currentFieldName + "]");
                 }
@@ -962,8 +960,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         return moreLikeThisQueryBuilder;
     }
 
-    private static void parseLikeField(QueryParseContext parseContext, List<String> texts, List<Item> items) throws IOException {
-        XContentParser parser = parseContext.parser();
+    private static void parseLikeField(XContentParser parser, List<String> texts, List<Item> items) throws IOException {
         if (parser.currentToken().isValue()) {
             texts.add(parser.text());
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {

@@ -108,7 +108,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         final ClusterState allStartedClusterState = ClusterStateCreationUtils.state("idx", randomBoolean(),
             ShardRoutingState.STARTED, ShardRoutingState.STARTED);
         final ClusterAllocationExplainRequest anyUnassignedShardsRequest = new ClusterAllocationExplainRequest();
-        expectThrows(IllegalStateException.class, () ->
+        expectThrows(IllegalArgumentException.class, () ->
             findShardToExplain(anyUnassignedShardsRequest, routingAllocation(allStartedClusterState)));
     }
 
@@ -161,7 +161,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             }
         }
         final ClusterAllocationExplainRequest failingRequest = new ClusterAllocationExplainRequest("idx", 0, primary, explainNode);
-        expectThrows(IllegalStateException.class, () -> findShardToExplain(failingRequest, allocation));
+        expectThrows(IllegalArgumentException.class, () -> findShardToExplain(failingRequest, allocation));
     }
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {

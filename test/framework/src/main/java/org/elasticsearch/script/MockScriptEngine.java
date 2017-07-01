@@ -86,8 +86,13 @@ public class MockScriptEngine implements ScriptEngine {
                 // TODO: need a better way to implement all these new contexts
                 // this is just a shim to act as an executable script just as before
                 ExecutableScript execScript = mockCompiled.createExecutableScript(vars);
-                return () -> (String) execScript.run();
-            };
+                    return new TemplateScript(vars) {
+                        @Override
+                        public String execute() {
+                            return (String) execScript.run();
+                        }
+                    };
+                };
             return context.factoryClazz.cast(factory);
         }
         throw new IllegalArgumentException("mock script engine does not know how to handle context [" + context.name + "]");
@@ -214,7 +219,7 @@ public class MockScriptEngine implements ScriptEngine {
         }
 
         @Override
-        public boolean needsScores() {
+        public boolean needs_score() {
             return true;
         }
     }

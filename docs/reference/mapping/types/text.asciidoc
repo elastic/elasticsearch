@@ -121,7 +121,7 @@ The following parameters are accepted by `text` fields:
 <<similarity,`similarity`>>::
 
     Which scoring algorithm or _similarity_ should be used. Defaults
-    to `classic`, which uses TF/IDF.
+    to `BM25`.
 
 <<term-vector,`term_vector`>>::
 

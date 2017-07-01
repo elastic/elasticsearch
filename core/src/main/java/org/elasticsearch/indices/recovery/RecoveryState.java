@@ -467,6 +467,11 @@ public class RecoveryState implements ToXContent, Streamable {
             assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 
+        public synchronized void incrementRecoveredOperations(int ops) {
+            recovered += ops;
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+        }
+
         public synchronized void decrementRecoveredOperations(int ops) {
             recovered -= ops;
             assert recovered >= 0 : "recovered operations must be non-negative. Because [" + recovered + "] after decrementing [" + ops + "]";

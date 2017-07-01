@@ -120,6 +120,7 @@ class BuildPlugin implements Plugin<Project> {
                 println "  JDK Version           : ${gradleJavaVersionDetails}"
                 println "  JAVA_HOME             : ${gradleJavaHome}"
             }
+            println "  Random Testing Seed   : ${project.testSeed}"
 
             // enforce gradle version
             GradleVersion minGradle = GradleVersion.version('3.3')
@@ -393,8 +394,11 @@ class BuildPlugin implements Plugin<Project> {
             project.tasks.withType(GenerateMavenPom.class) { GenerateMavenPom t ->
                 // place the pom next to the jar it is for
                 t.destination = new File(project.buildDir, "distributions/${project.archivesBaseName}-${project.version}.pom")
-                // build poms with assemble
-                project.assemble.dependsOn(t)
+                // build poms with assemble (if the assemble task exists)
+                Task assemble = project.tasks.findByName('assemble')
+                if (assemble) {
+                    assemble.dependsOn(t)
+                }
             }
         }
     }
@@ -525,7 +529,12 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.logger.level', 'WARN'
             for (Map.Entry<String, String> property : System.properties.entrySet()) {
                 if (property.getKey().startsWith('tests.') ||
-                    property.getKey().startsWith('es.')) {
+                        property.getKey().startsWith('es.')) {
+                    if (property.getKey().equals('tests.seed')) {
+                        /* The seed is already set on the project so we
+                         * shouldn't attempt to override it. */
+                        continue;
+                    }
                     systemProperty property.getKey(), property.getValue()
                 }
             }

@@ -19,6 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -55,11 +56,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterConnection;
-import org.elasticsearch.transport.RemoteConnectionInfo;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.TransportConnectionListener;
-import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -77,7 +73,9 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -357,7 +355,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
 
     public void testFetchShards() throws Exception {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
-
         try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT);
              MockTransportService discoverableTransport = startTransport("discoverable_node", knownNodes, Version.CURRENT)) {
             DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
@@ -785,4 +782,128 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             }
         }
     }
+
+    public void testCollectNodes() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
+                    Arrays.asList(seedNode), service, Integer.MAX_VALUE, n -> true)) {
+                    if (randomBoolean()) {
+                        updateSeedNodes(connection, Arrays.asList(seedNode));
+                    }
+                    CountDownLatch responseLatch = new CountDownLatch(1);
+                    AtomicReference<Function<String, DiscoveryNode>> reference = new AtomicReference<>();
+                    AtomicReference<Exception> failReference = new AtomicReference<>();
+                    ActionListener<Function<String, DiscoveryNode>> shardsListener = ActionListener.wrap(
+                        x -> {
+                            reference.set(x);
+                            responseLatch.countDown();
+                        },
+                        x -> {
+                            failReference.set(x);
+                            responseLatch.countDown();
+                        });
+                    connection.collectNodes(shardsListener);
+                    responseLatch.await();
+                    assertNull(failReference.get());
+                    assertNotNull(reference.get());
+                    Function<String, DiscoveryNode> function = reference.get();
+                    assertEquals(seedNode, function.apply(seedNode.getId()));
+                    assertNull(function.apply(seedNode.getId() + "foo"));
+                    assertTrue(connection.assertNoRunningConnections());
+                }
+            }
+        }
+    }
+
+    public void testConnectedNodesConcurrentAccess() throws IOException, InterruptedException {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        List<MockTransportService> discoverableTransports = new CopyOnWriteArrayList<>();
+        try {
+            final int numDiscoverableNodes = randomIntBetween(5, 20);
+            List<DiscoveryNode> discoverableNodes = new ArrayList<>(numDiscoverableNodes);
+            for (int i = 0; i < numDiscoverableNodes; i++ ) {
+                MockTransportService transportService = startTransport("discoverable_node" + i, knownNodes, Version.CURRENT);
+                discoverableNodes.add(transportService.getLocalDiscoNode());
+                discoverableTransports.add(transportService);
+            }
+
+            List<DiscoveryNode> seedNodes = randomSubsetOf(discoverableNodes);
+            Collections.shuffle(seedNodes, random());
+
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
+                    seedNodes, service, Integer.MAX_VALUE, n -> true)) {
+                    final int numGetThreads = randomIntBetween(4, 10);
+                    final Thread[] getThreads = new Thread[numGetThreads];
+                    final int numModifyingThreads = randomIntBetween(4, 10);
+                    final Thread[] modifyingThreads = new Thread[numModifyingThreads];
+                    CyclicBarrier barrier = new CyclicBarrier(numGetThreads + numModifyingThreads);
+                    for (int i = 0; i < getThreads.length; i++) {
+                        final int numGetCalls = randomIntBetween(1000, 10000);
+                        getThreads[i] = new Thread(() -> {
+                            try {
+                                barrier.await();
+                                for (int j = 0; j < numGetCalls; j++) {
+                                    try {
+                                        DiscoveryNode node = connection.getConnectedNode();
+                                        assertNotNull(node);
+                                    } catch (IllegalStateException e) {
+                                        if (e.getMessage().startsWith("No node available for cluster:") == false) {
+                                            throw e;
+                                        }
+                                    }
+                                }
+                            } catch (Exception ex) {
+                                throw new AssertionError(ex);
+                            }
+                        });
+                        getThreads[i].start();
+                    }
+
+                    final AtomicInteger counter = new AtomicInteger();
+                    for (int i = 0; i < modifyingThreads.length; i++) {
+                        final int numDisconnects = randomIntBetween(5, 10);
+                        modifyingThreads[i] = new Thread(() -> {
+                            try {
+                                barrier.await();
+                                for (int j = 0; j < numDisconnects; j++) {
+                                    if (randomBoolean()) {
+                                        MockTransportService transportService =
+                                            startTransport("discoverable_node_added" + counter.incrementAndGet(), knownNodes,
+                                                Version.CURRENT);
+                                        discoverableTransports.add(transportService);
+                                        connection.addConnectedNode(transportService.getLocalDiscoNode());
+                                    } else {
+                                        DiscoveryNode node = randomFrom(discoverableNodes);
+                                        connection.onNodeDisconnected(node);
+                                    }
+                                }
+                            } catch (Exception ex) {
+                                throw new AssertionError(ex);
+                            }
+                        });
+                        modifyingThreads[i].start();
+                    }
+
+                    for (Thread thread : getThreads) {
+                        thread.join();
+                    }
+                    for (Thread thread : modifyingThreads) {
+                        thread.join();
+                    }
+                }
+            }
+        } finally {
+            IOUtils.closeWhileHandlingException(discoverableTransports);
+        }
+    }
+
 }

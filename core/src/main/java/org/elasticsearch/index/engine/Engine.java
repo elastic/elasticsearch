@@ -485,10 +485,6 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public final GetResult get(Get get) throws EngineException {
-        return get(get, this::acquireSearcher);
-    }
-
     public abstract GetResult get(Get get, Function<String, Searcher> searcherFactory) throws EngineException;
 
     /**
@@ -808,6 +804,12 @@ public abstract class Engine implements Closeable {
     public abstract CommitId flush() throws EngineException;
 
     /**
+     * Rolls the translog generation and cleans unneeded.
+     */
+    public abstract void rollTranslogGeneration() throws EngineException;
+
+
+    /**
      * Force merges to 1 segment
      */
     public void forceMerge(boolean flush) throws IOException {
@@ -1012,7 +1014,7 @@ public abstract class Engine implements Closeable {
 
         abstract String id();
 
-        abstract TYPE operationType();
+        public abstract TYPE operationType();
     }
 
     public static class Index extends Operation {
@@ -1054,7 +1056,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.INDEX;
         }
 
@@ -1106,8 +1108,8 @@ public abstract class Engine implements Closeable {
         public Delete(String type, String id, Term uid, long seqNo, long primaryTerm, long version, VersionType versionType,
                       Origin origin, long startTime) {
             super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
-            this.type = type;
-            this.id = id;
+            this.type = Objects.requireNonNull(type);
+            this.id = Objects.requireNonNull(id);
         }
 
         public Delete(String type, String id, Term uid) {
@@ -1130,7 +1132,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.DELETE;
         }
 
@@ -1180,7 +1182,7 @@ public abstract class Engine implements Closeable {
         }
 
         @Override
-        TYPE operationType() {
+        public TYPE operationType() {
             return TYPE.NO_OP;
         }
 

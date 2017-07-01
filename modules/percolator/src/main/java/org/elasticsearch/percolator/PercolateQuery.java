@@ -27,6 +27,7 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
@@ -45,16 +46,14 @@ final class PercolateQuery extends Query implements Accountable {
     // cost of matching the query against the document, arbitrary as it would be really complex to estimate
     public static final float MATCH_COST = 1000;
 
-    private final String documentType;
     private final QueryStore queryStore;
     private final BytesReference documentSource;
     private final Query candidateMatchesQuery;
     private final Query verifiedMatchesQuery;
     private final IndexSearcher percolatorIndexSearcher;
 
-    PercolateQuery(String documentType, QueryStore queryStore, BytesReference documentSource,
-                          Query candidateMatchesQuery, IndexSearcher percolatorIndexSearcher, Query verifiedMatchesQuery) {
-        this.documentType = Objects.requireNonNull(documentType);
+    PercolateQuery(QueryStore queryStore, BytesReference documentSource,
+                   Query candidateMatchesQuery, IndexSearcher percolatorIndexSearcher, Query verifiedMatchesQuery) {
         this.documentSource = Objects.requireNonNull(documentSource);
         this.candidateMatchesQuery = Objects.requireNonNull(candidateMatchesQuery);
         this.queryStore = Objects.requireNonNull(queryStore);
@@ -66,8 +65,7 @@ final class PercolateQuery extends Query implements Accountable {
     public Query rewrite(IndexReader reader) throws IOException {
         Query rewritten = candidateMatchesQuery.rewrite(reader);
         if (rewritten != candidateMatchesQuery) {
-            return new PercolateQuery(documentType, queryStore, documentSource, rewritten, percolatorIndexSearcher,
-                    verifiedMatchesQuery);
+            return new PercolateQuery(queryStore, documentSource, rewritten, percolatorIndexSearcher, verifiedMatchesQuery);
         } else {
             return this;
         }
@@ -139,7 +137,7 @@ final class PercolateQuery extends Query implements Accountable {
                         }
                     };
                 } else {
-                    Scorer verifiedDocsScorer = verifiedMatchesWeight.scorer(leafReaderContext);
+                    ScorerSupplier verifiedDocsScorer = verifiedMatchesWeight.scorerSupplier(leafReaderContext);
                     Bits verifiedDocsBits = Lucene.asSequentialAccessBits(leafReaderContext.reader().maxDoc(), verifiedDocsScorer);
                     return new BaseScorer(this, approximation, queries, percolatorIndexSearcher) {
 
@@ -170,10 +168,6 @@ final class PercolateQuery extends Query implements Accountable {
         return percolatorIndexSearcher;
     }
 
-    public String getDocumentType() {
-        return documentType;
-    }
-
     public BytesReference getDocumentSource() {
         return documentSource;
     }
@@ -199,8 +193,8 @@ final class PercolateQuery extends Query implements Accountable {
 
     @Override
     public String toString(String s) {
-        return "PercolateQuery{document_type={" + documentType + "},document_source={" + documentSource.utf8ToString() +
-                "},inner={" + candidateMatchesQuery.toString(s)  + "}}";
+        return "PercolateQuery{document_source={" + documentSource.utf8ToString() + "},inner={" +
+            candidateMatchesQuery.toString(s)  + "}}";
     }
 
     @Override

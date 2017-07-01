@@ -34,6 +34,8 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+
 public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
 
     public static final String NAME = "query";
@@ -56,7 +58,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     static {
         QUERY_RESCORE_PARSER.declareObject(InnerBuilder::setQueryBuilder, (p, c) -> {
             try {
-                return c.parseInnerQueryBuilder();
+                return parseInnerQueryBuilder(p);
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner query", e);
             }

@@ -26,6 +26,7 @@ import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.delete.DeleteResponseTests;
 import org.elasticsearch.action.index.IndexResponseTests;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.action.update.UpdateResponseTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -137,11 +138,12 @@ public class BulkItemResponseTests extends ESTestCase {
 
             assertDeepEquals((ElasticsearchException) expectedFailure.getCause(), (ElasticsearchException) actualFailure.getCause());
         } else {
+            DocWriteResponse expectedDocResponse = expected.getResponse();
+            DocWriteResponse actualDocResponse = expected.getResponse();
+
+            IndexResponseTests.assertDocWriteResponse(expectedDocResponse, actualDocResponse);
             if (expected.getOpType() == DocWriteRequest.OpType.UPDATE) {
-                UpdateResponseTests.assertUpdateResponse(expected.getResponse(), actual.getResponse());
-            } else {
-                // assertDocWriteResponse check the result for INDEX/CREATE and DELETE operations
-                IndexResponseTests.assertDocWriteResponse(expected.getResponse(), actual.getResponse());
+                assertEquals(((UpdateResponse) expectedDocResponse).getGetResult(), ((UpdateResponse)actualDocResponse).getGetResult());
             }
         }
     }

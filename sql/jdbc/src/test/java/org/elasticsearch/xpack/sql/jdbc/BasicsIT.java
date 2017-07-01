@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
+import org.elasticsearch.xpack.sql.jdbc.framework.JdbcIntegrationTestCase;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;

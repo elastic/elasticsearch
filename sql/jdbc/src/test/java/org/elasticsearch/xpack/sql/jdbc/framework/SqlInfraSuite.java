@@ -20,7 +20,7 @@ import static org.junit.Assert.assertNotNull;
 @RunWith(Suite.class)
 public abstract class SqlInfraSuite extends EsInfra {
 
-    private static String REMOTE_H2 = "jdbc:h2:tcp://localhost/./essql";
+    private static String REMOTE_H2 = "jdbc:org.elasticsearch.xpack.sql.jdbc.h2:tcp://localhost/./essql";
 
     @ClassRule
     public static H2 H2 = new H2(null);
@@ -35,7 +35,7 @@ public abstract class SqlInfraSuite extends EsInfra {
     }
 
     private static void setupH2() throws Exception {
-        h2().execute("RUNSCRIPT FROM 'classpath:org/elasticsearch/sql/jdbc/integration/h2-setup.sql'");
+        h2().execute("RUNSCRIPT FROM 'classpath:org/elasticsearch/sql/jdbc/integration/org.elasticsearch.xpack.sql.jdbc.h2-setup.sql'");
     }
 
     public static Supplier<Connection> h2Con() {

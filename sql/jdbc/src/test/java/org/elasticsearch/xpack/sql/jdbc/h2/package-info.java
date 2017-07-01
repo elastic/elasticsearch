@@ -7,4 +7,4 @@
 /**
  * Tests comparing our jdbc client to H2's jdbc client.
  */
-package org.elasticsearch.xpack.sql.jdbc.compare;
+package org.elasticsearch.xpack.sql.jdbc.h2;

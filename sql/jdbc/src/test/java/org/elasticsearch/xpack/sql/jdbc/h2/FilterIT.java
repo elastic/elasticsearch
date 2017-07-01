@@ -3,22 +3,22 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.jdbc.compare;
+package org.elasticsearch.xpack.sql.jdbc.h2;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.nio.file.Path;
 
 /**
- * Tests for aggregations created by {@code GROUP BY}.
+ * Tests for filters added by {@code WHERE} clauses.
  */
-public class AggIT extends CompareToH2BaseTestCase {
-    public AggIT(String queryName, String query, Integer lineNumber, Path source) {
+public class FilterIT extends CompareToH2BaseTestCase {
+    public FilterIT(String queryName, String query, Integer lineNumber, Path source) {
         super(queryName, query, lineNumber, source);
     }
 
     @ParametersFactory
     public static Iterable<Object[]> queries() throws Exception {
-        return readScriptSpec("agg");
+        return readScriptSpec("filter");
     }
 }

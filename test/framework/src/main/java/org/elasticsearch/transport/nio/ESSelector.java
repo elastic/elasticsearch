@@ -87,7 +87,7 @@ public abstract class ESSelector implements Closeable {
         }
     }
 
-    public void singleLoop() {
+    void singleLoop() {
         try {
             closePendingChannels();
             doSelect(300);
@@ -102,7 +102,7 @@ public abstract class ESSelector implements Closeable {
         }
     }
 
-    public void cleanupAndCloseChannels() {
+    void cleanupAndCloseChannels() {
         cleanup();
         channelsToClose.addAll(registeredChannels);
         closePendingChannels();
@@ -130,7 +130,7 @@ public abstract class ESSelector implements Closeable {
         return Thread.currentThread() == thread;
     }
 
-    public void wakeup() {
+    void wakeup() {
         // TODO: Do we need the wakeup optimizations that some other libraries use?
         selector.wakeup();
     }

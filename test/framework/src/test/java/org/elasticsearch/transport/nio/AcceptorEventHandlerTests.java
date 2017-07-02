@@ -30,7 +30,6 @@ import org.elasticsearch.transport.nio.channel.WriteContext;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
-import javax.lang.model.util.Types;
 import java.io.IOException;
 import java.nio.channels.SelectionKey;
 import java.nio.channels.ServerSocketChannel;

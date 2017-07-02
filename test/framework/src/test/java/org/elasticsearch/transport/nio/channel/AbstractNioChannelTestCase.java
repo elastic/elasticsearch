@@ -23,7 +23,6 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.nio.ESSelector;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 import org.junit.After;
 import org.junit.Before;

@@ -21,13 +21,10 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.AcceptingSelector;
-import org.elasticsearch.transport.nio.ESSelector;
 import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 

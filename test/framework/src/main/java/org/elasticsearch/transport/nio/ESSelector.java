@@ -21,8 +21,6 @@ package org.elasticsearch.transport.nio;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.transport.nio.channel.NioChannel;
-import org.elasticsearch.transport.nio.channel.NioServerSocketChannel;
-import org.elasticsearch.transport.nio.channel.NioSocketChannel;
 
 import java.io.Closeable;
 import java.io.IOException;

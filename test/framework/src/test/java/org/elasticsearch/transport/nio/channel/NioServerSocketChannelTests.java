@@ -21,7 +21,6 @@ package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.AcceptorEventHandler;
-import org.elasticsearch.transport.nio.ESSelector;
 import org.elasticsearch.transport.nio.OpenChannels;
 import org.junit.After;
 import org.junit.Before;
@@ -29,7 +28,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.channels.Selector;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 

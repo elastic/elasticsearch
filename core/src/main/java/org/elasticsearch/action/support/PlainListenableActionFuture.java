@@ -33,6 +33,8 @@ public class PlainListenableActionFuture<T> extends AdapterActionFuture<T, T> im
     volatile Object listeners;
     boolean executedListeners = false;
 
+    private PlainListenableActionFuture() {}
+
     /**
      * This method returns a listenable future. The listeners will be called on completion of the future.
      * The listeners will be executed by the same thread that completes the future.

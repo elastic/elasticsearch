@@ -6,11 +6,10 @@
 package org.elasticsearch.xpack.security.transport.netty4;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.ssl.SSLClientAuth;
 
 import java.nio.file.Files;
@@ -60,7 +59,7 @@ public class IPHostnameVerificationTests extends SecurityIntegTestCase {
         });
         return settingsBuilder.put("xpack.ssl.keystore.path", keystore.toAbsolutePath()) // settings for client truststore
                 .put("xpack.ssl.truststore.path", keystore.toAbsolutePath()) // settings for client truststore
-                .put(TransportSettings.BIND_HOST.getKey(), "127.0.0.1")
+                .put(TcpTransport.BIND_HOST.getKey(), "127.0.0.1")
                 .put("network.host", "127.0.0.1")
                 .put("xpack.ssl.client_authentication", SSLClientAuth.NONE)
                 .put("xpack.ssl.verification_mode", "full")

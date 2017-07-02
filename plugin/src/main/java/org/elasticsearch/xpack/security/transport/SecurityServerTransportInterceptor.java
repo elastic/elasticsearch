@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
@@ -28,7 +29,6 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportService.ContextRestoreResponseHandler;
-import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -168,9 +168,9 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
             }
         }
 
-        if (!profileFilters.containsKey(TransportSettings.DEFAULT_PROFILE)) {
+        if (!profileFilters.containsKey(TcpTransport.DEFAULT_PROFILE)) {
             final boolean extractClientCert = sslService.isSSLClientAuthEnabled(transportSSLSettings);
-            profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService,
+            profileFilters.put(TcpTransport.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService,
                     threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled, securityContext));
         }
 

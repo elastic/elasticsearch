@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import javax.net.ssl.SSLEngine;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
@@ -61,7 +62,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         return new SecurityNetty4Transport(
                 settings,
                 mock(ThreadPool.class),
-                mock(NetworkService.class),
+                new NetworkService(Collections.emptyList()),
                 mock(BigArrays.class),
                 mock(NamedWriteableRegistry.class),
                 mock(CircuitBreakerService.class),

@@ -16,7 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.common.socket.SocketAccess;
 import org.elasticsearch.xpack.security.Security;
@@ -852,7 +852,7 @@ public class SSLService extends AbstractComponent {
 
     private static List<Settings> getTransportProfileSSLSettings(Settings settings) {
         List<Settings> sslSettings = new ArrayList<>();
-        Map<String, Settings> profiles = TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups(true);
+        Map<String, Settings> profiles = TcpTransport.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups(true);
         for (Entry<String, Settings> entry : profiles.entrySet()) {
             Settings profileSettings = entry.getValue().getByPrefix("xpack.security.ssl.");
             if (profileSettings.isEmpty() == false) {

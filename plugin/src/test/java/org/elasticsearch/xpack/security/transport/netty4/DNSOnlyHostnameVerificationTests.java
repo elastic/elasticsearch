@@ -52,7 +52,7 @@ public class DNSOnlyHostnameVerificationTests extends SecurityIntegTestCase {
     @BeforeClass
     public static void resolveNameForMachine() throws Exception {
         assert keystore == null : "keystore is only set by this method and it should only be called once";
-        NetworkService networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
+        NetworkService networkService = new NetworkService(Collections.emptyList());
         InetAddress inetAddress = networkService.resolvePublishHostAddresses(null);
         hostName = getHostName(inetAddress);
         String hostAddress = NetworkAddress.format(inetAddress);

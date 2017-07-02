@@ -18,8 +18,8 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
@@ -62,7 +62,7 @@ public class IPFilterTests extends ESTestCase {
                 IPFilter.IP_FILTER_ENABLED_SETTING,
                 IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
                 IPFilter.TRANSPORT_FILTER_DENY_SETTING,
-                TransportSettings.TRANSPORT_PROFILES_SETTING)));
+                TcpTransport.TRANSPORT_PROFILES_SETTING)));
 
         httpTransport = mock(HttpServerTransport.class);
         TransportAddress httpAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 9200);

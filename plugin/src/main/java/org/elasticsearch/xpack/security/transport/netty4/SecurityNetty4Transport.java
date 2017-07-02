@@ -19,7 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.netty4.Netty4Transport;
 import org.elasticsearch.xpack.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -65,8 +65,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
             profileConfiguration.put(entry.getKey(), configuration);
         }
 
-        if (profileConfiguration.containsKey(TransportSettings.DEFAULT_PROFILE) == false) {
-            profileConfiguration.put(TransportSettings.DEFAULT_PROFILE, sslConfiguration);
+        if (profileConfiguration.containsKey(TcpTransport.DEFAULT_PROFILE) == false) {
+            profileConfiguration.put(TcpTransport.DEFAULT_PROFILE, sslConfiguration);
 
         }
 

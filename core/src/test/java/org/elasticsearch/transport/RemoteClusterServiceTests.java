@@ -448,12 +448,16 @@ public class RemoteClusterServiceTests extends ESTestCase {
                             });
                         failLatch.await();
                         assertNotNull(ex.get());
-                        if (ex.get() instanceof TransportException == false) {
-                            // we have an issue for this see #25301
-                            logger.error("expected TransportException but got a different one see #25301", ex.get());
+                        if (ex.get() instanceof  IllegalStateException) {
+                            assertEquals(ex.get().getMessage(), "no seed node left");
+                        } else {
+                            if (ex.get() instanceof TransportException == false) {
+                                // we have an issue for this see #25301
+                                logger.error("expected TransportException but got a different one see #25301", ex.get());
+                            }
+                            assertTrue("expected TransportException but got a different one [" + ex.get().getClass().toString() + "]",
+                                ex.get() instanceof TransportException);
                         }
-                        assertTrue("expected TransportException but got a different one [" + ex.get().getClass().toString() + "]",
-                            ex.get() instanceof TransportException);
                     }
                 }
             }

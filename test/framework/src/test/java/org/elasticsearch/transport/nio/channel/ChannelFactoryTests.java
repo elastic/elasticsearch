@@ -19,10 +19,12 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.SocketSelector;
 import org.elasticsearch.transport.nio.TcpReadHandler;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -59,6 +61,12 @@ public class ChannelFactoryTests extends ESTestCase {
         acceptingSelector = mock(AcceptingSelector.class);
         rawChannel = SocketChannel.open();
         rawServerChannel = ServerSocketChannel.open();
+    }
+
+    @After
+    public void ensureClosed() throws IOException {
+        IOUtils.closeWhileHandlingException(rawChannel);
+        IOUtils.closeWhileHandlingException(rawServerChannel);
     }
 
     public void testAcceptChannel() throws IOException {

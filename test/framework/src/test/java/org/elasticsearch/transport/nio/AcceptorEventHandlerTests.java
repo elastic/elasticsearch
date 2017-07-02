@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.channel.ChannelFactory;
 import org.elasticsearch.transport.nio.channel.DoNotRegisterServerChannel;
@@ -95,7 +96,8 @@ public class AcceptorEventHandlerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testHandleAcceptAddsToOpenChannelsAndAddsCloseListenerToRemove() throws IOException {
-        NioSocketChannel childChannel = new NioSocketChannel("", SocketChannel.open(), socketSelector);
+        SocketChannel rawChannel = SocketChannel.open();
+        NioSocketChannel childChannel = new NioSocketChannel("", rawChannel, socketSelector);
         childChannel.setContexts(mock(ReadContext.class), mock(WriteContext.class));
         when(channelFactory.acceptNioChannel(same(channel), same(socketSelector), any())).thenReturn(childChannel);
 
@@ -109,5 +111,7 @@ public class AcceptorEventHandlerTests extends ESTestCase {
         listener.getValue().accept(childChannel);
 
         assertEquals(new HashSet<>(), openChannels.getAcceptedChannels());
+
+        IOUtils.closeWhileHandlingException(rawChannel);
     }
 }

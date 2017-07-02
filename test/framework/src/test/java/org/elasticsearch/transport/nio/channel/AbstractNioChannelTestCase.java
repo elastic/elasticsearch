@@ -28,7 +28,8 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -42,21 +43,20 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
 
     ChannelFactory channelFactory = new ChannelFactory(Settings.EMPTY, mock(TcpReadHandler.class));
     MockServerSocket mockServerSocket;
-    Thread serverThread;
+
+    private Thread serverThread;
 
     @Before
     public void serverSocketSetup() throws IOException, InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
-        mockServerSocket = new MockServerSocket(0);
+        mockServerSocket = new MockServerSocket();
+        mockServerSocket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+        mockServerSocket.setReuseAddress(true);
         serverThread = new Thread(() -> {
-            while (!mockServerSocket.isClosed()) {
-                latch.countDown();
-                try {
-                    Socket socket = mockServerSocket.accept();
-                    InputStream inputStream = socket.getInputStream();
-                    socket.close();
-                } catch (IOException e) {
-                }
+            latch.countDown();
+            try (Socket socket = mockServerSocket.accept()) {
+                int inputStream = socket.getInputStream().read();
+            } catch (IOException e) {
             }
         });
         serverThread.start();
@@ -66,7 +66,6 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
     @After
     public void serverSocketTearDown() throws IOException, InterruptedException {
         mockServerSocket.close();
-        serverThread.interrupt();
         serverThread.join();
     }
 
@@ -76,7 +75,10 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
         AtomicReference<NioChannel> ref = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        NioChannel socketChannel = channelToClose((c) -> {ref.set(c); latch.countDown();});
+        NioChannel socketChannel = channelToClose((c) -> {
+            ref.set(c);
+            latch.countDown();
+        });
         CloseFuture closeFuture = socketChannel.getCloseFuture();
 
         assertFalse(closeFuture.isClosed());

@@ -47,7 +47,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
-import org.elasticsearch.common.network.NetworkService.TcpSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -64,7 +63,6 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
-import org.elasticsearch.transport.TransportSettings;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -209,23 +207,23 @@ public class Netty4Transport extends TcpTransport<Channel> {
     private Settings createFallbackSettings() {
         Settings.Builder fallbackSettingsBuilder = Settings.builder();
 
-        List<String> fallbackBindHost = TransportSettings.BIND_HOST.get(settings);
+        List<String> fallbackBindHost = TcpTransport.BIND_HOST.get(settings);
         if (fallbackBindHost.isEmpty() == false) {
             fallbackSettingsBuilder.putArray("bind_host", fallbackBindHost);
         }
 
-        List<String> fallbackPublishHost = TransportSettings.PUBLISH_HOST.get(settings);
+        List<String> fallbackPublishHost = TcpTransport.PUBLISH_HOST.get(settings);
         if (fallbackPublishHost.isEmpty() == false) {
             fallbackSettingsBuilder.putArray("publish_host", fallbackPublishHost);
         }
 
-        boolean fallbackTcpNoDelay =  TcpSettings.TCP_NO_DELAY.get(settings);
+        boolean fallbackTcpNoDelay = TcpTransport.TCP_NO_DELAY.get(settings);
         fallbackSettingsBuilder.put("tcp_no_delay", fallbackTcpNoDelay);
 
-        boolean fallbackTcpKeepAlive = TcpSettings.TCP_KEEP_ALIVE.get(settings);
+        boolean fallbackTcpKeepAlive = TcpTransport.TCP_KEEP_ALIVE.get(settings);
         fallbackSettingsBuilder.put("tcp_keep_alive", fallbackTcpKeepAlive);
 
-        boolean fallbackReuseAddress =  TcpSettings.TCP_REUSE_ADDRESS.get(settings);
+        boolean fallbackReuseAddress = TcpTransport.TCP_REUSE_ADDRESS.get(settings);
         fallbackSettingsBuilder.put("reuse_address", fallbackReuseAddress);
 
         ByteSizeValue fallbackTcpSendBufferSize = TCP_SEND_BUFFER_SIZE.get(settings);

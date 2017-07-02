@@ -36,7 +36,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -102,7 +102,7 @@ public class InternalTestClusterTests extends ESTestCase {
 
     static {
         clusterUniqueSettings.add(ClusterName.CLUSTER_NAME_SETTING.getKey());
-        clusterUniqueSettings.add(TransportSettings.PORT.getKey());
+        clusterUniqueSettings.add(TcpTransport.PORT.getKey());
         clusterUniqueSettings.add("http.port");
     }
 

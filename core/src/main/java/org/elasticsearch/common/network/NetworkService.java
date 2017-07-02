@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -78,7 +79,7 @@ public final class NetworkService {
     private final List<CustomNameResolver> customNameResolvers;
 
     public NetworkService(List<CustomNameResolver> customNameResolvers) {
-        this.customNameResolvers = customNameResolvers;
+        this.customNameResolvers = Objects.requireNonNull(customNameResolvers, "customNameResolvers must be non null");
     }
 
     /**
@@ -92,13 +93,10 @@ public final class NetworkService {
      */
     public InetAddress[] resolveBindHostAddresses(String bindHosts[]) throws IOException {
         if (bindHosts == null || bindHosts.length == 0) {
-            // next check any registered custom resolvers if any
-            if (customNameResolvers != null) {
-                for (CustomNameResolver customNameResolver : customNameResolvers) {
-                    InetAddress addresses[] = customNameResolver.resolveDefault();
-                    if (addresses != null) {
-                        return addresses;
-                    }
+            for (CustomNameResolver customNameResolver : customNameResolvers) {
+                InetAddress addresses[] = customNameResolver.resolveDefault();
+                if (addresses != null) {
+                    return addresses;
                 }
             }
             // we know it's not here. get the defaults
@@ -134,13 +132,10 @@ public final class NetworkService {
     // TODO: needs to be InetAddress[]
     public InetAddress resolvePublishHostAddresses(String publishHosts[]) throws IOException {
         if (publishHosts == null || publishHosts.length == 0) {
-            // next check any registered custom resolvers if any
-            if (customNameResolvers != null) {
-                for (CustomNameResolver customNameResolver : customNameResolvers) {
-                    InetAddress addresses[] = customNameResolver.resolveDefault();
-                    if (addresses != null) {
-                        return addresses[0];
-                    }
+            for (CustomNameResolver customNameResolver : customNameResolvers) {
+                InetAddress addresses[] = customNameResolver.resolveDefault();
+                if (addresses != null) {
+                    return addresses[0];
                 }
             }
             // we know it's not here. get the defaults

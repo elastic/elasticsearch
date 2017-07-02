@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.nio.channel;
 
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
@@ -47,6 +48,7 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
     private Thread serverThread;
 
     @Before
+    @SuppressForbidden(reason = "Allow getLocalHost")
     public void serverSocketSetup() throws IOException, InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         mockServerSocket = new MockServerSocket();

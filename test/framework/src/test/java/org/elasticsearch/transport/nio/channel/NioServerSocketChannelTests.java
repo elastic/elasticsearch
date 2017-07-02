@@ -23,12 +23,14 @@ import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.AcceptorEventHandler;
 import org.elasticsearch.transport.nio.ESSelector;
 import org.elasticsearch.transport.nio.OpenChannels;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.channels.Selector;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
@@ -36,22 +38,29 @@ import static org.mockito.Mockito.mock;
 public class NioServerSocketChannelTests extends AbstractNioChannelTestCase {
 
     private AcceptingSelector selector;
+    private Thread thread;
 
     @Before
     @SuppressWarnings("unchecked")
     public void setSelector() throws IOException {
-        selector = new AcceptingSelector(new AcceptorEventHandler(logger, mock(OpenChannels.class), mock(Supplier.class)),
-            mock(Selector.class));
+        selector = new AcceptingSelector(new AcceptorEventHandler(logger, mock(OpenChannels.class), mock(Supplier.class)));
+        thread = new Thread(selector::runLoop);
+        thread.start();
+        selector.isRunningFuture().actionGet();
+    }
+
+    @After
+    public void stopSelector() throws IOException, InterruptedException {
+        selector.close();
+        thread.join();
     }
 
     @Override
-    public NioChannel channelToClose() throws IOException {
-        return channelFactory.openNioServerSocketChannel("nio", new InetSocketAddress(InetAddress.getLoopbackAddress(),0), selector);
-    }
-
-    @Override
-    public ESSelector channelSelector() throws IOException {
-        return selector;
+    public NioChannel channelToClose(Consumer<NioChannel> closeListener) throws IOException {
+        InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+        NioServerSocketChannel channel = channelFactory.openNioServerSocketChannel("nio", address, selector);
+        channel.getCloseFuture().setListener(closeListener);
+        return channel;
     }
 
 }

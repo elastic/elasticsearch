@@ -35,6 +35,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.mockito.Mockito.mock;
 
@@ -42,13 +43,15 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
 
     ChannelFactory channelFactory = new ChannelFactory(Settings.EMPTY, mock(TcpReadHandler.class));
     MockServerSocket mockServerSocket;
-    private Thread serverThread;
+    Thread serverThread;
 
     @Before
-    public void serverSocketSetup() throws IOException {
+    public void serverSocketSetup() throws IOException, InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
         mockServerSocket = new MockServerSocket(0);
         serverThread = new Thread(() -> {
             while (!mockServerSocket.isClosed()) {
+                latch.countDown();
                 try {
                     Socket socket = mockServerSocket.accept();
                     InputStream inputStream = socket.getInputStream();
@@ -58,35 +61,29 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
             }
         });
         serverThread.start();
+        latch.await();
     }
 
     @After
-    public void serverSocketTearDown() throws IOException {
-        serverThread.interrupt();
+    public void serverSocketTearDown() throws IOException, InterruptedException {
         mockServerSocket.close();
+        serverThread.interrupt();
+        serverThread.join();
     }
 
-    public abstract NioChannel channelToClose() throws IOException;
-
-    public abstract ESSelector channelSelector() throws IOException;
+    public abstract NioChannel channelToClose(Consumer<NioChannel> closeListener) throws IOException;
 
     public void testClose() throws IOException, TimeoutException, InterruptedException {
         AtomicReference<NioChannel> ref = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
 
-        NioChannel socketChannel = channelToClose();
+        NioChannel socketChannel = channelToClose((c) -> {ref.set(c); latch.countDown();});
         CloseFuture closeFuture = socketChannel.getCloseFuture();
-        closeFuture.setListener((c) -> {ref.set(c); latch.countDown();});
 
         assertFalse(closeFuture.isClosed());
         assertTrue(socketChannel.getRawChannel().isOpen());
 
-        channelSelector().singleLoop();
-
         socketChannel.closeAsync();
-
-        Thread thread = new Thread(channelSelector()::singleLoop);
-        thread.start();
 
         closeFuture.awaitClose(100, TimeUnit.SECONDS);
 
@@ -94,8 +91,6 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
         assertTrue(closeFuture.isClosed());
         latch.await();
         assertSame(socketChannel, ref.get());
-
-        thread.join();
     }
 
     protected Runnable wrappedRunnable(CheckedRunnable<Exception> runnable) {

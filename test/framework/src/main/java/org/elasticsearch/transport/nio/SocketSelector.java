@@ -63,7 +63,6 @@ public class SocketSelector extends ESSelector {
             Set<SelectionKey> selectionKeys = selector.selectedKeys();
             processKeys(selectionKeys);
         }
-
     }
 
     @Override

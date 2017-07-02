@@ -19,19 +19,19 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.transport.nio.ESSelector;
 import org.elasticsearch.transport.nio.SocketEventHandler;
 import org.elasticsearch.transport.nio.SocketSelector;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.channels.Selector;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
@@ -40,28 +40,33 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
 
     private InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
     private SocketSelector selector;
+    private Thread thread;
 
     @Before
     @SuppressWarnings("unchecked")
-    public void setSelector() throws IOException {
-        selector = new SocketSelector(new SocketEventHandler(logger, mock(BiConsumer.class)), mock(Selector.class));
+    public void startSelector() throws IOException {
+        selector = new SocketSelector(new SocketEventHandler(logger, mock(BiConsumer.class)));
+        thread = new Thread(selector::runLoop);
+        thread.start();
+        selector.isRunningFuture().actionGet();
+    }
+
+    @After
+    public void stopSelector() throws IOException, InterruptedException {
+        selector.close();
+        thread.join();
     }
 
     @Override
-    public NioChannel channelToClose() throws IOException {
-        return channelFactory.openNioChannel(new InetSocketAddress(loopbackAddress, mockServerSocket.getLocalPort()), selector);
-    }
-
-    @Override
-    public ESSelector channelSelector() throws IOException {
-        return selector;
+    public NioChannel channelToClose(Consumer<NioChannel> closeListener) throws IOException {
+        InetSocketAddress address = new InetSocketAddress(loopbackAddress, mockServerSocket.getLocalPort());
+        return channelFactory.openNioChannel(address, selector, closeListener);
     }
 
     public void testConnectSucceeds() throws IOException, InterruptedException {
         InetSocketAddress remoteAddress = new InetSocketAddress(loopbackAddress, mockServerSocket.getLocalPort());
         NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress, selector);
-        Thread thread = new Thread(wrappedRunnable(() -> ensureConnect(socketChannel)));
-        thread.start();
+
         ConnectFuture connectFuture = socketChannel.getConnectFuture();
         connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS);
 
@@ -69,16 +74,13 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
         assertTrue(socketChannel.isOpen());
         assertFalse(connectFuture.connectFailed());
         assertNull(connectFuture.getException());
-
-        thread.join();
     }
 
     public void testConnectFails() throws IOException, InterruptedException {
-        mockServerSocket.close();
-        InetSocketAddress remoteAddress = new InetSocketAddress(loopbackAddress, mockServerSocket.getLocalPort());
+        int port = mockServerSocket.getLocalPort() == 9876 ? 9877 : 9876;
+        InetSocketAddress remoteAddress = new InetSocketAddress(loopbackAddress, port);
         NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress, selector);
-        Thread thread = new Thread(wrappedRunnable(() -> ensureConnect(socketChannel)));
-        thread.start();
+
         ConnectFuture connectFuture = socketChannel.getConnectFuture();
         connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS);
 
@@ -87,17 +89,5 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
         assertTrue(socketChannel.isOpen());
         assertTrue(connectFuture.connectFailed());
         assertThat(connectFuture.getException(), instanceOf(ConnectException.class));
-
-        thread.join();
-    }
-
-    private void ensureConnect(NioSocketChannel nioSocketChannel) throws IOException {
-        for (;;) {
-            boolean isConnected = nioSocketChannel.finishConnect();
-            if (isConnected) {
-                return;
-            }
-            LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
-        }
     }
 }

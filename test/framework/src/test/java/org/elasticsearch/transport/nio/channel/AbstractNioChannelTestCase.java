@@ -52,7 +52,7 @@ public abstract class AbstractNioChannelTestCase extends ESTestCase {
     public void serverSocketSetup() throws IOException, InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         mockServerSocket = new MockServerSocket();
-        mockServerSocket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+        mockServerSocket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 1);
         mockServerSocket.setReuseAddress(true);
         serverThread = new Thread(() -> {
             latch.countDown();

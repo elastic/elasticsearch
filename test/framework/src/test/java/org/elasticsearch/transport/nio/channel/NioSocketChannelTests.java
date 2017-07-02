@@ -37,7 +37,6 @@ import static org.mockito.Mockito.mock;
 
 public class NioSocketChannelTests extends AbstractNioChannelTestCase {
 
-    private InetAddress loopbackAddress = InetAddress.getLoopbackAddress();
     private SocketSelector selector;
     private Thread thread;
 
@@ -58,12 +57,12 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
 
     @Override
     public NioChannel channelToClose(Consumer<NioChannel> closeListener) throws IOException {
-        InetSocketAddress address = new InetSocketAddress(loopbackAddress, mockServerSocket.getLocalPort());
+        InetSocketAddress address = new InetSocketAddress(mockServerSocket.getInetAddress(), mockServerSocket.getLocalPort());
         return channelFactory.openNioChannel(address, selector, closeListener);
     }
 
     public void testConnectSucceeds() throws IOException, InterruptedException {
-        InetSocketAddress remoteAddress = new InetSocketAddress(loopbackAddress, mockServerSocket.getLocalPort());
+        InetSocketAddress remoteAddress = new InetSocketAddress(mockServerSocket.getInetAddress(), mockServerSocket.getLocalPort());
         NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress, selector);
 
         ConnectFuture connectFuture = socketChannel.getConnectFuture();
@@ -77,7 +76,7 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
 
     public void testConnectFails() throws IOException, InterruptedException {
         int port = mockServerSocket.getLocalPort() == 9876 ? 9877 : 9876;
-        InetSocketAddress remoteAddress = new InetSocketAddress(loopbackAddress, port);
+        InetSocketAddress remoteAddress = new InetSocketAddress(mockServerSocket.getInetAddress(), port);
         NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress, selector);
 
         ConnectFuture connectFuture = socketChannel.getConnectFuture();

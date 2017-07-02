@@ -50,7 +50,7 @@ public class PublishPortTests extends ESTestCase {
 
         } else {
             settings = Settings.builder().put(TcpTransport.PUBLISH_PORT.getKey(), 9081).build();
-            settings = randomBoolean() ? Settings.EMPTY  :
+            settings = randomBoolean() ? settings  :
                 Settings.builder().put(settings).put("transport.profiles.default.publish_port", 9080).build();
             profile = "default";
 

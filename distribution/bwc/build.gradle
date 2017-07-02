@@ -64,8 +64,12 @@ if (enabled) {
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
   task createClone(type: LoggedExec) {
-    onlyIf { checkoutDir.exists() == false }
-    commandLine = ['git', 'clone', rootDir, checkoutDir]
+    if (checkoutDir.exists() == false) {
+      commandLine = ['git', 'clone', rootDir, checkoutDir]
+    } else {
+      commandLine = ['git', 'fetch', 'origin']
+      workingDir = checkoutDir
+    }
   }
 
   // we use regular Exec here to ensure we always get output, regardless of logging level
@@ -106,9 +110,14 @@ if (enabled) {
 
   // this is an Exec task so that the SHA that is checked out is logged
   task checkoutBwcBranch(type: Exec) {
-    dependsOn fetchLatest
+    def String branch = System.getProperty("tests.bwc.branch", "upstream/${bwcBranch}")
+    if (branch.startsWith('upstream')) {
+      dependsOn fetchLatest
+    } else {
+      dependsOn createClone
+    }
     workingDir = checkoutDir
-    commandLine = ['git', 'checkout', "upstream/${bwcBranch}"]
+    commandLine = ['git', 'checkout', branch]
   }
 
   File bwcDeb = file("${checkoutDir}/distribution/deb/build/distributions/elasticsearch-${bwcVersion}.deb")

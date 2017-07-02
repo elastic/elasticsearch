@@ -67,7 +67,7 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
         NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress, selector);
 
         ConnectFuture connectFuture = socketChannel.getConnectFuture();
-        connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS);
+        assertTrue(connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS));
 
         assertTrue(socketChannel.isConnectComplete());
         assertTrue(socketChannel.isOpen());
@@ -81,7 +81,7 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
         NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress, selector);
 
         ConnectFuture connectFuture = socketChannel.getConnectFuture();
-        connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS);
+        assertFalse(connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS));
 
         assertFalse(socketChannel.isConnectComplete());
         // Even if connection fails the channel is 'open' until close() is called

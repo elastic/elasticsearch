@@ -41,7 +41,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.List;
 import java.util.Random;
@@ -51,6 +50,7 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class AggregatorFactoriesTests extends ESTestCase {
     private String[] currentTypes;
@@ -272,13 +272,13 @@ public class AggregatorFactoriesTests extends ESTestCase {
         assertNotSame(builder, rewritten);
         List<AggregationBuilder> aggregatorFactories = rewritten.getAggregatorFactories();
         assertEquals(1, aggregatorFactories.size());
-        assertThat(aggregatorFactories.get(0), Matchers.instanceOf(FilterAggregationBuilder.class));
+        assertThat(aggregatorFactories.get(0), instanceOf(FilterAggregationBuilder.class));
         FilterAggregationBuilder rewrittenFilterAggBuilder = (FilterAggregationBuilder) aggregatorFactories.get(0);
         assertNotSame(filterAggBuilder, rewrittenFilterAggBuilder);
         assertNotEquals(filterAggBuilder, rewrittenFilterAggBuilder);
         // Check the filter was rewritten from a wrapper query to a terms query
         QueryBuilder rewrittenFilter = rewrittenFilterAggBuilder.getFilter();
-        assertThat(rewrittenFilter, Matchers.instanceOf(TermsQueryBuilder.class));
+        assertThat(rewrittenFilter, instanceOf(TermsQueryBuilder.class));
         
         // Check that a further rewrite returns the same aggregation factories builder
         AggregatorFactories.Builder secondRewritten = rewritten

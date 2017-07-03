@@ -41,7 +41,6 @@ import java.util.stream.IntStream;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isOneOf;
-import static org.hamcrest.Matchers.not;
 
 public class LocalCheckpointTrackerTests extends ESTestCase {
 

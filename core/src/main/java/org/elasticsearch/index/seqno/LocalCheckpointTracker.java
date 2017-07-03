@@ -130,7 +130,6 @@ public class LocalCheckpointTracker {
         assert checkpoint <= this.checkpoint;
         processedSeqNo.clear();
         firstProcessedSeqNo = checkpoint + 1;
-        nextSeqNo = checkpoint + 1;
         this.checkpoint = checkpoint;
     }
 

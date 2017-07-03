@@ -76,7 +76,8 @@ public abstract class TestUtils {
         }
         createIndex.endObject();
         createIndex.startObject("mappings"); {
-            createIndex.startObject("emp"); {
+            createIndex.startObject("emp");
+            {
                 createIndex.startObject("properties"); {
                     createIndex.startObject("emp_no").field("type", "integer").endObject();
                     createIndex.startObject("birth_date").field("type", "date").endObject();
@@ -116,7 +117,7 @@ public abstract class TestUtils {
      */
     public static void loadDatesetInH2(Connection h2) throws Exception {
         csvToLines("employees", (titles, fields) -> {
-            StringBuilder insert = new StringBuilder("INSERT INTO \"emp.emp\" (");
+            StringBuilder insert = new StringBuilder("INSERT INTO \"test_emp.emp\" (");
             for (int t = 0; t < titles.size(); t++) {
                 if (t != 0) {
                     insert.append(',');

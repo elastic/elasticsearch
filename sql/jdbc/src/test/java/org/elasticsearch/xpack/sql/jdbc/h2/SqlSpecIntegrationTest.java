@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.h2;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.sql.jdbc.framework.LocalH2;
@@ -53,7 +52,7 @@ public class SqlSpecIntegrationTest extends SpecBaseIntegrationTestCase {
         return H2.get();
     }
     
-    public SqlSpecIntegrationTest(String groupName, @Name("testName") String testName, Integer lineNumber, Path source, String query) {
+    public SqlSpecIntegrationTest(String groupName, String testName, Integer lineNumber, Path source, String query) {
         super(groupName, testName, lineNumber, source);
         this.query = query;
     }
@@ -73,7 +72,8 @@ public class SqlSpecIntegrationTest extends SpecBaseIntegrationTestCase {
                 throw reworkException(new AssertionError(errorMessage(ae), ae.getCause()));
             }
         } catch (Throwable th) {
-            throw reworkException(new RuntimeException(errorMessage(th)));
+            //throw reworkException(new RuntimeException(errorMessage(th)));
+            throw th;
         }
     }
 

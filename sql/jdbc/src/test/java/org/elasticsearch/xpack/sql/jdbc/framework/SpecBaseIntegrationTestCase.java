@@ -40,6 +40,7 @@ public abstract class SpecBaseIntegrationTestCase extends ESTestCase {
     //    @BeforeClass
     //    public static void start() throws Exception {
     //        TestUtils.loadDatasetInEs(TestUtils.restClient("localhost", 9200));
+    //        System.out.println("Loaded dataset in ES");
     //    }
 
     public SpecBaseIntegrationTestCase(String groupName, String testName, Integer lineNumber, Path source) {

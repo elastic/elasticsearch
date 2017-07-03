@@ -257,7 +257,7 @@ abstract class QueryTranslator {
                 // dates are handled differently because of date histograms
                 if (exp instanceof DateTimeFunction) {
                     DateTimeFunction dtf = (DateTimeFunction) exp;
-                    agg = new GroupByDateAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp), dtf.interval());
+                    agg = new GroupByDateAgg(aggId, AggPath.bucketValue(propertyPath), nameOf(exp), dtf.interval(), dtf.timeZone());
                 }
                 else {
                     agg = new GroupByColumnAgg(aggId, AggPath.bucketValue(propertyPath), ne.name());

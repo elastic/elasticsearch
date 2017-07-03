@@ -43,6 +43,12 @@ public abstract class ProtoHandler<R> implements HttpHandler, AutoCloseable {
     public void handle(HttpExchange http) throws IOException {
         log.debug("Received query call...");
 
+        if ("HEAD".equals(http.getRequestMethod())) {
+            http.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
+            http.close();
+            return;
+        }
+
         try (DataInputStream in = new DataInputStream(http.getRequestBody())) {
             String msg = headerReader.apply(in);
             if (msg != null) {

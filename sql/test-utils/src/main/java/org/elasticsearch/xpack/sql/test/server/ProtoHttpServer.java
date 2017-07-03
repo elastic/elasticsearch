@@ -17,21 +17,19 @@ import java.util.concurrent.Executors;
 public abstract class ProtoHttpServer<R> {
 
     private final ProtoHandler<R> handler;
-    private final String defaultPrefix, protoPrefix;
+    private final String protoSuffix;
     private final Client client;
     private HttpServer server;
 
-    public ProtoHttpServer(Client client, ProtoHandler<R> handler, String defaultPrefix, String protoPrefix) {
+    public ProtoHttpServer(Client client, ProtoHandler<R> handler, String protoSuffix) {
         this.client = client;
         this.handler = handler;
-        this.defaultPrefix = defaultPrefix;
-        this.protoPrefix = protoPrefix;
+        this.protoSuffix = protoSuffix;
     }
 
     public void start(int port) throws IOException {
         server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
-        server.createContext(defaultPrefix, new RootHttpHandler());
-        server.createContext(defaultPrefix + protoPrefix, handler);
+        server.createContext(protoSuffix, handler);
         server.setExecutor(Executors.newCachedThreadPool());
         server.start();
     }
@@ -46,7 +44,7 @@ public abstract class ProtoHttpServer<R> {
     }
 
     public String url() {
-        return server != null ? "localhost:" + address().getPort() + defaultPrefix + protoPrefix : "<not started>";
+        return server != null ? "localhost:" + address().getPort() + protoSuffix : "<not started>";
     }
 
     public Client client() {

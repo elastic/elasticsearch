@@ -76,7 +76,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState clusterState = clusterService.state();
         List<ShardId> shards = shards(request, clusterState);
-        final CopyOnWriteArrayList<ShardResponse> shardsResponses = new CopyOnWriteArrayList();
+        final CopyOnWriteArrayList<ShardResponse> shardsResponses = new CopyOnWriteArrayList<>();
         if (shards.size() == 0) {
             finishAndNotifyListener(listener, shardsResponses);
         }

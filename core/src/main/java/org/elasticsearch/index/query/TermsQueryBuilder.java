@@ -205,7 +205,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (values instanceof List<?>) {
             list = (List<?>) values;
         } else {
-            ArrayList<Object> arrayList = new ArrayList<Object>();
+            ArrayList<Object> arrayList = new ArrayList<>();
             for (Object o : values) {
                 arrayList.add(o);
             }

@@ -296,7 +296,7 @@ public class Segment implements Streamable {
         if (numChildren == 0) {
             return Accountables.namedAccountable(name, bytes);
         }
-        List<Accountable> children = new ArrayList(numChildren);
+        List<Accountable> children = new ArrayList<>(numChildren);
         while (numChildren-- > 0) {
             children.add(readRamTree(in));
         }

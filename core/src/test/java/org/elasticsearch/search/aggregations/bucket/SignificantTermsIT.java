@@ -332,7 +332,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
                 .actionGet();
         assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
-        HashSet<String> topWords = new HashSet<String>();
+        HashSet<String> topWords = new HashSet<>();
         for (Bucket topTerm : topTerms) {
             topWords.add(topTerm.getKeyAsString());
         }
@@ -360,7 +360,7 @@ public class SignificantTermsIT extends ESIntegTestCase {
         Terms topCategoryTerms = response.getAggregations().get("myCategories");
         for (org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket topCategory : topCategoryTerms.getBuckets()) {
             SignificantTerms topTerms = topCategory.getAggregations().get("mySignificantTerms");
-            HashSet<String> foundTopWords = new HashSet<String>();
+            HashSet<String> foundTopWords = new HashSet<>();
             for (Bucket topTerm : topTerms) {
                 foundTopWords.add(topTerm.getKeyAsString());
             }

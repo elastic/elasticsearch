@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -51,9 +50,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
                 TimeValue.parseTimeValue(val, DatafeedConfig.FREQUENCY.getPreferredName())), DatafeedConfig.FREQUENCY);
         PARSER.declareObject(Builder::setQuery,
                 (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), DatafeedConfig.QUERY);
-        PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(new QueryParseContext(p)),
+        PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(p),
                 DatafeedConfig.AGGREGATIONS);
-        PARSER.declareObject(Builder::setAggregations,(p, c) -> AggregatorFactories.parseAggregators(new QueryParseContext(p)),
+        PARSER.declareObject(Builder::setAggregations,(p, c) -> AggregatorFactories.parseAggregators(p),
                 DatafeedConfig.AGGS);
         PARSER.declareObject(Builder::setScriptFields, (p, c) -> {
                 List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();

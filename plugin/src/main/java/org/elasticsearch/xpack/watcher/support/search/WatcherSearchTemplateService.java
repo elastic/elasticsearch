@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -63,7 +62,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         BytesReference source = request.getSearchSource();
         if (source != null && source.length() > 0) {
             try (XContentParser parser = XContentFactory.xContent(source).createParser(xContentRegistry, source)) {
-                sourceBuilder.parseXContent(new QueryParseContext(parser));
+                sourceBuilder.parseXContent(parser);
                 searchRequest.source(sourceBuilder);
             }
         }

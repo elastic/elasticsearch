@@ -2571,11 +2571,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         if (randomSettings == globalSettings) { // publish host has no global fallback for the profile since we later resolve it based on
             // the bound address
             assertEquals(Collections.emptyList(), settings.publishHosts);
-            assertEquals("9300-9400", settings.portOrRange); // no global port range
         } else {
             assertEquals(Collections.singletonList("the_publish_host"), settings.publishHosts);
-            assertEquals("9700-9800", settings.portOrRange);
         }
+        assertEquals("9700-9800", settings.portOrRange);
         assertEquals(Collections.singletonList("the_bind_host"), settings.bindHosts);
     }
 

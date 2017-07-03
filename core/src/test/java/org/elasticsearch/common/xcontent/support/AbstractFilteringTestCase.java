@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent.support;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -32,7 +33,7 @@ import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
 
 /**
- * Tests for {@link org.elasticsearch.common.xcontent.XContent} filtering.
+ * Tests for {@link XContent} filtering.
  */
 public abstract class AbstractFilteringTestCase extends ESTestCase {
 

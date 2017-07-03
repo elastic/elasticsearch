@@ -8,8 +8,8 @@ The high-level Java REST client is hosted on
 http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
 Central]. The minimum Java version required is `1.8`.
 
-The high-level REST client is subject to the same release cycle as
-elasticsearch. Replace the version with the desired client version.
+The High Level REST Client is subject to the same release cycle as
+Elasticsearch. Replace the version with the desired client version.
 
 [[java-rest-high-usage-maven-maven]]
 ===== Maven configuration
@@ -42,7 +42,7 @@ dependencies {
 [[java-rest-high-usage-dependencies]]
 ==== Dependencies
 
-The high-level Java REST client depends on the following artifacts and their
+The High Level Java REST Client depends on the following artifacts and their
 transitive dependencies:
 
 - org.elasticsearch.client:rest
@@ -62,14 +62,5 @@ RestHighLevelClient client =
 --------------------------------------------------
 <1> We pass the <<java-rest-low-usage-initialization,REST low-level client>> instance
 
-In the rest of this documentation about the high-level client, the `RestHighLevelClient` instance
+In the rest of this documentation about the Java High Level Client, the `RestHighLevelClient` instance
 will be referenced as `client`.
-
-Then you have access to the high level APIs such as:
-
-include::apis.asciidoc[]
-
-Each API can be executed synchronously (i.e. <<java-rest-high-document-delete,`delete`>>) or
-asynchronously (i.e. <<java-rest-high-document-delete,`deleteAsync`>>).
-The asynchronous APIs require a listener that is called on thread pool managed by the low level client
-when the response is received.

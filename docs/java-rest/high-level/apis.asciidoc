@@ -1,10 +1,19 @@
-* index API
+=== Supported APIs
 
-* get API
+The Java High Level REST Client supports the following APIs:
+
+* <<java-rest-high-document-index>>
+
+* Get API
 
 * <<java-rest-high-document-delete>>
 
-* bulk API
+* Update API
 
-* search API
+* Bulk API
 
+* Search API
+
+* Search Scroll API
+
+* Clear Scroll API

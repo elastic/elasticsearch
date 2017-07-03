@@ -173,7 +173,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
                     acceptors.add(acceptor);
                 }
                 // loop through all profiles and start them up, special handling for default one
-                for (ProfileSettings profileSettings : getProfileSettings(settings)) {
+                for (ProfileSettings profileSettings : profileSettings) {
                     profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, tcpReadHandler));
                     bindServer(profileSettings);
                 }

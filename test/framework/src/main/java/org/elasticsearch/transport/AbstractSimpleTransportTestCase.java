@@ -2554,7 +2554,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .BUILT_IN_CLUSTER_SETTINGS);
         clusterSettings.validate(randomSettings);
         TcpTransport.ProfileSettings settings = new TcpTransport.ProfileSettings(
-            randomSettings, "some_profile");
+            Settings.builder().put(randomSettings).put("transport.profiles.some_profile.port", "9700-9800").build(), // port is required
+            "some_profile");
 
         assertEquals(enable, settings.tcpNoDelay);
         assertEquals(enable, settings.tcpKeepAlive);
@@ -2584,7 +2585,16 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertEquals(TcpTransport.DEFAULT_PROFILE, profileSettings.stream().findAny().get().profileName);
 
         profileSettings = TcpTransport.getProfileSettings(Settings.builder()
-            .put("transport.profiles.test.tcp_no_delay", false).build());
+            .put("transport.profiles.test.port", "0")
+            .build());
+        assertEquals(2, profileSettings.size());
+        assertEquals(new HashSet<>(Arrays.asList("default", "test")), profileSettings.stream().map(s -> s.profileName).collect(Collectors
+            .toSet()));
+
+        profileSettings = TcpTransport.getProfileSettings(Settings.builder()
+            .put("transport.profiles.test.port", "0")
+            .put("transport.profiles.default.port", "0")
+            .build());
         assertEquals(2, profileSettings.size());
         assertEquals(new HashSet<>(Arrays.asList("default", "test")), profileSettings.stream().map(s -> s.profileName).collect(Collectors
             .toSet()));

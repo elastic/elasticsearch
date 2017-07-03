@@ -92,9 +92,9 @@ public class NettyTransportMultiPortTests extends ESTestCase {
             .build();
 
         ThreadPool threadPool = new TestThreadPool("tst");
-        try (TcpTransport<?> transport = startTransport(settings, threadPool)) {
-            assertEquals(0, transport.profileBoundAddresses().size());
-            assertEquals(1, transport.boundAddress().boundAddresses().length);
+        try {
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> startTransport(settings, threadPool));
+            assertEquals("profile [client1] has not port configured", ex.getMessage());
         } finally {
             terminate(threadPool);
         }

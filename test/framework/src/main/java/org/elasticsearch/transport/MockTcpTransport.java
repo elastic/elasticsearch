@@ -389,7 +389,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         try {
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 // loop through all profiles and start them up, special handling for default one
-                for (ProfileSettings profileSettings : getProfileSettings(settings)) {
+                for (ProfileSettings profileSettings : profileSettings) {
                     bindServer(profileSettings);
                 }
             }

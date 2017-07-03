@@ -150,7 +150,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 final Netty4OpenChannelsHandler openChannels = new Netty4OpenChannelsHandler(logger);
                 this.serverOpenChannels = openChannels;
-                for (ProfileSettings profileSettings : getProfileSettings(settings)) {
+                for (ProfileSettings profileSettings : profileSettings) {
                     createServerBootstrap(profileSettings);
                     bindServer(profileSettings);
                 }

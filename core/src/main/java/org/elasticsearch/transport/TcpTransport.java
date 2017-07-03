@@ -134,8 +134,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     public static final Setting<Integer> PUBLISH_PORT =
         intSetting("transport.publish_port", -1, -1, Setting.Property.NodeScope);
     public static final String DEFAULT_PROFILE = "default";
-    private static final Setting<Settings> TRANSPORT_PROFILES_SETTING =
-        groupSetting("transport.profiles.");
     // the scheduled internal ping interval setting, defaults to disabled (-1)
     public static final Setting<TimeValue> PING_SCHEDULE =
         timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), Setting.Property.NodeScope);
@@ -194,6 +192,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final ThreadPool threadPool;
     private final BigArrays bigArrays;
     protected final NetworkService networkService;
+    protected final Set<ProfileSettings> profileSettings;
 
     protected volatile TransportServiceAdapter transportServiceAdapter;
     // node id to actual channel
@@ -225,6 +224,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                         NetworkService networkService) {
         super(settings);
+        this.profileSettings = getProfileSettings(settings);
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
         this.circuitBreakerService = circuitBreakerService;
@@ -1711,11 +1711,17 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     public static Set<ProfileSettings> getProfileSettings(Settings settings) {
         HashSet<ProfileSettings> profiles = new HashSet<>();
-        for (String profile : TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups(true).keySet()) {
+        boolean isDefaultSet = false;
+        for (String profile : settings.getGroups("transport.profiles.", true).keySet()) {
             profiles.add(new ProfileSettings(settings, profile));
+            if (DEFAULT_PROFILE.equals(profile)) {
+                isDefaultSet = true;
+            }
         }
-        profiles.add(new ProfileSettings(settings, DEFAULT_PROFILE));
-        return profiles;
+        if (isDefaultSet == false) {
+            profiles.add(new ProfileSettings(settings, DEFAULT_PROFILE));
+        }
+        return Collections.unmodifiableSet(profiles);
     }
 
     /**
@@ -1746,6 +1752,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             bindHosts = (profileBindHosts.isEmpty() ? NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.get(settings)
                 : profileBindHosts);
             publishHosts = PUBLISH_HOST_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            Setting<String> concretePort = PORT_PROFILE.getConcreteSettingForNamespace(profileName);
+            if (concretePort.exists(settings) == false && isDefaultProfile == false) {
+                throw new IllegalStateException("profile [" + profileName + "] has not port configured");
+            }
             portOrRange = PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             publishPort = isDefaultProfile ? PUBLISH_PORT.get(settings) :
                 PUBLISH_PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);

@@ -62,32 +62,34 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = new JLHScore();
 
     public static Aggregator.Parser getParser(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry) {
-        ObjectParser<SignificantTermsAggregationBuilder, Void> PARSER =
+        ObjectParser<SignificantTermsAggregationBuilder, Void> aggregationParser =
                 new ObjectParser<>(SignificantTermsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+        ValuesSourceParserHelper.declareAnyFields(aggregationParser, true, true);
 
-        PARSER.declareInt(SignificantTermsAggregationBuilder::shardSize, TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME);
+        aggregationParser.declareInt(SignificantTermsAggregationBuilder::shardSize, TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME);
 
-        PARSER.declareLong(SignificantTermsAggregationBuilder::minDocCount, TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME);
+        aggregationParser.declareLong(SignificantTermsAggregationBuilder::minDocCount, TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME);
 
-        PARSER.declareLong(SignificantTermsAggregationBuilder::shardMinDocCount, TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
+        aggregationParser.declareLong(SignificantTermsAggregationBuilder::shardMinDocCount,
+                TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
 
-        PARSER.declareInt(SignificantTermsAggregationBuilder::size, TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
+        aggregationParser.declareInt(SignificantTermsAggregationBuilder::size, TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
 
-        PARSER.declareString(SignificantTermsAggregationBuilder::executionHint, TermsAggregationBuilder.EXECUTION_HINT_FIELD_NAME);
+        aggregationParser.declareString(SignificantTermsAggregationBuilder::executionHint,
+                TermsAggregationBuilder.EXECUTION_HINT_FIELD_NAME);
 
-        PARSER.declareObject(SignificantTermsAggregationBuilder::backgroundFilter,
+        aggregationParser.declareObject(SignificantTermsAggregationBuilder::backgroundFilter,
                 (p, context) -> parseInnerQueryBuilder(p),
                 SignificantTermsAggregationBuilder.BACKGROUND_FILTER);
 
-        PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
+        aggregationParser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
                 IncludeExclude::parseInclude, IncludeExclude.INCLUDE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
 
-        PARSER.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
+        aggregationParser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
                 IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
 
         for (String name : significanceHeuristicParserRegistry.getNames()) {
-            PARSER.declareObject(SignificantTermsAggregationBuilder::significanceHeuristic,
+            aggregationParser.declareObject(SignificantTermsAggregationBuilder::significanceHeuristic,
                     (p, context) -> {
                         SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
                                 .lookupReturningNullIfNotFound(name);
@@ -98,7 +100,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return new Aggregator.Parser() {
             @Override
             public AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
-                return PARSER.parse(parser, new SignificantTermsAggregationBuilder(aggregationName, null), null);
+                return aggregationParser.parse(parser, new SignificantTermsAggregationBuilder(aggregationName, null), null);
             }
         };
     }

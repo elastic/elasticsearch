@@ -167,7 +167,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     }
 
     @Override
-    public QueryRescoreContext build(QueryShardContext context) throws IOException {
+    public RescoreSearchContext build(QueryShardContext context) throws IOException {
         org.elasticsearch.search.rescore.QueryRescorer rescorer = new org.elasticsearch.search.rescore.QueryRescorer();
         QueryRescoreContext queryRescoreContext = new QueryRescoreContext(rescorer);
         queryRescoreContext.setQuery(QueryBuilder.rewriteQuery(this.queryBuilder, context).toQuery(context));

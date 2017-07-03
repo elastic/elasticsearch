@@ -22,7 +22,7 @@ package org.elasticsearch.common.xcontent.support.filtering;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
-public class CborFilteringGeneratorTests extends JsonFilteringGeneratorTests {
+public class CborXContentFilteringTests extends AbstractXContentFilteringTestCase {
 
     @Override
     protected XContentType getXContentType() {
@@ -30,7 +30,7 @@ public class CborFilteringGeneratorTests extends JsonFilteringGeneratorTests {
     }
 
     @Override
-    protected void assertXContentBuilder(XContentBuilder expected, XContentBuilder builder) {
-        assertBinary(expected, builder);
+    protected void assertFilterResult(XContentBuilder expected, XContentBuilder actual) {
+        assertXContentBuilderAsBytes(expected, actual);
     }
 }

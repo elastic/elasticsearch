@@ -471,8 +471,14 @@ public class FullClusterRestartIT extends ESRestTestCase {
             int toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
             assertThat(toUpgradeBytes, greaterThan(0));
 
+            Response r = client().performRequest("POST", "/" + index + "/_flush");
+            assertEquals(200, r.getStatusLine().getStatusCode());
+
             // Upgrade segments:
-            Response r = client().performRequest("POST", "/" + index + "/_upgrade");
+            r = client().performRequest("POST", "/" + index + "/_upgrade");
+            assertEquals(200, r.getStatusLine().getStatusCode());
+
+            r = client().performRequest("POST", "/" + index + "/_refresh");
             assertEquals(200, r.getStatusLine().getStatusCode());
 
             // Post upgrade checks:

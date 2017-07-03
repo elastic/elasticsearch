@@ -116,24 +116,6 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         }
     }
 
-    public void testThatProfileWithoutValidNameIsIgnored() throws Exception {
-        Settings settings = Settings.builder()
-            .put("network.host", host)
-            .put(TcpTransport.PORT.getKey(), 0)
-            // mimics someone trying to define a profile for .local which is the profile for a node request to itself
-            .put("transport.profiles." + TransportService.DIRECT_RESPONSE_PROFILE + ".port", 22) // will not actually bind to this
-            .put("transport.profiles..port", 23) // will not actually bind to this
-            .build();
-
-        ThreadPool threadPool = new TestThreadPool("tst");
-        try (TcpTransport<?> transport = startTransport(settings, threadPool)) {
-            assertEquals(0, transport.profileBoundAddresses().size());
-            assertEquals(1, transport.boundAddress().boundAddresses().length);
-        } finally {
-            terminate(threadPool);
-        }
-    }
-
     private TcpTransport<?> startTransport(Settings settings, ThreadPool threadPool) {
         BigArrays bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
         TcpTransport<?> transport = new Netty4Transport(settings, threadPool, new NetworkService(Collections.emptyList()),
@@ -143,5 +125,4 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         assertThat(transport.lifecycleState(), is(Lifecycle.State.STARTED));
         return transport;
     }
-
 }

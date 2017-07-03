@@ -3,127 +3,73 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.jdbc.compare;
+package org.elasticsearch.xpack.sql.jdbc.framework;
 
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.sql.jdbc.JdbcIntegrationTestCase;
+import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.elasticsearch.xpack.sql.jdbc.h2.SqlSpecIntegrationTest;
 
+import java.io.IOException;
+import java.net.InetAddress;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.sql.jdbc.compare.JdbcAssert.assertResultSets;
+import static org.junit.Assert.assertEquals;
 
-/**
- * Compares Elasticsearch's JDBC driver to H2.
- */
-public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
+public abstract class TestUtils {
+
     static final DateTimeFormatter UTC_FORMATTER = DateTimeFormatter.ISO_DATE_TIME
             .withLocale(Locale.ROOT)
             .withZone(ZoneId.of("UTC"));
+    
+    public static RestClient restClient(String host, int port) {
+        return RestClient.builder(new HttpHost(host, port)).build();
 
-    public final String queryName;
-    public final String query;
-    public final Integer lineNumber;
-    public final Path source;
-
-    protected static List<Object[]> readScriptSpec(String spec) throws Exception {
-        String url = "/" + spec + ".spec";
-        URL resource = CompareToH2BaseTestCase.class.getResource(url);
-        if (resource == null) {
-            throw new IllegalArgumentException("Couldn't find [" + url + "]");
-        }
-        Path source = PathUtils.get(resource.toURI());
-        List<String> lines = Files.readAllLines(source);
-
-        Map<String, Integer> testNames = new LinkedHashMap<>();
-        List<Object[]> ctorArgs = new ArrayList<>();
-
-        String name = null;
-        StringBuilder query = new StringBuilder();
-        for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i).trim();
-            // ignore comments
-            if (!line.isEmpty() && !line.startsWith("//")) {
-                if (name == null) {
-                    if (testNames.keySet().contains(line)) {
-                        throw new IllegalStateException("Duplicate test name [" + line 
-                                + "] at line [" + i + "] (previously seen at line [" + testNames.get(line) + "])");
-                    } else {
-                        name = line;
-                        testNames.put(name, Integer.valueOf(i));
-                    }
-                } else {
-                    if (line.endsWith(";")) {
-                        query.append(line.substring(0, line.length() - 1));
-                    }
-                    ctorArgs.add(new Object[] { name, query.toString(), Integer.valueOf(i), source });
-                    name = null;
-                    query.setLength(0);
-                }
-            }
-        }
-        assertNull("Cannot find query for test " + name, name);
-
-        return ctorArgs;
     }
 
-    public CompareToH2BaseTestCase(String queryName, String query, Integer lineNumber, Path source) {
-        this.queryName = queryName;
-        this.query = query;
-        this.lineNumber = lineNumber;
-        this.source = source;
+    public static RestClient restClient(InetAddress address) {
+        return RestClient.builder(new HttpHost(address)).build();
+
     }
 
-    public void testQuery() throws Throwable {
-        /*
-         * The syntax on the connection string is fairly particular:
-         *      mem:; creates an anonymous database in memory. The `;` is
-         *              technically the separator that comes after the name.
-         *      DATABASE_TO_UPPER=false turns *off* H2's Oracle-like habit
-         *              of upper-casing everything that isn't quoted.
-         *      ALIAS_COLUMN_NAME=true turn *on* returning alias names in
-         *              result set metadata which is what most DBs do except
-         *              for MySQL and, by default, H2. Our jdbc driver does it.
-         *      RUNSCRIPT FROM 'classpath:/h2-setup.sql' initializes the
-         *              database with test data.
-         */
-        try (Connection h2 = DriverManager.getConnection(
-                "jdbc:h2:mem:;DATABASE_TO_UPPER=false;ALIAS_COLUMN_NAME=true;INIT=RUNSCRIPT FROM 'classpath:/h2-setup.sql'")) {
-            fillH2(h2);
-            try (PreparedStatement h2Query = h2.prepareStatement(query);
-                    ResultSet expected = h2Query.executeQuery()) {
-                setupElasticsearchIndex();
-                j.query(query, actual -> {
-                    assertResultSets(expected, actual);
-                    return null;
-                });
-            };
-        }
+    public static Client client() {
+        return new PreBuiltTransportClient(Settings.EMPTY)
+                .addTransportAddress(new TransportAddress(InetAddress.getLoopbackAddress(), 9300));
     }
 
-    private void setupElasticsearchIndex() throws Exception {
+    public static void index(RestClient client, String index, CheckedConsumer<XContentBuilder, IOException> body) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        body.accept(builder);
+        builder.endObject();
+        HttpEntity doc = new StringEntity(builder.string(), ContentType.APPLICATION_JSON);
+        client.performRequest("PUT", "/" + index + "/doc/1", singletonMap("refresh", "true"), doc);
+    }
+
+    public static void loadDatasetInEs(RestClient client) throws Exception {
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings"); {
             createIndex.field("number_of_shards", 1);
@@ -144,7 +90,7 @@ public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
             createIndex.endObject();
         }
         createIndex.endObject().endObject();
-        client().performRequest("PUT", "/emp", emptyMap(), new StringEntity(createIndex.string(), ContentType.APPLICATION_JSON));
+        client.performRequest("PUT", "/emp", emptyMap(), new StringEntity(createIndex.string(), ContentType.APPLICATION_JSON));
 
         StringBuilder bulk = new StringBuilder();
         csvToLines("employees", (titles, fields) -> {
@@ -158,18 +104,17 @@ public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
             }
             bulk.append("}\n");
         });
-        client().performRequest("POST", "/emp/emp/_bulk", singletonMap("refresh", "true"),
-                new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        client.performRequest("POST", "/emp/emp/_bulk", singletonMap("refresh", "true"), new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
     }
-
+    
     /**
-     * Fill the h2 database. Note that we have to parse the CSV ourselves
-     * because h2 interprets the CSV using the default locale which is
+     * Fill the H2 database. Note that we have to parse the CSV ourselves
+     * because H2 interprets the CSV using the default locale which is
      * randomized by the testing framework. Because some locales (th-TH,
      * for example) parse dates in very different ways we parse using the
      * root locale.
      */
-    private void fillH2(Connection h2) throws Exception {
+    public static void loadDatesetInH2(Connection h2) throws Exception {
         csvToLines("employees", (titles, fields) -> {
             StringBuilder insert = new StringBuilder("INSERT INTO \"emp.emp\" (");
             for (int t = 0; t < titles.size(); t++) {
@@ -206,10 +151,9 @@ public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void csvToLines(String name,
-            CheckedBiConsumer<List<String>, List<String>, Exception> consumeLine) throws Exception {
+    private static void csvToLines(String name, CheckedBiConsumer<List<String>, List<String>, Exception> consumeLine) throws Exception {
         String location = "/" + name + ".csv";
-        URL dataSet = CompareToH2BaseTestCase.class.getResource(location);
+        URL dataSet = SqlSpecIntegrationTest.class.getResource(location);
         if (dataSet == null) {
             throw new IllegalArgumentException("Can't find [" + location + "]");
         }
@@ -222,4 +166,18 @@ public abstract class CompareToH2BaseTestCase extends JdbcIntegrationTestCase {
             consumeLine.accept(titles, Arrays.asList(lines.get(l).split(",")));
         }
     }
+    
+
+    
+
+    Throwable reworkException(Throwable th, Class<?> testSuite, String testName, Path source, int lineNumber) {
+        StackTraceElement[] stackTrace = th.getStackTrace();
+        StackTraceElement[] redone = new StackTraceElement[stackTrace.length + 1];
+        System.arraycopy(stackTrace, 0, redone, 1, stackTrace.length);
+        redone[0] = new StackTraceElement(testSuite.getName(), testName, source.getFileName().toString(), lineNumber);
+
+        th.setStackTrace(redone);
+        return th;
+    }
+
 }

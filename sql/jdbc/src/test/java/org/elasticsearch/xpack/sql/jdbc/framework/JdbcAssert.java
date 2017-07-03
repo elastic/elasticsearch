@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.jdbc.compare;
+package org.elasticsearch.xpack.sql.jdbc.framework;
 
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
@@ -14,7 +14,6 @@ import java.time.Instant;
 import java.util.Locale;
 import java.util.TimeZone;
 
-import static org.elasticsearch.xpack.sql.jdbc.compare.CompareToH2BaseTestCase.UTC_FORMATTER;
 import static org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcUtils.nameOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -85,8 +84,8 @@ public class JdbcAssert {
                      * locale and time zone for date functions.
                      */
                     msg += " locale is [" + Locale.getDefault() + "] and time zone is [" + TimeZone.getDefault() + "]";
-                    expectedObject = UTC_FORMATTER.format(Instant.ofEpochMilli(((Timestamp) expectedObject).getTime()));
-                    actualObject = UTC_FORMATTER.format(Instant.ofEpochMilli(((Timestamp) actualObject).getTime()));
+                    expectedObject = TestUtils.UTC_FORMATTER.format(Instant.ofEpochMilli(((Timestamp) expectedObject).getTime()));
+                    actualObject = TestUtils.UTC_FORMATTER.format(Instant.ofEpochMilli(((Timestamp) actualObject).getTime()));
                     // NOCOMMIT look at ResultSet.getTimestamp(int, Calendar)
                 }
 

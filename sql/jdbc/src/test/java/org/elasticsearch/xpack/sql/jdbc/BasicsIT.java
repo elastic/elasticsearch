@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.xpack.sql.jdbc.framework.JdbcIntegrationTestCase;
+import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -18,11 +18,12 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.xpack.sql.jdbc.framework.TestUtils.index;
 
 /**
  * Test the jdbc driver behavior and the connection to Elasticsearch.
  */
-public class BasicsIT extends JdbcIntegrationTestCase {
+public class BasicsIT extends SpecBaseIntegrationTestCase {
 
     // NOCOMMIT these might should move into their own test or be deleted entirely
 //    public void test01Ping() throws Exception {

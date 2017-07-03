@@ -14,7 +14,7 @@ dependencies {
   testCompile project(':x-pack-elasticsearch:sql:server')
 
   runtime "org.fusesource.jansi:jansi:1.16"
-  runtime "org.elasticsearch:jna:4.4.0"
+  runtime "org.elasticsearch:jna:4.4.0-1"
 }
 
 dependencyLicenses {

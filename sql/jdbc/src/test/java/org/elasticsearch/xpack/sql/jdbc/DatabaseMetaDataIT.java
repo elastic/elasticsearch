@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
-import org.elasticsearch.xpack.sql.jdbc.framework.JdbcIntegrationTestCase;
+import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase;
 
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
@@ -18,7 +18,7 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Tests for our implementation of {@link DatabaseMetaData}.
  */
-public class DatabaseMetaDataIT extends JdbcIntegrationTestCase {
+public class DatabaseMetaDataIT extends SpecBaseIntegrationTestCase {
     /**
      * We do not support procedures so we return an empty set for {@link DatabaseMetaData#getProcedures(String, String, String)}.
      */

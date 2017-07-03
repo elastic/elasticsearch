@@ -1,0 +1,6 @@
+//
+// Spec used for debugging a certain test (without having to alter the spec suite of which it might be part of)
+//
+
+debug
+SELECT YEAR(birth_date) AS d, CAST(SUM(emp_no) AS INT) s FROM "test_emp.emp" GROUP BY YEAR(birth_date) ORDER BY YEAR(birth_date) LIMIT 5;

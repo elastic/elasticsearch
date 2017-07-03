@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
@@ -33,7 +34,7 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
         securityClient().preparePutRole("scrollable")
                 .addIndices(new String[] { randomAlphaOfLengthBetween(4, 12) }, new String[] { "read" }, null, null, null)
                 .get();
-        securityClient().preparePutUser("other", "changeme".toCharArray(), "scrollable").get();
+        securityClient().preparePutUser("other", SecuritySettingsSource.TEST_PASSWORD.toCharArray(), "scrollable").get();
 
         final int numDocs = randomIntBetween(4, 16);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
@@ -60,7 +61,7 @@ public class SecurityScrollTests extends SecurityIntegTestCase {
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
                 client()
                     .filterWithHeader(Collections.singletonMap("Authorization",
-                            UsernamePasswordToken.basicAuthHeaderValue("other", new SecureString("changeme".toCharArray()))))
+                            UsernamePasswordToken.basicAuthHeaderValue("other", SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)))
                     .prepareSearchScroll(scrollId)
                     .get());
         for (ShardSearchFailure failure : e.shardFailures()) {

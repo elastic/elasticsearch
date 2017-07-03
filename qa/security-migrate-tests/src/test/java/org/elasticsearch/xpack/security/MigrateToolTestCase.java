@@ -71,7 +71,7 @@ public abstract class MigrateToolTestCase extends LuceneTestCase {
                 .put("cluster.name", "qa_migrate_tests_" + counter.getAndIncrement())
                 .put("client.transport.ignore_cluster_name", true)
                 .put("path.home", tempDir)
-                .put(Security.USER_SETTING.getKey(), "transport_user:changeme")
+                .put(Security.USER_SETTING.getKey(), "transport_user:x-pack-test-password")
                 .build();
 
         TransportClient client = new PreBuiltXPackTransportClient(clientSettings).addTransportAddresses(transportAddresses);

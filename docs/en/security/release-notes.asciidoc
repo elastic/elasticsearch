@@ -102,7 +102,7 @@ March 15, 2016
 
 .Bug Fixes
 * Enable <<field-and-document-access-control,document and field level security>> by default.
-* Fix issues with <<enable-message-authentication,message authentication>> on certain JDKs that do not support cloning message
+* Fix issues with message authentication on certain JDKs that do not support cloning message
 authentication codes.
 * Built in <<setting-up-authentication, realms>> no longer throw an exception if the `Authorization` header does not contain a basic
 authentication token.
@@ -209,7 +209,7 @@ the correct user to index the audit events.
 July 21, 2015
 
 .Bug Fixes
-* Fixes <<enable-message-authentication,message authentication>> serialization to work with Shield 1.2.1 and earlier.
+* Fixes message authentication serialization to work with Shield 1.2.1 and earlier.
 ** NOTE: if you are upgrading from Shield 1.3.0 or Shield 1.2.2 a {ref-17}/setup-upgrade.html#restart-upgrade[cluster restart upgrade]
 will be necessary. When upgrading from other versions of Shield, follow the normal upgrade procedure.
 
@@ -245,7 +245,7 @@ June 24, 2015
 July 21, 2015
 
 .Bug Fixes
-* Fixes <<enable-message-authentication,message authentication>> serialization to work with Shield 1.2.1 and earlier.
+* Fixes message authentication serialization to work with Shield 1.2.1 and earlier.
 ** NOTE: if you are upgrading from Shield 1.2.2 a {ref-17}/setup-upgrade.html#restart-upgrade[cluster restart upgrade]
 will be necessary. When upgrading from other versions of Shield, follow the normal upgrade procedure.
 

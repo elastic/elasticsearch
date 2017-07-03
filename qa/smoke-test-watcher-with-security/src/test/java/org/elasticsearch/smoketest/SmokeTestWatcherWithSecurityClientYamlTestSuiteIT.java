@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.is;
 public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
-    private static final String TEST_ADMIN_PASSWORD = "changeme";
+    private static final String TEST_ADMIN_PASSWORD = "x-pack-test-password";
 
     public SmokeTestWatcherWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -78,7 +78,7 @@ public class SmokeTestWatcherWithSecurityClientYamlTestSuiteIT extends ESClientY
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("watcher_manager", new SecureString("changeme".toCharArray()));
+        String token = basicAuthHeaderValue("watcher_manager", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder()
                 .put(ThreadContext.PREFIX + ".Authorization", token)
                 .build();

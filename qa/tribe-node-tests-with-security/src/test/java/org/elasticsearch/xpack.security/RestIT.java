@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 public class RestIT extends TribeRestTestCase {
 
     private static final String USER = "test_admin";
-    private static final String PASS = "changeme";
+    private static final String PASS = "x-pack-test-password";
 
     public RestIT(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);

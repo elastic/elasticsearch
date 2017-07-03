@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.support.Automatons;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
+import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
@@ -147,6 +149,12 @@ public class AuthorizationService extends AbstractComponent {
                 grant(authentication, action, request);
                 return;
             }
+            throw denial(authentication, action, request);
+        }
+
+        // If the user is the elastic user in setup mode, then only change password requests can be authorized
+        if (ElasticUser.isElasticUserInSetupMode(authentication.getUser())
+                && ChangePasswordAction.NAME.equals(action) == false) {
             throw denial(authentication, action, request);
         }
 

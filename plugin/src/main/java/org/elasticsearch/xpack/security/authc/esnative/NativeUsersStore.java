@@ -548,7 +548,7 @@ public class NativeUsersStore extends AbstractComponent {
                             } else if (password.isEmpty() && containerSettings.inContainer() && username.equals(ElasticUser.NAME)) {
                                 listener.onResponse(new ReservedUserInfo(containerSettings.getPasswordHash(), enabled, false));
                             } else if (password.isEmpty()) {
-                                listener.onResponse(new ReservedUserInfo(ReservedRealm.DEFAULT_PASSWORD_HASH, enabled, true));
+                                listener.onResponse(new ReservedUserInfo(ReservedRealm.EMPTY_PASSWORD_HASH, enabled, true));
                             } else {
                                 listener.onResponse(new ReservedUserInfo(password.toCharArray(), enabled, false));
                             }
@@ -607,7 +607,7 @@ public class NativeUsersStore extends AbstractComponent {
                                 char[] passwordHash = containerSettings.getPasswordHash();
                                 userInfos.put(searchHit.getId(), new ReservedUserInfo(passwordHash, enabled, false));
                             } else if (password.isEmpty()) {
-                                userInfos.put(username, new ReservedUserInfo(ReservedRealm.DEFAULT_PASSWORD_HASH, enabled, true));
+                                userInfos.put(username, new ReservedUserInfo(ReservedRealm.EMPTY_PASSWORD_HASH, enabled, true));
                             } else {
                                 userInfos.put(username, new ReservedUserInfo(password.toCharArray(), enabled, false));
                             }
@@ -694,12 +694,12 @@ public class NativeUsersStore extends AbstractComponent {
 
         public final char[] passwordHash;
         public final boolean enabled;
-        public final boolean hasDefaultPassword;
+        public final boolean hasEmptyPassword;
 
-        ReservedUserInfo(char[] passwordHash, boolean enabled, boolean hasDefaultPassword) {
+        ReservedUserInfo(char[] passwordHash, boolean enabled, boolean hasEmptyPassword) {
             this.passwordHash = passwordHash;
             this.enabled = enabled;
-            this.hasDefaultPassword = hasDefaultPassword;
+            this.hasEmptyPassword = hasEmptyPassword;
         }
     }
 }

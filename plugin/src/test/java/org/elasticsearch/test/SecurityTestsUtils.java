@@ -55,7 +55,7 @@ public class SecurityTestsUtils {
 
     public static void assertAuthorizationExceptionDefaultUsers(Throwable throwable, String action) {
         assertAuthorizationException(throwable, either(containsString("[" + action + "] is unauthorized for user ["
-                + SecuritySettingsSource.DEFAULT_USER_NAME + "]")).or(containsString("[" + action + "] is unauthorized for user ["
+                + SecuritySettingsSource.TEST_USER_NAME + "]")).or(containsString("[" + action + "] is unauthorized for user ["
                 + SecuritySettingsSource.DEFAULT_TRANSPORT_CLIENT_USER_NAME + "]")));
     }
 

@@ -19,7 +19,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 public class MultiClusterSearchWithSecurityYamlTestSuiteIT extends SecurityClusterClientYamlTestCase {
 
     private static final String USER = "test_user";
-    private static final String PASS = "changeme";
+    private static final String PASS = "x-pack-test-password";
 
     @Override
     protected boolean preserveIndicesUponCompletion() {

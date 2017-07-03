@@ -27,7 +27,7 @@ public class ReindexWithSecurityIT extends SecurityIntegTestCase {
     protected Settings externalClusterClientSettings() {
         Settings.Builder builder = Settings.builder().put(super.externalClusterClientSettings());
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
-        builder.put(Security.USER_SETTING.getKey(), "test_admin:changeme");
+        builder.put(Security.USER_SETTING.getKey(), "test_admin:x-pack-test-password");
         return builder.build();
     }
 

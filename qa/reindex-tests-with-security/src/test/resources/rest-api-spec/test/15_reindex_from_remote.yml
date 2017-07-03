@@ -28,7 +28,7 @@
             remote:
               host: http://${host}
               username: test_admin
-              password: changeme
+              password: x-pack-test-password
             index: source
           dest:
             index: dest
@@ -65,7 +65,7 @@
             remote:
               host: http://${host}
               username: minimal_user
-              password: changeme
+              password: x-pack-test-password
             index: source
           dest:
             index: dest
@@ -111,7 +111,7 @@
             remote:
               host: http://${host}
               username: readonly_user
-              password: changeme
+              password: x-pack-test-password
             index: source
           dest:
             index: dest
@@ -156,7 +156,7 @@
             remote:
               host: http://${host}
               username: dest_only_user
-              password: changeme
+              password: x-pack-test-password
             index: source
           dest:
             index: dest
@@ -196,7 +196,7 @@
             remote:
               host: http://${host}
               username: test_admin
-              password: changeme
+              password: x-pack-test-password
             index: source
           dest:
             index: dest
@@ -255,7 +255,7 @@
             remote:
               host: http://${host}
               username: can_not_see_hidden_docs_user
-              password: changeme
+              password: x-pack-test-password
             index: source
           dest:
             index: dest
@@ -312,7 +312,7 @@
             remote:
               host: http://${host}
               username: can_not_see_hidden_fields_user
-              password: changeme
+              password: x-pack-test-password
             index: source
           dest:
             index: dest

@@ -15,8 +15,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.apache.http.message.BasicHeader;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
@@ -24,7 +22,6 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -37,7 +34,7 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import static org.elasticsearch.test.SecuritySettingsSource.DEFAULT_PASSWORD_SECURE_STRING;
+import static org.elasticsearch.test.SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -70,7 +67,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
     @Override
     public String configUsers() {
         return super.configUsers()
-                + AUTHENTICATE_USER + ":" + SecuritySettingsSource.DEFAULT_PASSWORD_HASHED + "\n"
+                + AUTHENTICATE_USER + ":" + SecuritySettingsSource.TEST_PASSWORD_HASHED + "\n"
                 + EXECUTE_USER + ":xx_no_password_xx\n";
     }
 
@@ -90,7 +87,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
         try {
             getRestClient().performRequest("GET", "/.security/_search",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, DEFAULT_PASSWORD_SECURE_STRING)),
+                            UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, TEST_PASSWORD_SECURE_STRING)),
                     new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, EXECUTE_USER));
             fail("request should have failed");
         } catch (ResponseException e) {
@@ -112,7 +109,7 @@ public class AuditTrailTests extends SecurityIntegTestCase {
         try {
             getRestClient().performRequest("GET", "/.security/_search",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, DEFAULT_PASSWORD_SECURE_STRING)),
+                            UsernamePasswordToken.basicAuthHeaderValue(AUTHENTICATE_USER, TEST_PASSWORD_SECURE_STRING)),
                     new BasicHeader(AuthenticationService.RUN_AS_USER_HEADER, ""));
             fail("request should have failed");
         } catch (ResponseException e) {

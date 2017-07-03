@@ -52,25 +52,25 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
 
     public static final Settings DEFAULT_SETTINGS = Settings.EMPTY;
 
-    public static final String DEFAULT_USER_NAME = "test_user";
-    public static final String DEFAULT_PASSWORD = "changeme";
-    public static final SecureString DEFAULT_PASSWORD_SECURE_STRING = new SecureString("changeme".toCharArray());
-    public static final String DEFAULT_PASSWORD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString(DEFAULT_PASSWORD.toCharArray())));
-    public static final String DEFAULT_ROLE = "user";
+    public static final String TEST_USER_NAME = "test_user";
+    public static final String TEST_PASSWORD = "x-pack-test-password";
+    public static final SecureString TEST_PASSWORD_SECURE_STRING = new SecureString("x-pack-test-password".toCharArray());
+    public static final String TEST_PASSWORD_HASHED = new String(Hasher.BCRYPT.hash(new SecureString(TEST_PASSWORD.toCharArray())));
+    public static final String TEST_ROLE = "user";
 
     public static final String DEFAULT_TRANSPORT_CLIENT_ROLE = "transport_client";
     public static final String DEFAULT_TRANSPORT_CLIENT_USER_NAME = "test_trans_client_user";
 
     public static final String CONFIG_STANDARD_USER =
-            DEFAULT_USER_NAME + ":" + DEFAULT_PASSWORD_HASHED + "\n" +
-            DEFAULT_TRANSPORT_CLIENT_USER_NAME + ":" + DEFAULT_PASSWORD_HASHED + "\n";
+            TEST_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n" +
+            DEFAULT_TRANSPORT_CLIENT_USER_NAME + ":" + TEST_PASSWORD_HASHED + "\n";
 
     public static final String CONFIG_STANDARD_USER_ROLES =
-            DEFAULT_ROLE + ":" + DEFAULT_USER_NAME + "," + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n" +
+            TEST_ROLE + ":" + TEST_USER_NAME + "," + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n" +
             DEFAULT_TRANSPORT_CLIENT_ROLE + ":" + DEFAULT_TRANSPORT_CLIENT_USER_NAME+ "\n";
 
     public static final String CONFIG_ROLE_ALLOW_ALL =
-            DEFAULT_ROLE + ":\n" +
+            TEST_ROLE + ":\n" +
                     "  cluster: [ ALL ]\n" +
                     "  indices:\n" +
                     "    - names: '*'\n" +
@@ -174,11 +174,11 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     }
 
     protected String nodeClientUsername() {
-        return DEFAULT_USER_NAME;
+        return TEST_USER_NAME;
     }
 
     protected SecureString nodeClientPassword() {
-        return new SecureString(DEFAULT_PASSWORD.toCharArray());
+        return new SecureString(TEST_PASSWORD.toCharArray());
     }
 
     protected String transportClientUsername() {
@@ -186,7 +186,7 @@ public class SecuritySettingsSource extends ClusterDiscoveryConfiguration.Unicas
     }
 
     protected SecureString transportClientPassword() {
-        return new SecureString(DEFAULT_PASSWORD.toCharArray());
+        return new SecureString(TEST_PASSWORD.toCharArray());
     }
 
     protected Class<? extends XPackPlugin> xpackPluginClass() {

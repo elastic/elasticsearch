@@ -128,7 +128,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                 .put("xpack.security.authc.realms.file.type", FileRealm.TYPE)
                 .put("xpack.security.authc.realms.file.order", 0)
                 .put("node.name", "my-test-node")
-                .put(Security.USER_SETTING.getKey(), "test_user:changeme")
+                .put(Security.USER_SETTING.getKey(), "test_user:" + SecuritySettingsSource.TEST_PASSWORD)
                 .put("cluster.name", internalCluster().getClusterName())
                 .put("discovery.zen.ping.unicast.hosts", unicastHost)
                 .put("discovery.zen.minimum_master_nodes",

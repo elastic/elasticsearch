@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
 
 public class IndexAuditIT extends ESIntegTestCase {
     private static final String USER = "test_user";
-    private static final String PASS = "changeme";
+    private static final String PASS = "x-pack-test-password";
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/2354")
     public void testShieldIndexAuditTrailWorking() throws Exception {

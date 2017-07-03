@@ -12,7 +12,7 @@ setup:
         username: "inline_template_user"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "role" ]
             }
 
@@ -59,7 +59,7 @@ teardown:
 "Test inline template against specific index":
   - do:
       headers:
-        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       search_template:
         index: foobar
         body:
@@ -77,7 +77,7 @@ teardown:
 "Test inline template against all indices":
   - do:
       headers:
-        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       search_template:
         body:
           source:
@@ -94,7 +94,7 @@ teardown:
 "Test inline template against wildcard expression":
   - do:
       headers:
-        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       search_template:
         index: foo*
         body:
@@ -112,7 +112,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       search_template:
         index: unauthorized*
         body:
@@ -130,7 +130,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       msearch_template:
         body:
           - index: foobar
@@ -155,7 +155,7 @@ teardown:
 "Test render template":
   - do:
       headers:
-        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6Y2hhbmdlbWU="
+        Authorization: "Basic aW5saW5lX3RlbXBsYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ"
       render_search_template:
         body:
           source:

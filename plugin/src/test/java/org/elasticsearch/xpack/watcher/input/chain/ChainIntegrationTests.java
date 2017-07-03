@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
@@ -61,7 +62,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
         HttpInput.Builder httpInputBuilder = httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                 .path("/" + index  + "/_search")
                 .body(jsonBuilder().startObject().field("size", 1).endObject().string())
-                .auth(securityEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null));
+                .auth(securityEnabled() ? new BasicAuth("test", SecuritySettingsSource.TEST_PASSWORD.toCharArray()) : null));
 
         ChainInput.Builder chainedInputBuilder = chainInput()
                 .add("first", simpleInput("url", "/" + index  + "/_search"))

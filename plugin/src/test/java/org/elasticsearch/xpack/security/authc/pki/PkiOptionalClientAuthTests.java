@@ -82,8 +82,8 @@ public class PkiOptionalClientAuthTests extends SecurityIntegTestCase {
 
             Response response = restClient.performRequest("GET", "_nodes",
                     new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
-                            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                                    new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()))));
+                            UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                                    new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()))));
             assertThat(response.getStatusLine().getStatusCode(), is(200));
         }
     }

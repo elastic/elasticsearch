@@ -32,7 +32,7 @@ public class GraphWithSecurityInsufficientRoleIT extends GraphWithSecurityIT {
 
     @Override
     protected String[] getCredentials() {
-        return new String[]{"no_graph_explorer", "changeme"};
+        return new String[]{"no_graph_explorer", "x-pack-test-password"};
     }
 }
 

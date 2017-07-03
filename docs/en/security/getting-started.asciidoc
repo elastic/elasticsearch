@@ -36,7 +36,8 @@ curl -XPUT -u elastic 'localhost:9200/_xpack/security/user/logstash_system/_pass
 ----------------------------------------------------------
 // NOTCONSOLE
 
-NOTE: The default password for the `elastic` user is `changeme`.
+NOTE: By default, the `elastic` user does not have a password set. Until its password is set, the `elastic` user will only be
+allowed to submit change password rest requests from localhost.
 
 --
 
@@ -71,23 +72,6 @@ curl -XPOST -u elastic 'localhost:9200/_xpack/security/user/johndoe' -H "Content
 ----------------------------------------------------------
 // NOTCONSOLE
 --
-
-[[enable-message-authentication]]
-. Enable message authentication to verify that messages are not tampered with or corrupted in transit:
-.. Run the `syskeygen` tool from `ES_HOME` without any options:
-+
-[source, shell]
-----------------
-bin/x-pack/syskeygen
-----------------
-+
-This creates a system key file in `CONFIG_DIR/x-pack/system_key`.
-
-.. Copy the generated system key to the rest of the nodes in the cluster.
-+
-IMPORTANT:  The system key is a symmetric key, so the same key must be on every
-            node in the cluster.
-
 
 [[enable-auditing]]
 . Enable Auditing to keep track of attempted and successful interactions with

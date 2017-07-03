@@ -17,6 +17,7 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.nio.charset.StandardCharsets;
@@ -37,6 +38,11 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
     @BeforeClass
     public static void setSSL() {
         useSSL = randomBoolean();
+    }
+
+    @Override
+    public boolean shouldSetReservedUserPasswords() {
+        return false;
     }
 
     @Override

@@ -33,7 +33,7 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return SecuritySettingsSource.DEFAULT_ROLE + ":\n" +
+        return SecuritySettingsSource.TEST_ROLE + ":\n" +
                 "  cluster: [ all ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +

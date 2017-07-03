@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -104,7 +105,7 @@ public class PkiRealmTests extends ESTestCase {
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(token, future);
+        realm.authenticate(token, future, mock(IncomingRequest.class));
         User user = future.actionGet();
         assertThat(user, is(notNullValue()));
         assertThat(user.principal(), is("Elasticsearch Test Node"));
@@ -128,7 +129,7 @@ public class PkiRealmTests extends ESTestCase {
 
         X509AuthenticationToken token = realm.token(threadContext);
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(token, future);
+        realm.authenticate(token, future, mock(IncomingRequest.class));
         User user = future.actionGet();
         assertThat(user, is(notNullValue()));
         assertThat(user.principal(), is("elasticsearch"));
@@ -159,7 +160,7 @@ public class PkiRealmTests extends ESTestCase {
 
         X509AuthenticationToken token = realm.token(threadContext);
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(token, future);
+        realm.authenticate(token, future, mock(IncomingRequest.class));
         User user = future.actionGet();
         assertThat(user, is(notNullValue()));
         assertThat(user.principal(), is("Elasticsearch Test Node"));
@@ -190,7 +191,7 @@ public class PkiRealmTests extends ESTestCase {
 
         X509AuthenticationToken token = realm.token(threadContext);
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(token, future);
+        realm.authenticate(token, future, mock(IncomingRequest.class));
         User user = future.actionGet();
         assertThat(user, is(nullValue()));
     }

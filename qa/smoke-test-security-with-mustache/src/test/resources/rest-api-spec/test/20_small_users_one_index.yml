@@ -28,7 +28,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "small_companies_role" ],
               "metadata" : {
                 "customer_id" : "1"
@@ -39,7 +39,7 @@ setup:
         username: "john"
         body:  >
             {
-              "password": "changeme",
+              "password": "x-pack-test-password",
               "roles" : [ "small_companies_role" ],
               "metadata" : {
                 "customer_id" : "2"
@@ -85,7 +85,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic am9lOmNoYW5nZW1l"
+        Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       index:
         index: shared_logs
         type: type
@@ -96,7 +96,7 @@ teardown:
           }
   - do:
       headers:
-        Authorization: "Basic am9objpjaGFuZ2VtZQ=="
+        Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       index:
         index: shared_logs
         type: type
@@ -112,7 +112,7 @@ teardown:
   # Joe searches:
   - do:
       headers:
-        Authorization: "Basic am9lOmNoYW5nZW1l"
+        Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       search:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
@@ -122,7 +122,7 @@ teardown:
   # John searches:
   - do:
       headers:
-        Authorization: "Basic am9objpjaGFuZ2VtZQ=="
+        Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       search:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
@@ -153,7 +153,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic am9lOmNoYW5nZW1l"
+        Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       index:
         index: shared_logs
         type: type
@@ -164,7 +164,7 @@ teardown:
           }
   - do:
       headers:
-        Authorization: "Basic am9objpjaGFuZ2VtZQ=="
+        Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       index:
         index: shared_logs
         type: type
@@ -180,7 +180,7 @@ teardown:
   # Joe searches:
   - do:
       headers:
-        Authorization: "Basic am9lOmNoYW5nZW1l"
+        Authorization: "Basic am9lOngtcGFjay10ZXN0LXBhc3N3b3Jk"
       search:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }
@@ -190,7 +190,7 @@ teardown:
   # John searches:
   - do:
       headers:
-        Authorization: "Basic am9objpjaGFuZ2VtZQ=="
+        Authorization: "Basic am9objp4LXBhY2stdGVzdC1wYXNzd29yZA=="
       search:
         index: shared_logs
         body: { "query" : { "match_all" : {} } }

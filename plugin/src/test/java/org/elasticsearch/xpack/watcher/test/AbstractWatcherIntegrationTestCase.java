@@ -41,6 +41,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
@@ -58,7 +59,6 @@ import org.elasticsearch.xpack.notification.email.Profile;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.support.clock.ClockMock;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.elasticsearch.xpack.watcher.WatcherState;
@@ -162,7 +162,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             writeFile(xpackConf, "users", SecuritySettings.USERS);
             writeFile(xpackConf, "users_roles", SecuritySettings.USER_ROLES);
             writeFile(xpackConf, "roles.yml", SecuritySettings.ROLES);
-            writeFile(xpackConf, "system_key", SecuritySettings.systemKey);
         } catch (final IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -293,7 +292,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
         return Settings.builder()
                 .put("client.transport.sniff", false)
-                .put(Security.USER_SETTING.getKey(), "admin:changeme")
+                .put(Security.USER_SETTING.getKey(), "admin:" + SecuritySettingsSource.TEST_PASSWORD)
                 .put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4)
                 .put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4)
                 .build();
@@ -686,13 +685,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     public static class SecuritySettings {
 
         public static final String TEST_USERNAME = "test";
-        public static final String TEST_PASSWORD = "changeme";
+        public static final String TEST_PASSWORD = SecuritySettingsSource.TEST_PASSWORD;
         private static final String TEST_PASSWORD_HASHED =  new String(Hasher.BCRYPT.hash(new SecureString(TEST_PASSWORD.toCharArray())));
 
         static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", true);
-        static byte[] systemKey = generateKey(); // must be the same for all nodes
-
-        public static final String IP_FILTER = "allow: all\n";
 
         public static final String USERS =
                 "transport_client:" + TEST_PASSWORD_HASHED + "\n" +
@@ -711,7 +707,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
                 "  cluster: [ 'cluster:monitor/nodes/info', 'cluster:monitor/state', 'cluster:monitor/health', 'cluster:monitor/stats'," +
                         " 'cluster:admin/settings/update', 'cluster:admin/repository/delete', 'cluster:monitor/nodes/liveness'," +
                         " 'indices:admin/template/get', 'indices:admin/template/put', 'indices:admin/template/delete'," +
-                        " 'cluster:admin/script/put' ]\n" +
+                        " 'cluster:admin/script/put', 'cluster:monitor/task' ]\n" +
                 "  indices:\n" +
                 "    - names: '*'\n" +
                 "      privileges: [ all ]\n" +
@@ -728,7 +724,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             if (!enabled) {
                 return builder.put("xpack.security.enabled", false).build();
             }
-
             builder.put("xpack.security.enabled", true)
                     .put("xpack.security.authc.realms.esusers.type", FileRealm.TYPE)
                     .put("xpack.security.authc.realms.esusers.order", 0)
@@ -740,14 +735,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
             builder.put(NetworkModule.HTTP_TYPE_KEY, Security.NAME4);
             return builder.build();
-        }
-
-        static byte[] generateKey() {
-            try {
-                return CryptoService.generateKey();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
         }
     }
 

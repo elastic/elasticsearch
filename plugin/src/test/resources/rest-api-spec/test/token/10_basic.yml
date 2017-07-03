@@ -12,7 +12,7 @@ setup:
         username: "token_user"
         body:  >
           {
-            "password" : "changeme",
+            "password" : "x-pack-test-password",
             "roles" : [ "superuser" ],
             "full_name" : "Token User"
           }
@@ -32,7 +32,7 @@ teardown:
         body:
           grant_type: "password"
           username: "token_user"
-          password: "changeme"
+          password: "x-pack-test-password"
 
   - match: { type: "Bearer" }
   - is_true: access_token
@@ -57,7 +57,7 @@ teardown:
         body:
           grant_type: "password"
           username: "token_user"
-          password: "changeme"
+          password: "x-pack-test-password"
 
   - match: { type: "Bearer" }
   - is_true: access_token

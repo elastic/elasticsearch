@@ -21,8 +21,6 @@ Configure in both `elasticsearch.yml` and `kibana.yml`.
 ==== Default Password Security Settings
 `xpack.security.authc.accept_default_password`::
 In `elasticsearch.yml`, set this to `false` to disable support for the default "changeme" password.
-For more information, see {xpack-ref}/setting-up-authentication.html#disabling-default-password[
-Disable Default Password Functionality].
 
 [float]
 [[anonymous-access-settings]]

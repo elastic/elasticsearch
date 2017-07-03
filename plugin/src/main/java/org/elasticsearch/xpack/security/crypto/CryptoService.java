@@ -12,10 +12,8 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
@@ -25,12 +23,12 @@ import java.util.List;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.authc.support.CharArrays;
+import org.elasticsearch.xpack.watcher.Watcher;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 
@@ -42,14 +40,19 @@ public class CryptoService extends AbstractComponent {
     public static final String KEY_ALGO = "HmacSHA512";
     public static final int KEY_SIZE = 1024;
 
-    static final String FILE_NAME = "system_key";
-    static final String DEFAULT_ENCRYPTION_ALGORITHM = "AES/CTR/NoPadding";
-    static final String DEFAULT_KEY_ALGORITH = "AES";
     static final String ENCRYPTED_TEXT_PREFIX = "::es_encrypted::";
-    static final int DEFAULT_KEY_LENGTH = 128;
 
-    private static final Setting<Boolean> SYSTEM_KEY_REQUIRED_SETTING =
-            Setting.boolSetting(setting("system_key.required"), false, Property.NodeScope);
+    // the encryption used in this class was picked when Java 7 was still the min. supported
+    // version. The use of counter mode was chosen to simplify the need to deal with padding
+    // and for its speed. 128 bit key length is chosen due to the JCE policy that ships by
+    // default with the Oracle JDK.
+    // TODO: with better support in Java 8, we should consider moving to use AES GCM as it
+    // also provides authentication of the encrypted data, which is something that we are
+    // missing here.
+    private static final String DEFAULT_ENCRYPTION_ALGORITHM = "AES/CTR/NoPadding";
+    private static final String DEFAULT_KEY_ALGORITH = "AES";
+    private static final int DEFAULT_KEY_LENGTH = 128;
+
     private static final Setting<String> ENCRYPTION_ALGO_SETTING =
             new Setting<>(setting("encryption.algorithm"), s -> DEFAULT_ENCRYPTION_ALGORITHM, s -> s, Property.NodeScope);
     private static final Setting<Integer> ENCRYPTION_KEY_LENGTH_SETTING =
@@ -65,7 +68,7 @@ public class CryptoService extends AbstractComponent {
      */
     private final SecretKey encryptionKey;
 
-    public CryptoService(Settings settings, Environment env) throws IOException {
+    public CryptoService(Settings settings) throws IOException {
         super(settings);
         this.encryptionAlgorithm = ENCRYPTION_ALGO_SETTING.get(settings);
         final int keyLength = ENCRYPTION_KEY_LENGTH_SETTING.get(settings);
@@ -76,17 +79,13 @@ public class CryptoService extends AbstractComponent {
             throw new IllegalArgumentException("invalid key length [" + keyLength + "]. value must be a multiple of 8");
         }
 
-        Path keyFile = resolveSystemKey(env);
-        SecretKey systemKey = readSystemKey(keyFile, SYSTEM_KEY_REQUIRED_SETTING.get(settings));
-
+        SecretKey systemKey = readSystemKey(Watcher.ENCRYPTION_KEY_SETTING.get(settings));
         try {
             encryptionKey = encryptionKey(systemKey, keyLength, keyAlgorithm);
         } catch (NoSuchAlgorithmException nsae) {
             throw new ElasticsearchException("failed to start crypto service. could not load encryption key", nsae);
         }
-        if (systemKey != null) {
-            logger.info("system key [{}] has been loaded", keyFile.toAbsolutePath());
-        }
+        assert encryptionKey != null : "the encryption key should never be null";
     }
 
     public static byte[] generateKey() {
@@ -103,21 +102,14 @@ public class CryptoService extends AbstractComponent {
         }
     }
 
-    public static Path resolveSystemKey(Environment env) {
-        return XPackPlugin.resolveConfigFile(env, FILE_NAME);
-    }
-
-    private static SecretKey readSystemKey(Path file, boolean required) throws IOException {
-        if (Files.exists(file)) {
-            byte[] bytes = Files.readAllBytes(file);
-            return new SecretKeySpec(bytes, KEY_ALGO);
+    private static SecretKey readSystemKey(InputStream in) throws IOException {
+        final int keySizeBytes = KEY_SIZE / 8;
+        final byte[] keyBytes = new byte[keySizeBytes];
+        final int read = Streams.readFully(in, keyBytes);
+        if (read != keySizeBytes) {
+            throw new IllegalArgumentException("key size did not match expected value; was the key generated with syskeygen?");
         }
-
-        if (required) {
-            throw new FileNotFoundException("[" + file + "] must be present with a valid key");
-        }
-
-        return null;
+        return new SecretKeySpec(keyBytes, KEY_ALGO);
     }
 
     /**
@@ -126,15 +118,8 @@ public class CryptoService extends AbstractComponent {
      * @return character array representing the encrypted data
      */
     public char[] encrypt(char[] chars) {
-        SecretKey key = this.encryptionKey;
-        if (key == null) {
-            logger.warn("encrypt called without a key, returning plain text. run syskeygen and copy same key to all nodes to enable " +
-                "encryption");
-            return chars;
-        }
-
         byte[] charBytes = CharArrays.toUtf8Bytes(chars);
-        String base64 = Base64.getEncoder().encodeToString(encryptInternal(charBytes, key));
+        String base64 = Base64.getEncoder().encodeToString(encryptInternal(charBytes, encryptionKey));
         return ENCRYPTED_TEXT_PREFIX.concat(base64).toCharArray();
     }
 
@@ -144,10 +129,6 @@ public class CryptoService extends AbstractComponent {
      * @return plaintext chars
      */
     public char[] decrypt(char[] chars) {
-        if (encryptionKey == null) {
-            return chars;
-        }
-
         if (!isEncrypted(chars)) {
             // Not encrypted
             return chars;
@@ -170,16 +151,8 @@ public class CryptoService extends AbstractComponent {
      * @param chars the chars to check if they are encrypted
      * @return true is data is encrypted
      */
-    public boolean isEncrypted(char[] chars) {
+    protected boolean isEncrypted(char[] chars) {
         return CharArrays.charsBeginsWith(ENCRYPTED_TEXT_PREFIX, chars);
-    }
-
-    /**
-     * Flag for callers to determine if values will actually be encrypted or returned plaintext
-     * @return true if values will be encrypted
-     */
-    public boolean isEncryptionEnabled() {
-        return this.encryptionKey != null;
     }
 
     private byte[] encryptInternal(byte[] bytes, SecretKey key) {
@@ -217,7 +190,7 @@ public class CryptoService extends AbstractComponent {
     }
 
 
-    static Cipher cipher(int mode, String encryptionAlgorithm, SecretKey key, byte[] initializationVector) {
+    private static Cipher cipher(int mode, String encryptionAlgorithm, SecretKey key, byte[] initializationVector) {
         try {
             Cipher cipher = Cipher.getInstance(encryptionAlgorithm);
             cipher.init(mode, key, new IvParameterSpec(initializationVector));
@@ -227,11 +200,7 @@ public class CryptoService extends AbstractComponent {
         }
     }
 
-    static SecretKey encryptionKey(SecretKey systemKey, int keyLength, String algorithm) throws NoSuchAlgorithmException {
-        if (systemKey == null) {
-            return null;
-        }
-
+    private static SecretKey encryptionKey(SecretKey systemKey, int keyLength, String algorithm) throws NoSuchAlgorithmException {
         byte[] bytes = systemKey.getEncoded();
         if ((bytes.length * 8) < keyLength) {
             throw new IllegalArgumentException("at least " + keyLength + " bits should be provided as key data");
@@ -253,6 +222,5 @@ public class CryptoService extends AbstractComponent {
         settings.add(ENCRYPTION_KEY_LENGTH_SETTING);
         settings.add(ENCRYPTION_KEY_ALGO_SETTING);
         settings.add(ENCRYPTION_ALGO_SETTING);
-        settings.add(SYSTEM_KEY_REQUIRED_SETTING);
     }
 }

@@ -21,7 +21,7 @@ Run the migrate tool after you install the X-Pack plugin. For example:
 
 [source, sh]
 ----------------------------------------------------------------------
-$ bin/x-pack/migrate native -U http://localhost:9200 -u elastic -p changeme
+$ bin/x-pack/migrate native -U http://localhost:9200 -u elastic -p x-pack-test-password
 -n lee,foo -r role1,role2,role3,role4,foo
 starting migration of users and roles...
 importing users from [/home/es/config/shield/users]...
@@ -69,5 +69,5 @@ to specify a different configuration directory, the command would look like:
 
 [source, sh]
 ----------------------------------------------------------------------
-$ bin/x-pack/migrate native -U http://localhost:9200 -u elastic -p changeme --path.conf /etc/elasticsearch
+$ bin/x-pack/migrate native -U http://localhost:9200 -u elastic -p x-pack-test-password --path.conf /etc/elasticsearch
 ----------------------------------------------------------------------

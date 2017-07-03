@@ -19,6 +19,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.DownLevelADAuthenticator;
 import org.elasticsearch.xpack.security.authc.ldap.ActiveDirectorySessionFactory.UpnADAuthenticator;
 import org.elasticsearch.xpack.security.user.User;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -138,7 +140,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         LdapRealm realm = new LdapRealm(LdapRealm.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
+        realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future, mock(IncomingRequest.class));
         User user = future.actionGet();
         assertThat(user, is(notNullValue()));
         assertThat(user.roles(), arrayContaining(containsString("Avengers")));
@@ -153,7 +155,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         // Thor does not have a UPN of form CN=Thor@ad.test.elasticsearch.com
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
+        realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future, mock(IncomingRequest.class));
         User user = future.actionGet();
         assertThat(user, is(notNullValue()));
         assertThat(user.roles(), arrayContaining(containsString("Avengers")));
@@ -178,7 +180,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         int count = randomIntBetween(2, 10);
         for (int i = 0; i < count; i++) {
             PlainActionFuture<User> future = new PlainActionFuture<>();
-            realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
+            realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future, mock(IncomingRequest.class));
             future.actionGet();
         }
 
@@ -196,7 +198,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         int count = randomIntBetween(2, 10);
         for (int i = 0; i < count; i++) {
             PlainActionFuture<User> future = new PlainActionFuture<>();
-            realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
+            realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future, mock(IncomingRequest.class));
             future.actionGet();
         }
 
@@ -214,7 +216,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         int count = randomIntBetween(2, 10);
         for (int i = 0; i < count; i++) {
             PlainActionFuture<User> future = new PlainActionFuture<>();
-            realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
+            realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future, mock(IncomingRequest.class));
             future.actionGet();
         }
 
@@ -226,7 +228,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         for (int i = 0; i < count; i++) {
             PlainActionFuture<User> future = new PlainActionFuture<>();
-            realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
+            realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future, mock(IncomingRequest.class));
             future.actionGet();
         }
 
@@ -243,7 +245,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         LdapRealm realm = new LdapRealm(LdapRealm.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
+        realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future, mock(IncomingRequest.class));
         User user = future.actionGet();
         assertThat(user, is(notNullValue()));
         assertThat(user.roles(), arrayContaining(equalTo("group_role")));
@@ -259,7 +261,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         LdapRealm realm = new LdapRealm(LdapRealm.AD_TYPE, config, sessionFactory, roleMapper, threadPool);
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
+        realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future, mock(IncomingRequest.class));
         User user = future.actionGet();
         assertThat(user, is(notNullValue()));
         assertThat(user.roles(), arrayContainingInAnyOrder(equalTo("group_role"), equalTo("user_role")));

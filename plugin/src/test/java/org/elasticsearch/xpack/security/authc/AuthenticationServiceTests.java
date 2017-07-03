@@ -5,16 +5,6 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
-import java.io.IOException;
-import java.time.Clock;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -24,11 +14,14 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
@@ -52,6 +45,18 @@ import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.junit.After;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.time.Clock;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
@@ -93,12 +98,16 @@ public class AuthenticationServiceTests extends ESTestCase {
     private TokenService tokenService;
     private SecurityLifecycleService lifecycleService;
     private Client client;
+    private InetSocketAddress remoteAddress;
 
     @Before
+    @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws Exception {
         token = mock(AuthenticationToken.class);
         message = new InternalMessage();
-        restRequest = new FakeRestRequest();
+        remoteAddress = new InetSocketAddress(InetAddress.getLocalHost(), 100);
+        message.remoteAddress(new TransportAddress(remoteAddress));
+        restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withRemoteAddress(remoteAddress).build();
         threadContext = new ThreadContext(Settings.EMPTY);
 
         firstRealm = mock(Realm.class);
@@ -206,7 +215,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }, this::logAndFail));
         verify(auditTrail).authenticationSuccess(secondRealm.name(), user, "_action", message);
         verifyNoMoreInteractions(auditTrail);
-        verify(firstRealm, never()).authenticate(eq(token), any(ActionListener.class));
+        verify(firstRealm, never()).authenticate(eq(token), any(ActionListener.class), any(IncomingRequest.class));
         assertTrue(completed.get());
     }
 
@@ -562,7 +571,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         doThrow(authenticationError("realm doesn't like authenticate"))
-            .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
+            .when(secondRealm).authenticate(eq(token), any(ActionListener.class), any(IncomingRequest.class));
         try {
             authenticateBlocking("_action", message, null);
             fail("exception should bubble out");
@@ -577,7 +586,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(secondRealm.token(threadContext)).thenReturn(token);
         when(secondRealm.supports(token)).thenReturn(true);
         doThrow(authenticationError("realm doesn't like authenticate"))
-                .when(secondRealm).authenticate(eq(token), any(ActionListener.class));
+                .when(secondRealm).authenticate(eq(token), any(ActionListener.class), any(IncomingRequest.class));
         try {
             authenticateBlocking(restRequest);
             fail("exception should bubble out");
@@ -869,7 +878,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             ActionListener listener = (ActionListener) i.getArguments()[1];
             listener.onResponse(user);
             return null;
-        }).when(realm).authenticate(eq(token), any(ActionListener.class));
+        }).when(realm).authenticate(eq(token), any(ActionListener.class), any(IncomingRequest.class));
     }
 
     private Authentication authenticateBlocking(RestRequest restRequest) {

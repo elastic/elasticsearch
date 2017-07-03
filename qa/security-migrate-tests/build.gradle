@@ -16,14 +16,14 @@ integTestCluster {
     bob: 'actual_role'
   ].each { String user, String role ->
     setupCommand 'setupUser#' + user,
-                 'bin/x-pack/users', 'useradd', user, '-p', 'changeme', '-r', role
+                 'bin/x-pack/users', 'useradd', user, '-p', 'x-pack-test-password', '-r', role
   }
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
             dest: tmpFile.toString(),
             username: 'test_admin',
-            password: 'changeme',
+            password: 'x-pack-test-password',
             ignoreerrors: true,
             retries: 10)
     return tmpFile.exists()

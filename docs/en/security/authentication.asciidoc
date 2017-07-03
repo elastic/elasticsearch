@@ -15,9 +15,11 @@ see <<managing-native-users, Managing Native Users>>.
 === Built-in Users
 
 {security} provides built-in user credentials to help you get up and running.
-These users have a fixed set of privileges and the default password `changeme`.
-Please read <<reset-built-in-user-passwords,Reset Built-in User Passwords>> and
-<<disabling-default-password, Disable Default Password Functionality>> below.
+These users have a fixed set of privileges and cannot be authenticated until their
+passwords have been set. The exception is the `elastic` user which can be authenticated
+from a localhost rest request with an empty password. Until a password is set, the elastic
+user is only authorized to perform change password requests.
+Please read <<reset-built-in-user-passwords,Reset Built-in User Passwords>> below.
 
 .{security} Built-in Users
 |========
@@ -48,8 +50,7 @@ be disabled individually, using the
 ==== Reset Built-in User Passwords
 [IMPORTANT]
 =============================================================================
-You must reset the default passwords for all built-in users, and then
-<<disabling-default-password, disable default password support>>.
+You must set the passwords for all built-in users.
 You can update passwords from the *Management > Users* UI in Kibana or with the
 {ref}/security-api-users.html#security-api-reset-user-password[Reset Password API]:
 
@@ -117,14 +118,8 @@ PUT _xpack/security/user/logstash_system/_enable
 ==== Disable Default Password Functionality
 [IMPORTANT]
 =============================================================================
-The default password of `changeme` is provided as a convenience that allows you to quickly
-setup your Elasticsearch stack. It should not be used when running in production.
-
-Once you have changed the password for the built-in users, you must disable default password support
-by setting `xpack.security.authc.accept_default_password` to `false`.
-
-A {ref}/bootstrap-checks.html[bootstrap check] will prevent your cluster from operating in production
-mode until you make this configuration change.
+This setting is deprecated. The elastic user no longer has a default password. The password must
+be set before the user can be used.
 
 =============================================================================
 

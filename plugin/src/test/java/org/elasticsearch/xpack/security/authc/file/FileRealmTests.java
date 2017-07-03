@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
@@ -53,7 +54,7 @@ public class FileRealmTests extends ESTestCase {
         RealmConfig config = new RealmConfig("file-test", Settings.EMPTY, globalSettings, new Environment(globalSettings), new ThreadContext(globalSettings));
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
+        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future, mock(IncomingRequest.class));
         User user = future.actionGet();
         assertThat(user, notNullValue());
         assertThat(user.principal(), equalTo("user1"));
@@ -71,10 +72,10 @@ public class FileRealmTests extends ESTestCase {
         when(userRolesStore.roles("user1")).thenReturn(new String[]{"role1", "role2"});
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
+        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future, mock(IncomingRequest.class));
         User user1 = future.actionGet();
         future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
+        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future, mock(IncomingRequest.class));
         User user2 = future.actionGet();
         assertThat(user1, sameInstance(user2));
     }
@@ -87,32 +88,32 @@ public class FileRealmTests extends ESTestCase {
         doReturn(new String[] { "role1", "role2" }).when(userRolesStore).roles("user1");
         FileRealm realm = new FileRealm(config, userPasswdStore, userRolesStore);
         PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
+        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future, mock(IncomingRequest.class));
         User user1 = future.actionGet();
         future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
+        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future, mock(IncomingRequest.class));
         User user2 = future.actionGet();
         assertThat(user1, sameInstance(user2));
 
         userPasswdStore.notifyRefresh();
 
         future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
+        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future, mock(IncomingRequest.class));
         User user3 = future.actionGet();
         assertThat(user2, not(sameInstance(user3)));
         future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
+        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future, mock(IncomingRequest.class));
         User user4 = future.actionGet();
         assertThat(user3, sameInstance(user4));
 
         userRolesStore.notifyRefresh();
 
         future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
+        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future, mock(IncomingRequest.class));
         User user5 = future.actionGet();
         assertThat(user4, not(sameInstance(user5)));
         future = new PlainActionFuture<>();
-        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future);
+        realm.authenticate(new UsernamePasswordToken("user1", new SecureString("test123")), future, mock(IncomingRequest.class));
         User user6 = future.actionGet();
         assertThat(user5, sameInstance(user6));
     }

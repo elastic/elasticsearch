@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  */
 public class SmokeTestMonitoringWithSecurityIT extends ESIntegTestCase {
     private static final String USER = "test_user";
-    private static final String PASS = "changeme";
+    private static final String PASS = "x-pack-test-password";
     private static final String MONITORING_PATTERN = ".monitoring-*";
 
     @Override

@@ -81,10 +81,12 @@ public abstract class Realm implements Comparable<Realm> {
      * {@link ActionListener#onResponse} with the User associated with the given token. An unsuccessful authentication calls
      * with {@code null} on the argument.
      *
+     * The remote address should be null if the request initiated from the local node.
      * @param token The authentication token
      * @param listener The listener to pass the authentication result to
+     * @param incomingRequest the request that is being authenticated
      */
-    public abstract void authenticate(AuthenticationToken token, ActionListener<User> listener);
+    public abstract void authenticate(AuthenticationToken token, ActionListener<User> listener, IncomingRequest incomingRequest);
 
     /**
      * Looks up the user identified the String identifier. A successful lookup will call the {@link ActionListener#onResponse}

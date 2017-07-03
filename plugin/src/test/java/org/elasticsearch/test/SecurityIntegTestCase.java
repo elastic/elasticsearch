@@ -244,8 +244,8 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings externalClusterClientSettings() {
         return Settings.builder()
-                .put(Security.USER_SETTING.getKey(), SecuritySettingsSource.DEFAULT_USER_NAME + ":"
-                        + SecuritySettingsSource.DEFAULT_PASSWORD)
+                .put(Security.USER_SETTING.getKey(), SecuritySettingsSource.TEST_USER_NAME + ":"
+                        + SecuritySettingsSource.TEST_PASSWORD)
                 .build();
     }
 

@@ -58,11 +58,11 @@ for the client traffic by adding the following to `elasticsearch.yml`:
 --------------------------------------------------
 transport.profiles.client.xpack.security.ssl.truststore:
   path: /path/to/another/truststore
-  password: changeme
+  password: x-pack-test-password
 
 transport.profiles.client.xpack.security.ssl.keystore:
   path: /path/to/another/keystore
-  password: changeme
+  password: x-pack-test-password
 --------------------------------------------------
 
 To change the default behavior that requires certificates for transport clients,

@@ -16,9 +16,7 @@ import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.junit.After;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -57,16 +55,14 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
         openJob(job.getId());
 
         time = 1400000000;
-        Map<Long, Integer> anomalies = new HashMap<>();
-        anomalies.put(1400021500L, 14);
 
         // push some data, flush job, verify no interim results
-        assertThat(postData(job.getId(), createData(50, anomalies)).getProcessedRecordCount(), equalTo(50L));
+        assertThat(postData(job.getId(), createData(50)).getProcessedRecordCount(), equalTo(50L));
         flushJob(job.getId(), false);
         assertThat(getInterimResults(job.getId()).isEmpty(), is(true));
 
         // push some more data, flush job, verify no interim results
-        assertThat(postData(job.getId(), createData(30, anomalies)).getProcessedRecordCount(), equalTo(30L));
+        assertThat(postData(job.getId(), createData(30)).getProcessedRecordCount(), equalTo(30L));
         flushJob(job.getId(), false);
         assertThat(getInterimResults(job.getId()).isEmpty(), is(true));
         assertThat(time, equalTo(1400040000L));
@@ -81,7 +77,7 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
         // We might need to retry this while waiting for a refresh
         assertBusy(() -> {
             List<Bucket> firstInterimBuckets = getInterimResults(job.getId());
-            assertThat(firstInterimBuckets.size(), equalTo(2));
+            assertThat("interim buckets were: " + firstInterimBuckets, firstInterimBuckets.size(), equalTo(2));
             assertThat(firstInterimBuckets.get(0).getTimestamp().getTime(), equalTo(1400039000000L));
             assertThat(firstInterimBuckets.get(1).getTimestamp().getTime(), equalTo(1400040000000L));
             assertThat(firstInterimBuckets.get(1).getRecords().get(0).getActual().get(0), equalTo(16.0));
@@ -101,7 +97,7 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
 
         // push rest of data, close, verify no interim results
         time += BUCKET_SPAN_SECONDS;
-        assertThat(postData(job.getId(), createData(30, anomalies)).getProcessedRecordCount(), equalTo(30L));
+        assertThat(postData(job.getId(), createData(30)).getProcessedRecordCount(), equalTo(30L));
         closeJob(job.getId());
         assertThat(getInterimResults(job.getId()).isEmpty(), is(true));
 
@@ -114,10 +110,10 @@ public class UpdateInterimResultsIT extends MlNativeAutodetectIntegTestCase {
         assertThat(bucket.get(0).getRecords().get(0).getActual().get(0), equalTo(14.0));
     }
 
-    private String createData(int halfBuckets, Map<Long, Integer> timeToValueMap) {
+    private String createData(int halfBuckets) {
         StringBuilder data = new StringBuilder();
         for (int i = 0; i < halfBuckets; i++) {
-            int value = timeToValueMap.getOrDefault(time, randomIntBetween(1, 3));
+            int value = randomIntBetween(1, 3);
             data.append("{\"time\":").append(time).append(", \"value\":").append(value).append("}\n");
             time += BUCKET_SPAN_SECONDS / 2;
         }

@@ -157,7 +157,7 @@ public class SetupPasswordTool extends MultiCommand {
         private OptionSpec<String> noPromptOption;
 
         private String elasticUser = ElasticUser.NAME;
-        private SecureString elasticUserPassword = ReservedRealm.DEFAULT_PASSWORD_TEXT;
+        private SecureString elasticUserPassword = ReservedRealm.EMPTY_PASSWORD_TEXT;
         private String url;
 
         SetupCommand(String description) {

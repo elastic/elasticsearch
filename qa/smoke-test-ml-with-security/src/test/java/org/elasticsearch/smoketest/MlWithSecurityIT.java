@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 public class MlWithSecurityIT extends ESClientYamlSuiteTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
-    private static final String TEST_ADMIN_PASSWORD = "changeme";
+    private static final String TEST_ADMIN_PASSWORD = "x-pack-test-password";
 
     @After
     public void clearMlState() throws Exception {
@@ -109,7 +109,7 @@ public class MlWithSecurityIT extends ESClientYamlSuiteTestCase {
     }
 
     protected String[] getCredentials() {
-        return new String[]{"ml_admin", "changeme"};
+        return new String[]{"ml_admin", "x-pack-test-password"};
     }
 
     @Override

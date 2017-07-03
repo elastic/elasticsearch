@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
@@ -64,10 +65,11 @@ public class UsersToolTests extends CommandTestCase {
         IOUtils.rm(homeDir);
         confDir = homeDir.resolve("config").resolve(XPackPlugin.NAME);
         Files.createDirectories(confDir);
+        String defaultPassword = SecuritySettingsSource.TEST_PASSWORD;
         Files.write(confDir.resolve("users"), Arrays.asList(
-            "existing_user:" + new String(Hasher.BCRYPT.hash(new SecureString("changeme".toCharArray()))),
-            "existing_user2:" + new String(Hasher.BCRYPT.hash(new SecureString("changeme2".toCharArray()))),
-            "existing_user3:" + new String(Hasher.BCRYPT.hash(new SecureString("changeme3".toCharArray())))
+            "existing_user:" + new String(Hasher.BCRYPT.hash(SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING)),
+            "existing_user2:" + new String(Hasher.BCRYPT.hash(new SecureString((defaultPassword + "2").toCharArray()))),
+            "existing_user3:" + new String(Hasher.BCRYPT.hash(new SecureString((defaultPassword + "3").toCharArray())))
         ), StandardCharsets.UTF_8);
         Files.write(confDir.resolve("users_roles"), Arrays.asList(
             "test_admin:existing_user,existing_user2",
@@ -268,20 +270,20 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testUseraddNoPassword() throws Exception {
-        terminal.addSecretInput("changeme");
-        terminal.addSecretInput("changeme");
+        terminal.addSecretInput(SecuritySettingsSource.TEST_PASSWORD);
+        terminal.addSecretInput(SecuritySettingsSource.TEST_PASSWORD);
         execute("useradd", pathHomeParameter, fileTypeParameter, "username");
-        assertUser("username", "changeme");
+        assertUser("username", SecuritySettingsSource.TEST_PASSWORD);
     }
 
     public void testUseraddPasswordOption() throws Exception {
-        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", "changeme");
-        assertUser("username", "changeme");
+        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSource.TEST_PASSWORD);
+        assertUser("username", SecuritySettingsSource.TEST_PASSWORD);
     }
 
     public void testUseraddUserExists() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            execute("useradd", pathHomeParameter, fileTypeParameter, "existing_user", "-p", "changeme");
+            execute("useradd", pathHomeParameter, fileTypeParameter, "existing_user", "-p", SecuritySettingsSource.TEST_PASSWORD);
         });
         assertEquals(ExitCodes.CODE_ERROR, e.exitCode);
         assertEquals("User [existing_user] already exists", e.getMessage());
@@ -290,7 +292,7 @@ public class UsersToolTests extends CommandTestCase {
     public void testUseraddReservedUser() throws Exception {
         final String name = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
         UserException e = expectThrows(UserException.class, () -> {
-            execute("useradd", pathHomeParameter, fileTypeParameter, name, "-p", "changeme");
+            execute("useradd", pathHomeParameter, fileTypeParameter, name, "-p", SecuritySettingsSource.TEST_PASSWORD);
         });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertEquals("Invalid username [" + name + "]... Username [" + name + "] is reserved and may not be used.", e.getMessage());
@@ -299,7 +301,7 @@ public class UsersToolTests extends CommandTestCase {
     public void testUseraddNoRoles() throws Exception {
         Files.delete(confDir.resolve("users_roles"));
         Files.createFile(confDir.resolve("users_roles"));
-        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", "changeme");
+        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSource.TEST_PASSWORD);
         List<String> lines = Files.readAllLines(confDir.resolve("users_roles"), StandardCharsets.UTF_8);
         assertTrue(lines.toString(), lines.isEmpty());
     }
@@ -319,7 +321,7 @@ public class UsersToolTests extends CommandTestCase {
 
     public void testPasswdUnknownUser() throws Exception {
         UserException e = expectThrows(UserException.class, () -> {
-            execute("passwd", pathHomeParameter, fileTypeParameter, "unknown", "-p", "changeme");
+            execute("passwd", pathHomeParameter, fileTypeParameter, "unknown", "-p", SecuritySettingsSource.TEST_PASSWORD);
         });
         assertEquals(ExitCodes.NO_USER, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("User [unknown] doesn't exist"));
@@ -365,7 +367,8 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testRolesRemoveLeavesExisting() throws Exception {
-        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", "changeme", "-r", "test_admin");
+        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSource.TEST_PASSWORD,
+                "-r", "test_admin");
         execute("roles", pathHomeParameter, fileTypeParameter, "existing_user", "-r", "test_admin");
         assertRole("test_admin", "username");
     }
@@ -407,7 +410,8 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testListUnknownRoles() throws Exception {
-        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", "changeme", "-r", "test_r1,r2,r3");
+        execute("useradd", pathHomeParameter, fileTypeParameter, "username", "-p", SecuritySettingsSource.TEST_PASSWORD,
+                "-r", "test_r1,r2,r3");
         String output = execute("list", pathHomeParameter, fileTypeParameter, "username");
         assertTrue(output, output.contains("username"));
         assertTrue(output, output.contains("r2*,r3*,test_r1"));

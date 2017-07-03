@@ -78,7 +78,7 @@ import static org.hamcrest.Matchers.notNullValue;
 @TestLogging("org.elasticsearch.cluster.service:TRACE,org.elasticsearch.discovery.zen:TRACE")
 public class LicensingTests extends SecurityIntegTestCase {
     public static final String ROLES =
-            SecuritySettingsSource.DEFAULT_ROLE + ":\n" +
+            SecuritySettingsSource.TEST_ROLE + ":\n" +
                     "  cluster: [ all ]\n" +
                     "  indices:\n" +
                     "    - names: '*'\n" +
@@ -204,8 +204,8 @@ public class LicensingTests extends SecurityIntegTestCase {
         e = expectThrows(ResponseException.class, () -> getRestClient().performRequest("GET", "/_xpack/security/_authenticate"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(401));
 
-        final String basicAuthValue = UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray()));
+        final String basicAuthValue = UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray()));
         response = getRestClient().performRequest("GET", "/", new BasicHeader("Authorization", basicAuthValue));
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         response = getRestClient()

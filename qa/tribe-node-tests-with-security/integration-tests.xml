@@ -38,11 +38,11 @@
         <attribute name="name" />
         <attribute name="port" />
         <sequential>
-            <xhttp uri="http://127.0.0.1:@{port}/@{name}" method="PUT" username="test_admin" password="changeme" />
+            <xhttp uri="http://127.0.0.1:@{port}/@{name}" method="PUT" username="test_admin" password="x-pack-test-password" />
             <waitfor maxwait="30" maxwaitunit="second"
                      checkevery="500" checkeveryunit="millisecond"
                      timeoutproperty="@{timeoutproperty}">
-                <xhttp uri="http://127.0.0.1:@{port}/_cluster/health/@{name}?wait_for_status=yellow" username="test_admin" password="changeme" />
+                <xhttp uri="http://127.0.0.1:@{port}/_cluster/health/@{name}?wait_for_status=yellow" username="test_admin" password="x-pack-test-password" />
             </waitfor>
         </sequential>
     </macrodef>
@@ -83,7 +83,7 @@
                 <arg value="useradd"/>
                 <arg value="test_admin"/>
                 <arg value="-p"/>
-                <arg value="changeme"/>
+                <arg value="x-pack-test-password"/>
                 <arg value="-r"/>
                 <arg value="admin"/>
             </nested>

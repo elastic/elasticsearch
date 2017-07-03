@@ -17,17 +17,17 @@ integTestCluster {
   plugin ':x-pack-elasticsearch:plugin'
   extraConfigFile 'x-pack/roles.yml', 'roles.yml'
   setupCommand 'setupTestAdminUser',
-               'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'superuser'
+               'bin/x-pack/users', 'useradd', 'test_admin', '-p', 'x-pack-test-password', '-r', 'superuser'
   setupCommand 'setupGraphExplorerUser',
-               'bin/x-pack/users', 'useradd', 'graph_explorer', '-p', 'changeme', '-r', 'graph_explorer'
+               'bin/x-pack/users', 'useradd', 'graph_explorer', '-p', 'x-pack-test-password', '-r', 'graph_explorer'
   setupCommand 'setupPowerlessUser',
-               'bin/x-pack/users', 'useradd', 'no_graph_explorer', '-p', 'changeme', '-r', 'no_graph_explorer'
+               'bin/x-pack/users', 'useradd', 'no_graph_explorer', '-p', 'x-pack-test-password', '-r', 'no_graph_explorer'
   waitCondition = { node, ant ->
     File tmpFile = new File(node.cwd, 'wait.success')
     ant.get(src: "http://${node.httpUri()}/_cluster/health?wait_for_nodes=>=${numNodes}&wait_for_status=yellow",
             dest: tmpFile.toString(),
             username: 'test_admin',
-            password: 'changeme',
+            password: 'x-pack-test-password',
             ignoreerrors: true,
             retries: 10)
     return tmpFile.exists()

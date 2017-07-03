@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -28,10 +27,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.graph.action.GraphExploreAction.INSTANCE;
-
 /**
  * @see GraphExploreRequest
  */
@@ -89,7 +88,6 @@ public class RestGraphAction extends XPackRestHandler {
         Hop currentHop = graphRequest.createNextHop(null);
 
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            QueryParseContext context = new QueryParseContext(parser);
 
             XContentParser.Token token = parser.nextToken();
 
@@ -97,15 +95,14 @@ public class RestGraphAction extends XPackRestHandler {
                 throw new ElasticsearchParseException("failed to parse search source. source must be an object, but found [{}] instead",
                         token.name());
             }
-            parseHop(parser, context, currentHop, graphRequest);
+            parseHop(parser, currentHop, graphRequest);
         }
 
         graphRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         return channel -> client.es().execute(INSTANCE, graphRequest, new RestToXContentListener<>(channel));
     }
 
-    private void parseHop(XContentParser parser, QueryParseContext context, Hop currentHop,
-            GraphExploreRequest graphRequest) throws IOException {
+    private void parseHop(XContentParser parser, Hop currentHop, GraphExploreRequest graphRequest) throws IOException {
         String fieldName = null;
         XContentParser.Token token;
 
@@ -121,15 +118,15 @@ public class RestGraphAction extends XPackRestHandler {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(fieldName)) {
-                    currentHop.guidingQuery(context.parseInnerQueryBuilder());
+                    currentHop.guidingQuery(parseInnerQueryBuilder(parser));
                 } else if (CONNECTIONS_FIELD.match(fieldName)) {
-                    parseHop(parser, context, graphRequest.createNextHop(null), graphRequest);
+                    parseHop(parser, graphRequest.createNextHop(null), graphRequest);
                 } else if (CONTROLS_FIELD.match(fieldName)) {
                     if (currentHop.getParentHop() != null) {
                         throw new ElasticsearchParseException(
                                 "Controls are a global setting that can only be set in the root " + fieldName, token.name());
                     }
-                    parseControls(parser, context, graphRequest);
+                    parseControls(parser, graphRequest);
                 } else {
                     throw new ElasticsearchParseException("Illegal object property in graph definition " + fieldName, token.name());
 
@@ -221,7 +218,7 @@ public class RestGraphAction extends XPackRestHandler {
                                         "Graph vertices definition cannot contain both "+ INCLUDE_FIELD.getPreferredName()+
                                         " and "+EXCLUDE_FIELD.getPreferredName()+" clauses", token.name());
                             }
-                            excludes = new HashSet<String>();
+                            excludes = new HashSet<>();
                             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 excludes.add(parser.text());
                             }
@@ -274,7 +271,7 @@ public class RestGraphAction extends XPackRestHandler {
     }
 
 
-    private void parseControls(XContentParser parser, QueryParseContext context, GraphExploreRequest graphRequest) throws IOException {
+    private void parseControls(XContentParser parser, GraphExploreRequest graphRequest) throws IOException {
         XContentParser.Token token;
 
         String fieldName = null;

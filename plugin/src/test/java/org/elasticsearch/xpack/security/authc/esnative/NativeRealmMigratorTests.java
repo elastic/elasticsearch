@@ -168,7 +168,7 @@ public class NativeRealmMigratorTests extends ESTestCase {
         this.reservedUsers = Collections.singletonMap(
                 KibanaUser.NAME,
                 MapBuilder.<String, Object>newMapBuilder()
-                        .put(User.Fields.PASSWORD.getPreferredName(), new String(Hasher.BCRYPT.hash(ReservedRealm.DEFAULT_PASSWORD_TEXT)))
+                        .put(User.Fields.PASSWORD.getPreferredName(), new String(Hasher.BCRYPT.hash(ReservedRealm.EMPTY_PASSWORD_TEXT)))
                         .put(User.Fields.ENABLED.getPreferredName(), false)
                         .immutableMap()
         );
@@ -181,7 +181,7 @@ public class NativeRealmMigratorTests extends ESTestCase {
         this.reservedUsers = Collections.singletonMap(
                 KibanaUser.NAME,
                 MapBuilder.<String, Object>newMapBuilder()
-                        .put(User.Fields.PASSWORD.getPreferredName(), new String(Hasher.BCRYPT.hash(ReservedRealm.DEFAULT_PASSWORD_TEXT)))
+                        .put(User.Fields.PASSWORD.getPreferredName(), new String(Hasher.BCRYPT.hash(ReservedRealm.EMPTY_PASSWORD_TEXT)))
                         .put(User.Fields.ENABLED.getPreferredName(), false)
                         .immutableMap()
         );
@@ -195,7 +195,7 @@ public class NativeRealmMigratorTests extends ESTestCase {
                 .stream().collect(Collectors.toMap(Function.identity(),
                         name -> MapBuilder.<String, Object>newMapBuilder()
                                 .put(User.Fields.PASSWORD.getPreferredName(),
-                                        new String(Hasher.BCRYPT.hash(ReservedRealm.DEFAULT_PASSWORD_TEXT)))
+                                        new String(Hasher.BCRYPT.hash(ReservedRealm.EMPTY_PASSWORD_TEXT)))
                                 .put(User.Fields.ENABLED.getPreferredName(), randomBoolean())
                                 .immutableMap()
                 ));

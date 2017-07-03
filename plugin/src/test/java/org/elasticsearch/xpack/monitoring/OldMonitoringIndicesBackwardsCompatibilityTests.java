@@ -84,8 +84,8 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
         httpExporter.put("type", "http");
         httpExporter.put("enabled", port == null ? "false" : "true");
         httpExporter.put("host", "http://localhost:" + (port == null ? "does_not_matter" : port));
-        httpExporter.put("auth.username", SecuritySettingsSource.DEFAULT_USER_NAME);
-        httpExporter.put("auth.password", SecuritySettingsSource.DEFAULT_PASSWORD);
+        httpExporter.put("auth.username", SecuritySettingsSource.TEST_USER_NAME);
+        httpExporter.put("auth.password", SecuritySettingsSource.TEST_PASSWORD);
 
         settings.putProperties(httpExporter, k -> MonitoringSettings.EXPORTERS_SETTINGS.getKey() + "my_exporter." + k);
     }

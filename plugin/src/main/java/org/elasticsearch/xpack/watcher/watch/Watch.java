@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.common.secret.Secret;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.support.clock.HaltedClock;
-import org.elasticsearch.xpack.watcher.Watcher;
 import org.elasticsearch.xpack.watcher.actions.ActionRegistry;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
@@ -209,7 +208,7 @@ public class Watch implements ToXContentObject {
             this.triggerService = triggerService;
             this.actionRegistry = actionRegistry;
             this.inputRegistry = inputRegistry;
-            this.cryptoService = Watcher.ENCRYPT_SENSITIVE_DATA_SETTING.get(settings) ? cryptoService : null;
+            this.cryptoService = cryptoService;
             this.defaultInput = new ExecutableNoneInput(logger);
             this.defaultCondition = AlwaysCondition.INSTANCE;
             this.defaultActions = Collections.emptyList();

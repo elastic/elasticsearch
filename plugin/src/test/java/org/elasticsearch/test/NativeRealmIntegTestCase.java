@@ -5,9 +5,27 @@
  */
 package org.elasticsearch.test;
 
+
+import org.apache.http.HttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicHeader;
+import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.user.BeatsSystemUser;
+import org.elasticsearch.xpack.security.user.ElasticUser;
+import org.elasticsearch.xpack.security.user.KibanaUser;
+import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 import org.junit.After;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 
 /**
  * Test case with method to handle the starting and stopping the stores for native users and roles
@@ -17,6 +35,7 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
     @Before
     public void ensureNativeStoresStarted() throws Exception {
         assertSecurityIndexActive();
+        setupReservedPasswords();
     }
 
     @After
@@ -28,5 +47,42 @@ public abstract class NativeRealmIntegTestCase extends SecurityIntegTestCase {
             SecurityClient client = securityClient(internalCluster().transportClient());
             client.prepareClearRealmCache().get();
         }
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(NetworkModule.HTTP_ENABLED.getKey(), true)
+                .build();
+    }
+
+    private SecureString reservedPassword = SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING;
+
+    protected SecureString getReservedPassword() {
+        return reservedPassword;
+    }
+
+    protected boolean shouldSetReservedUserPasswords() {
+        return true;
+    }
+
+    public void setupReservedPasswords() throws IOException {
+        if (shouldSetReservedUserPasswords() == false) {
+            return;
+        }
+        logger.info("setting up reserved passwords for test");
+        SecureString defaultPassword = new SecureString("".toCharArray());
+
+        for (String username : Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, BeatsSystemUser.NAME, LogstashSystemUser.NAME)) {
+            SecureString authPassword = username.equals(ElasticUser.NAME) ? defaultPassword : reservedPassword;
+            String payload = "{\"password\": \"" + new String(reservedPassword.getChars()) + "\"}";
+            HttpEntity entity = new NStringEntity(payload, ContentType.APPLICATION_JSON);
+            BasicHeader authHeader = new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                    UsernamePasswordToken.basicAuthHeaderValue(ElasticUser.NAME, authPassword));
+            String route = "/_xpack/security/user/" + username + "/_password";
+            Response response = getRestClient().performRequest("PUT", route, Collections.emptyMap(), entity, authHeader);
+        }
+        logger.info("setting up reserved passwords finished");
     }
 }

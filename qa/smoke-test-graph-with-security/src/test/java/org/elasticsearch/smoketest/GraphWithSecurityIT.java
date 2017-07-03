@@ -20,7 +20,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 public class GraphWithSecurityIT extends ESClientYamlSuiteTestCase {
 
     private static final String TEST_ADMIN_USERNAME = "test_admin";
-    private static final String TEST_ADMIN_PASSWORD = "changeme";
+    private static final String TEST_ADMIN_PASSWORD = "x-pack-test-password";
 
     public GraphWithSecurityIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -32,7 +32,7 @@ public class GraphWithSecurityIT extends ESClientYamlSuiteTestCase {
     }
     
     protected String[] getCredentials() {
-        return new String[]{"graph_explorer", "changeme"};
+        return new String[]{"graph_explorer", "x-pack-test-password"};
     }    
 
 

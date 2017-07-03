@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.ml.MlMetadata;
 import org.elasticsearch.xpack.ml.action.CloseJobAction;
@@ -80,7 +81,7 @@ abstract class MlNativeAutodetectIntegTestCase extends SecurityIntegTestCase {
     protected Settings externalClusterClientSettings() {
         Settings.Builder builder = Settings.builder();
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, Security.NAME4);
-        builder.put(Security.USER_SETTING.getKey(), "elastic:changeme");
+        builder.put(Security.USER_SETTING.getKey(), "elastic:" + SecuritySettingsSource.TEST_PASSWORD_SECURE_STRING);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         return builder.build();
     }

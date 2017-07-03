@@ -74,8 +74,8 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
     public void testThatBulkUpdateDoesNotLoseFieldsHttp() throws IOException {
         final String path = "/index1/type/1";
         final Header basicAuthHeader = new BasicHeader("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.DEFAULT_USER_NAME,
-                        new SecureString(SecuritySettingsSource.DEFAULT_PASSWORD.toCharArray())));
+                UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
+                        new SecureString(SecuritySettingsSource.TEST_PASSWORD.toCharArray())));
 
         StringEntity body = new StringEntity("{\"test\":\"test\"}", ContentType.APPLICATION_JSON);
         Response response = getRestClient().performRequest("PUT", path, Collections.emptyMap(), body, basicAuthHeader);

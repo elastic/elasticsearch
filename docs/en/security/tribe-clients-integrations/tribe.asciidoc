@@ -15,14 +15,6 @@ To use a tribe node with secured clusters:
 
 . Install {xpack} on the tribe node and every node in each connected cluster.
 
-. Enable <<enable-message-authentication, message authentication>> globally.
-Generate a system key on one node and copy it to the tribe node and every other
-node in each of the connected clusters.
-+
-IMPORTANT:  For message authentication to work properly across multiple clusters,
-            the tribe node and all of the connected clusters must share the same
-            system key. {security} reads the system key from `CONFIG_DIR/x-pack/system_key`.
-
 . Enable encryption globally. To encrypt communications, you must enable
 <<ssl-tls,enable SSL/TLS>> on every node.
 +

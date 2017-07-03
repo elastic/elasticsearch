@@ -19,7 +19,7 @@ import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordTok
 public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final String USER = "test_user";
-    private static final String PASS = "changeme";
+    private static final String PASS = "x-pack-test-password";
 
     public CoreWithSecurityClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

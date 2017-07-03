@@ -12,7 +12,7 @@ setup:
         username: "authenticate_user"
         body:  >
           {
-            "password" : "changeme",
+            "password" : "x-pack-test-password",
             "roles" : [ "superuser" ],
             "full_name" : "Authenticate User"
           }
@@ -29,7 +29,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic YXV0aGVudGljYXRlX3VzZXI6Y2hhbmdlbWU="
+        Authorization: "Basic YXV0aGVudGljYXRlX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ="
       xpack.security.authenticate: {}
 
   - match: { username: "authenticate_user" }

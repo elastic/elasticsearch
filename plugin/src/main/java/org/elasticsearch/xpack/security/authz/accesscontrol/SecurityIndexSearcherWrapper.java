@@ -134,7 +134,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                     String templateResult = evaluateTemplate(bytesReference.utf8ToString());
                     try (XContentParser parser = XContentFactory.xContent(templateResult)
                             .createParser(queryShardContext.getXContentRegistry(), templateResult)) {
-                        QueryBuilder queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
+                        QueryBuilder queryBuilder = queryShardContext.parseInnerQueryBuilder(parser);
                         verifyRoleQuery(queryBuilder);
                         failIfQueryUsesClient(scriptService, queryBuilder, queryShardContext);
                         ParsedQuery parsedQuery = queryShardContext.toFilter(queryBuilder);

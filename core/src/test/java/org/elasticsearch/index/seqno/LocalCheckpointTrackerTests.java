@@ -51,14 +51,14 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
 
     public static LocalCheckpointTracker createEmptyTracker() {
         return new LocalCheckpointTracker(
-                IndexSettingsModule.newIndexSettings(
-                        "test",
-                        Settings
-                                .builder()
-                                .put(LocalCheckpointTracker.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
-                                .build()),
-                SequenceNumbersService.NO_OPS_PERFORMED,
-                SequenceNumbersService.NO_OPS_PERFORMED
+            IndexSettingsModule.newIndexSettings(
+                "test",
+                Settings
+                    .builder()
+                    .put(LocalCheckpointTracker.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
+                    .build()),
+            SequenceNumbersService.NO_OPS_PERFORMED,
+            SequenceNumbersService.NO_OPS_PERFORMED
         );
     }
 

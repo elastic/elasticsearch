@@ -366,8 +366,10 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testNegativeSizeErrors() {
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().size(-2));
-        assertEquals("[size] parameter cannot be negative, found [-2]", expected.getMessage());
+        int randomSize = randomIntBetween(-100000, -2);
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
+                () -> new SearchSourceBuilder().size(randomSize));
+        assertEquals("[size] parameter cannot be negative, found [" + randomSize + "]", expected.getMessage());
         expected = expectThrows(IllegalArgumentException.class, () -> new SearchSourceBuilder().size(-1));
         assertEquals("[size] parameter cannot be negative, found [-1]", expected.getMessage());
     }

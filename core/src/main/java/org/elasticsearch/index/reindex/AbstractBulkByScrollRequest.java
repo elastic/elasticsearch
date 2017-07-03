@@ -370,10 +370,13 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
                 .setShouldStoreResult(false)
                 // Split requests per second between all slices
                 .setRequestsPerSecond(requestsPerSecond / slices)
-                // Size is split between workers. This means the size might round down!
-                .setSize(size == SIZE_ALL_MATCHES ? SIZE_ALL_MATCHES : size / slices)
                 // Sub requests don't have workers
                 .setSlices(1);
+        if (size != -1) {
+            // Size is split between workers. This means the size might round
+            // down!
+            request.setSize(size == SIZE_ALL_MATCHES ? SIZE_ALL_MATCHES : size / slices);
+        }
         // Set the parent task so this task is cancelled if we cancel the parent
         request.setParentTask(slicingTask);
         // TODO It'd be nice not to refresh on every slice. Instead we should refresh after the sub requests finish.

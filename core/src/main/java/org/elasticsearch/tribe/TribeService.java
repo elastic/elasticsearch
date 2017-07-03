@@ -65,7 +65,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -207,9 +207,9 @@ public class TribeService extends AbstractLifecycleComponent {
         NetworkService.GLOBAL_NETWORK_HOST_SETTING,
         NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
         NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
-        TransportSettings.HOST,
-        TransportSettings.BIND_HOST,
-        TransportSettings.PUBLISH_HOST
+        TcpTransport.HOST,
+        TcpTransport.BIND_HOST,
+        TcpTransport.PUBLISH_HOST
     );
     private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();

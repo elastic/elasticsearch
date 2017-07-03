@@ -50,7 +50,6 @@ public abstract class AbstractBulkByQueryRestHandler<
 
         SearchRequest searchRequest = internal.getSearchRequest();
         int scrollSize = searchRequest.source().size();
-        // searchRequest.source().size(SIZE_ALL_MATCHES);
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
             RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser);

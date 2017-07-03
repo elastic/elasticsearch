@@ -171,6 +171,9 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * documents.
      */
     public Self setSize(int size) {
+        if (size < 0) {
+            throw new IllegalArgumentException("[size] parameter cannot be negative, found [" + size + "]");
+        }
         this.size = size;
         return self();
     }

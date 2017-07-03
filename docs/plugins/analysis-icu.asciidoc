@@ -368,7 +368,7 @@ GET _search <3>
     a single token doc values, and applies the German ``phonebook'' order.
 <3> An example query which searches the `name` field and sorts on the `name.sort` field.
 
-==== Parameters for ICU Collation Keyword Fields
+===== Parameters for ICU Collation Keyword Fields
 
 The following parameters are accepted by `icu_collation_keyword` fields:
 

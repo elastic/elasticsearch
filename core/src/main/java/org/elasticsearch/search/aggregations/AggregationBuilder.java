@@ -23,6 +23,7 @@ import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -111,8 +112,29 @@ public abstract class AggregationBuilder
         return rewritten;
     }
 
+    /**
+     * Rewrites this aggregation builder into its primitive form. By default
+     * this method return the builder itself. If the builder did not change the
+     * identity reference must be returned otherwise the builder will be
+     * rewritten infinitely.
+     */
     protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
         return this;
+    }
+
+    /**
+     * Rewrites the given aggregation into its primitive form. Aggregations that for instance fetch resources from remote hosts or
+     * can simplify / optimize itself should do their heavy lifting during {@link #rewrite(QueryRewriteContext)}. This method
+     * rewrites the aggregation until it doesn't change anymore.
+     * @throws IOException if an {@link IOException} occurs
+     */
+    static AggregationBuilder rewriteAggregation(AggregationBuilder original, QueryRewriteContext context) throws IOException {
+        AggregationBuilder builder = original;
+        for (AggregationBuilder rewrittenBuilder = builder.rewrite(context); rewrittenBuilder != builder;
+             rewrittenBuilder = builder.rewrite(context)) {
+            builder = rewrittenBuilder;
+        }
+        return builder;
     }
 
     /** Common xcontent fields shared among aggregator builders */

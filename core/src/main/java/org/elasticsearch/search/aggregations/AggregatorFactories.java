@@ -469,7 +469,7 @@ public class AggregatorFactories {
             Builder newBuilder = new Builder();
 
             for (AggregationBuilder builder : aggregationBuilders) {
-                AggregationBuilder result = builder.rewrite(context);
+                AggregationBuilder result = AggregationBuilder.rewriteAggregation(builder, context);
                 if (result != builder) {
                     changed = true;
                 }

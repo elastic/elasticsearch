@@ -118,7 +118,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     @Override
     public Map<String, Object> getMetaData() {
-        return metaData == null ? null : Collections.unmodifiableMap(metaData);
+        return metaData == null ? Collections.emptyMap() : Collections.unmodifiableMap(metaData);
     }
 
     @Override

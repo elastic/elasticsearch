@@ -410,7 +410,7 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache().getMissCount(),
                 equalTo(0L));
 
-        // If the request has an non-filter aggregation containng now we should not cache
+        // If the request has an non-filter aggregation containing now we should not cache
         final SearchResponse r5 = client().prepareSearch("index").setSearchType(SearchType.QUERY_THEN_FETCH).setSize(0)
                 .setRequestCache(true).setQuery(QueryBuilders.rangeQuery("s").gte("2016-03-20").lte("2016-03-26"))
                 .addAggregation(dateRange("foo").field("s").addRange("now-10y", "now")).get();

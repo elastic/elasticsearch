@@ -36,6 +36,7 @@ import org.elasticsearch.search.suggest.completion.context.CategoryContextMappin
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping.InternalQueryContext.Operation;
 import org.elasticsearch.search.suggest.completion.context.GeoContextMapping;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -302,6 +303,76 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         contextMap.put("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat2").build()));
         multiContextFilterSuggest.contexts(contextMap);
         assertSuggestions("foo", multiContextFilterSuggest, "suggestion6", "suggestion2");
+    }
+
+    public void testMultipleContextTypeFiltering() throws Exception {
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        map.put("cat", ContextBuilder.category("cat").field("cat").build());
+        map.put("type", ContextBuilder.category("type").field("type").build());
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
+        createIndexAndMapping(mapping);
+        int numDocs = 40;
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            XContentBuilder source = jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", "suggestion" + i)
+                    .field("weight", i + 1)
+                    .endObject()
+                    .field("cat", "cat" + i % 2)
+                    .field("type", "type" + i % 4)
+                    .endObject();
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                    .setSource(source));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder multiContextFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
+        // query context order should never matter
+        Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
+        contextMap.put("type", Collections.singletonList(CategoryQueryContext.builder().setCategory("type0").setOperation(Operation.AND).build()));
+        contextMap.put("cat", Collections.singletonList(CategoryQueryContext.builder().setCategory("cat0").setOperation(Operation.AND).build()));
+        multiContextFilterSuggest.contexts(contextMap);
+        assertSuggestions("foo", multiContextFilterSuggest,
+                "suggestion36", "suggestion32", "suggestion28", "suggestion24", "suggestion20");
+    }
+
+    public void testSingleContextTypeFiltering() throws Exception {
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        map.put("type", ContextBuilder.category("type").field("type").build());
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
+        createIndexAndMapping(mapping);
+        int numDocs = 40;
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            String[] contexts = new String[2];
+            contexts[0] = "type" + i % 4;
+            contexts[1] = "type" + (i + 1) % 4;
+            XContentBuilder source = jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", "suggestion" + i)
+                    .field("weight", i + 1)
+                    .endObject()
+                    .field("type", contexts)
+                    .endObject();
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                    .setSource(source));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder multiContextFilterSuggest = SuggestBuilders.completionSuggestion(FIELD).prefix("sugg");
+        // query context order should never matter
+        Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
+        contextMap.put("type",
+                Arrays.asList(
+                        CategoryQueryContext.builder().setCategory("type0").setOperation(Operation.AND).build(),
+                        CategoryQueryContext.builder().setCategory("type1").setOperation(Operation.AND).build()
+                )
+        );
+        multiContextFilterSuggest.contexts(contextMap);
+        assertSuggestions("foo", multiContextFilterSuggest,
+                "suggestion36", "suggestion32", "suggestion28", "suggestion24", "suggestion20");
+
     }
 
     @AwaitsFix(bugUrl = "multiple context boosting is broken, as a suggestion, contexts pair is treated as (num(context) entries)")

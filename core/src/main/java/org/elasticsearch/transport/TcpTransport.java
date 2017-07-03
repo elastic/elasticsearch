@@ -1706,9 +1706,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             transmittedBytesMetric.sum());
     }
 
-    public static Set<String> getProfiles(Settings settings) {
-        HashSet<String> profiles = new HashSet<>(TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups(true).keySet());
-        profiles.add(DEFAULT_PROFILE);
+    /**
+     * Returns all profile settings for the given settings object
+     */
+    public static Set<ProfileSettings> getProfileSettings(Settings settings) {
+        HashSet<ProfileSettings> profiles = new HashSet<>();
+        for (String profile : TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups(true).keySet()) {
+            profiles.add(new ProfileSettings(settings, profile));
+        }
+        profiles.add(new ProfileSettings(settings, DEFAULT_PROFILE));
         return profiles;
     }
 

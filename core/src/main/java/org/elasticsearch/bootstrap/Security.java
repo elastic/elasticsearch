@@ -321,28 +321,15 @@ final class Security {
      * @param policy          the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to
      * @param settings        the {@link Settings} instance to read the transport settings from
      */
-    private static void addSocketPermissionForTransportProfiles(
-        final Permissions policy,
-        final Settings settings) {
+    private static void addSocketPermissionForTransportProfiles(final Permissions policy, final Settings settings) {
         // transport is way over-engineered
-        Set<String> profiles = TcpTransport.getProfiles(settings);
-
-        // loop through all profiles and add permissions for each one, if it's valid; otherwise Netty transports are lenient and ignores it
-        for (final String profile : profiles) {
-
-            // a profile is only valid if it's the default profile, or if it has an actual name and specifies a port
-            // TODO: can this leniency be removed?
-            Setting<String> portSetting = TcpTransport.PORT_PROFILE.getConcreteSettingForNamespace(profile);
-            final boolean valid =
-                TcpTransport.DEFAULT_PROFILE.equals(profile) ||
-                    (profile != null && profile.length() > 0 && portSetting.exists(settings));
-            if (valid) {
-                final String transportRange = portSetting.get(settings);
-                if (transportRange != null) {
-                    addSocketPermissionForPortRange(policy, transportRange);
-                } else {
-                    addSocketPermissionForTransport(policy, settings);
-                }
+        Set<TcpTransport.ProfileSettings> profiles = TcpTransport.getProfileSettings(settings);
+        Set<String> uniquePortRanges = new HashSet<>();
+        // loop through all profiles and add permissions for each one
+        for (final TcpTransport.ProfileSettings profile : profiles) {
+            if (uniquePortRanges.add(profile.portOrRange)) {
+                // profiles fall back to the transport.port if it's not explicit but we want to only add one permission per range
+                addSocketPermissionForPortRange(policy, profile.portOrRange);
             }
         }
     }

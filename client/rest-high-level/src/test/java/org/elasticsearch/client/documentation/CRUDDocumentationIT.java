@@ -44,7 +44,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * This class is used to generate the Java Delete API documentation.
+ * This class is used to generate the Java CRUD API documentation.
  * You need to wrap your code between two tags like:
  * // tag::example[]
  * // end::example[]
@@ -52,10 +52,9 @@ import java.util.Map;
  * Where example is your tag name.
  *
  * Then in the documentation, you can extract what is between tag and end tags with
- * ["source","java",subs="attributes,callouts"]
+ * ["source","java",subs="attributes,callouts,macros"]
  * --------------------------------------------------
- * sys2::[perl -ne 'exit if /end::example/; print if $tag; $tag = $tag || /tag::example/' \
- *     {docdir}/../../client/rest-high-level/src/test/java/org/elasticsearch/client/documentation/CRUDDocumentationIT.java]
+ * include-tagged::{doc-tests}/CRUDDocumentationIT.java[example]
  * --------------------------------------------------
  */
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
@@ -66,7 +65,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::index-request-map
             Map<String, Object> jsonMap = new HashMap<>();
-            jsonMap.put("user","kimchy");
+            jsonMap.put("user", "kimchy");
             jsonMap.put("postDate",new Date());
             jsonMap.put("message","trying out Elasticsearch");
             IndexRequest indexRequest = new IndexRequest("index", "type", "id")
@@ -106,7 +105,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             IndexRequest request = new IndexRequest(
                     "index", // <1>
                     "type",  // <2>
-                    "id");    // <3>
+                    "id");   // <3>
             String jsonString = "{" +
                     "\"user\":\"kimchy\"," +
                     "\"postDate\":\"2013-01-30\"," +

@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjec
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;

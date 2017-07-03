@@ -28,11 +28,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
@@ -53,7 +53,7 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
     public static final int DEFAULT_PRECISION = 5;
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;
 
-    private static final ObjectParser<GeoGridAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<GeoGridAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoGridAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareGeoFields(PARSER, false, false);
@@ -62,8 +62,8 @@ public class GeoGridAggregationBuilder extends ValuesSourceAggregationBuilder<Va
         PARSER.declareInt(GeoGridAggregationBuilder::shardSize, GeoHashGridParams.FIELD_SHARD_SIZE);
     }
 
-    public static GeoGridAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new GeoGridAggregationBuilder(aggregationName), context);
+    public static GeoGridAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new GeoGridAggregationBuilder(aggregationName), null);
     }
 
     private int precision = DEFAULT_PRECISION;

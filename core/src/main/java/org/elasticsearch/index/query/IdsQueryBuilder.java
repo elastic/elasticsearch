@@ -138,7 +138,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         builder.endObject();
     }
 
-    private static ObjectParser<IdsQueryBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME,
+    private static ObjectParser<IdsQueryBuilder, Void> PARSER = new ObjectParser<>(NAME,
             () -> new IdsQueryBuilder());
 
     static {

@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
 
@@ -595,7 +594,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     }
 
     static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<XContentParser, HB, HB> setupParser(
-            ObjectParser<HB, QueryParseContext> parser) {
+            ObjectParser<HB, Void> parser) {
         parser.declareStringArray(fromList(String.class, HB::preTags), PRE_TAGS_FIELD);
         parser.declareStringArray(fromList(String.class, HB::postTags), POST_TAGS_FIELD);
         parser.declareString(HB::order, ORDER_FIELD);
@@ -612,14 +611,14 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
         parser.declareBoolean(HB::forceSource, FORCE_SOURCE_FIELD);
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
-        parser.declareObject(HB::options, (XContentParser p, QueryParseContext c) -> {
+        parser.declareObject(HB::options, (XContentParser p, Void c) -> {
             try {
                 return p.map();
             } catch (IOException e) {
                 throw new RuntimeException("Error parsing options", e);
             }
         }, OPTIONS_FIELD);
-        parser.declareObject(HB::highlightQuery, (XContentParser p, QueryParseContext c) -> {
+        parser.declareObject(HB::highlightQuery, (XContentParser p, Void c) -> {
             try {
                 return parseInnerQueryBuilder(p);
             } catch (IOException e) {

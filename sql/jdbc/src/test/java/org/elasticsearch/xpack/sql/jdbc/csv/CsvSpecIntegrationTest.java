@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.csv;
 
+import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.xpack.sql.jdbc.framework.CsvSpecTableReader;
 import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase;
-import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase.Parser;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 import org.junit.AfterClass;
 import org.junit.Test;
@@ -54,7 +54,7 @@ public class CsvSpecIntegrationTest extends SpecBaseIntegrationTestCase {
         };
     }
 
-    @ParametersFactory(shuffle = false, argumentFormatting = "name=%1s")
+    @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTNG)
     public static List<Object[]> readScriptSpec() throws Exception {
         CsvSpecParser parser = new CsvSpecParser();
         return CollectionUtils.combine(
@@ -63,7 +63,7 @@ public class CsvSpecIntegrationTest extends SpecBaseIntegrationTestCase {
     }
 
 
-    public CsvSpecIntegrationTest(String groupName, String testName, Integer lineNumber, Path source, CsvFragment fragment) {
+    public CsvSpecIntegrationTest(String groupName, @Name("testName") String testName, Integer lineNumber, Path source, CsvFragment fragment) {
         super(groupName, testName, lineNumber, source);
         this.fragment = fragment;
     }

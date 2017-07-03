@@ -18,6 +18,7 @@ import static org.junit.Assert.assertNotNull;
 
 public class EsJdbcServer extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
 
+    private Client client;
     private JdbcHttpServer server;
     private String jdbcUrl;
     private JdbcDriver driver;
@@ -36,7 +37,8 @@ public class EsJdbcServer extends ExternalResource implements CheckedSupplier<Co
 
     @Override
     protected void before() throws Throwable {
-        server = new JdbcHttpServer(TestUtils.client());
+        client = TestUtils.client();
+        server = new JdbcHttpServer(client);
         driver = new JdbcDriver();
 
         server.start(0);
@@ -47,6 +49,8 @@ public class EsJdbcServer extends ExternalResource implements CheckedSupplier<Co
 
     @Override
     protected void after() {
+        client.close();
+        client = null;
         server.stop();
         server = null;
 

@@ -90,7 +90,7 @@ public abstract class TestUtils {
             createIndex.endObject();
         }
         createIndex.endObject().endObject();
-        client.performRequest("PUT", "/emp", emptyMap(), new StringEntity(createIndex.string(), ContentType.APPLICATION_JSON));
+        client.performRequest("PUT", "/test_emp", emptyMap(), new StringEntity(createIndex.string(), ContentType.APPLICATION_JSON));
 
         StringBuilder bulk = new StringBuilder();
         csvToLines("employees", (titles, fields) -> {
@@ -104,7 +104,7 @@ public abstract class TestUtils {
             }
             bulk.append("}\n");
         });
-        client.performRequest("POST", "/emp/emp/_bulk", singletonMap("refresh", "true"), new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
+        client.performRequest("POST", "/test_emp/emp/_bulk", singletonMap("refresh", "true"), new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
     }
     
     /**

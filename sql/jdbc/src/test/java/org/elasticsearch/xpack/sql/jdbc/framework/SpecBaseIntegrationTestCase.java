@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.jdbc.framework;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcDriver;
 import org.junit.Assert;
 import org.junit.ClassRule;
 
@@ -24,10 +23,8 @@ import java.util.Map;
 import static java.lang.String.format;
 
 public abstract class SpecBaseIntegrationTestCase extends ESTestCase {
-    static {
-        // Initialize the jdbc driver
-        JdbcDriver.jdbcMajorVersion();
-    }
+
+    protected static final String PARAM_FORMATTNG = "%0$s.test%2$s";
 
     protected final String groupName;
     protected final String testName;
@@ -36,6 +33,14 @@ public abstract class SpecBaseIntegrationTestCase extends ESTestCase {
 
     @ClassRule
     public static EsJdbcServer ES = new EsJdbcServer();
+
+    //
+    //    This typically is uncommented when starting up a new instance of ES
+    //
+    //    @BeforeClass
+    //    public static void start() throws Exception {
+    //        TestUtils.loadDatasetInEs(TestUtils.restClient("localhost", 9200));
+    //    }
 
     public SpecBaseIntegrationTestCase(String groupName, String testName, Integer lineNumber, Path source) {
         this.groupName = groupName;
@@ -62,10 +67,12 @@ public abstract class SpecBaseIntegrationTestCase extends ESTestCase {
     // spec reader
     //
     
-    // returns testName, its line location, its source and the custom object (based on each test parser)
+    // returns groupName, testName, its line location, its source and the custom object (based on each test parser)
     protected static List<Object[]> readScriptSpec(String url, Parser parser) throws Exception {
         Path source = Paths.get(TestUtils.class.getResource(url).toURI());
-        String groupName = source.getFileName().toString();
+        String fileName = source.getFileName().toString();
+        int dot = fileName.indexOf(".");
+        String groupName = dot > 0 ? fileName.substring(0, dot) : fileName;
 
         List<String> lines = Files.readAllLines(source);
 

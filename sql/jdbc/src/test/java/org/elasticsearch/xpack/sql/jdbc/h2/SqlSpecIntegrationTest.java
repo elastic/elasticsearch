@@ -10,7 +10,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.sql.jdbc.framework.LocalH2;
 import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase;
-import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase.Parser;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -32,7 +31,7 @@ public class SqlSpecIntegrationTest extends SpecBaseIntegrationTestCase {
     @ClassRule
     public static LocalH2 H2 = new LocalH2();
 
-    @ParametersFactory(shuffle = false, argumentFormatting = "name=%1s")
+    @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTNG)
     public static List<Object[]> readScriptSpec() throws Exception {
         SqlSpecParser parser = new SqlSpecParser();
         return CollectionUtils.combine(
@@ -61,6 +60,7 @@ public class SqlSpecIntegrationTest extends SpecBaseIntegrationTestCase {
 
     @Test
     public void testQuery() throws Throwable {
+        System.out.println("Executing query " + query);
         // H2 resultset
         try (Connection h2 = h2Con(); 
              Connection es = esCon()) {

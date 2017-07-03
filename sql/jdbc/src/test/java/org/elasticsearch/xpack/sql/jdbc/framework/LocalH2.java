@@ -12,6 +12,7 @@ import org.junit.rules.ExternalResource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Properties;
+import java.util.TimeZone;
 
 public class LocalH2 extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
 
@@ -33,14 +34,20 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
      *              for MySQL and, by default, H2. Our jdbc driver does it.
      */
     public LocalH2() {
-        this.url = "jdbc:H2:mem:essql;DATABASE_TO_UPPER=false;ALIAS_COLUMN_NAME=true";
+        this.url = "jdbc:h2:mem:essql;DATABASE_TO_UPPER=false;ALIAS_COLUMN_NAME=true";
     }
 
     @Override
     protected void before() throws Throwable {
         keepAlive = get();
         //NOCOMMIT: check timezone issue
-        keepAlive.createStatement().executeQuery("RUNSCRIPT FROM 'classpath:h2-setup.sql'");
+        TimeZone tz = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+            keepAlive.createStatement().execute("RUNSCRIPT FROM 'classpath:/h2-setup.sql'");
+        } finally {
+            TimeZone.setDefault(tz);
+        }
     }
 
     @Override

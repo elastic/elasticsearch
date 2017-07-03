@@ -150,11 +150,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 final Netty4OpenChannelsHandler openChannels = new Netty4OpenChannelsHandler(logger);
                 this.serverOpenChannels = openChannels;
-                Set<String> profiles = getProfiles(settings);
-                // loop through all profiles and start them up, special handling for default one
-                for (String profile : profiles) {
-                    ProfileSettings profileSettings = new ProfileSettings(settings, profile);
-                    // merge fallback settings with default settings with profile settings so we have complete settings with default values
+                for (ProfileSettings profileSettings : getProfileSettings(settings)) {
                     createServerBootstrap(profileSettings);
                     bindServer(profileSettings);
                 }

@@ -80,6 +80,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collector;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -2574,5 +2576,17 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertEquals("9700-9800", settings.portOrRange);
         }
         assertEquals(Collections.singletonList("the_bind_host"), settings.bindHosts);
+    }
+
+    public void testProfilesIncludesDefault() {
+        Set<TcpTransport.ProfileSettings> profileSettings = TcpTransport.getProfileSettings(Settings.EMPTY);
+        assertEquals(1, profileSettings.size());
+        assertEquals(TcpTransport.DEFAULT_PROFILE, profileSettings.stream().findAny().get().profileName);
+
+        profileSettings = TcpTransport.getProfileSettings(Settings.builder()
+            .put("transport.profiles.test.tcp_no_delay", false).build());
+        assertEquals(2, profileSettings.size());
+        assertEquals(new HashSet<>(Arrays.asList("default", "test")), profileSettings.stream().map(s -> s.profileName).collect(Collectors
+            .toSet()));
     }
 }

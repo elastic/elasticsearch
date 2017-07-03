@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.movavg.models;
+package org.elasticsearch.search.aggregations.pipeline.moving.models;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -72,7 +71,7 @@ public class SimpleModel extends MovAvgModel {
     }
 
     @Override
-    protected <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
+    protected double[] doPredict(Collection<Double> values, int numPredictions) {
         double[] predictions = new double[numPredictions];
 
         // Simple just emits the same final prediction repeatedly.
@@ -82,17 +81,17 @@ public class SimpleModel extends MovAvgModel {
     }
 
     @Override
-    public <T extends Number> double next(Collection<T> values) {
+    public double next(Collection<Double> values) {
         double avg = 0;
-        for (T v : values) {
-            avg += v.doubleValue();
+        for (Double v : values) {
+            avg += v;
         }
         return avg / values.size();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
+        builder.field(MovModel.MODEL.getPreferredName(), NAME);
         return builder;
     }
 
@@ -104,10 +103,10 @@ public class SimpleModel extends MovAvgModel {
         }
     };
 
-    public static class SimpleModelBuilder implements MovAvgModelBuilder {
+    public static class SimpleModelBuilder implements MovModelBuilder {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
+            builder.field(MovModel.MODEL.getPreferredName(), NAME);
             return builder;
         }
 

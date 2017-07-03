@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.pipeline.movavg.models;
+package org.elasticsearch.search.aggregations.pipeline.moving.models;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -116,16 +115,15 @@ public class HoltLinearModel extends MovAvgModel {
      *
      * @param values            Collection of numerics to movingAvg, usually windowed
      * @param numPredictions    Number of newly generated predictions to return
-     * @param <T>               Type of numeric
      * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
      */
     @Override
-    protected <T extends Number> double[] doPredict(Collection<T> values, int numPredictions) {
+    protected double[] doPredict(Collection<Double> values, int numPredictions) {
         return next(values, numPredictions);
     }
 
     @Override
-    public <T extends Number> double next(Collection<T> values) {
+    public double next(Collection<Double> values) {
         return next(values, 1)[0];
     }
 
@@ -180,8 +178,8 @@ public class HoltLinearModel extends MovAvgModel {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
-        builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());
+        builder.field(MovModel.MODEL.getPreferredName(), NAME);
+        builder.startObject(MovModel.SETTINGS.getPreferredName());
         builder.field("alpha", alpha);
         builder.field("beta", beta);
         builder.endObject();
@@ -219,7 +217,7 @@ public class HoltLinearModel extends MovAvgModel {
     }
 
 
-    public static class HoltLinearModelBuilder implements MovAvgModelBuilder {
+    public static class HoltLinearModelBuilder implements MovModelBuilder {
         private double alpha = DEFAULT_ALPHA;
         private double beta = DEFAULT_BETA;
 
@@ -251,8 +249,8 @@ public class HoltLinearModel extends MovAvgModel {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(MovAvgPipelineAggregationBuilder.MODEL.getPreferredName(), NAME);
-            builder.startObject(MovAvgPipelineAggregationBuilder.SETTINGS.getPreferredName());
+            builder.field(MovModel.MODEL.getPreferredName(), NAME);
+            builder.startObject(MovModel.SETTINGS.getPreferredName());
             builder.field("alpha", alpha);
             builder.field("beta", beta);
 

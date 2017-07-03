@@ -31,7 +31,8 @@ import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptP
 import org.elasticsearch.search.aggregations.pipeline.bucketselector.BucketSelectorPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.cumulativesum.CumulativeSumPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.moving.MovAvgPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.moving.MovFunctionPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffPipelineAggregationBuilder;
 
 import java.util.Map;
@@ -77,6 +78,10 @@ public final class PipelineAggregatorBuilders {
 
     public static MovAvgPipelineAggregationBuilder movingAvg(String name, String bucketsPath) {
         return new MovAvgPipelineAggregationBuilder(name, bucketsPath);
+    }
+
+    public static MovFunctionPipelineAggregationBuilder movingFunction(String name, String bucketsPath, Script script) {
+        return new MovFunctionPipelineAggregationBuilder(name, bucketsPath, script);
     }
 
     public static BucketScriptPipelineAggregationBuilder bucketScript(String name,

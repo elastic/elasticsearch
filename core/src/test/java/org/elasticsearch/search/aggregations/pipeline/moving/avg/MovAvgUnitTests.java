@@ -20,12 +20,12 @@
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
 import org.elasticsearch.common.collect.EvictingQueue;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.EwmaModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.HoltLinearModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.HoltWintersModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.LinearModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.SimpleModel;
 import org.elasticsearch.test.ESTestCase;
 
 import java.text.ParseException;

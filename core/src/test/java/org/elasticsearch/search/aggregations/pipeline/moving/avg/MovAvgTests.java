@@ -23,13 +23,13 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
-import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgPipelineAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel.SeasonalityType;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.MovAvgPipelineAggregationBuilder;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.EwmaModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.HoltLinearModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.HoltWintersModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.HoltWintersModel.SeasonalityType;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.LinearModel;
+import org.elasticsearch.search.aggregations.pipeline.moving.models.SimpleModel;
 
 public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineAggregationBuilder> {
 

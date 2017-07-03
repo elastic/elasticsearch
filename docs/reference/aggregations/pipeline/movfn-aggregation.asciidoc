@@ -1,0 +1,322 @@
+[[search-aggregations-pipeline-movavg-aggregation]]
+=== Moving Function Aggregation
+
+experimental[]
+
+Given an ordered series of data, the Moving Function aggregation will slide a window across the data and emit the
+user-defined function calculated for that window.  There are several pre-built functions available, as well as the
+ability to use a script.  The pre-built functions are:
+
+- Min
+- Max
+- Median
+- Sum
+
+For example, selecting the `min` model will find the minimum value in each window.
+
+
+==== Syntax
+
+A `moving_fn` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+{
+    "moving_fn": {
+        "buckets_path": "the_sum",
+        "window": 5,
+        "gap_policy": "skip",
+        "function": "min", <1>
+        "script": {...} <1>
+    }
+}
+--------------------------------------------------
+// NOTCONSOLE
+<1> `model` and `script` are mutually exclusive, but shown here for posterity
+
+.`moving_avg` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`buckets_path` |Path to the metric of interest (see <<buckets-path-syntax, `buckets_path` Syntax>> for more details |Required |
+|`function` |The function that we wish to use on each window |Required if not using `script` |
+|`gap_policy` |Determines what should happen when a gap in the data is encountered. |Optional |`insert_zeros`
+|`window` |The size of window to "slide" across the histogram. |Optional |`5`
+|`script` |User-defined script to execute on each window. Must return a number |Required if not using `function` |
+|===
+
+`moving_fn` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation.  They can be
+embedded like any other metric aggregation:
+
+[source,js]
+--------------------------------------------------
+POST /_search
+{
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{                <1>
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" } <2>
+                },
+                "the_movfn":{
+                    "moving_fn":{ <3>
+                        "buckets_path": "the_sum",
+                        "function": "max"
+                     }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+<1> A `date_histogram` named "my_date_histo" is constructed on the "timestamp" field, with one-day intervals
+<2> A `sum` metric is used to calculate the sum of a field.  This could be any metric (sum, min, max, etc)
+<3> Finally, we specify a `moving_fn` aggregation which uses "the_sum" metric as its input.
+
+Moving functions are built by first specifying a `histogram` or `date_histogram` over a field.  You can then optionally
+add normal metrics, such as a `sum`, inside of that histogram.  Finally, the `moving_fn` is embedded inside the histogram.
+The `buckets_path` parameter is then used to "point" at one of the sibling metrics inside of the histogram (see
+<<buckets-path-syntax>> for a description of the syntax for `buckets_path`.
+
+An example response from the above aggregation may look like:
+
+[source,js]
+--------------------------------------------------
+{
+   "took": 11,
+   "timed_out": false,
+   "_shards": ...,
+   "hits": ...,
+   "aggregations": {
+      "my_date_histo": {
+         "buckets": [
+             {
+                 "key_as_string": "2015/01/01 00:00:00",
+                 "key": 1420070400000,
+                 "doc_count": 3,
+                 "the_sum": {
+                    "value": 550.0
+                 }
+             },
+             {
+                 "key_as_string": "2015/02/01 00:00:00",
+                 "key": 1422748800000,
+                 "doc_count": 2,
+                 "the_sum": {
+                    "value": 60.0
+                 },
+                 "the_movfn": {
+                    "value": 550.0
+                 }
+             },
+             {
+                 "key_as_string": "2015/03/01 00:00:00",
+                 "key": 1425168000000,
+                 "doc_count": 2,
+                 "the_sum": {
+                    "value": 375.0
+                 },
+                 "the_movfn": {
+                    "value": 550.0
+                 }
+             }
+         ]
+      }
+   }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 11/"took": $body.took/]
+// TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
+// TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
+
+
+==== Functions
+
+The `moving_fn` aggregation includes four different moving pre-built functions, which are specified
+using the `function` parameter.
+
+===== Min
+
+Finds the minimum value in the window of values:
+
+[source,js]
+--------------------------------------------------
+POST /_search
+{
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movfn":{
+                    "moving_fn":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "function" : "min"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+===== Max
+
+Finds the maximum value in the window of values:
+
+[source,js]
+--------------------------------------------------
+POST /_search
+{
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movfn":{
+                    "moving_fn":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "function" : "max"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+===== Sum
+
+Finds the sum of all the value in the window:
+
+[source,js]
+--------------------------------------------------
+POST /_search
+{
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movfn":{
+                    "moving_fn":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "function" : "sum"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+===== Median
+
+Finds the median of the values in the window, e.g. the point that separates the top from the bottom half of the data:
+
+[source,js]
+--------------------------------------------------
+POST /_search
+{
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movfn":{
+                    "moving_fn":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "function" : "median"
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+
+===== Script
+
+A user-defined script can also be used, in place of the pre-built functions.  The script is executed
+once for each window of values, and must return a numeric value.  The values for the window will be provided
+in the `params.values` parameter.
+
+*Note:* scripts are mutually exclusive with the `function` parameter; if you specify a script, you may not
+specify a function.
+
+[source,js]
+--------------------------------------------------
+POST /_search
+{
+    "size": 0,
+    "aggs": {
+        "my_date_histo":{
+            "date_histogram":{
+                "field":"date",
+                "interval":"1M"
+            },
+            "aggs":{
+                "the_sum":{
+                    "sum":{ "field": "price" }
+                },
+                "the_movfn":{
+                    "moving_fn":{
+                        "buckets_path": "the_sum",
+                        "window" : 30,
+                        "script" : {
+                            "lang": "painless",
+                            "inline": "def sum = 0; for (Double v : params.values) {sum += v;} return sum;" <1>
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:sales]
+<1> Calculates the sum of the window using a script instead of the `sum` function

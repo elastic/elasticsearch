@@ -40,25 +40,30 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
 
     private static final Logger logger = Loggers.getLogger(S3BlobStoreContainerTests.class);
 
-    private static ServerSocket socket;
+    private static ServerSocket mockS3ServerSocket;
 
-    // Opens a MockSocket to simulate connections to S3 checking that SocketPermissions are set up correctly
+    private static Thread mockS3AcceptorThread;
+
+    // Opens a MockSocket to simulate connections to S3 checking that SocketPermissions are set up correctly.
+    // See MockAmazonS3.simulateS3SocketConnection.
     @BeforeClass
     public static void openMockSocket() throws IOException {
-        socket = new MockServerSocket(0, 50, InetAddress.getByName("127.0.0.1"));
-        new Thread(() -> {
-            while (!socket.isClosed()) {
+        mockS3ServerSocket = new MockServerSocket(0, 50, InetAddress.getByName("127.0.0.1"));
+        mockS3AcceptorThread = new Thread(() -> {
+            while (!mockS3ServerSocket.isClosed()) {
                 try {
-                    socket.accept();
+                    // Accept connections from MockAmazonS3.
+                    mockS3ServerSocket.accept();
                 } catch (IOException e) {
                     logger.log(Level.ERROR, e);
                 }
             }
-        }).start();
+        });
+        mockS3AcceptorThread.start();
     }
 
     protected BlobStore newBlobStore() throws IOException {
-        MockAmazonS3 client = new MockAmazonS3(socket.getLocalPort());
+        MockAmazonS3 client = new MockAmazonS3(mockS3ServerSocket.getLocalPort());
         String bucket = randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
 
         return new S3BlobStore(Settings.EMPTY, client, bucket, false,
@@ -66,7 +71,10 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
     }
 
     @AfterClass
-    public static void closeMockSocket() throws IOException {
-        socket.close();
+    public static void closeMockSocket() throws IOException, InterruptedException {
+        mockS3ServerSocket.close();
+        mockS3AcceptorThread.join();
+        mockS3AcceptorThread = null;
+        mockS3ServerSocket = null;
     }
 }

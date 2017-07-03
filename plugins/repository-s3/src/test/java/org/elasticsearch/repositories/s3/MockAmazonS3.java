@@ -37,9 +37,11 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.util.Base64;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.security.DigestInputStream;
@@ -63,13 +65,19 @@ class MockAmazonS3 extends AbstractAmazonS3 {
         this.mockSocketPort = mockSocketPort;
     }
 
-    // simulate a socket connection to check that SocketAccess is used correctly
+    // Simulate a socket connection to check that SocketAccess.doPrivileged() is used correctly.
+    // Any method of AmazonS3 might potentially open a socket to the S3 service. Firstly, a call
+    // to any method of AmazonS3 has to be wrapped by SocketAccess.doPrivileged().
+    // Secondly, each method on the stack from doPrivileged to opening the socket has to be
+    // located in a jar that is provided by the plugin.
+    // Thirdly, a SocketPermission has to be configured in plugin-security.policy.
+    // By opening a socket in each method of MockAmazonS3 it is ensured that in production AmazonS3
+    // is able to to open a socket to the S3 Service without causing a SecurityException
     private void simulateS3SocketConnection() {
-        try {
-            Socket socket = new Socket(InetAddress.getByName("127.0.0.1"), mockSocketPort);
-            socket.close();
+        try (Socket socket = new Socket(InetAddress.getByName("127.0.0.1"), mockSocketPort)) {
+            Assert.assertTrue(socket.isConnected()); // NOOP to keep static analysis happy
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new UncheckedIOException(e);
         }
     }
 

@@ -13,6 +13,8 @@ import org.elasticsearch.xpack.sql.net.client.util.Bytes;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 class HttpClient {
 
@@ -31,7 +33,13 @@ class HttpClient {
     }
 
     boolean head(String path) {
-        return JreHttpUrlConnection.http(url(path), cfg, JreHttpUrlConnection::head);
+        try {
+            return AccessController.doPrivileged((PrivilegedAction<Boolean>) () -> {
+                return JreHttpUrlConnection.http(url(path), cfg, JreHttpUrlConnection::head);
+            });
+        } catch (ClientException ex) {
+            throw new RuntimeException("Transport failure", ex);
+        }
     }
 
     Bytes put(DataOutputConsumer os) {
@@ -39,9 +47,15 @@ class HttpClient {
     }
 
     Bytes put(String path, DataOutputConsumer os) {
-        return JreHttpUrlConnection.http(url(path), cfg, con -> {
-            return con.put(os);
-        });
+        try {
+            return AccessController.doPrivileged((PrivilegedAction<Bytes>) () -> {
+                return JreHttpUrlConnection.http(url(path), cfg, con -> {
+                    return con.put(os);
+                });
+            });
+        } catch (ClientException ex) {
+            throw new RuntimeException("Transport failure", ex);
+        }
     }
 
     void close() {}

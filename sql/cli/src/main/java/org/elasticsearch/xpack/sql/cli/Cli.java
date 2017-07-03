@@ -5,12 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PrintWriter;
-import java.util.Locale;
-import java.util.Properties;
-
 import org.elasticsearch.xpack.sql.cli.net.client.CliHttpClient;
 import org.elasticsearch.xpack.sql.net.client.util.IOUtils;
 import org.jline.keymap.BindingReader;
@@ -24,6 +18,12 @@ import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStringBuilder;
 import org.jline.utils.InfoCmp.Capability;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintWriter;
+import java.util.Locale;
+import java.util.Properties;
+
 import static org.jline.utils.AttributedStyle.BOLD;
 import static org.jline.utils.AttributedStyle.BRIGHT;
 import static org.jline.utils.AttributedStyle.DEFAULT;
@@ -31,6 +31,17 @@ import static org.jline.utils.AttributedStyle.RED;
 import static org.jline.utils.AttributedStyle.YELLOW;
 
 public class Cli {
+    public static void main(String... args) throws Exception {
+        try (Terminal term = TerminalBuilder.builder().build()) {
+            try {
+                Cli console = new Cli(new CliConfiguration("localhost:9200/_cli", new Properties()), term);
+                console.run();
+            } catch (FatalException e) {
+                new PrintWriter(term.output()).println(e.getMessage());
+                System.exit(1);
+            }
+        }
+    }
 
     private final Terminal term;
     private final BindingReader bindingReader;
@@ -38,24 +49,16 @@ public class Cli {
     private final CliConfiguration cfg;
     private final CliHttpClient cliClient;
 
-    public static void main(String... args) throws Exception {
-        try (Terminal term = TerminalBuilder.builder().build()) {
-            Cli console = new Cli(term);
-            console.run();
-        }
-    }
-
-    private Cli(Terminal terminal) {
+    Cli(CliConfiguration cfg, Terminal terminal) {
         term = terminal;
         bindingReader = new BindingReader(term.reader());
         keys = new Keys(term);
         
-        cfg = new CliConfiguration("localhost:9200/_cli", new Properties());
+        this.cfg = cfg;
         cliClient = new CliHttpClient(cfg);
     }
 
-
-    private void run() throws Exception {
+    void run() throws IOException {
         PrintWriter out = term.writer();
 
         LineReader reader = LineReaderBuilder.builder()
@@ -131,6 +134,7 @@ public class Cli {
                         executeCommand(line, out);
                     }
                 } catch (RuntimeException ex) {
+                    ex.printStackTrace();
                     AttributedStringBuilder asb = new AttributedStringBuilder();
                     asb.append("Communication error [", BOLD.foreground(RED));
                     asb.append(ex.getMessage(), DEFAULT.boldOff().italic().foreground(YELLOW));
@@ -145,13 +149,14 @@ public class Cli {
     }
 
     private static String logo() {
-        try (InputStream io = Cli.class.getResourceAsStream("logo.txt")) {
-            if (io != null) {
-                return IOUtils.asBytes(io).toString();
+        try (InputStream io = Cli.class.getResourceAsStream("/logo.txt")) {
+            if (io == null) {
+                throw new FatalException("Could not find logo!");
             }
-        } catch (IOException io) {
+            return IOUtils.asBytes(io).toString();
+        } catch (IOException e) {
+            throw new FatalException("Could not load logo!", e);
         }
-        return "Could not load logo...";
     }
 
     private void printLogo(PrintWriter out) {
@@ -186,5 +191,15 @@ public class Cli {
 
     protected void executeCommand(String line, PrintWriter out) throws IOException {
         out.print(ResponseToString.toAnsi(cliClient.command(line, null)).toAnsi(term));
+    }
+
+    static class FatalException extends RuntimeException {
+        public FatalException(String message, Throwable cause) {
+            super(message, cause);
+        }
+
+        public FatalException(String message) {
+            super(message);
+        }
     }
 }

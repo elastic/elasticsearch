@@ -37,9 +37,7 @@ public class CliConfiguration extends ConnectionConfiguration {
 
         // remove space
         u = u.trim();
-
         String hostAndPort = u;
-
         int index = u.indexOf("://");
         if (index > 0) {
             u = u.substring(index + 3);
@@ -58,7 +56,7 @@ public class CliConfiguration extends ConnectionConfiguration {
         }
 
         // look for port
-        index = hostAndPort.indexOf(":");
+        index = hostAndPort.lastIndexOf(":");
         if (index > 0) {
             if (index + 1 >= hostAndPort.length()) {
                 throw new IllegalArgumentException("Invalid port specified");

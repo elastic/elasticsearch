@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.test.RunTask
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'application'
 
@@ -8,10 +10,12 @@ dependencies {
   compile project(':x-pack-elasticsearch:sql:net-client')
   compile project(':x-pack-elasticsearch:sql:cli-proto')
 
-  testCompile project(":x-pack-elasticsearch:transport-client")
+  testCompile project(":x-pack-elasticsearch:transport-client") // NOCOMMIT probably can remove this
   testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
   testCompile project(':x-pack-elasticsearch:sql:test-utils')
-  testCompile project(':x-pack-elasticsearch:sql:server')
+
+  // Used by the hack to run InternalTestCluster if not running against a gradle-started cluster.
+  testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
 
   runtime "org.fusesource.jansi:jansi:1.16"
   runtime "org.elasticsearch:jna:4.4.0-1"
@@ -36,10 +40,6 @@ jar {
 }
 
 mainClassName = "org.elasticsearch.sql.console.SqlConsole"
-
-run {
-  classpath = sourceSets.test.runtimeClasspath
-}
 
 // Needed so we can launch graphviz if it is installed
 project.compactProfile = 'full'
@@ -102,3 +102,29 @@ thirdPartyAudit.excludes = [
   'org.fusesource.jansi.internal.WindowsSupport',
   'org.mozilla.universalchardet.UniversalDetector'
 ]
+
+apply plugin: 'elasticsearch.rest-test'
+integTest.mustRunAfter test
+
+integTestCluster {
+  distribution = 'zip' // NOCOMMIT make double sure we want all the modules
+  plugin project(':x-pack-elasticsearch:plugin').path
+  /* Get a "clean" test without the other x-pack features here and check them
+   * all together later on. */
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+}
+
+task runServer(type: RunTask) {
+  distribution = 'zip' // NOCOMMIT make double sure we want all the modules
+  plugin project(':x-pack-elasticsearch:plugin').path
+  /* Get a "clean" test without the other x-pack features here and check them
+   * all together later on. */
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.monitoring.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.watcher.enabled', 'false'
+  run.dependsOn this
+}

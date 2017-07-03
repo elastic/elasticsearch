@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ProtoTests extends ESTestCase {
-    // NOCOMMIT probably should be an integration test that runs against a running copy of ES with SQL installed
+    // NOCOMMIT port remaining demos
 
     private static Client esClient;
     private static CliHttpServer server;
@@ -71,6 +71,7 @@ public class ProtoTests extends ESTestCase {
     }
 
     public void testInfoAction() throws Exception {
+        // NOCOMMIT port to CliIntegrationTestCase
         InfoResponse esInfo = (InfoResponse) client.serverInfo();
         assertThat(esInfo, notNullValue());
         assertThat(esInfo.cluster, is("elasticsearch"));
@@ -81,23 +82,12 @@ public class ProtoTests extends ESTestCase {
         //assertThat(esInfo.minorVersion(), is(0));
     }
 
-    public void testBasicQuery() throws Exception {
-        CommandResponse command = (CommandResponse) client.command("SHOW TABLES", null);
-        System.out.println(command.data);
-    }
-
-    public void testDemoQuery() throws Exception {
-        CommandResponse command = (CommandResponse) client.command("SELECT first_name f, last_name l, YEAR(dep.from_date) start FROM emp.emp WHERE dep.dept_name = 'Production' AND tenure > 30 ORDER BY start", null);
-        System.out.println(command.data);
-    }
-
     public void testDemo() throws Exception {
         // add math functions
 
         // add statistical function + explanation on optimization
 
         List<String> commands = Arrays.asList(
-                "SHOW TABLES",
                 "DESCRIBE emp.emp",
                 "SELECT * FROM emp.emp",
                 "SELECT * FROM emp.emp LIMIT 5",
@@ -106,18 +96,14 @@ public class ProtoTests extends ESTestCase {
                 "SELECT * FROM emp.emp WHERE MATCH(first_name, 'Mary')",
                 "SELECT * FROM emp.emp WHERE MATCH('first_name,last_name', 'Morton', 'type=best_fields;default_operator=OR')",
                 "SELECT * FROM emp.emp WHERE QUERY('Elvis Alain')",
-                "SHOW FUNCTIONS",
-                "SHOW FUNCTIONS LIKE 'L%'", 
                 "SELECT LOG(salary) FROM emp.emp",
                 "SELECT salary s, LOG(salary) m FROM emp.emp LIMIT 5",
                 "SELECT salary s, EXP(LOG(salary)) m FROM emp.emp LIMIT 5",
                 "SELECT salary s, ROUND(EXP(LOG(salary))) m FROM emp.emp LIMIT 5",
                 "SELECT salary s, ROUND(EXP(LOG(salary))) m FROM emp.emp ORDER BY ROUND(LOG(emp_no)) LIMIT 5",
-                "SHOW FUNCTIONS LIKE '%DAY%'",
                 "SELECT year(birth_date) year, last_name l, first_name f FROM emp.emp WHERE year(birth_date) <=1960 AND tenure < 25 ORDER BY year LIMIT 5",
                 "SELECT COUNT(*) FROM emp.emp",
                 "SELECT COUNT(*) FROM emp.emp WHERE emp_no >= 10010",
-                "EXPLAIN (PLAN EXECUTABLE) SELECT COUNT(*) FROM emp.emp",
                 "SELECT tenure, COUNT(*) count, MIN(salary) min, AVG(salary) avg, MAX(salary) max FROM emp.emp GROUP BY tenure",
                 "SELECT YEAR(birth_date) born, COUNT(*) count, MIN(salary) min, AVG(salary) avg, MAX(salary) max FROM emp.emp GROUP BY born",
                 "SELECT tenure, gender, COUNT(tenure) count, AVG(salary) avg FROM emp.emp GROUP BY tenure, gender HAVING avg > 50000",

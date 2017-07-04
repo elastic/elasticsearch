@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -185,6 +187,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public IndexAnalyzers getIndexAnalyzers() {
         return this.indexAnalyzers;
+    }
+
+    public NamedAnalyzer getNamedAnalyzer(String analyzerName) {
+        return this.indexAnalyzers.get(analyzerName);
     }
 
     public DocumentMapperParser documentMapperParser() {

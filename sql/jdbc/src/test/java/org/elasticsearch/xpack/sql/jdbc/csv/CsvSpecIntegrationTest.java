@@ -84,7 +84,7 @@ public class CsvSpecIntegrationTest extends SpecBaseIntegrationTestCase {
                 throw reworkException(new AssertionError(errorMessage(ae), ae.getCause()));
             }
         } catch (Throwable th) {
-            throw new RuntimeException(errorMessage(th), th);
+            throw reworkException(th);
         }
     }
 

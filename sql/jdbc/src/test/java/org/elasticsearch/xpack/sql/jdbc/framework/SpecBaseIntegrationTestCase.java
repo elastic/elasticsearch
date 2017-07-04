@@ -58,7 +58,7 @@ public abstract class SpecBaseIntegrationTestCase extends ESTestCase {
         StackTraceElement[] stackTrace = th.getStackTrace();
         StackTraceElement[] redone = new StackTraceElement[stackTrace.length + 1];
         System.arraycopy(stackTrace, 0, redone, 1, stackTrace.length);
-        redone[0] = new StackTraceElement(getClass().getName(), groupName + "." + testName, source.getFileName().toString(), lineNumber);
+        redone[0] = new StackTraceElement(getClass().getName(), groupName + ".test" + testName, source.getFileName().toString(), lineNumber);
 
         th.setStackTrace(redone);
         return th;

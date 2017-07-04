@@ -71,8 +71,7 @@ public class SqlSpecIntegrationTest extends SpecBaseIntegrationTestCase {
                 throw reworkException(new AssertionError(errorMessage(ae), ae.getCause()));
             }
         } catch (Throwable th) {
-            //throw reworkException(new RuntimeException(errorMessage(th)));
-            throw th;
+            throw reworkException(th);
         }
     }
 

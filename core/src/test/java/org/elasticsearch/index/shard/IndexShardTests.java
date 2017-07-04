@@ -80,7 +80,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -739,11 +738,6 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testConcurrentTermIncreaseOnReplicaShard() throws BrokenBarrierException, InterruptedException, IOException {
         final IndexShard indexShard = newStartedShard(false);
-        /*
-         * When a shard recovers from a primary, it will advance its global checkpoint. We simulate that here; since we are not performing
-         * any operations, we initialize to no operations performed as the local checkpoint on this shard carries the same value.
-         */
-        indexShard.updateGlobalCheckpointOnReplica(SequenceNumbersService.NO_OPS_PERFORMED);
 
         final CyclicBarrier barrier = new CyclicBarrier(3);
         final CountDownLatch latch = new CountDownLatch(2);

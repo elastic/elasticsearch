@@ -85,23 +85,6 @@ specified, the delete api will throw a `RoutingMissingException` and reject
 the request.
 
 [float]
-[[delete-parent]]
-=== Parent
-
-The `parent` parameter can be set, which will basically be the same as
-setting the routing parameter.
-
-Note that deleting a parent document does not automatically delete its
-children. One way of deleting all child documents given a parent's id is
-to use the <<docs-delete-by-query,Delete By Query API>> to perform a
- index with the automatically generated (and indexed)
-field _parent, which is in the format parent_type#parent_id.
-
-When deleting a child document its parent id must be specified, otherwise
-the delete request will be rejected and a `RoutingMissingException` will be
-thrown instead.
-
-[float]
 [[delete-index-creation]]
 === Automatic index creation
 

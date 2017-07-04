@@ -184,7 +184,7 @@ segments |1.4kb
 |`segments.version_map_memory` |`svmm`, `segmentsVersionMapMemory` |No
 |Memory used by version map |1.0kb
 |`segments.fixed_bitset_memory` |`sfbm`, `fixedBitsetMemory` |No
-|Memory used by fixed bit sets for nested object field types and type filters for types referred in _parent fields |1.0kb
+|Memory used by fixed bit sets for nested object field types and type filters for types referred in `join fields |1.0kb
 |`suggest.current` |`suc`, `suggestCurrent` |No |Number of current suggest operations |0
 |`suggest.time` |`suti`, `suggestTime` |No |Time spent in suggest |0
 |`suggest.total` |`suto`, `suggestTotal` |No |Number of suggest operations |0

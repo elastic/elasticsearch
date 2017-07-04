@@ -1,8 +1,8 @@
 [[java-rest-high-document-index]]
-==== Index API
+=== Index API
 
 [[java-rest-high-document-index-request]]
-===== Index Request
+==== Index Request
 
 An `IndexRequest` requires the following arguments:
 
@@ -15,7 +15,7 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-string]
 <3> Document id
 <4> Document source provided as a `String`
 
-===== Providing the document source
+==== Providing the document source
 The document source can be provided in different ways:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -39,7 +39,7 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-shortcut]
 <1> Document source provided as `Object` key-pairs, which gets converted to
 JSON format
 
-===== Optional arguments
+==== Optional arguments
 The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -94,7 +94,7 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-request-pipeline]
 <1> The name of the ingest pipeline to be executed before indexing the document
 
 [[java-rest-high-document-index-sync]]
-===== Synchronous Execution
+==== Synchronous Execution
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -102,7 +102,7 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-execute]
 --------------------------------------------------
 
 [[java-rest-high-document-index-async]]
-===== Asynchronous Execution
+==== Asynchronous Execution
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -113,7 +113,7 @@ provided as an argument.
 <2> Called in case of failure. The raised exception is provided as an argument.
 
 [[java-rest-high-document-index-response]]
-===== Index Response
+==== Index Response
 
 The returned `IndexResponse` allows to retrieve information about the executed
  operation as follows:

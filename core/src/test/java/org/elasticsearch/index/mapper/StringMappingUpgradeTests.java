@@ -478,4 +478,22 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertThat(fooMapper, instanceOf(KeywordFieldMapper.class));
         assertWarnings("Expected a boolean [true/false] for property [index] but got [not_analyzed]");
     }
+
+    public void testOldMappingsAreMinimal() throws Exception {
+        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_4_0).build();
+        IndexService indexService = createIndex("test", indexSettings);
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("text").field("type", "string")
+                .endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mapping().toString());
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("text").field("type", "string").field("index", "not_analyzed")
+                .endObject().endObject().endObject().endObject().string();
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mapping().toString());
+    }
 }

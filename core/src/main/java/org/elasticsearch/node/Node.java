@@ -36,6 +36,7 @@ import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -50,6 +51,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingService;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
@@ -333,7 +335,10 @@ public class Node implements Closeable {
             resourcesToClose.add(clusterService);
             final IngestService ingestService = new IngestService(clusterService.getClusterSettings(), settings, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
-            final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
+            final DiskThresholdMonitor listener = new DiskThresholdMonitor(settings, clusterService::state,
+                clusterService.getClusterSettings(), client);
+            final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client,
+                listener::onNewInfo);
             final UsageService usageService = new UsageService(settings);
 
             ModulesBuilder modules = new ModulesBuilder();
@@ -342,7 +347,6 @@ public class Node implements Closeable {
                 modules.add(pluginModule);
             }
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, clusterInfoService);
-            modules.add(new NodeModule(this, monitorService));
             ClusterModule clusterModule = new ClusterModule(settings, clusterService,
                 pluginsService.filterPlugins(ClusterPlugin.class), clusterInfoService);
             modules.add(clusterModule);
@@ -442,6 +446,7 @@ public class Node implements Closeable {
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter());
             modules.add(b -> {
+                    b.bind(Node.class).toInstance(this);
                     b.bind(NodeService.class).toInstance(nodeService);
                     b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
                     b.bind(PluginsService.class).toInstance(pluginsService);
@@ -457,7 +462,7 @@ public class Node implements Closeable {
                     b.bind(ScriptService.class).toInstance(scriptModule.getScriptService());
                     b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                     b.bind(IngestService.class).toInstance(ingestService);
-                b.bind(UsageService.class).toInstance(usageService);
+                    b.bind(UsageService.class).toInstance(usageService);
                     b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
                     b.bind(MetaDataUpgrader.class).toInstance(metaDataUpgrader);
                     b.bind(MetaStateService.class).toInstance(metaStateService);
@@ -917,8 +922,8 @@ public class Node implements Closeable {
 
     /** Constructs a ClusterInfoService which may be mocked for tests. */
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
-                                                       ThreadPool threadPool, NodeClient client) {
-        return new InternalClusterInfoService(settings, clusterService, threadPool, client);
+                                                       ThreadPool threadPool, NodeClient client, Consumer<ClusterInfo> listeners) {
+        return new InternalClusterInfoService(settings, clusterService, threadPool, client, listeners);
     }
 
     private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {

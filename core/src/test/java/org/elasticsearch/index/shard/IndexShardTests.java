@@ -275,7 +275,7 @@ public class IndexShardTests extends IndexShardTestCase {
             // expected
         }
         try {
-            indexShard.acquireReplicaOperationPermit(indexShard.getPrimaryTerm(), SequenceNumbersService.NO_OPS_PERFORMED, null,
+            indexShard.acquireReplicaOperationPermit(indexShard.getPrimaryTerm(), SequenceNumbersService.UNASSIGNED_SEQ_NO, null,
                 ThreadPool.Names.INDEX);
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
@@ -287,7 +287,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(false);
         expectThrows(IndexShardNotStartedException.class, () ->
             indexShard.acquireReplicaOperationPermit(indexShard.getPrimaryTerm() + randomIntBetween(1, 100),
-                SequenceNumbersService.NO_OPS_PERFORMED, null, ThreadPool.Names.INDEX));
+                SequenceNumbersService.UNASSIGNED_SEQ_NO, null, ThreadPool.Names.INDEX));
         closeShards(indexShard);
     }
 
@@ -509,7 +509,6 @@ public class IndexShardTests extends IndexShardTestCase {
             case 0:
                 // started replica
                 indexShard = newStartedShard(false);
-                indexShard.updateGlobalCheckpointOnReplica(SequenceNumbersService.NO_OPS_PERFORMED);
                 engineClosed = false;
                 break;
             case 1: {
@@ -531,9 +530,6 @@ public class IndexShardTests extends IndexShardTestCase {
                 routing = TestShardRouting.newShardRouting(routing.shardId(), routing.currentNodeId(), "otherNode",
                     true, ShardRoutingState.RELOCATING, AllocationId.newRelocation(routing.allocationId()));
                 IndexShardTestCase.updateRoutingEntry(indexShard, routing);
-                indexShard.updateLocalCheckpointForShard(
-                        indexShard.routingEntry().allocationId().getId(),
-                        SequenceNumbersService.NO_OPS_PERFORMED);
                 indexShard.relocated("test", primaryContext -> {});
                 engineClosed = false;
                 break;
@@ -584,7 +580,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             };
 
-            indexShard.acquireReplicaOperationPermit(primaryTerm - 1, SequenceNumbersService.NO_OPS_PERFORMED, onLockAcquired,
+            indexShard.acquireReplicaOperationPermit(primaryTerm - 1, SequenceNumbersService.UNASSIGNED_SEQ_NO, onLockAcquired,
                 ThreadPool.Names.INDEX);
 
             assertFalse(onResponse.get());
@@ -601,11 +597,11 @@ public class IndexShardTests extends IndexShardTestCase {
             final long newPrimaryTerm = primaryTerm + 1 + randomInt(20);
             if (engineClosed == false) {
                 assertThat(indexShard.getLocalCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-                assertThat(indexShard.getGlobalCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
+                assertThat(indexShard.getGlobalCheckpoint(), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
             }
             final long newGlobalCheckPoint;
             if (engineClosed || randomBoolean()) {
-                newGlobalCheckPoint = SequenceNumbersService.NO_OPS_PERFORMED;
+                newGlobalCheckPoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
             } else {
                 long localCheckPoint = indexShard.getGlobalCheckpoint() + randomInt(100);
                 // advance local checkpoint

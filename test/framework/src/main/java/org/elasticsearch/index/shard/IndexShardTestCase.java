@@ -359,13 +359,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static void updateRoutingEntry(IndexShard shard, ShardRouting shardRouting) throws IOException {
-        final Set<String> activeAllocationIds;
-        if (shardRouting.primary()) {
-            activeAllocationIds = Collections.singleton(shardRouting.allocationId().getId());
-        } else {
-            activeAllocationIds = Collections.emptySet();
-        }
-        shard.updateShardState(shardRouting, shard.getPrimaryTerm(), null, 0L, activeAllocationIds, Collections.emptySet());
+        shard.updateShardState(shardRouting, shard.getPrimaryTerm(), null, 0L, Collections.emptySet(), Collections.emptySet());
     }
 
     protected void recoveryEmptyReplica(IndexShard replica) throws IOException {

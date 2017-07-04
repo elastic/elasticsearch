@@ -39,8 +39,10 @@ public class DeleteResponse extends DocWriteResponse {
     public DeleteResponse() {
     }
 
-    public DeleteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, boolean found) {
-        super(shardId, type, id, seqNo, primaryTerm, version, found ? Result.DELETED : Result.NOT_FOUND);
+    public DeleteResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
+        super(shardId, type, id, seqNo, primaryTerm, version, result);
+        assert (result == Result.DELETED || result == Result.NOT_FOUND) : result + " result  is not supported! Use " + Result.DELETED
+                + " or " + Result.NOT_FOUND;
     }
 
     @Override
@@ -87,8 +89,7 @@ public class DeleteResponse extends DocWriteResponse {
 
         @Override
         public DeleteResponse build() {
-            DeleteResponse deleteResponse = new DeleteResponse(shardId, type, id, seqNo, primaryTerm, version,
-                    result == Result.DELETED ? true : false);
+            DeleteResponse deleteResponse = new DeleteResponse(shardId, type, id, seqNo, primaryTerm, version, result);
             deleteResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 deleteResponse.setShardInfo(shardInfo);

@@ -290,10 +290,11 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                 default:
                     throw new RuntimeException("Bad scenario");
                 }
+                Result result = createdResponse ? Result.CREATED : Result.UPDATED;
                 final int seqNo = randomInt(20);
                 final int primaryTerm = randomIntBetween(1, 16);
                 final IndexResponse response =
-                        new IndexResponse(shardId, "type", "id" + i, seqNo, primaryTerm, randomInt(), createdResponse);
+                        new IndexResponse(shardId, "type", "id" + i, seqNo, primaryTerm, randomInt(), result);
                 responses[i] = new BulkItemResponse(i, opType, response);
             }
             new DummyAsyncBulkByScrollAction().onBulkResponse(timeValueNanos(System.nanoTime()), new BulkResponse(responses, 0));
@@ -800,7 +801,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                                 randomInt(20),
                                 randomIntBetween(1, 16),
                                 randomIntBetween(0, Integer.MAX_VALUE),
-                                true);
+                                Result.CREATED);
                     } else if (item instanceof UpdateRequest) {
                         UpdateRequest update = (UpdateRequest) item;
                         response = new UpdateResponse(shardId, update.type(), update.id(),
@@ -815,7 +816,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
                                 randomInt(20),
                                 randomIntBetween(1, 16),
                                 randomIntBetween(0, Integer.MAX_VALUE),
-                                true);
+                                Result.DELETED);
                     } else {
                         throw new RuntimeException("Unknown request:  " + item);
                     }

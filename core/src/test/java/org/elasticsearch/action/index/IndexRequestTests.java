@@ -21,6 +21,7 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -134,7 +135,7 @@ public class IndexRequestTests extends ESTestCase {
         String type = randomAlphaOfLengthBetween(3, 10);
         String id = randomAlphaOfLengthBetween(3, 10);
         long version = randomLong();
-        boolean created = randomBoolean();
+        Result created = randomFrom(Result.CREATED, Result.UPDATED);
         IndexResponse indexResponse = new IndexResponse(shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, version, created);
         int total = randomIntBetween(1, 10);
         int successful = randomIntBetween(1, 10);
@@ -149,12 +150,12 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(id, indexResponse.getId());
         assertEquals(version, indexResponse.getVersion());
         assertEquals(shardId, indexResponse.getShardId());
-        assertEquals(created ? RestStatus.CREATED : RestStatus.OK, indexResponse.status());
+        assertEquals(created == Result.CREATED ? RestStatus.CREATED : RestStatus.OK, indexResponse.status());
         assertEquals(total, indexResponse.getShardInfo().getTotal());
         assertEquals(successful, indexResponse.getShardInfo().getSuccessful());
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
         assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",type=" + type + ",id="+ id +
-                ",version=" + version + ",result=" + (created ? "created" : "updated") +
+                ",version=" + version + ",result=" + (created == Result.CREATED ? "created" : "updated") +
                 ",seqNo=" + SequenceNumbersService.UNASSIGNED_SEQ_NO +
                 ",primaryTerm=" + 0 +
                 ",shards={\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}]",

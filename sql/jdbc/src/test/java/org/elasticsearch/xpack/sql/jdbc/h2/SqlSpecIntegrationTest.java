@@ -59,7 +59,6 @@ public class SqlSpecIntegrationTest extends SpecBaseIntegrationTestCase {
 
     @Test
     public void testQuery() throws Throwable {
-        System.out.println("Executing query " + query);
         // H2 resultset
         try (Connection h2 = h2Con(); 
              Connection es = esCon()) {

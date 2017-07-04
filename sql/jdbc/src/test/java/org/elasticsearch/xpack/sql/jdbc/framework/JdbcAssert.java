@@ -9,7 +9,6 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
-import java.time.Instant;
 
 import static org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcUtils.nameOf;
 import static org.junit.Assert.assertEquals;
@@ -70,10 +69,7 @@ public class JdbcAssert {
                 String msg = "Different result for column [" + metaData.getColumnName(column)  + "], entry [" + count + "]";
 
                 if (type == Types.TIMESTAMP) {
-                    expectedObject = getTime(expected, column);
-                    actualObject = getTime(actual, column);
-                    assertEquals(expectedObject, actualObject);
-                    // NOCOMMIT look at ResultSet.getTimestamp(int, Calendar)
+                    assertEquals(getTime(expected, column), getTime(actual, column));
                 }
 
                 else if (type == Types.DOUBLE) {
@@ -90,6 +86,6 @@ public class JdbcAssert {
     }
 
     private static Object getTime(ResultSet rs, int column) throws SQLException {
-        return TestUtils.UTC_FORMATTER.format(Instant.ofEpochMilli(rs.getTime(column).getTime()));
+        return rs.getTime(column, TestUtils.UTC_CALENDAR).getTime();
     }
 }

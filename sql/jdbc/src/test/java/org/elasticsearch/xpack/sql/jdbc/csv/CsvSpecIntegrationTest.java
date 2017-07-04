@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.csv;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.CheckedSupplier;
@@ -63,7 +62,7 @@ public class CsvSpecIntegrationTest extends SpecBaseIntegrationTestCase {
     }
 
 
-    public CsvSpecIntegrationTest(String groupName, @Name("testName") String testName, Integer lineNumber, Path source, CsvFragment fragment) {
+    public CsvSpecIntegrationTest(String groupName, String testName, Integer lineNumber, Path source, CsvFragment fragment) {
         super(groupName, testName, lineNumber, source);
         this.fragment = fragment;
     }

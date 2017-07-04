@@ -33,6 +33,7 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
      *              result set metadata which is what most DBs do except
      *              for MySQL and, by default, H2. Our jdbc driver does it.
      */
+    // http://www.h2database.com/html/features.html#in_memory_databases
     public LocalH2() {
         this.url = "jdbc:h2:mem:essql;DATABASE_TO_UPPER=false;ALIAS_COLUMN_NAME=true";
     }
@@ -40,7 +41,6 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
     @Override
     protected void before() throws Throwable {
         keepAlive = get();
-        //NOCOMMIT: check timezone issue
         TimeZone tz = TimeZone.getDefault();
         try {
             TimeZone.setDefault(TimeZone.getTimeZone("UTC"));

@@ -5,12 +5,15 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.net.client;
 
-import java.lang.reflect.Array;
-import java.util.List;
-
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcUtils;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.ColumnInfo;
+
+import java.lang.reflect.Array;
+import java.sql.Date;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.util.List;
 
 // Stores a page of data in a columnar-format since:
 // * the structure does not change
@@ -72,6 +75,9 @@ public class Page {
 
         for (int i = 0; i < columnInfo.size(); i++) {
             Class<?> types = JdbcUtils.classOf(columnInfo.get(i).type);
+            if (types == Timestamp.class || types == Date.class || types == Time.class) {
+                types = Long.class;
+            }
             data[i] = (Object[]) Array.newInstance(types, dataSize);
         }
 

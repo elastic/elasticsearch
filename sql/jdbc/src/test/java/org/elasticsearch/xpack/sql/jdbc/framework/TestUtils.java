@@ -26,26 +26,18 @@ import java.net.InetAddress;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.Timestamp;
-import java.time.Instant;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.List;
-import java.util.Locale;
+import java.util.TimeZone;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.junit.Assert.assertEquals;
 
 public abstract class TestUtils {
 
-    static final DateTimeFormatter UTC_FORMATTER = DateTimeFormatter.ISO_DATE_TIME
-            .withLocale(Locale.ROOT)
-            .withZone(ZoneId.of("UTC"));
-    
+    static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+
     public static RestClient restClient(String host, int port) {
         return RestClient.builder(new HttpHost(host, port)).build();
 
@@ -108,50 +100,6 @@ public abstract class TestUtils {
         client.performRequest("POST", "/test_emp/emp/_bulk", singletonMap("refresh", "true"), new StringEntity(bulk.toString(), ContentType.APPLICATION_JSON));
     }
     
-    /**
-     * Fill the H2 database. Note that we have to parse the CSV ourselves
-     * because H2 interprets the CSV using the default locale which is
-     * randomized by the testing framework. Because some locales (th-TH,
-     * for example) parse dates in very different ways we parse using the
-     * root locale.
-     */
-    public static void loadDatesetInH2(Connection h2) throws Exception {
-        csvToLines("employees", (titles, fields) -> {
-            StringBuilder insert = new StringBuilder("INSERT INTO \"test_emp.emp\" (");
-            for (int t = 0; t < titles.size(); t++) {
-                if (t != 0) {
-                    insert.append(',');
-                }
-                insert.append('"').append(titles.get(t)).append('"');
-            }
-            insert.append(") VALUES (");
-            for (int t = 0; t < titles.size(); t++) {
-                if (t != 0) {
-                    insert.append(',');
-                }
-                insert.append('?');
-            }
-            insert.append(')');
-
-            PreparedStatement s = h2.prepareStatement(insert.toString());
-            for (int t = 0; t < titles.size(); t++) {
-                String field = fields.get(t);
-                if (titles.get(t).endsWith("date")) {
-                    /* Dates need special handling because H2 uses the default local for
-                     * parsing which doesn't work because Elasticsearch always uses
-                     * the "root" locale. This mismatch would cause the test to fail
-                     * all the time in places like Thailand. Luckily Elasticsearch's
-                     * randomized testing sometimes randomly pretends you are in
-                     * Thailand and caught this.... */
-                    s.setTimestamp(t + 1, new Timestamp(Instant.from(UTC_FORMATTER.parse(field)).toEpochMilli()));
-                } else {
-                    s.setString(t + 1, field);
-                }
-            }
-            assertEquals(1, s.executeUpdate());
-        });
-    }
-
     private static void csvToLines(String name, CheckedBiConsumer<List<String>, List<String>, Exception> consumeLine) throws Exception {
         String location = "/" + name + ".csv";
         URL dataSet = SqlSpecIntegrationTest.class.getResource(location);

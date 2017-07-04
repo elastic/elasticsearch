@@ -12,7 +12,10 @@ import org.elasticsearch.client.Client;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public abstract class ProtoHttpServer<R> {
 
@@ -20,6 +23,7 @@ public abstract class ProtoHttpServer<R> {
     private final String protoSuffix;
     private final Client client;
     private HttpServer server;
+    private ExecutorService executor;
 
     public ProtoHttpServer(Client client, ProtoHandler<R> handler, String protoSuffix) {
         this.client = client;
@@ -28,15 +32,20 @@ public abstract class ProtoHttpServer<R> {
     }
 
     public void start(int port) throws IOException {
+        // similar to Executors.newCached but with a smaller bound and much smaller keep-alive
+        executor = new ThreadPoolExecutor(0, 10, 250, TimeUnit.MILLISECONDS, new SynchronousQueue<Runnable>());
+
         server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 0);
         server.createContext(protoSuffix, handler);
-        server.setExecutor(Executors.newCachedThreadPool());
+        server.setExecutor(executor);
         server.start();
     }
 
     public void stop() {
         server.stop(1);
         server = null;
+        executor.shutdownNow();
+        executor = null;
     }
 
     public InetSocketAddress address() {

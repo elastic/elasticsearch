@@ -47,8 +47,7 @@ public class JdbcServer {
     public JdbcServer(PlanExecutor executor, String clusterName, Supplier<String> nodeName, Version version, Build build) {
         this.executor = executor;
         // Delay building the response until runtime because the node name is not available at startup
-        this.infoResponse = () -> new InfoResponse(nodeName.get(), clusterName, version.major, version.minor, version.toString(),
-                build.shortHash(), build.date());
+        this.infoResponse = () -> new InfoResponse(nodeName.get(), clusterName, version.major, version.minor, version.toString(), build.shortHash(), build.date());
     }
     
     public void handle(Request req, ActionListener<Response> listener) {

@@ -899,7 +899,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * infinitely.
      */
     public SearchSourceBuilder rewrite(QueryShardContext context) throws IOException {
-        assert (this.equals(shallowCopy(queryBuilder, postQueryBuilder, sliceBuilder)));
+        assert (this.equals(shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder)));
         QueryBuilder queryBuilder = null;
         if (this.queryBuilder != null) {
             queryBuilder = this.queryBuilder.rewrite(context);
@@ -908,9 +908,14 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (this.postQueryBuilder != null) {
             postQueryBuilder = this.postQueryBuilder.rewrite(context);
         }
-        boolean rewritten = queryBuilder != this.queryBuilder || postQueryBuilder != this.postQueryBuilder;
+        AggregatorFactories.Builder aggregations = null;
+        if (this.aggregations != null) {
+            aggregations = this.aggregations.rewrite(context);
+        }
+        boolean rewritten = queryBuilder != this.queryBuilder || postQueryBuilder != this.postQueryBuilder
+                || aggregations != this.aggregations;
         if (rewritten) {
-            return shallowCopy(queryBuilder, postQueryBuilder, sliceBuilder);
+            return shallowCopy(queryBuilder, postQueryBuilder, aggregations, sliceBuilder);
         }
         return this;
     }
@@ -919,14 +924,15 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * Create a shallow copy of this builder with a new slice configuration.
      */
     public SearchSourceBuilder copyWithNewSlice(SliceBuilder slice) {
-        return shallowCopy(queryBuilder, postQueryBuilder, slice);
+        return shallowCopy(queryBuilder, postQueryBuilder, aggregations, slice);
     }
 
     /**
      * Create a shallow copy of this source replaced {@link #queryBuilder}, {@link #postQueryBuilder}, and {@link #sliceBuilder}. Used by
      * {@link #rewrite(QueryShardContext)} and {@link #copyWithNewSlice(SliceBuilder)}.
      */
-    private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder, SliceBuilder slice) {
+    private SearchSourceBuilder shallowCopy(QueryBuilder queryBuilder, QueryBuilder postQueryBuilder,
+            AggregatorFactories.Builder aggregations, SliceBuilder slice) {
         SearchSourceBuilder rewrittenBuilder = new SearchSourceBuilder();
         rewrittenBuilder.aggregations = aggregations;
         rewrittenBuilder.explain = explain;

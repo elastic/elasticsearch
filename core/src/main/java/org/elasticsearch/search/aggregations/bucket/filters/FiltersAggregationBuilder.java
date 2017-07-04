@@ -26,7 +26,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
@@ -168,14 +170,27 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
+        boolean changed = false;
+        for (KeyedFilter kf : filters) {
+            QueryBuilder result = QueryBuilder.rewriteQuery(kf.filter(), queryShardContext);
+            rewrittenFilters.add(new KeyedFilter(kf.key(), result));
+            if (result != kf.filter()) {
+                changed = true;
+            }
+        }
+        if (changed) {
+            return new FiltersAggregationBuilder(getName(), rewrittenFilters);
+        } else {
+            return this;
+        }
+    }
+
+    @Override
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
-        List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
-        for(KeyedFilter kf : filters) {
-            rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(),
-                    context.getQueryShardContext())));
-        }
-        return new FiltersAggregatorFactory(name, rewrittenFilters, keyed, otherBucket, otherBucketKey, context, parent,
+        return new FiltersAggregatorFactory(name, filters, keyed, otherBucket, otherBucketKey, context, parent,
                 subFactoriesBuilder, metaData);
     }
 

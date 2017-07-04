@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
@@ -456,6 +457,33 @@ public class AggregatorFactories {
             if (!Objects.equals(pipelineAggregatorBuilders, other.pipelineAggregatorBuilders))
                 return false;
             return true;
+        }
+
+        /**
+         * Rewrites the underlying aggregation builders into their primitive
+         * form. If the builder did not change the identity reference must be
+         * returned otherwise the builder will be rewritten infinitely.
+         */
+        public Builder rewrite(QueryRewriteContext context) throws IOException {
+            boolean changed = false;
+            Builder newBuilder = new Builder();
+
+            for (AggregationBuilder builder : aggregationBuilders) {
+                AggregationBuilder result = AggregationBuilder.rewriteAggregation(builder, context);
+                if (result != builder) {
+                    changed = true;
+                }
+                newBuilder.addAggregator(result);
+            }
+
+            if (changed) {
+                for (PipelineAggregationBuilder builder : pipelineAggregatorBuilders) {
+                    newBuilder.addPipelineAggregator(builder);
+                }
+                return newBuilder;
+            } else {
+                return this;
+            }
         }
     }
 }

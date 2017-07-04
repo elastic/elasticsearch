@@ -42,6 +42,7 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -393,8 +394,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     logger.debug("failed to refresh due to move to cluster wide started", e);
                 }
 
-                if (newRouting.primary() && currentRouting.isRelocationTarget() == false) {
-                    getEngine().seqNoService().initializeAsPrimary(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
+                if (newRouting.primary()) {
+                    final DiscoveryNode recoverySourceNode = recoveryState.getSourceNode();
+                    if (currentRouting.isRelocationTarget() == false || recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
+                        // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
+                        getEngine().seqNoService().initializeAsPrimary(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
+                    }
                 }
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");

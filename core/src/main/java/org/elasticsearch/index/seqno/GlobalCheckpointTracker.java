@@ -150,7 +150,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
         @Override
         public String toString() {
-            return "RecoveryHandoffPrimaryContextRequest{" +
+            return "LocalCheckPointState{" +
                 "localCheckPoint=" + localCheckPoint +
                 ", inSync=" + inSync +
                 '}';

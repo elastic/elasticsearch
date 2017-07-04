@@ -123,7 +123,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     }
 
     protected class ReplicationGroup implements AutoCloseable, Iterable<IndexShard> {
-        private long clusterStateVersion;
         private IndexShard primary;
         private IndexMetaData indexMetaData;
         private final List<IndexShard> replicas;
@@ -144,7 +143,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             primary = newShard(primaryRouting, indexMetaData, null, getEngineFactory(primaryRouting));
             replicas = new ArrayList<>();
             this.indexMetaData = indexMetaData;
-            clusterStateVersion = 1;
             updateAllocationIDsOnPrimary();
             for (int i = 0; i < indexMetaData.getNumberOfReplicas(); i++) {
                 addReplica();
@@ -231,7 +229,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             initializingIds.addAll(initializingIds());
             initializingIds.remove(primary.routingEntry().allocationId().getId());
             primary.updateShardState(ShardRoutingHelper.moveToStarted(primary.routingEntry()), primary.getPrimaryTerm(), null,
-                ++clusterStateVersion, activeIds, initializingIds);
+                currentClusterStateVersion.incrementAndGet(), activeIds, initializingIds);
             for (final IndexShard replica : replicas) {
                 recoverReplica(replica);
             }
@@ -250,7 +248,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 .filter(shardRouting -> shardRouting.isSameAllocation(replica.routingEntry())).findFirst().isPresent() == false :
                 "replica with aId [" + replica.routingEntry().allocationId() + "] already exists";
             replicas.add(replica);
-            clusterStateVersion++;
             updateAllocationIDsOnPrimary();
         }
 
@@ -265,7 +262,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             final IndexShard newReplica = newShard(shardRouting, shardPath, indexMetaData, null,
                     getEngineFactory(shardRouting));
             replicas.add(newReplica);
-            clusterStateVersion++;
             updateAllocationIDsOnPrimary();
             return newReplica;
         }
@@ -300,7 +296,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                             listener.onFailure(e);
                             fut.onFailure(e);
                         }
-                    }), ++clusterStateVersion, activeIds(), initializingIds());
+                    }), currentClusterStateVersion.incrementAndGet(), activeIds(), initializingIds());
 
             return fut;
         }
@@ -318,7 +314,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         synchronized boolean removeReplica(IndexShard replica) throws IOException {
             final boolean removed = replicas.remove(replica);
             if (removed) {
-                clusterStateVersion++;
                 updateAllocationIDsOnPrimary();
             }
             return removed;
@@ -337,9 +332,8 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             IndexShard replica,
             BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
             boolean markAsRecovering) throws IOException {
-            ESIndexLevelReplicationTestCase.this.recoverReplica(replica, primary, targetSupplier, markAsRecovering);
-            clusterStateVersion++;
-            updateAllocationIDsOnPrimary();
+            ESIndexLevelReplicationTestCase.this.recoverReplica(replica, primary, targetSupplier, markAsRecovering, activeIds(),
+                initializingIds());
         }
 
         public synchronized DiscoveryNode getPrimaryNode() {
@@ -417,7 +411,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         }
 
         private void updateAllocationIDsOnPrimary() throws IOException {
-            primary.updateShardState(primary.routingEntry(), primary.getPrimaryTerm(), null, clusterStateVersion,
+            primary.updateShardState(primary.routingEntry(), primary.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
                 activeIds(), initializingIds());
         }
     }

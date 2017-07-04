@@ -454,6 +454,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             latch.await();
                             try {
                                 getEngine().fillSeqNoGaps(newPrimaryTerm);
+                                getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
+                                    getEngine().seqNoService().getLocalCheckpoint());
                                 primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
                                     @Override
                                     public void onResponse(ResyncTask resyncTask) {

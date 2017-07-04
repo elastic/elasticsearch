@@ -2,5 +2,6 @@
 
 include::_index.asciidoc[]
 include::delete.asciidoc[]
+include::bulk.asciidoc[]
 
 :doc-tests!:

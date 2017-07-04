@@ -23,13 +23,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -316,6 +323,89 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
             // end::delete-conflict
+        }
+    }
+
+    public void testBulk() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            BulkRequest bulkRequest = new BulkRequest()
+                    .add(new IndexRequest("index", "type", "1").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
+                    .add(new IndexRequest("index", "type", "2").source(Requests.INDEX_CONTENT_TYPE,"field", "value"));
+            BulkResponse bulkResponse = client.bulk(bulkRequest);
+            assertFalse(bulkResponse.hasFailures());
+        }
+        {
+            // tag::bulk-request
+            BulkRequest request = new BulkRequest(); // <1>
+            request.add(new IndexRequest("index", "type", "0").source(XContentType.JSON,"field", "value")); // <2>
+            request.add(new UpdateRequest("index", "type", "1").doc(XContentType.JSON,"field", "value")); // <3>
+            request.add(new DeleteRequest("index", "type", "2")); // <4>
+            // end::bulk-request
+
+            // tag::bulk-execute
+            BulkResponse bulkResponse = client.bulk(request);
+            // end::bulk-execute
+            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertFalse(bulkResponse.hasFailures());
+
+            // tag::bulk-response
+            for (BulkItemResponse bulkItemResponse : bulkResponse) { // <1>
+                DocWriteResponse itemResponse = bulkItemResponse.getResponse(); // <2>
+
+                if (itemResponse instanceof IndexResponse) { // <3>
+                    IndexResponse indexResponse = (IndexResponse)itemResponse;
+
+                } else if (itemResponse instanceof UpdateResponse) { // <4>
+                    UpdateResponse updateResponse = (UpdateResponse)itemResponse;
+
+                } else if (itemResponse instanceof DeleteResponse) { // <5>
+                    DeleteResponse deleteResponse = (DeleteResponse) itemResponse;
+                }
+            }
+            // end::bulk-response
+            // tag::bulk-has-failures
+            if (bulkResponse.hasFailures()) { // <1>
+
+            }
+            // end::bulk-has-failures
+            // tag::bulk-errors
+            for (BulkItemResponse bulkItemResponse : bulkResponse) {
+                if (bulkItemResponse.isFailed()) { // <1>
+                    BulkItemResponse.Failure failure = bulkItemResponse.getFailure(); // <2>
+
+                }
+            }
+            // end::bulk-errors
+        }
+        {
+            BulkRequest request = new BulkRequest();
+            // tag::bulk-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::bulk-request-timeout
+            // tag::bulk-request-refresh
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL); // <1>
+            request.setRefreshPolicy("wait_for");                            // <2>
+            // end::bulk-request-refresh
+            // tag::bulk-request-active-shards
+            request.waitForActiveShards(2); // <1>
+            request.waitForActiveShards(ActiveShardCount.ALL); // <2>
+            // end::bulk-request-active-shards
+
+            // tag::bulk-execute-async
+            client.bulkAsync(request, new ActionListener<BulkResponse>() {
+                @Override
+                public void onResponse(BulkResponse bulkResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::bulk-execute-async
         }
     }
 }

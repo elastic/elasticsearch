@@ -165,11 +165,11 @@ public abstract class ESSelector implements Closeable {
     }
 
     public void queueChannelClose(NioChannel channel) {
+        assert channel.getSelector() == this : "Must schedule a channel for closure with its selector";
         channelsToClose.offer(channel);
         ensureSelectorOpenForEnqueuing(channelsToClose, channel);
         wakeup();
     }
-
 
     public Selector rawSelector() {
         return selector;

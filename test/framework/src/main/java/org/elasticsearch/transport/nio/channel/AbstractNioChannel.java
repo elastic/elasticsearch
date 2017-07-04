@@ -28,7 +28,6 @@ import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This is a basic channel abstraction used by the {@link org.elasticsearch.transport.nio.NioTransport}.
@@ -106,7 +105,19 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     public void closeFromSelector() {
         assert selector.isOnCurrentThread() : "Should only call from selector thread";
         isClosed.compareAndSet(false, true);
-        close0();
+        if (closeFuture.isClosed() == false) {
+            boolean closedOnThisCall = false;
+            try {
+                closeRawChannel();
+                closedOnThisCall = closeFuture.channelClosed(this);
+            } catch (IOException e) {
+                closedOnThisCall = closeFuture.channelCloseThrewException(this, e);
+            } finally {
+                if (closedOnThisCall) {
+                    selector.removeRegisteredChannel(this);
+                }
+            }
+        }
     }
 
     /**
@@ -145,19 +156,9 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
         this.selectionKey = selectionKey;
     }
 
-    private void close0() {
-        if (closeFuture.isClosed() == false) {
-            boolean closedOnThisCall = false;
-            try {
-                socketChannel.close();
-                closedOnThisCall = closeFuture.channelClosed(this);
-            } catch (IOException e) {
-                closedOnThisCall = closeFuture.channelCloseThrewException(this, e);
-            } finally {
-                if (closedOnThisCall) {
-                    selector.removeRegisteredChannel(this);
-                }
-            }
-        }
+    // Package visibility for testing
+    void closeRawChannel() throws IOException {
+        socketChannel.close();
     }
+
 }

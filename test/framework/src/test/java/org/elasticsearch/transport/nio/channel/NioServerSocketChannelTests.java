@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.nio.AcceptingSelector;
 import org.elasticsearch.transport.nio.AcceptorEventHandler;
 import org.elasticsearch.transport.nio.OpenChannels;
@@ -26,16 +27,20 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.util.function.Consumer;
+import java.nio.channels.ServerSocketChannel;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 
-public class NioServerSocketChannelTests extends AbstractNioChannelTestCase {
+public class NioServerSocketChannelTests extends ESTestCase {
 
     private AcceptingSelector selector;
+    private AtomicBoolean closedRawChannel;
     private Thread thread;
 
     @Before
@@ -43,6 +48,7 @@ public class NioServerSocketChannelTests extends AbstractNioChannelTestCase {
     public void setSelector() throws IOException {
         selector = new AcceptingSelector(new AcceptorEventHandler(logger, mock(OpenChannels.class), mock(Supplier.class)));
         thread = new Thread(selector::runLoop);
+        closedRawChannel = new AtomicBoolean(false);
         thread.start();
         selector.isRunningFuture().actionGet();
     }
@@ -53,12 +59,41 @@ public class NioServerSocketChannelTests extends AbstractNioChannelTestCase {
         thread.join();
     }
 
-    @Override
-    public NioChannel channelToClose(Consumer<NioChannel> closeListener) throws IOException {
-        InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
-        NioServerSocketChannel channel = channelFactory.openNioServerSocketChannel("nio", address, selector);
-        channel.getCloseFuture().setListener(closeListener);
-        return channel;
+    public void testClose() throws IOException, TimeoutException, InterruptedException {
+        AtomicReference<NioChannel> ref = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        NioChannel channel = new DoNotCloseServerChannel("nio", mock(ServerSocketChannel.class), mock(ChannelFactory.class), selector);
+        channel.getCloseFuture().setListener((c) -> {
+            ref.set(c);
+            latch.countDown();
+        });
+
+        CloseFuture closeFuture = channel.getCloseFuture();
+
+        assertFalse(closeFuture.isClosed());
+        assertFalse(closedRawChannel.get());
+
+        channel.closeAsync();
+
+        closeFuture.awaitClose(100, TimeUnit.SECONDS);
+
+        assertTrue(closedRawChannel.get());
+        assertTrue(closeFuture.isClosed());
+        latch.await();
+        assertSame(channel, ref.get());
     }
 
+    private class DoNotCloseServerChannel extends DoNotRegisterServerChannel {
+
+        private DoNotCloseServerChannel(String profile, ServerSocketChannel channel, ChannelFactory channelFactory,
+                                        AcceptingSelector selector) throws IOException {
+            super(profile, channel, channelFactory, selector);
+        }
+
+        @Override
+        void closeRawChannel() throws IOException {
+            closedRawChannel.set(true);
+        }
+    }
 }

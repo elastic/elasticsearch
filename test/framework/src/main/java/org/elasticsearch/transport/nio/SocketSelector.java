@@ -191,12 +191,16 @@ public class SocketSelector extends ESSelector {
     private void setupChannel(NioSocketChannel newChannel) {
         assert newChannel.getSelector() == this : "The channel must be registered with the selector with which it was created";
         try {
-            newChannel.register();
-            addRegisteredChannel(newChannel);
-            SelectionKey key = newChannel.getSelectionKey();
-            key.attach(newChannel);
-            eventHandler.handleRegistration(newChannel);
-            attemptConnect(newChannel, false);
+            if (newChannel.isOpen()) {
+                newChannel.register();
+                addRegisteredChannel(newChannel);
+                SelectionKey key = newChannel.getSelectionKey();
+                key.attach(newChannel);
+                eventHandler.handleRegistration(newChannel);
+                attemptConnect(newChannel, false);
+            } else {
+                eventHandler.registrationException(newChannel, new ClosedChannelException());
+            }
         } catch (Exception e) {
             eventHandler.registrationException(newChannel, e);
         }

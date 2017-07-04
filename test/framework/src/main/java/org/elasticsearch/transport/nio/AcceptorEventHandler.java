@@ -54,6 +54,16 @@ public class AcceptorEventHandler extends EventHandler {
     }
 
     /**
+     * This method is called when an attempt to register a server channel throws an exception.
+     *
+     * @param channel that was registered
+     * @param exception that occurred
+     */
+    public void registrationException(NioServerSocketChannel channel, Exception exception) {
+        logger.error("failed to register server channel", exception);
+    }
+
+    /**
      * This method is called when a server channel signals it is ready to accept a connection. All of the
      * accept logic should occur in this call.
      *

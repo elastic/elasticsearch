@@ -39,6 +39,7 @@ import java.util.Set;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
+import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -73,6 +74,7 @@ public class SocketSelectorTests extends ESTestCase {
 
         when(rawSelector.selectedKeys()).thenReturn(keySet);
         when(rawSelector.select(0)).thenReturn(1);
+        when(channel.isOpen()).thenReturn(true);
         when(channel.getSelectionKey()).thenReturn(selectionKey);
         when(channel.getWriteContext()).thenReturn(writeContext);
         when(channel.isConnectComplete()).thenReturn(true);
@@ -89,6 +91,20 @@ public class SocketSelectorTests extends ESTestCase {
         Set<NioChannel> registeredChannels = socketSelector.getRegisteredChannels();
         assertEquals(1, registeredChannels.size());
         assertTrue(registeredChannels.contains(channel));
+    }
+
+    public void testClosedChannelWillNotBeRegistered() throws Exception {
+        when(channel.isOpen()).thenReturn(false);
+        socketSelector.scheduleForRegistration(channel);
+
+        socketSelector.doSelect(0);
+
+        verify(eventHandler).registrationException(same(channel), any(ClosedChannelException.class));
+        verify(channel, times(0)).finishConnect();
+
+        Set<NioChannel> registeredChannels = socketSelector.getRegisteredChannels();
+        assertEquals(0, registeredChannels.size());
+        assertFalse(registeredChannels.contains(channel));
     }
 
     public void testRegisterChannelFailsDueToException() throws Exception {

@@ -102,28 +102,14 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
     @Override
     protected void closeChannels(List<NioChannel> channels) throws IOException {
-        IOException closingExceptions = null;
         for (final NioChannel channel : channels) {
             if (channel != null && channel.isOpen()) {
-                try {
-                    // If we are currently on the selector thread that handles this channel, we should prefer
-                    // the closeFromSelector method. This method always closes the channel immediately.
-                    if (channel.getSelector().isOnCurrentThread()) {
-                        channel.closeFromSelector();
-                    } else {
-                        channel.closeAsync().awaitClose();
-                    }
-                } catch (Exception e) {
-                    if (closingExceptions == null) {
-                        closingExceptions = new IOException("failed to close channels");
-                    }
-                    closingExceptions.addSuppressed(e.getCause());
-                }
+                // We do not need to wait for the close operation to complete. If the close operation fails due
+                // to an IOException, the selector's handler will log the exception. Additionally, in the case
+                // of transport shutdown, where we do want to ensure that all channels to finished closing, the
+                // NioShutdown class will block on close.
+                channel.closeAsync();
             }
-        }
-
-        if (closingExceptions != null) {
-            throw closingExceptions;
         }
     }
 

@@ -1,6 +1,6 @@
 {
   "xpack.ml.preview_datafeed": {
-    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-preview-datafeed.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-preview-datafeed.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/ml/datafeeds/{datafeed_id}/_preview",

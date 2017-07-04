@@ -53,24 +53,14 @@ public class ChannelFactory {
         this.rawChannelFactory = rawChannelFactory;
     }
 
-    public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector) throws IOException {
-        return openNioChannel(remoteAddress, selector, null);
-    }
-
     public NioSocketChannel openNioChannel(InetSocketAddress remoteAddress, SocketSelector selector,
                                            Consumer<NioChannel> closeListener) throws IOException {
         SocketChannel rawChannel = rawChannelFactory.openNioChannel(remoteAddress);
         NioSocketChannel channel = new NioSocketChannel(NioChannel.CLIENT, rawChannel, selector);
         channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
-        if (closeListener != null) {
-            channel.getCloseFuture().setListener(closeListener);
-        }
+        channel.getCloseFuture().setListener(closeListener);
         scheduleChannel(channel, selector);
         return channel;
-    }
-
-    public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector) throws IOException {
-        return acceptNioChannel(serverChannel, selector, null);
     }
 
     public NioSocketChannel acceptNioChannel(NioServerSocketChannel serverChannel, SocketSelector selector,
@@ -78,9 +68,7 @@ public class ChannelFactory {
         SocketChannel rawChannel = rawChannelFactory.acceptNioChannel(serverChannel);
         NioSocketChannel channel = new NioSocketChannel(serverChannel.getProfile(), rawChannel, selector);
         channel.setContexts(new TcpReadContext(channel, handler), new TcpWriteContext(channel));
-        if (closeListener != null) {
-            channel.getCloseFuture().setListener(closeListener);
-        }
+        channel.getCloseFuture().setListener(closeListener);
         scheduleChannel(channel, selector);
         return channel;
     }

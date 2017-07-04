@@ -140,6 +140,7 @@ public abstract class ESSelector implements Closeable {
     }
 
     public void addRegisteredChannel(NioChannel channel) {
+        assert registeredChannels.contains(channel) == false : "Should only register channel once";
         registeredChannels.add(channel);
     }
 

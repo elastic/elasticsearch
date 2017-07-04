@@ -26,7 +26,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.ConnectException;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -39,11 +38,13 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
 
     private SocketSelector selector;
     private Thread thread;
+    private Consumer<NioChannel> closeListener;
 
     @Before
     @SuppressWarnings("unchecked")
     public void startSelector() throws IOException {
         selector = new SocketSelector(new SocketEventHandler(logger, mock(BiConsumer.class)));
+        closeListener = mock(Consumer.class);
         thread = new Thread(selector::runLoop);
         thread.start();
         selector.isRunningFuture().actionGet();
@@ -63,7 +64,7 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
 
     public void testConnectSucceeds() throws IOException, InterruptedException {
         InetSocketAddress remoteAddress = new InetSocketAddress(mockServerSocket.getInetAddress(), mockServerSocket.getLocalPort());
-        NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress, selector);
+        NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress, selector, closeListener);
 
         ConnectFuture connectFuture = socketChannel.getConnectFuture();
         assertTrue(connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS));
@@ -77,7 +78,7 @@ public class NioSocketChannelTests extends AbstractNioChannelTestCase {
     public void testConnectFails() throws IOException, InterruptedException {
         int port = mockServerSocket.getLocalPort() == 9876 ? 9877 : 9876;
         InetSocketAddress remoteAddress = new InetSocketAddress(mockServerSocket.getInetAddress(), port);
-        NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress, selector);
+        NioSocketChannel socketChannel = channelFactory.openNioChannel(remoteAddress, selector, closeListener);
 
         ConnectFuture connectFuture = socketChannel.getConnectFuture();
         assertFalse(connectFuture.awaitConnectionComplete(100, TimeUnit.SECONDS));

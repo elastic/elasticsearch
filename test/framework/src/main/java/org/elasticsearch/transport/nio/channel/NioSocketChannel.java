@@ -44,16 +44,12 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     @Override
-    public CloseFuture closeAsync() {
-        clearQueuedWrites();
-
-        return super.closeAsync();
-    }
-
-    @Override
     public void closeFromSelector() {
+        assert socketSelector.isOnCurrentThread() : "Should only call from selector thread";
         // Even if the channel has already been closed we will clear any pending write operations just in case
-        clearQueuedWrites();
+        if (writeContext.hasQueuedWriteOps()) {
+            writeContext.clearQueuedWriteOps(new ClosedChannelException());
+        }
 
         super.closeFromSelector();
     }
@@ -116,11 +112,11 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
     }
 
     public boolean isWritable() {
-        return state.get() == OPEN;
+        return isClosed.get() == false;
     }
 
     public boolean isReadable() {
-        return state.get() == OPEN;
+        return isClosed.get() == false;
     }
 
     /**
@@ -168,13 +164,6 @@ public class NioSocketChannel extends AbstractNioChannel<SocketChannel> {
         } catch (RuntimeException e) {
             connectFuture.setConnectionFailed(e);
             throw e;
-        }
-    }
-
-    private void clearQueuedWrites() {
-        // Even if the channel has already been closed we will clear any pending write operations just in case
-        if (socketSelector.isOnCurrentThread() && writeContext.hasQueuedWriteOps()) {
-            writeContext.clearQueuedWriteOps(new ClosedChannelException());
         }
     }
 }

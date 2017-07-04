@@ -27,6 +27,7 @@ import java.nio.channels.ClosedChannelException;
 import java.nio.channels.NetworkChannel;
 import java.nio.channels.SelectableChannel;
 import java.nio.channels.SelectionKey;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -35,26 +36,20 @@ import java.util.concurrent.atomic.AtomicInteger;
  * A channel is open once it is constructed. The channel remains open and {@link #isOpen()} will return
  * true until the channel is explicitly closed.
  * <p>
- * A channel lifecycle has three stages:
+ * A channel lifecycle has two stages:
  * <ol>
  * <li>OPEN - When a channel has been created. This is the state of a channel that can perform normal operations.
- * <li>CLOSING - When a channel has been marked for closed, but is not yet closed. {@link #isOpen()} will
- * still return true. Normal operations should be rejected. The most common scenario for a channel to be
- * CLOSING is when channel that was OPEN has {@link #closeAsync()} called, but the selector thread
- * has not yet closed the channel.
- * <li>CLOSED - The channel has been closed.
+ * <li>CLOSED - The channel has been set to closed. All this means is that the channel has been scheduled to be
+ * closed. The underlying raw channel may not yet be closed. The underlying channel has been closed if the close
+ * future has been completed.
  * </ol>
  *
  * @param <S> the type of raw channel this AbstractNioChannel uses
  */
 public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkChannel> implements NioChannel {
 
-    static final int OPEN = 0;
-    static final int CLOSING = 1;
-    static final int CLOSED = 2;
-
     final S socketChannel;
-    final AtomicInteger state = new AtomicInteger(OPEN);
+    final AtomicBoolean isClosed = new AtomicBoolean(false);
 
     private final InetSocketAddress localAddress;
     private final String profile;
@@ -87,25 +82,17 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     /**
      * Schedules a channel to be closed by the selector event loop with which it is registered.
      * <p>
-     * If the channel is OPEN and the state can be transitioned to CLOSING, the close operation will
+     * If the channel is open and the state can be transitioned to closed, the close operation will
      * be scheduled with the event loop.
      * <p>
-     * If the channel is CLOSING or CLOSED, nothing will be done.
+     * If the channel is already set to closed, it is assumed that it is already scheduled to be closed.
      *
      * @return future that will be complete when the channel is closed
      */
     @Override
     public CloseFuture closeAsync() {
-        for (; ; ) {
-            int state = this.state.get();
-            if (state == OPEN) {
-                if (this.state.compareAndSet(OPEN, CLOSING)) {
-                    selector.queueChannelClose(this);
-                    break;
-                }
-            } else if (state == CLOSING || state == CLOSED) {
-                break;
-            }
+        if (isClosed.compareAndSet(false, true)) {
+            selector.queueChannelClose(this);
         }
         return closeFuture;
     }
@@ -117,18 +104,9 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
      */
     @Override
     public void closeFromSelector() {
-        // This will not exit the loop until this thread or someone else has set the state to CLOSED.
-        // Whichever thread succeeds in setting the state to CLOSED will close the raw channel.
-        for (; ; ) {
-            int state = this.state.get();
-            if (state == OPEN && this.state.compareAndSet(OPEN, CLOSING)) {
-                close0();
-            } else if (state == CLOSING) {
-                close0();
-            } else if (state == CLOSED) {
-                break;
-            }
-        }
+        assert selector.isOnCurrentThread() : "Should only call from selector thread";
+        isClosed.compareAndSet(false, true);
+        close0();
     }
 
     /**
@@ -168,14 +146,15 @@ public abstract class AbstractNioChannel<S extends SelectableChannel & NetworkCh
     }
 
     private void close0() {
-        if (this.state.compareAndSet(CLOSING, CLOSED)) {
+        if (closeFuture.isClosed() == false) {
+            boolean closedOnThisCall = false;
             try {
                 socketChannel.close();
-                closeFuture.channelClosed(this);
+                closedOnThisCall = closeFuture.channelClosed(this);
             } catch (IOException e) {
-                closeFuture.channelCloseThrewException(this, e);
+                closedOnThisCall = closeFuture.channelCloseThrewException(this, e);
             } finally {
-                if (selector != null) {
+                if (closedOnThisCall) {
                     selector.removeRegisteredChannel(this);
                 }
             }

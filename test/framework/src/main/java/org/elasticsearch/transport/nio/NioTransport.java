@@ -97,9 +97,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
     protected NioServerSocketChannel bind(String name, InetSocketAddress address) throws IOException {
         ChannelFactory channelFactory = this.profileToChannelFactory.get(name);
         AcceptingSelector selector = acceptors.get(++acceptorNumber % NioTransport.NIO_ACCEPTOR_COUNT.get(settings));
-        NioServerSocketChannel serverSocketChannel = channelFactory.openNioServerSocketChannel(name, address, selector);
-        selector.scheduleForRegistration(serverSocketChannel);
-        return serverSocketChannel;
+        return channelFactory.openNioServerSocketChannel(name, address, selector);
     }
 
     @Override

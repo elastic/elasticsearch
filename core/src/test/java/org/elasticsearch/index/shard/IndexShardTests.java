@@ -706,7 +706,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
         indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED));
 
-        final long globalCheckpointOnReplica = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        final long globalCheckpointOnReplica =
                 randomIntBetween(
                         Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
                         Math.toIntExact(indexShard.getLocalCheckpoint()));
@@ -722,12 +722,13 @@ public class IndexShardTests extends IndexShardTestCase {
                 globalCheckpoint,
                 new ActionListener<Releasable>() {
                     @Override
-                    public void onResponse(Releasable releasable) {
+                    public void onResponse(final Releasable releasable) {
+                        releasable.close();
                         latch.countDown();
                     }
 
                     @Override
-                    public void onFailure(Exception e) {
+                    public void onFailure(final Exception e) {
 
                     }
                 },

@@ -2020,12 +2020,9 @@ public class InternalEngineTests extends ESTestCase {
 
         try {
             initialEngine = engine;
-            initialEngine
-                .seqNoService()
-                .initializeAsPrimary(
-                        randomNonNegativeLong(),
-                        new HashSet<>(Arrays.asList("primary", "replica")),
-                        Collections.emptySet());
+            initialEngine.seqNoService().updateAllocationIdsFromMaster(1L, new HashSet<>(Arrays.asList("primary", "replica")),
+                Collections.emptySet());
+            initialEngine.seqNoService().initializeAsPrimary("primary", primarySeqNo);
             for (int op = 0; op < opCount; op++) {
                 final String id;
                 // mostly index, sometimes delete

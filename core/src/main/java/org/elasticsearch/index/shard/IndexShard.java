@@ -379,6 +379,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     + currentRouting + ", new " + newRouting);
             }
 
+            final Engine engine = getEngineOrNull();
+            if (engine != null) {
+                engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds);
+            }
+
             if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
                 assert currentRouting.active() == false : "we are in POST_RECOVERY, but our shard routing is active " + currentRouting;
                 // we want to refresh *before* we move to internal STARTED state
@@ -389,8 +394,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 if (newRouting.primary() && currentRouting.isRelocationTarget() == false) {
-                    getEngine().seqNoService().initializeAsPrimary(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds);
-                    getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
+                    getEngine().seqNoService().initializeAsPrimary(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
                 }
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
@@ -475,17 +479,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             }
                         },
                         e -> failShard("exception during primary term transition", e));
-                    getEngine().seqNoService().initializeAsPrimary(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds);
-                    getEngine().seqNoService().updateLocalCheckpointForShard(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
+                    getEngine().seqNoService().initializeAsPrimary(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
                     primaryTerm = newPrimaryTerm;
                     latch.countDown();
-                }
-
-                if (shardRouting.active()) {
-                    if (state != IndexShardState.RELOCATED) {
-                        getEngine().seqNoService().updateAllocationIdsFromMaster(
-                            applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds);
-                    }
                 }
             }
         }

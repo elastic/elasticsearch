@@ -183,14 +183,9 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     /**
      * Initializes the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
      * Called on primary activation or promotion.
-     *
-     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
-     * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
-     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
      */
-    public void initializeAsPrimary(
-        final long applyingClusterStateVersion, final Set<String> inSyncAllocationIds, final Set<String> initializingAllocationIds) {
-        globalCheckpointTracker.initializeAsPrimary(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds);
+    public void initializeAsPrimary(final String allocationId, final long localCheckpoint) {
+        globalCheckpointTracker.initializeAsPrimary(allocationId, localCheckpoint);
     }
 
     /**

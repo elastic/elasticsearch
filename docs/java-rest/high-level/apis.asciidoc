@@ -6,7 +6,7 @@ The Java High Level REST Client supports the following APIs:
 * <<java-rest-high-document-index>>
 * <<java-rest-high-document-get>>
 * <<java-rest-high-document-delete>>
-* Update API
+* <<java-rest-high-document-update>>
 
 .Multi-document APIs
 * <<java-rest-high-document-bulk>>

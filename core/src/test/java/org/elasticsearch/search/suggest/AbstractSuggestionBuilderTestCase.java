@@ -200,8 +200,14 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             } else {
                 assertEquals("mapperServiceSearchAnalyzer", ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
             }
+            assertSuggester(suggestionBuilder, suggestionContext);
         }
     }
+
+    /**
+     * put suggester dependent assertions in the sub type test
+     */
+    protected abstract void assertSuggester(SB builder, SuggestionContext context);
 
     protected MappedFieldType mockFieldType() {
         return mock(MappedFieldType.class);

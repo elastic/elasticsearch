@@ -21,6 +21,7 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -184,4 +185,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         assertEquals("Pre and post tag must both be null or both not be null.", e.getMessage());
     }
 
+    @Override
+    protected void assertSuggester(PhraseSuggestionBuilder builder, SuggestionContext context) {
+    }
 }

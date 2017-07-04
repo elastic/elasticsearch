@@ -610,6 +610,12 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
                 newGlobalCheckPoint = randomIntBetween((int) indexShard.getGlobalCheckpoint(), (int) localCheckPoint);
             }
+            final long expectedLocalCheckpoint;
+            if (newGlobalCheckPoint == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                expectedLocalCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+            } else {
+                expectedLocalCheckpoint = newGlobalCheckPoint;
+            }
             // but you can not increment with a new primary term until the operations on the older primary term complete
             final Thread thread = new Thread(() -> {
                 try {
@@ -621,7 +627,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     @Override
                     public void onResponse(Releasable releasable) {
                         assertThat(indexShard.getPrimaryTerm(), equalTo(newPrimaryTerm));
-                        assertThat(indexShard.getLocalCheckpoint(), equalTo(newGlobalCheckPoint));
+                        assertThat(indexShard.getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
                         assertThat(indexShard.getGlobalCheckpoint(), equalTo(newGlobalCheckPoint));
                         onResponse.set(true);
                         releasable.close();
@@ -682,7 +688,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     assertTrue(onResponse.get());
                     assertNull(onFailure.get());
                     assertThat(indexShard.getTranslog().getGeneration().translogFileGeneration, equalTo(translogGen + 1));
-                    assertThat(indexShard.getLocalCheckpoint(), equalTo(newGlobalCheckPoint));
+                    assertThat(indexShard.getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
                     assertThat(indexShard.getGlobalCheckpoint(), equalTo(newGlobalCheckPoint));
                 }
             }

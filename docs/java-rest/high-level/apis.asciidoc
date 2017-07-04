@@ -4,7 +4,7 @@ The Java High Level REST Client supports the following APIs:
 
 * <<java-rest-high-document-index>>
 
-* Get API
+* <<java-rest-high-document-get>>
 
 * <<java-rest-high-document-delete>>
 

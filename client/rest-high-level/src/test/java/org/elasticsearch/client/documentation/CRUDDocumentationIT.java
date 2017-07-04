@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client.documentation;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -28,6 +30,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -36,15 +40,19 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -117,7 +125,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     "\"postDate\":\"2013-01-30\"," +
                     "\"message\":\"trying out Elasticsearch\"" +
                     "}";
-            request.source(jsonString, XContentType.JSON); //<4>
+            request.source(jsonString, XContentType.JSON); // <4>
             //end::index-request-string
 
             // tag::index-execute
@@ -250,7 +258,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             long version = deleteResponse.getVersion();
             ReplicationResponse.ShardInfo shardInfo = deleteResponse.getShardInfo();
             if (shardInfo.getTotal() != shardInfo.getSuccessful()) {
-                //<1>
+                // <1>
             }
             if (shardInfo.getFailed() > 0) {
                 for (ReplicationResponse.ShardInfo.Failure failure : shardInfo.getFailures()) {
@@ -362,10 +370,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
                 if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.INDEX
                         || bulkItemResponse.getOpType() == DocWriteRequest.OpType.CREATE) { // <3>
-                    IndexResponse indexResponse = (IndexResponse)itemResponse;
+                    IndexResponse indexResponse = (IndexResponse) itemResponse;
 
                 } else if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.UPDATE) { // <4>
-                    UpdateResponse updateResponse = (UpdateResponse)itemResponse;
+                    UpdateResponse updateResponse = (UpdateResponse) itemResponse;
 
                 } else if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.DELETE) { // <5>
                     DeleteResponse deleteResponse = (DeleteResponse) itemResponse;
@@ -414,6 +422,173 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             });
             // end::bulk-execute-async
+        }
+    }
+
+    public void testGet() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            String mappings = "{\n" +
+                    "    \"mappings\" : {\n" +
+                    "        \"type\" : {\n" +
+                    "            \"properties\" : {\n" +
+                    "                \"message\" : {\n" +
+                    "                    \"type\": \"text\",\n" +
+                    "                    \"store\": true\n" +
+                    "                }\n" +
+                    "            }\n" +
+                    "        }\n" +
+                    "    }\n" +
+                    "}";
+
+            NStringEntity entity = new NStringEntity(mappings, ContentType.APPLICATION_JSON);
+            Response response = client().performRequest("PUT", "/index", Collections.emptyMap(), entity);
+            assertEquals(200, response.getStatusLine().getStatusCode());
+
+            IndexRequest indexRequest = new IndexRequest("index", "type", "id")
+                    .source("user", "kimchy",
+                            "postDate", new Date(),
+                            "message", "trying out Elasticsearch");
+            IndexResponse indexResponse = client.index(indexRequest);
+            assertEquals(indexResponse.getResult(), DocWriteResponse.Result.CREATED);
+        }
+        {
+            //tag::get-request
+            GetRequest getRequest = new GetRequest(
+                    "index", // <1>
+                    "type",  // <2>
+                    "id");   // <3>
+            //end::get-request
+
+            //tag::get-execute
+            GetResponse getResponse = client.get(getRequest);
+            //end::get-execute
+            assertTrue(getResponse.isExists());
+            assertEquals(3, getResponse.getSourceAsMap().size());
+            //tag::get-response
+            String index = getResponse.getIndex();
+            String type = getResponse.getType();
+            String id = getResponse.getId();
+            if (getResponse.isExists()) {
+                long version = getResponse.getVersion();
+                String sourceAsString = getResponse.getSourceAsString();        // <1>
+                Map<String, Object> sourceAsMap = getResponse.getSourceAsMap(); // <2>
+                byte[] sourceAsBytes = getResponse.getSourceAsBytes();          // <3>
+            } else {
+                // <4>
+            }
+            //end::get-response
+        }
+        {
+            GetRequest request = new GetRequest("index", "type", "id");
+            //tag::get-request-no-source
+            request.fetchSourceContext(new FetchSourceContext(false)); // <1>
+            //end::get-request-no-source
+            GetResponse getResponse = client.get(request);
+            assertNull(getResponse.getSourceInternal());
+        }
+        {
+            GetRequest request = new GetRequest("index", "type", "id");
+            //tag::get-request-source-include
+            FetchSourceContext fetchSourceContext = new FetchSourceContext(true,
+                    new String[]{"message", "*Date"},
+                    Strings.EMPTY_ARRAY);
+            request.fetchSourceContext(fetchSourceContext); // <1>
+            //end::get-request-source-include
+            GetResponse getResponse = client.get(request);
+            Map<String, Object> sourceAsMap = getResponse.getSourceAsMap();
+            assertEquals(2, sourceAsMap.size());
+            assertEquals("trying out Elasticsearch", sourceAsMap.get("message"));
+            assertTrue(sourceAsMap.containsKey("postDate"));
+        }
+        {
+            GetRequest request = new GetRequest("index", "type", "id");
+            //tag::get-request-source-exclude
+            FetchSourceContext fetchSourceContext = new FetchSourceContext(true,
+                    Strings.EMPTY_ARRAY,
+                    new String[]{"message"});
+            request.fetchSourceContext(fetchSourceContext); // <1>
+            //end::get-request-source-exclude
+            GetResponse getResponse = client.get(request);
+            Map<String, Object> sourceAsMap = getResponse.getSourceAsMap();
+            assertEquals(2, sourceAsMap.size());
+            assertEquals("kimchy", sourceAsMap.get("user"));
+            assertTrue(sourceAsMap.containsKey("postDate"));
+        }
+        {
+            GetRequest request = new GetRequest("index", "type", "id");
+            //tag::get-request-stored
+            request.storedFields("message"); // <1>
+            GetResponse getResponse = client.get(request);
+            String message = getResponse.getField("message").getValue(); // <2>
+            //end::get-request-stored
+            assertEquals("trying out Elasticsearch", message);
+            assertEquals(1, getResponse.getFields().size());
+            assertNull(getResponse.getSourceInternal());
+        }
+        {
+            GetRequest request = new GetRequest("index", "type", "id");
+            //tag::get-request-routing
+            request.routing("routing"); // <1>
+            //end::get-request-routing
+            //tag::get-request-parent
+            request.parent("parent"); // <1>
+            //end::get-request-parent
+            //tag::get-request-preference
+            request.preference("preference"); // <1>
+            //end::get-request-preference
+            //tag::get-request-realtime
+            request.realtime(false); // <1>
+            //end::get-request-realtime
+            //tag::get-request-refresh
+            request.refresh(true); // <1>
+            //end::get-request-refresh
+            //tag::get-request-version
+            request.version(2); // <1>
+            //end::get-request-version
+            //tag::get-request-version-type
+            request.versionType(VersionType.EXTERNAL); // <1>
+            //end::get-request-version-type
+        }
+        {
+            GetRequest request = new GetRequest("index", "type", "id");
+            //tag::get-execute-async
+            client.getAsync(request, new ActionListener<GetResponse>() {
+                @Override
+                public void onResponse(GetResponse documentFields) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            //end::get-execute-async
+        }
+        {
+            //tag::get-indexnotfound
+            GetRequest request = new GetRequest("does_not_exist", "type", "id");
+            try {
+                GetResponse getResponse = client.get(request);
+            } catch (ElasticsearchException e) {
+                if (e.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            //end::get-indexnotfound
+        }
+        {
+            // tag::get-conflict
+            try {
+                GetRequest request = new GetRequest("index", "type", "id").version(2);
+                GetResponse getResponse = client.get(request);
+            } catch (ElasticsearchException exception) {
+                if (exception.status() == RestStatus.CONFLICT) {
+                    // <1>
+                }
+            }
+            // end::get-conflict
         }
     }
 }

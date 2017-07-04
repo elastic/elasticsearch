@@ -71,8 +71,8 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-execute]
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-execute-async]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
-provided as an argument.
-<2> Called in case of failure. The raised exception is provided as an argument.
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
 
 [[java-rest-high-document-delete-response]]
 ==== Delete Response
@@ -104,5 +104,5 @@ be thrown:
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-conflict]
 --------------------------------------------------
-<1> The raised exception indicates that a version conflict error was returned.
+<1> The raised exception indicates that a version conflict error was returned
 

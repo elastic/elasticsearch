@@ -87,7 +87,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField _SOURCE_FIELD = new ParseField("_source");
     public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final ParseField STORED_FIELDS_FIELD = new ParseField("stored_fields");
-    public static final ParseField DOCVALUE_FIELDS_FIELD = new ParseField("docvalue_fields", "fielddata_fields");
+    public static final ParseField DOCVALUE_FIELDS_FIELD = new ParseField("docvalue_fields");
     public static final ParseField SCRIPT_FIELDS_FIELD = new ParseField("script_fields");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure");
@@ -753,32 +753,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      */
     public StoredFieldsContext storedFields() {
         return storedFieldsContext;
-    }
-
-
-    /**
-     * Adds a field to load from the docvalue and return as part of the
-     * search request.
-     *
-     * @deprecated Use {@link SearchSourceBuilder#docValueField(String)} instead.
-     */
-    @Deprecated
-    public SearchSourceBuilder fieldDataField(String name) {
-        if (docValueFields == null) {
-            docValueFields = new ArrayList<>();
-        }
-        docValueFields.add(name);
-        return this;
-    }
-
-    /**
-     * Gets the docvalue fields.
-     *
-     * @deprecated Use {@link SearchSourceBuilder#docValueFields()} instead.
-     */
-    @Deprecated
-    public List<String> fieldDataFields() {
-        return docValueFields;
     }
 
 

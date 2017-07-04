@@ -329,23 +329,31 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testBulk() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
-            BulkRequest bulkRequest = new BulkRequest()
-                    .add(new IndexRequest("index", "type", "1").source(Requests.INDEX_CONTENT_TYPE, "field", "value"))
-                    .add(new IndexRequest("index", "type", "2").source(Requests.INDEX_CONTENT_TYPE,"field", "value"));
-            BulkResponse bulkResponse = client.bulk(bulkRequest);
-            assertFalse(bulkResponse.hasFailures());
-        }
-        {
             // tag::bulk-request
             BulkRequest request = new BulkRequest(); // <1>
-            request.add(new IndexRequest("index", "type", "0").source(XContentType.JSON,"field", "value")); // <2>
-            request.add(new UpdateRequest("index", "type", "1").doc(XContentType.JSON,"field", "value")); // <3>
-            request.add(new DeleteRequest("index", "type", "2")); // <4>
+            request.add(new IndexRequest("index", "type", "0")  // <2>
+                    .source(XContentType.JSON,"field", "foo"));
+            request.add(new IndexRequest("index", "type", "1")  // <3>
+                    .source(XContentType.JSON,"field", "bar"));
+            request.add(new IndexRequest("index", "type", "2")  // <4>
+                    .source(XContentType.JSON,"field", "baz"));
             // end::bulk-request
-
             // tag::bulk-execute
             BulkResponse bulkResponse = client.bulk(request);
             // end::bulk-execute
+            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertFalse(bulkResponse.hasFailures());
+        }
+        {
+            // tag::bulk-request-with-mixed-operations
+            BulkRequest request = new BulkRequest();
+            request.add(new DeleteRequest("index", "type", "2")); // <1>
+            request.add(new UpdateRequest("index", "type", "1") // <2>
+                    .doc(XContentType.JSON,"other", "test"));
+            request.add(new IndexRequest("index", "type", "4")  // <3>
+                    .source(XContentType.JSON,"field", "baz"));
+            // end::bulk-request-with-mixed-operations
+            BulkResponse bulkResponse = client.bulk(request);
             assertSame(bulkResponse.status(), RestStatus.OK);
             assertFalse(bulkResponse.hasFailures());
 
@@ -353,13 +361,14 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             for (BulkItemResponse bulkItemResponse : bulkResponse) { // <1>
                 DocWriteResponse itemResponse = bulkItemResponse.getResponse(); // <2>
 
-                if (itemResponse instanceof IndexResponse) { // <3>
+                if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.INDEX
+                        || bulkItemResponse.getOpType() == DocWriteRequest.OpType.CREATE) { // <3>
                     IndexResponse indexResponse = (IndexResponse)itemResponse;
 
-                } else if (itemResponse instanceof UpdateResponse) { // <4>
+                } else if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.UPDATE) { // <4>
                     UpdateResponse updateResponse = (UpdateResponse)itemResponse;
 
-                } else if (itemResponse instanceof DeleteResponse) { // <5>
+                } else if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.DELETE) { // <5>
                     DeleteResponse deleteResponse = (DeleteResponse) itemResponse;
                 }
             }

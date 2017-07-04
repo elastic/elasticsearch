@@ -13,15 +13,26 @@ It requires at least one operation to be added to the Bulk request:
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request]
 --------------------------------------------------
-<1> Creates the Bulk request
-<2> Adds an `IndexRequest` to the Bulk request. See <<java-rest-high-document-index>>
+<1> Creates the `BulkRequest`
+<2> Adds a first `IndexRequest` to the Bulk request. See <<java-rest-high-document-index>>
 for more information on how to build `IndexRequest`.
-<3> Adds a `UpdateRequest` to the Bulk request.
-<4> Adds a `DeleteRequest` to the Bulk request. See <<java-rest-high-document-delete>>
-for more information on how to build `DeleteRequest`.
+<3> Adds a second `IndexRequest`
+<4> Adds a third `IndexRequest`
 
-WARNING: The Bulk API supports only documents encoded in JSON. Providing documents in
-any other format will result in an error.
+WARNING: The Bulk API supports only documents encoded in JSON or Smile. Providing documents
+ in any other format will result in an error.
+
+And different operation types can be added to the same `BulkRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-request-with-mixed-operations]
+--------------------------------------------------
+<1> Adds a `DeleteRequest` to the Bulk request. See <<java-rest-high-document-delete>>
+for more information on how to build `DeleteRequest`.
+<2> Adds an `UpdateRequest` to the Bulk request. See <<java-rest-high-document-update>>
+for more information on how to build `UpdateRequest`.
+<3> Adds an `IndexRequest` using the SMILE format
 
 ==== Optional arguments
 The following arguments can optionally be provided:
@@ -66,8 +77,12 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-execute]
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-execute-async]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
-provided as an argument.
-<2> Called in case of failure. The raised exception is provided as an argument.
+provided as an argument and contains a list of individual results for each
+operation that was executed. Note that one or more operation might have
+failed while the others have been successfully executed.
+<2> Called when the whole `BulkRequest` failed to be executed. In this case
+the raised exception is provided as an argument and no operation has been
+executed.
 
 [[java-rest-high-document-bulk-response]]
 ==== Bulk Response

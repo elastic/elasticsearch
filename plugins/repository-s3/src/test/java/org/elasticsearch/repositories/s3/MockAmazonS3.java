@@ -37,7 +37,6 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.util.Base64;
-import org.junit.Assert;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,6 +48,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static org.junit.Assert.assertTrue;
 
 class MockAmazonS3 extends AbstractAmazonS3 {
 
@@ -75,7 +76,7 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     // is able to to open a socket to the S3 Service without causing a SecurityException
     private void simulateS3SocketConnection() {
         try (Socket socket = new Socket(InetAddress.getByName("127.0.0.1"), mockSocketPort)) {
-            Assert.assertTrue(socket.isConnected()); // NOOP to keep static analysis happy
+            assertTrue(socket.isConnected()); // NOOP to keep static analysis happy
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

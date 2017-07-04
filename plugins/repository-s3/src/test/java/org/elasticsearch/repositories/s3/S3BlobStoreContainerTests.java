@@ -55,7 +55,6 @@ public class S3BlobStoreContainerTests extends ESBlobStoreContainerTestCase {
                     // Accept connections from MockAmazonS3.
                     mockS3ServerSocket.accept();
                 } catch (IOException e) {
-                    logger.log(Level.ERROR, e);
                 }
             }
         });

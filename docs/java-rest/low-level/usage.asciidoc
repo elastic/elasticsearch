@@ -1,8 +1,11 @@
 [[java-rest-low-usage]]
-=== Getting started
+== Getting started
+
+This section describes how to get started with the low-level REST client from
+getting the artifact to using it in an application.
 
 [[java-rest-low-usage-maven]]
-==== Maven Repository
+=== Maven Repository
 
 The low-level Java REST client is hosted on
 http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
@@ -15,7 +18,7 @@ and the elasticsearch version that the client can communicate with. The
 low-level REST client is compatible with all elasticsearch versions.
 
 [[java-rest-low-usage-maven-maven]]
-===== Maven configuration
+==== Maven configuration
 
 Here is how you can configure the dependency using maven as a dependency manager.
 Add the following to your `pom.xml` file:
@@ -30,7 +33,7 @@ Add the following to your `pom.xml` file:
 --------------------------------------------------
 
 [[java-rest-low-usage-maven-gradle]]
-===== Gradle configuration
+==== Gradle configuration
 
 Here is how you can configure the dependency using gradle as a dependency manager.
 Add the following to your `build.gradle` file:
@@ -43,7 +46,7 @@ dependencies {
 --------------------------------------------------
 
 [[java-rest-low-usage-dependencies]]
-==== Dependencies
+=== Dependencies
 
 The low-level Java REST client internally uses the
 http://hc.apache.org/httpcomponents-asyncclient-dev/[Apache Http Async Client]
@@ -58,7 +61,7 @@ http://hc.apache.org/httpcomponents-asyncclient-dev/[Apache Http Async Client]
 - commons-logging:commons-logging
 
 [[java-rest-low-usage-initialization]]
-==== Initialization
+=== Initialization
 
 A `RestClient` instance can be built through the corresponding
 `RestClientBuilder` class, created via `RestClient#builder(HttpHost...)`
@@ -106,7 +109,7 @@ http://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org/
  allows to set)
 
 [[java-rest-low-usage-requests]]
-==== Performing requests
+=== Performing requests
 
 Once the `RestClient` has been created, requests can be sent by calling one of
 the available `performRequest` or `performRequestAsync` method variants.
@@ -165,7 +168,7 @@ void performRequestAsync(String method, String endpoint,
 --------------------------------------------------
 
 [[java-rest-low-usage-requests-arguments]]
-===== Request Arguments
+==== Request Arguments
 
 The following are the arguments accepted by the different methods:
 
@@ -186,7 +189,7 @@ request success or failure
 `headers`:: optional request headers
 
 [[java-rest-low-usage-responses]]
-==== Reading responses
+=== Reading responses
 
 The `Response` object, either returned by the synchronous `performRequest` methods or
 received as an argument in `ResponseListener#onSuccess(Response)`, wraps the
@@ -223,7 +226,7 @@ case the response body will not contain an error but rather the usual get api
 response, just without the document as it was not found.
 
 [[java-rest-low-usage-example]]
-==== Example requests
+=== Example requests
 
 Here are a couple of examples:
 
@@ -302,7 +305,7 @@ latch.await();
 --------------------------------------------------
 
 [[java-rest-low-usage-logging]]
-==== Logging
+=== Logging
 
 The Java REST client uses the same logging library that the Apache Async Http
 Client uses: https://commons.apache.org/proper/commons-logging/[Apache Commons Logging],

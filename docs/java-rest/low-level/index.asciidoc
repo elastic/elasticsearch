@@ -1,5 +1,8 @@
 [[java-rest-low]]
-== Java Low Level REST Client
+= Java Low Level REST Client
+
+[partintro]
+--
 
 The low-level client's features include:
 
@@ -19,9 +22,12 @@ The low-level client's features include:
 
 * optional automatic <<sniffer,discovery of cluster nodes>>
 
+--
 
 include::usage.asciidoc[]
 
 include::configuration.asciidoc[]
 
 include::sniffer.asciidoc[]
+
+include::../license.asciidoc[]

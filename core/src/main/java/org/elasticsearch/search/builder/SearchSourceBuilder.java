@@ -345,6 +345,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * The number of search hits to return. Defaults to <tt>10</tt>.
      */
     public SearchSourceBuilder size(int size) {
+        if (size < 0) {
+            throw new IllegalArgumentException("[size] parameter cannot be negative, found [" + size + "]");
+        }
         this.size = size;
         return this;
     }

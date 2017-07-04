@@ -1,4 +1,4 @@
-=== Supported APIs
+== Supported APIs
 
 The Java High Level REST Client supports the following APIs:
 

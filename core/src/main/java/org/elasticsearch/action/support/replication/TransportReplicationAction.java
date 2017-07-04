@@ -1202,6 +1202,8 @@ public abstract class TransportReplicationAction<
             super.readFrom(in);
             if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 globalCheckpoint = in.readZLong();
+            } else {
+                globalCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
         }
 

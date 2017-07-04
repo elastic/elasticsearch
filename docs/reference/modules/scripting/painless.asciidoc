@@ -196,7 +196,7 @@ POST hockey/player/1/_update
 
 [float]
 [[modules-scripting-painless-dates]]
-=== Regular expressions
+=== Dates
 
 Dates are a little different to work with than regular values. Here is an
 example returning the year of every player's birth:

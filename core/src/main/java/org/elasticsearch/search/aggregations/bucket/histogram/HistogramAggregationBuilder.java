@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -59,7 +59,7 @@ public class HistogramAggregationBuilder
         EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
     }
 
-    private static final ObjectParser<HistogramAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<HistogramAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(HistogramAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
@@ -76,12 +76,12 @@ public class HistogramAggregationBuilder
             histogram.extendedBounds(extendedBounds[0], extendedBounds[1]);
         }, parser -> EXTENDED_BOUNDS_PARSER.apply(parser, null), ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
 
-        PARSER.declareObjectArray(HistogramAggregationBuilder::order, InternalOrder.Parser::parseOrderParam,
+        PARSER.declareObjectArray(HistogramAggregationBuilder::order, (p, c) -> InternalOrder.Parser.parseOrderParam(p),
             Histogram.ORDER_FIELD);
     }
 
-    public static HistogramAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new HistogramAggregationBuilder(aggregationName), context);
+    public static HistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new HistogramAggregationBuilder(aggregationName), null);
     }
 
     private double interval;

@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -84,9 +84,10 @@ public abstract class AggregationBuilder
     }
 
     /**
-     * Internal: Registers sub-factories with this factory. The sub-factory will be
-     * responsible for the creation of sub-aggregators under the aggregator
-     * created by this factory. This is only for use by {@link AggregatorFactories#parseAggregators(QueryParseContext)}.
+     * Internal: Registers sub-factories with this factory. The sub-factory will
+     * be responsible for the creation of sub-aggregators under the aggregator
+     * created by this factory. This is only for use by
+     * {@link AggregatorFactories#parseAggregators(XContentParser)}.
      *
      * @param subFactories
      *            The sub-factories

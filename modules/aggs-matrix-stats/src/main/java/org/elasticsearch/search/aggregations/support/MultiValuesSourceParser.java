@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder.CommonFields;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -75,10 +74,9 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
     }
 
     @Override
-    public final MultiValuesSourceAggregationBuilder<VS, ?> parse(String aggregationName, QueryParseContext context)
+    public final MultiValuesSourceAggregationBuilder<VS, ?> parse(String aggregationName, XContentParser parser)
             throws IOException {
 
-        XContentParser parser = context.parser();
         List<String> fields = null;
         ValueType valueType = null;
         String format = null;

@@ -45,13 +45,11 @@ import org.elasticsearch.index.mapper.ObjectMapper.Nested;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -63,7 +61,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
@@ -106,7 +103,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     protected abstract T mutate(T original) throws IOException;
 
     /** Parse the sort from xContent. Just delegate to the SortBuilder's static fromXContent method. */
-    protected abstract T fromXContent(QueryParseContext context, String fieldName) throws IOException;
+    protected abstract T fromXContent(XContentParser parser, String fieldName) throws IOException;
 
     /**
      * Test that creates new sort from a random test sort and checks both for equality
@@ -131,8 +128,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             String elementName = itemParser.currentName();
             itemParser.nextToken();
 
-            QueryParseContext context = new QueryParseContext(itemParser);
-            T parsedItem = fromXContent(context, elementName);
+            T parsedItem = fromXContent(itemParser, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
             assertEquals(testItem.hashCode(), parsedItem.hashCode());

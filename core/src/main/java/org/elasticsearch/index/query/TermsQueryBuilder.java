@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.action.get.GetRequest;
@@ -205,7 +205,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (values instanceof List<?>) {
             list = (List<?>) values;
         } else {
-            ArrayList<Object> arrayList = new ArrayList<Object>();
+            ArrayList<Object> arrayList = new ArrayList<>();
             for (Object o : values) {
                 arrayList.add(o);
             }
@@ -266,11 +266,13 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 }
                 final BytesReference bytes = bytesOut.bytes();
                 return new AbstractList<Object>() {
+                    @Override
                     public Object get(int i) {
                         final int startOffset = i == 0 ? 0 : endOffsets[i-1];
                         final int endOffset = endOffsets[i];
                         return bytes.slice(startOffset, endOffset - startOffset).toBytesRef();
                     }
+                    @Override
                     public int size() {
                         return endOffsets.length;
                     }
@@ -320,9 +322,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         builder.endObject();
     }
 
-    public static TermsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static TermsQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         List<Object> values = null;
         TermsLookup termsLookup = null;
@@ -335,8 +335,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (parseContext.isDeprecatedSetting(currentFieldName)) {
-                // skip
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if  (fieldName != null) {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -439,7 +437,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (this.termsLookup != null) {
             TermsLookup termsLookup = new TermsLookup(this.termsLookup);
             if (termsLookup.index() == null) { // TODO this should go away?

@@ -471,8 +471,14 @@ public class FullClusterRestartIT extends ESRestTestCase {
             int toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
             assertThat(toUpgradeBytes, greaterThan(0));
 
+            Response r = client().performRequest("POST", "/" + index + "/_flush");
+            assertEquals(200, r.getStatusLine().getStatusCode());
+
             // Upgrade segments:
-            Response r = client().performRequest("POST", "/" + index + "/_upgrade");
+            r = client().performRequest("POST", "/" + index + "/_upgrade");
+            assertEquals(200, r.getStatusLine().getStatusCode());
+
+            r = client().performRequest("POST", "/" + index + "/_refresh");
             assertEquals(200, r.getStatusLine().getStatusCode());
 
             // Post upgrade checks:
@@ -480,6 +486,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                 Map<String, Object> rsp2 = toMap(client().performRequest("GET", "/_upgrade"));
                 logger.info("upgrade status response: {}", rsp2);
                 Map<?, ?> indexUpgradeStatus2 = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp2);
+                assertNotNull(indexUpgradeStatus2);
                 int totalBytes2 = (Integer) indexUpgradeStatus2.get("size_in_bytes");
                 assertThat(totalBytes2, greaterThan(0));
                 int toUpgradeBytes2 = (Integer) indexUpgradeStatus2.get("size_to_upgrade_in_bytes");

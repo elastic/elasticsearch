@@ -37,6 +37,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public static final String ALL_SNAPSHOTS = "_all";
     public static final String CURRENT_SNAPSHOT = "_current";
+    public static final boolean DEFAULT_VERBOSE_MODE = true;
 
     private String repository;
 
@@ -44,7 +45,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean ignoreUnavailable;
 
-    private boolean verbose = true;
+    private boolean verbose = DEFAULT_VERBOSE_MODE;
 
     public GetSnapshotsRequest() {
     }

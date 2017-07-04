@@ -382,14 +382,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     /**
      * Removes shards that are currently loaded by indicesService but have disappeared from the routing table of the current node.
-     * Also removes shards where the recovery source node has changed.
      * This method does not delete the shard data.
      *
      * @param state new cluster state
      */
     private void removeShards(final ClusterState state) {
-        final RoutingTable routingTable = state.routingTable();
-        final DiscoveryNodes nodes = state.nodes();
         final String localNodeId = state.nodes().getLocalNodeId();
         assert localNodeId != null;
 

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -184,7 +183,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.indices(), idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
         OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         if (remoteClusterIndices.isEmpty()) {
-            executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, Collections.emptyList(),
+            executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, remoteClusterIndices, Collections.emptyList(),
                 (clusterName, nodeId) -> null, clusterState, Collections.emptyMap(), listener);
         } else {
             remoteClusterService.collectSearchShards(searchRequest.indicesOptions(), searchRequest.preference(), searchRequest.routing(),
@@ -193,7 +192,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
                     BiFunction<String, String, DiscoveryNode> clusterNodeLookup = processRemoteShards(searchShardsResponses,
                         remoteClusterIndices, remoteShardIterators, remoteAliasFilters);
-                    executeSearch((SearchTask)task, timeProvider, searchRequest, localIndices, remoteShardIterators,
+                    executeSearch((SearchTask) task, timeProvider, searchRequest, localIndices, remoteClusterIndices, remoteShardIterators,
                         clusterNodeLookup, clusterState, remoteAliasFilters, listener);
                 }, listener::onFailure));
         }
@@ -249,16 +248,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     private void executeSearch(SearchTask task, SearchTimeProvider timeProvider, SearchRequest searchRequest, OriginalIndices localIndices,
-                               List<SearchShardIterator> remoteShardIterators, BiFunction<String, String, DiscoveryNode> remoteConnections,
-                               ClusterState clusterState, Map<String, AliasFilter> remoteAliasMap,
-                               ActionListener<SearchResponse> listener) {
+                               Map<String, OriginalIndices> remoteClusterIndices, List<SearchShardIterator> remoteShardIterators,
+                               BiFunction<String, String, DiscoveryNode> remoteConnections, ClusterState clusterState,
+                               Map<String, AliasFilter> remoteAliasMap, ActionListener<SearchResponse> listener) {
 
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
         // of just for the _search api
         final Index[] indices;
-        if (localIndices.indices().length == 0 && remoteShardIterators.size() > 0) {
+        if (localIndices.indices().length == 0 && remoteClusterIndices.isEmpty() == false) {
             indices = Index.EMPTY_ARRAY; // don't search on _all if only remote indices were specified
         } else {
             indices = indexNameExpressionResolver.concreteIndices(clusterState, searchRequest.indicesOptions(),

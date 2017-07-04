@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -36,9 +37,9 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -47,7 +48,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHits;
-import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.rescore.RescoreBuilder;
@@ -615,7 +615,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
             assertThat(hit.getMatchedQueries()[0], equalTo("test"));
 
-            SearchHitField field = hit.field("field1");
+            DocumentField field = hit.field("field1");
             assertThat(field.getValue().toString(), equalTo("5"));
 
             assertThat(hit.getSourceAsMap().get("text").toString(), equalTo("some text to entertain"));
@@ -893,7 +893,7 @@ public class TopHitsIT extends ESIntegTestCase {
 
         assertThat(searchHit.getMatchedQueries(), arrayContaining("test"));
 
-        SearchHitField field = searchHit.field("comments.user");
+        DocumentField field = searchHit.field("comments.user");
         assertThat(field.getValue().toString(), equalTo("a"));
 
         field = searchHit.field("script");

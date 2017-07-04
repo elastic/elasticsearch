@@ -525,11 +525,11 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         for (Map.Entry<String, LocalCheckPointState> entry : primaryContext.localCheckpoints.entrySet()) {
             localCheckpoints.put(entry.getKey(), entry.getValue().copy());
         }
+        updateGlobalCheckpointOnPrimary();
         // reapply missed cluster state update
         // note that if there was no cluster state update between start of the engine of this shard and the call to
         // initializeWithPrimaryContext, we might still have missed a cluster state update. This is best effort.
         runAfter.run();
-        updateGlobalCheckpointOnPrimary();
         assert invariant();
     }
 

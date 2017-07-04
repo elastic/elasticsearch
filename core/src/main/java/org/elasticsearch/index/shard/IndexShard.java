@@ -2058,12 +2058,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 "shard term already update.  op term [" + operationPrimaryTerm + "], shardTerm [" + primaryTerm + "]";
                             primaryTerm = operationPrimaryTerm;
                             updateGlobalCheckpointOnReplica(globalCheckpoint);
+                            final long currentGlobalCheckpoint = getGlobalCheckpoint();
+                            final long localCheckpoint;
+                            if (currentGlobalCheckpoint == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                                localCheckpoint = SequenceNumbersService.NO_OPS_PERFORMED;
+                            } else {
+                                localCheckpoint = currentGlobalCheckpoint;
+                            }
                             logger.trace(
                                     "detected new primary with primary term [{}], resetting local checkpoint from [{}] to [{}]",
                                     operationPrimaryTerm,
                                     getLocalCheckpoint(),
-                                    getGlobalCheckpoint());
-                            getEngine().seqNoService().resetLocalCheckpoint(getGlobalCheckpoint());
+                                    localCheckpoint);
+                            getEngine().seqNoService().resetLocalCheckpoint(localCheckpoint);
                             getEngine().getTranslog().rollGeneration();
                         });
                         globalCheckpointUpdated = true;

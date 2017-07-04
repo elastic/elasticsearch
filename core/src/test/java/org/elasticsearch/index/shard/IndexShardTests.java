@@ -80,6 +80,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -699,15 +700,15 @@ public class IndexShardTests extends IndexShardTestCase {
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
         indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED));
 
-        final long globalCheckpointOnReplica =
+        final long globalCheckpointOnReplica = SequenceNumbersService.UNASSIGNED_SEQ_NO;
                 randomIntBetween(
-                        Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED),
+                        Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
                         Math.toIntExact(indexShard.getLocalCheckpoint()));
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica);
 
         final int globalCheckpoint =
                 randomIntBetween(
-                        Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED),
+                        Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
                         Math.toIntExact(indexShard.getLocalCheckpoint()));
         final CountDownLatch latch = new CountDownLatch(1);
         indexShard.acquireReplicaOperationPermit(
@@ -727,7 +728,12 @@ public class IndexShardTests extends IndexShardTestCase {
                 ThreadPool.Names.SAME);
 
         latch.await();
-        assertThat(indexShard.getLocalCheckpoint(), equalTo(Math.max(globalCheckpoint, globalCheckpointOnReplica)));
+        if (globalCheckpointOnReplica == SequenceNumbersService.UNASSIGNED_SEQ_NO
+                && globalCheckpoint == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+            assertThat(indexShard.getLocalCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
+        } else {
+            assertThat(indexShard.getLocalCheckpoint(), equalTo(Math.max(globalCheckpoint, globalCheckpointOnReplica)));
+        }
 
         // ensure that after the local checkpoint throw back and indexing again, the local checkpoint advances
         final Result result = indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(indexShard.getLocalCheckpoint()));

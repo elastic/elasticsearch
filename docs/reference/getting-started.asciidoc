@@ -47,7 +47,6 @@ A node can be configured to join a specific cluster by the cluster name. By defa
 
 In a single cluster, you can have as many nodes as you want. Furthermore, if there are no other Elasticsearch nodes currently running on your network, starting a single node will by default form a new single-node cluster named `elasticsearch`.
 
-[sect2]
 [float]
 === Index
 
@@ -58,7 +57,9 @@ In a single cluster, you can define as many indexes as you want.
 [float]
 === Type
 
-Within an index, you can define one or more types. A type is a logical category/partition of your index whose semantics is completely up to you. In general, a type is defined for documents that have a set of common fields. For example, let's assume you run a blogging platform and store all your data in a single index. In this index, you may define a type for user data, another type for blog data, and yet another type for comments data.
+deprecated[6.0.0,See <<removal-of-types>>]
+
+A type used to be a logical category/partition of your index to allow you to store different types of documents in the same index, eg one type for users, another type for blog posts.  It is no longer possible to create multiple types in an index, and the whole concept of types will be removed in a later version.  See <<removal-of-types>> for more.
 
 [float]
 === Document
@@ -359,13 +360,11 @@ You might also notice that the customer index has a yellow health tagged to it. 
 
 === Index and Query a Document
 
-Let's now put something into our customer index. Remember previously that in order to index a document, we must tell Elasticsearch which type in the index it should go to.
-
-Let's index a simple customer document into the customer index, "external" type, with an ID of 1 as follows:
+Let's now put something into our customer index. We'll index a simple customer document into the customer index, with an ID of 1 as follows:
 
 [source,js]
 --------------------------------------------------
-PUT /customer/external/1?pretty
+PUT /customer/doc/1?pretty
 {
   "name": "John Doe"
 }
@@ -378,7 +377,7 @@ And the response:
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "external",
+  "_type" : "doc",
   "_id" : "1",
   "_version" : 1,
   "result" : "created",
@@ -394,7 +393,7 @@ And the response:
 --------------------------------------------------
 // TESTRESPONSE[s/"_seq_no" : 0/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
-From the above, we can see that a new customer document was successfully created inside the customer index and the external type. The document also has an internal id of 1 which we specified at index time.
+From the above, we can see that a new customer document was successfully created inside the customer index. The document also has an internal id of 1 which we specified at index time.
 
 It is important to note that Elasticsearch does not require you to explicitly create an index first before you can index documents into it. In the previous example, Elasticsearch will automatically create the customer index if it didn't already exist beforehand.
 
@@ -402,7 +401,7 @@ Let's now retrieve that document that we just indexed:
 
 [source,js]
 --------------------------------------------------
-GET /customer/external/1?pretty
+GET /customer/doc/1?pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -413,7 +412,7 @@ And the response:
 --------------------------------------------------
 {
   "_index" : "customer",
-  "_type" : "external",
+  "_type" : "doc",
   "_id" : "1",
   "_version" : 1,
   "found" : true,
@@ -451,11 +450,11 @@ Before we move on, let's take a closer look again at some of the API commands th
 [source,js]
 --------------------------------------------------
 PUT /customer
-PUT /customer/external/1
+PUT /customer/doc/1
 {
   "name": "John Doe"
 }
-GET /customer/external/1
+GET /customer/doc/1
 DELETE /customer
 --------------------------------------------------
 // CONSOLE
@@ -481,18 +480,18 @@ We've previously seen how we can index a single document. Let's recall that comm
 
 [source,js]
 --------------------------------------------------
-PUT /customer/external/1?pretty
+PUT /customer/doc/1?pretty
 {
   "name": "John Doe"
 }
 --------------------------------------------------
 // CONSOLE
 
-Again, the above will index the specified document into the customer index, external type, with the ID of 1. If we then executed the above command again with a different (or same) document, Elasticsearch will replace (i.e. reindex) a new document on top of the existing one with the ID of 1:
+Again, the above will index the specified document into the customer index, with the ID of 1. If we then executed the above command again with a different (or same) document, Elasticsearch will replace (i.e. reindex) a new document on top of the existing one with the ID of 1:
 
 [source,js]
 --------------------------------------------------
-PUT /customer/external/1?pretty
+PUT /customer/doc/1?pretty
 {
   "name": "Jane Doe"
 }
@@ -504,7 +503,7 @@ The above changes the name of the document with the ID of 1 from "John Doe" to "
 
 [source,js]
 --------------------------------------------------
-PUT /customer/external/2?pretty
+PUT /customer/doc/2?pretty
 {
   "name": "Jane Doe"
 }
@@ -520,7 +519,7 @@ This example shows how to index a document without an explicit ID:
 
 [source,js]
 --------------------------------------------------
-POST /customer/external?pretty
+POST /customer/doc?pretty
 {
   "name": "Jane Doe"
 }
@@ -538,7 +537,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/external/1/_update?pretty
+POST /customer/doc/1/_update?pretty
 {
   "doc": { "name": "Jane Doe" }
 }
@@ -550,7 +549,7 @@ This example shows how to update our previous document (ID of 1) by changing the
 
 [source,js]
 --------------------------------------------------
-POST /customer/external/1/_update?pretty
+POST /customer/doc/1/_update?pretty
 {
   "doc": { "name": "Jane Doe", "age": 20 }
 }
@@ -562,7 +561,7 @@ Updates can also be performed by using simple scripts. This example uses a scrip
 
 [source,js]
 --------------------------------------------------
-POST /customer/external/1/_update?pretty
+POST /customer/doc/1/_update?pretty
 {
   "script" : "ctx._source.age += 5"
 }
@@ -580,7 +579,7 @@ Deleting a document is fairly straightforward. This example shows how to delete 
 
 [source,js]
 --------------------------------------------------
-DELETE /customer/external/2?pretty
+DELETE /customer/doc/2?pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
@@ -597,7 +596,7 @@ As a quick example, the following call indexes two documents (ID 1 - John Doe an
 
 [source,js]
 --------------------------------------------------
-POST /customer/external/_bulk?pretty
+POST /customer/doc/_bulk?pretty
 {"index":{"_id":"1"}}
 {"name": "John Doe" }
 {"index":{"_id":"2"}}
@@ -609,7 +608,7 @@ This example updates the first document (ID of 1) and then deletes the second do
 
 [source,sh]
 --------------------------------------------------
-POST /customer/external/_bulk?pretty
+POST /customer/doc/_bulk?pretty
 {"update":{"_id":"1"}}
 {"doc": { "name": "John Doe becomes Jane Doe" } }
 {"delete":{"_id":"2"}}

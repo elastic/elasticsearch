@@ -244,8 +244,6 @@ GET /alias2/_search?q=user:kimchy&routing=2,3
 // CONSOLE
 // TEST[continued]
 
-If an index operation that uses index routing alias also has a parent routing, the
-parent routing is ignored.
 
 [float]
 [[alias-adding]]

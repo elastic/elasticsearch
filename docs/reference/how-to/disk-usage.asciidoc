@@ -136,6 +136,11 @@ PUT index
 // CONSOLE
 
 [float]
+=== Watch your shard size
+
+Larger shards are going to be more efficient at storing data. While it is not possible to give a precise recommendation for how large shards should be, and very large shards come with drawbacks (for example, longer recovery times), it is generally possible to have shard sizes in the 20-30 GB range.
+
+[float]
 === Disable `_all`
 
 The <<mapping-all-field,`_all`>> field indexes the value of all fields of a
@@ -143,11 +148,26 @@ document and can use significant space. If you never need to search against all
 fields at the same time, it can be disabled.
 
 [float]
+=== Disable `_source`
+
+The <<mapping-source-field,`_source`>> field stores the original JSON body of the document. If you don’t need access to it you can disable it. However, APIs that needs access to `_source` such as update and reindex won’t work.
+
+[float]
 === Use `best_compression`
 
 The `_source` and stored fields can easily take a non negligible amount of disk
 space. They can be compressed more aggressively by using the `best_compression`
 <<index-codec,codec>>.
+
+[float]
+=== Force Merge
+
+Elasticsearch stores data in segments. Segments make up a Lucene index - a shard in Elasticsearch. The <<indices-forcemerge,`_forcemerge` API>> can be used to reduce the number of segments per shard. In many cases, the number of segments can be reduced to one per shard by setting `max_num_segments=1`.
+
+[float]
+=== Shrink Index
+
+The <<indices-shrink-index,Shrink API>> allows you to reduce the number of shards in an index. Together with the Force Merge API above, this can significantly reduce the number of shards and segments of an index.
 
 [float]
 === Use the smallest numeric type that is sufficient

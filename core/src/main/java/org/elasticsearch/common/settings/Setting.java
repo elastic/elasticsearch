@@ -463,9 +463,9 @@ public class Setting<T> extends ToXContentToBytes {
      * Build the updater responsible for validating new values, logging the new
      * value, and eventually setting the value where it belongs.
      */
-    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
+    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> validator) {
         if (isDynamic()) {
-            return new Updater(consumer, logger, accept);
+            return new Updater(consumer, logger, validator);
         } else {
             throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
         }

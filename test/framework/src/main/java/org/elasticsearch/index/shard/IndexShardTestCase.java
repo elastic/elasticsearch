@@ -370,7 +370,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         Set<String> initializingIds =
             shardRouting.initializing() ? Collections.singleton(shardRouting.allocationId().getId()) : Collections.emptySet();
         shard.updateShardState(shardRouting, shard.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
-            inSyncIds, initializingIds);
+            inSyncIds, initializingIds, Collections.emptySet());
     }
 
     protected void recoveryEmptyReplica(IndexShard replica) throws IOException {
@@ -450,7 +450,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             (int) ByteSizeUnit.MB.toBytes(1),
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), pNode.getName()).build());
         primary.updateShardState(primary.routingEntry(), primary.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
-            inSyncIds, initializingIds);
+            inSyncIds, initializingIds, Collections.emptySet());
         recovery.recoverToTarget();
         recoveryTarget.markAsDone();
         Set<String> initializingIdsWithoutReplica = new HashSet<>(initializingIds);
@@ -459,9 +459,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
         inSyncIdsWithReplica.add(replica.routingEntry().allocationId().getId());
         // update both primary and replica shard state
         primary.updateShardState(primary.routingEntry(), primary.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
-            inSyncIdsWithReplica, initializingIdsWithoutReplica);
+            inSyncIdsWithReplica, initializingIdsWithoutReplica, Collections.emptySet());
         replica.updateShardState(replica.routingEntry().moveToStarted(), replica.getPrimaryTerm(), null,
-            currentClusterStateVersion.get(), inSyncIdsWithReplica, initializingIdsWithoutReplica);
+            currentClusterStateVersion.get(), inSyncIdsWithReplica, initializingIdsWithoutReplica, Collections.emptySet());
     }
 
     private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {

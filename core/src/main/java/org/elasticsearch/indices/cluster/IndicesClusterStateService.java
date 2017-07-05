@@ -563,8 +563,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 .map(ShardRouting::allocationId)
                 .map(AllocationId::getId)
                 .collect(Collectors.toSet());
+            final Set<String> pre60AllocationIds = indexShardRoutingTable.assignedShards()
+                .stream()
+                .filter(shr -> nodes.get(shr.currentNodeId()).getVersion().before(Version.V_6_0_0_alpha1))
+                .map(ShardRouting::allocationId)
+                .map(AllocationId::getId)
+                .collect(Collectors.toSet());
             shard.updateShardState(shardRouting, primaryTerm, primaryReplicaSyncer::resync, clusterState.version(),
-                inSyncIds, initializingIds);
+                inSyncIds, initializingIds, pre60AllocationIds);
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
             return;
@@ -740,7 +746,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                               CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
                               long applyingClusterStateVersion,
                               Set<String> inSyncAllocationIds,
-                              Set<String> initializingAllocationIds) throws IOException;
+                              Set<String> initializingAllocationIds,
+                              Set<String> pre60AllocationIds) throws IOException;
     }
 
     public interface AllocatedIndex<T extends Shard> extends Iterable<T>, IndexComponent {

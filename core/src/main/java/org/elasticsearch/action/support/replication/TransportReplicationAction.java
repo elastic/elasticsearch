@@ -1027,7 +1027,7 @@ public abstract class TransportReplicationAction<
                 localCheckpoint = in.readZLong();
             } else {
                 // 5.x used to read empty responses, which don't really read anything off the stream, so just do nothing.
-                localCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                localCheckpoint = SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT;
             }
         }
 

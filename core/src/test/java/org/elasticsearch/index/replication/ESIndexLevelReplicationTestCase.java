@@ -229,7 +229,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             initializingIds.addAll(initializingIds());
             initializingIds.remove(primary.routingEntry().allocationId().getId());
             primary.updateShardState(ShardRoutingHelper.moveToStarted(primary.routingEntry()), primary.getPrimaryTerm(), null,
-                currentClusterStateVersion.incrementAndGet(), activeIds, initializingIds);
+                currentClusterStateVersion.incrementAndGet(), activeIds, initializingIds, Collections.emptySet());
             for (final IndexShard replica : replicas) {
                 recoverReplica(replica);
             }
@@ -296,7 +296,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                             listener.onFailure(e);
                             fut.onFailure(e);
                         }
-                    }), currentClusterStateVersion.incrementAndGet(), activeIds(), initializingIds());
+                    }), currentClusterStateVersion.incrementAndGet(), activeIds(), initializingIds(), Collections.emptySet());
 
             return fut;
         }
@@ -412,7 +412,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
 
         private void updateAllocationIDsOnPrimary() throws IOException {
             primary.updateShardState(primary.routingEntry(), primary.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
-                activeIds(), initializingIds());
+                activeIds(), initializingIds(), Collections.emptySet());
         }
     }
 

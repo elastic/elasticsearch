@@ -40,6 +40,11 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public static final long NO_OPS_PERFORMED = -1L;
 
+    /**
+     * Represents a local checkpoint coming from a pre-6.0 node
+     */
+    public static final long PRE_60_NODE_LOCAL_CHECKPOINT = -3L;
+
     private final LocalCheckpointTracker localCheckpointTracker;
     private final GlobalCheckpointTracker globalCheckpointTracker;
 
@@ -190,15 +195,18 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     /**
      * Notifies the service of the current allocation IDs in the cluster state. See
-     * {@link GlobalCheckpointTracker#updateFromMaster(long, Set, Set)} for details.
+     * {@link GlobalCheckpointTracker#updateFromMaster(long, Set, Set, Set)} for details.
      *
      * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
      * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
      * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
+     * @param pre60AllocationIds          the allocation IDs of shards that are allocated to pre-6.0 nodes
      */
     public void updateAllocationIdsFromMaster(
-            final long applyingClusterStateVersion, final Set<String> inSyncAllocationIds, final Set<String> initializingAllocationIds) {
-        globalCheckpointTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds);
+            final long applyingClusterStateVersion, final Set<String> inSyncAllocationIds, final Set<String> initializingAllocationIds,
+            final Set<String> pre60AllocationIds) {
+        globalCheckpointTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds,
+            pre60AllocationIds);
     }
 
     /**

@@ -364,7 +364,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                  final CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
                                  final long applyingClusterStateVersion,
                                  final Set<String> inSyncAllocationIds,
-                                 final Set<String> initializingAllocationIds) throws IOException {
+                                 final Set<String> initializingAllocationIds,
+                                 final Set<String> pre60AllocationIds) throws IOException {
         final ShardRouting currentRouting;
         synchronized (mutex) {
             currentRouting = this.shardRouting;
@@ -382,7 +383,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             final Engine engine = getEngineOrNull();
             if (engine != null) {
-                engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds);
+                engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds, pre60AllocationIds);
             }
 
             if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {

@@ -184,7 +184,8 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          * local checkpoints only set during primary mode
          */
         assert primaryMode || localCheckpoints.values().stream()
-            .allMatch(lcps -> lcps.localCheckPoint == SequenceNumbersService.UNASSIGNED_SEQ_NO);
+            .allMatch(lcps -> lcps.localCheckPoint == SequenceNumbersService.UNASSIGNED_SEQ_NO ||
+                lcps.localCheckPoint == SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT);
         /**
          * relocation handoff can only occur in primary mode
          */
@@ -285,9 +286,10 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
      * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
      * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
+     * @param pre60AllocationIds          the allocation IDs of shards that are allocated to pre-6.0 nodes
      */
     public synchronized void updateFromMaster(final long applyingClusterStateVersion, final Set<String> inSyncAllocationIds,
-                                              final Set<String> initializingAllocationIds) {
+                                              final Set<String> initializingAllocationIds, final Set<String> pre60AllocationIds) {
         assert invariant();
         if (applyingClusterStateVersion > appliedClusterStateVersion) {
             // check that the master does not fabricate new in-sync entries out of thin air once we are in primary mode
@@ -301,17 +303,23 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
                 // add new initializingIds that are missing locally. These are fresh shard copies - and not in-sync
                 for (String initializingId : initializingAllocationIds) {
                     if (localCheckpoints.containsKey(initializingId) == false) {
-                        assert inSyncAllocationIds.contains(initializingId) == false;
-                        boolean inSync = inSyncAllocationIds.contains(initializingId);
-                        localCheckpoints.put(initializingId, new LocalCheckPointState(SequenceNumbersService.UNASSIGNED_SEQ_NO, inSync));
+                        final boolean inSync = inSyncAllocationIds.contains(initializingId);
+                        assert inSync == false;
+                        final long localCheckpoint = pre60AllocationIds.contains(initializingId) ?
+                            SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT : SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                        localCheckpoints.put(initializingId, new LocalCheckPointState(localCheckpoint, inSync));
                     }
                 }
             } else {
                 for (String initializingId : initializingAllocationIds) {
-                    localCheckpoints.put(initializingId, new LocalCheckPointState(SequenceNumbersService.UNASSIGNED_SEQ_NO, false));
+                    final long localCheckpoint = pre60AllocationIds.contains(initializingId) ?
+                        SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT : SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                    localCheckpoints.put(initializingId, new LocalCheckPointState(localCheckpoint, false));
                 }
                 for (String inSyncId : inSyncAllocationIds) {
-                    localCheckpoints.put(inSyncId, new LocalCheckPointState(SequenceNumbersService.UNASSIGNED_SEQ_NO, true));
+                    final long localCheckpoint = pre60AllocationIds.contains(inSyncId) ?
+                        SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT : SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                    localCheckpoints.put(inSyncId, new LocalCheckPointState(localCheckpoint, true));
                 }
             }
             appliedClusterStateVersion = applyingClusterStateVersion;
@@ -382,6 +390,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     }
 
     private boolean updateLocalCheckpoint(String allocationId, LocalCheckPointState lcps, long localCheckpoint) {
+        // a local checkpoint of PRE_60_NODE_LOCAL_CHECKPOINT cannot be overridden
+        assert lcps.localCheckPoint != SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT ||
+            localCheckpoint == SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT;
         if (localCheckpoint > lcps.localCheckPoint) {
             logger.trace("updated local checkpoint of [{}] from [{}] to [{}]", allocationId, lcps.localCheckPoint, localCheckpoint);
             lcps.localCheckPoint = localCheckpoint;
@@ -437,10 +448,13 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         for (final LocalCheckPointState lcps : localCheckpoints) {
             if (lcps.inSync) {
                 if (lcps.localCheckPoint == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                    // unassigned in-sync replica or 5.x replica
+                    // unassigned in-sync replica
                     return fallback;
+                } else if (lcps.localCheckPoint == SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT) {
+                    // 5.x replica, ignore for global checkpoint calculation
+                } else {
+                    minLocalCheckpoint = Math.min(lcps.localCheckPoint, minLocalCheckpoint);
                 }
-                minLocalCheckpoint = Math.min(lcps.localCheckPoint, minLocalCheckpoint);
             }
         }
         assert minLocalCheckpoint != Long.MAX_VALUE;
@@ -504,7 +518,12 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
         primaryMode = false;
         handOffInProgress = false;
         // forget all checkpoint information
-        localCheckpoints.values().stream().forEach(lcps -> lcps.localCheckPoint = SequenceNumbersService.UNASSIGNED_SEQ_NO);
+        localCheckpoints.values().stream().forEach(lcps -> {
+            if (lcps.localCheckPoint != SequenceNumbersService.UNASSIGNED_SEQ_NO &&
+                lcps.localCheckPoint != SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT) {
+                lcps.localCheckPoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            }
+        });
         assert invariant();
     }
 
@@ -517,9 +536,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     public synchronized void initializeWithPrimaryContext(PrimaryContext primaryContext) {
         assert invariant();
         assert primaryMode == false;
+        final Runnable runAfter = getMasterUpdateOperationFromCurrentState();
         primaryMode = true;
         // capture current state to possibly replay missed cluster state update
-        final Runnable runAfter = getMasterUpdateOperationFromCurrentState();
         appliedClusterStateVersion = primaryContext.clusterStateVersion();
         localCheckpoints.clear();
         for (Map.Entry<String, LocalCheckPointState> entry : primaryContext.localCheckpoints.entrySet()) {
@@ -534,17 +553,22 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
     }
 
     private Runnable getMasterUpdateOperationFromCurrentState() {
+        assert primaryMode == false;
         final long lastAppliedClusterStateVersion = appliedClusterStateVersion;
         final Set<String> inSyncAllocationIds = new HashSet<>();
         final Set<String> initializingAllocationIds = new HashSet<>();
+        final Set<String> pre60AllocationIds = new HashSet<>();
         localCheckpoints.entrySet().forEach(entry -> {
             if (entry.getValue().inSync) {
                 inSyncAllocationIds.add(entry.getKey());
             } else {
                 initializingAllocationIds.add(entry.getKey());
             }
+            if (entry.getValue().getLocalCheckPoint() == SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT) {
+                pre60AllocationIds.add(entry.getKey());
+            }
         });
-        return () -> updateFromMaster(lastAppliedClusterStateVersion, inSyncAllocationIds, initializingAllocationIds);
+        return () -> updateFromMaster(lastAppliedClusterStateVersion, inSyncAllocationIds, initializingAllocationIds, pre60AllocationIds);
     }
 
     /**

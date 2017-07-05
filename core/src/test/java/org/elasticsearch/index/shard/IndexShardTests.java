@@ -346,7 +346,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         ShardRoutingState.STARTED,
                         replicaRouting.allocationId());
         indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-            0L, Collections.singleton(primaryRouting.allocationId().getId()), Collections.emptySet());
+            0L, Collections.singleton(primaryRouting.allocationId().getId()), Collections.emptySet(), Collections.emptySet());
 
         final int delayedOperations = scaledRandomIntBetween(1, 64);
         final CyclicBarrier delayedOperationsBarrier = new CyclicBarrier(1 + delayedOperations);
@@ -437,7 +437,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         ShardRoutingState.STARTED,
                         replicaRouting.allocationId());
         indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-            0L, Collections.singleton(primaryRouting.allocationId().getId()), Collections.emptySet());
+            0L, Collections.singleton(primaryRouting.allocationId().getId()), Collections.emptySet(), Collections.emptySet());
 
         /*
          * This operation completing means that the delay operation executed as part of increasing the primary term has completed and the
@@ -478,8 +478,8 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRouting replicaRouting = indexShard.routingEntry();
             ShardRouting primaryRouting = TestShardRouting.newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
                 true, ShardRoutingState.STARTED, replicaRouting.allocationId());
-            indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-                0L, Collections.singleton(indexShard.routingEntry().allocationId().getId()), Collections.emptySet());
+            indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {}, 0L,
+                Collections.singleton(indexShard.routingEntry().allocationId().getId()), Collections.emptySet(), Collections.emptySet());
         } else {
             indexShard = newStartedShard(true);
         }

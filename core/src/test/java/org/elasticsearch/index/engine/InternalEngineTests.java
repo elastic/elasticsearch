@@ -2021,7 +2021,7 @@ public class InternalEngineTests extends ESTestCase {
         try {
             initialEngine = engine;
             initialEngine.seqNoService().updateAllocationIdsFromMaster(1L, new HashSet<>(Arrays.asList("primary", "replica")),
-                Collections.emptySet());
+                Collections.emptySet(), Collections.emptySet());
             initialEngine.seqNoService().initializeAsPrimary("primary", primarySeqNo);
             for (int op = 0; op < opCount; op++) {
                 final String id;

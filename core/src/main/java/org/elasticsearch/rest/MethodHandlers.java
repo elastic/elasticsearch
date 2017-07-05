@@ -27,7 +27,7 @@ import java.util.Set;
 /**
  * Encapsulate multiple handlers for the same path, allowing different handlers for different HTTP verbs.
  */
-public class MethodHandlers {
+final class MethodHandlers {
 
     private final String path;
     private final Map<RestRequest.Method, RestHandler> methodHandlers;

@@ -81,7 +81,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public static final float DEFAULT_TIE_BREAKER = 0.0f;
     public static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
-    public static final boolean DEFAULT_SPLIT_ON_WHITESPACE = true;
+    public static final boolean DEFAULT_SPLIT_ON_WHITESPACE = false;
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField FIELDS_FIELD = new ParseField("fields");

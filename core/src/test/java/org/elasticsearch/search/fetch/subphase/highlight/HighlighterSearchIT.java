@@ -19,8 +19,8 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -80,7 +80,6 @@ import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.regexpQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.index.query.QueryBuilders.typeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.wildcardQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.highlight;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
@@ -2553,23 +2552,26 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         // Query string with a single field
         phraseBoostTestCaseForClauses(highlighterType, 100f,
-                queryStringQuery("highlight words together").field("field1"),
-                queryStringQuery("\"highlight words together\"").field("field1").autoGeneratePhraseQueries(true));
+                queryStringQuery("highlight words together").field("field1").splitOnWhitespace(true),
+                queryStringQuery("\"highlight words together\"").field("field1").autoGeneratePhraseQueries(true).splitOnWhitespace(true));
 
         // Query string with a single field without dismax
         phraseBoostTestCaseForClauses(highlighterType, 100f,
-                queryStringQuery("highlight words together").field("field1").useDisMax(false),
-                queryStringQuery("\"highlight words together\"").field("field1").useDisMax(false).autoGeneratePhraseQueries(true));
+                queryStringQuery("highlight words together").field("field1").useDisMax(false).splitOnWhitespace(true),
+                queryStringQuery("\"highlight words together\"").field("field1").useDisMax(false).autoGeneratePhraseQueries(true)
+                        .splitOnWhitespace(true));
 
         // Query string with more than one field
         phraseBoostTestCaseForClauses(highlighterType, 100f,
-                queryStringQuery("highlight words together").field("field1").field("field2"),
-                queryStringQuery("\"highlight words together\"").field("field1").field("field2").autoGeneratePhraseQueries(true));
+                queryStringQuery("highlight words together").field("field1").field("field2").splitOnWhitespace(true),
+                queryStringQuery("\"highlight words together\"").field("field1").field("field2").autoGeneratePhraseQueries(true)
+                        .splitOnWhitespace(true));
 
         // Query string boosting the field
         phraseBoostTestCaseForClauses(highlighterType, 1f,
-                queryStringQuery("highlight words together").field("field1"),
-                queryStringQuery("\"highlight words together\"").field("field1", 100).autoGeneratePhraseQueries(true));
+                queryStringQuery("highlight words together").field("field1").splitOnWhitespace(true),
+                queryStringQuery("\"highlight words together\"").field("field1", 100).autoGeneratePhraseQueries(true)
+                        .splitOnWhitespace(true));
     }
 
     private <P extends AbstractQueryBuilder<P>> void

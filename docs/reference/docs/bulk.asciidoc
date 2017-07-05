@@ -217,14 +217,6 @@ Each bulk item can include the routing value using the
 index / delete operation based on the `_routing` mapping.
 
 [float]
-[[bulk-parent]]
-=== Parent
-
-Each bulk item can include the parent value using the `_parent`/`parent`
-field. It automatically follows the behavior of the index / delete
-operation based on the `_parent` / `_routing` mapping.
-
-[float]
 [[bulk-wait-for-active-shards]]
 === Wait For Active Shards
 

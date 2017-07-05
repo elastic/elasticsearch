@@ -1,74 +1,91 @@
 [[search-aggregations-bucket-children-aggregation]]
 === Children Aggregation
 
-A special single bucket aggregation that enables aggregating from buckets on parent document types to buckets on child documents.
+A special single bucket aggregation that selects child documents that have the specified type, as defined in a <<parent-join,`join` field>>.
 
-This aggregation relies on the <<mapping-parent-field,_parent field>> in the mapping. This aggregation has a single option:
+This aggregation has a single option:
 
-* `type` - The child type that the buckets in the parent space should be mapped to.
+* `type` - The child type that should be selected.
 
-For example, let's say we have an index of questions and answers. The answer type has the following `_parent` field in the mapping:
+For example, let's say we have an index of questions and answers. The answer type has the following `join` field in the mapping:
+
 [source,js]
 --------------------------------------------------
 PUT child_example
 {
-    "settings": {
-        "mapping.single_type": false
-    },
-    "mappings": {
-        "answer" : {
-            "_parent" : {
-                "type" : "question"
-            }
+  "mappings": {
+    "doc": {
+      "properties": {
+        "join": {
+          "type": "join",
+          "relations": {
+            "question": "answer"
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // CONSOLE
 
-The question typed document contain a tag field and the answer typed documents contain an owner field. With the `children`
+The `question` document contain a tag field and the `answer` documents contain an owner field. With the `children`
 aggregation the tag buckets can be mapped to the owner buckets in a single request even though the two fields exist in
 two different kinds of documents.
 
-An example of a question typed document:
+An example of a question document:
+
 [source,js]
 --------------------------------------------------
-PUT child_example/question/1
+PUT child_example/doc/1
 {
-    "body": "<p>I have Windows 2003 server and i bought a new Windows 2008 server...",
-    "title": "Whats the best way to file transfer my site from server to a newer one?",
-    "tags": [
-        "windows-server-2003",
-        "windows-server-2008",
-        "file-transfer"
-    ]
+  "join": {
+    "name": "question"
+  },
+  "body": "<p>I have Windows 2003 server and i bought a new Windows 2008 server...",
+  "title": "Whats the best way to file transfer my site from server to a newer one?",
+  "tags": [
+    "windows-server-2003",
+    "windows-server-2008",
+    "file-transfer"
+  ]
 }
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-Examples of `answer` typed documents:
+Examples of `answer` documents:
+
 [source,js]
 --------------------------------------------------
-PUT child_example/answer/1?parent=1&refresh
+PUT child_example/doc/2?routing=1
 {
-    "owner": {
-        "location": "Norfolk, United Kingdom",
-        "display_name": "Sam",
-        "id": 48
-    },
-    "body": "<p>Unfortunately you're pretty much limited to FTP...",
-    "creation_date": "2009-05-04T13:45:37.030"
+  "join": {
+    "name": "answer",
+    "parent": "1"
+  },
+  "owner": {
+    "location": "Norfolk, United Kingdom",
+    "display_name": "Sam",
+    "id": 48
+  },
+  "body": "<p>Unfortunately you're pretty much limited to FTP...",
+  "creation_date": "2009-05-04T13:45:37.030"
 }
-PUT child_example/answer/2?parent=1&refresh
+
+PUT child_example/doc/3?routing=1&refresh
 {
-    "owner": {
-        "location": "Norfolk, United Kingdom",
-        "display_name": "Troll",
-        "id": 49
-    },
-    "body": "<p>Use Linux...",
-    "creation_date": "2009-05-05T13:45:37.030"
+  "join": {
+    "name": "answer",
+    "parent": "1"
+  },
+  "owner": {
+    "location": "Norfolk, United Kingdom",
+    "display_name": "Troll",
+    "id": 49
+  },
+  "body": "<p>Use Linux...",
+  "creation_date": "2009-05-05T13:45:37.030"
 }
 --------------------------------------------------
 // CONSOLE
@@ -117,10 +134,18 @@ Possible response:
 [source,js]
 --------------------------------------------------
 {
-  "timed_out": false,
   "took": 25,
-  "_shards": { "total": 5, "successful": 5, "failed": 0 },
-  "hits": { "total": 3, "max_score": 0.0, hits: [] },
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits": {
+    "total": 3,
+    "max_score": 0.0,
+    "hits": []
+  },
   "aggregations": {
     "top-tags": {
       "doc_count_error_upper_bound": 0,

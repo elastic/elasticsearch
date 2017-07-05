@@ -295,7 +295,7 @@ public class Lucene {
             }
             return new TopFieldDocs(totalHits, fieldDocs, fields, maxScore);
         } else if (type == 2) {
-            int totalHits = in.readVInt();
+            long totalHits = in.readVLong();
             float maxScore = in.readFloat();
 
             String field = in.readString();

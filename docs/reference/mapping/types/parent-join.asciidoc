@@ -60,7 +60,7 @@ WARNING: It is required to index the lineage of a parent in the same shard so yo
 always route child documents using their greater parent id.
 
 
-For instance the following index two children documents pointing to the same parent `1
+For instance the following index two children documents pointing to the same parent `1`
 with a `routing` value equals to the `id` of the parent:
 
 [source,js]

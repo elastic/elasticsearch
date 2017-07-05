@@ -66,8 +66,8 @@ POST test/type1/1/_update
 // TEST[continued]
 
 In addition to `_source`, the following variables are available through
-the `ctx` map: `_index`, `_type`, `_id`, `_version`, `_routing`,
-`_parent`, and `_now` (the current timestamp).
+the `ctx` map: `_index`, `_type`, `_id`, `_version`, `_routing`
+and `_now` (the current timestamp).
 
 We can also add a new field to the document:
 
@@ -285,13 +285,6 @@ an exception.
 Routing is used to route the update request to the right shard and sets the
 routing for the upsert request if the document being updated doesn't exist.
 Can't be used to update the routing of an existing document.
-
-`parent`::
-
-Parent is used to route the update request to the right shard and sets the
-parent for the upsert request if the document being updated doesn't exist.
-Can't be used to update the `parent` of an existing document.
-If an alias index routing is specified then it overrides the parent routing and it is used to route the request.
 
 `timeout`::
 

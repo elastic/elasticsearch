@@ -480,6 +480,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
             rsp = toMap(r);
             logger.info("upgrade api response: {}", rsp);
             Map<?, ?>  versions = (Map<?, ?>) XContentMapValues.extractValue("upgraded_indices." + index, rsp);
+            assertNotNull(versions);
             Version upgradeVersion = Version.fromString((String) versions.get("upgrade_version"));
             assertEquals(Version.CURRENT, upgradeVersion);
             org.apache.lucene.util.Version luceneVersion =

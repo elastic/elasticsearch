@@ -51,6 +51,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/indices/recovery.asciidoc',
   'reference/indices/segments.asciidoc',
   'reference/indices/shard-stores.asciidoc',
+  'reference/mapping/removal_of_types.asciidoc',
   'reference/search/field-stats.asciidoc',
   'reference/search/profile.asciidoc',
 ]
@@ -438,7 +439,7 @@ buildRestTests.setups['stored_scripted_metric_script'] = '''
         id: "my_init_script"
         body: { "script": { "lang": "painless", "source": "params._agg.transactions = []" } }
   - match: { acknowledged: true }
-  
+
   - do:
       put_script:
         id: "my_map_script"

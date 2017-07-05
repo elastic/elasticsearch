@@ -142,10 +142,14 @@ setup:
       xpack.ml.post_data:
         job_id: post-data-job
         body:
-          airline: AAL
-          responsetime: 132.2046
-          sourcetype: post-data-job
-          time: 1403488700
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: post-data-job
+            time: 1403488600
+          - airline: AAL
+            responsetime: 990.4628
+            sourcetype: post-data-job
+            time: 1403488700
 
   # Send data that will create results for the bucket after the skipped one
   - do:

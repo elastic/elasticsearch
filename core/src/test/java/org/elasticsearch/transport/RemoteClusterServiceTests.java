@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -411,7 +412,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         failLatch.await();
                         assertNotNull(ex.get());
                         if (ex.get() instanceof  IllegalStateException) {
-                            assertEquals(ex.get().getMessage(), "no seed node left");
+                            assertThat(ex.get().getMessage(), Matchers.anyOf(Matchers.equalTo("no seed node left"), Matchers.startsWith
+                                ("No node available for cluster:")));
                         } else {
                             if (ex.get() instanceof TransportException == false) {
                                 // we have an issue for this see #25301

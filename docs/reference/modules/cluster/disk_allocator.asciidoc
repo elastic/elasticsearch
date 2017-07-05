@@ -37,16 +37,17 @@ file or updated dynamically on a live cluster with the
     The index block must be released manually once there is enough disk space available
     to allow indexing operations to continue.
 
-An example of resetting the read-only index block on all indices:
+An example of resetting the read-only index block on the `twitter` index:
 
 [source,js]
 --------------------------------------------------
-PUT _settings
+PUT /twitter/_settings
 {
   "index.blocks.read_only_allow_delete": null
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
 
 NOTE: Percentage values refer to used disk space, while byte values refer to

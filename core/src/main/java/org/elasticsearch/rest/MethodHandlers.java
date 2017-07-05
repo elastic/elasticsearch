@@ -56,7 +56,7 @@ final class MethodHandlers {
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    public MethodHandlers addMethods(RestRequest.Method[] methods, RestHandler handler) {
+    public MethodHandlers addMethods(RestHandler handler, RestRequest.Method... methods) {
         for (RestRequest.Method method : methods) {
             addMethod(method, handler);
         }

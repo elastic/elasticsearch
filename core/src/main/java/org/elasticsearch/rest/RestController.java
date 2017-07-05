@@ -141,32 +141,19 @@ public class RestController extends AbstractComponent implements HttpServerTrans
     }
 
     /**
-     * Registers a REST handler to be executed when one of the provided methods and path match the request.
+     * Registers a REST handler to be executed when the provided method and path match the request.
      *
+     * @param method GET, POST, etc.
      * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
      * @param handler The handler to actually execute
-     * @param methods GET, POST, etc.
      */
-    public void registerHandler(String path, RestHandler handler, RestRequest.Method... methods) {
+    public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
-        handlers.insertOrUpdate(path, new MethodHandlers(path, handler, methods), (mHandlers, newMHandler) -> {
-            return mHandlers.addMethods(methods, handler);
+        handlers.insertOrUpdate(path, new MethodHandlers(path, handler, method), (mHandlers, newMHandler) -> {
+            return mHandlers.addMethods(handler, method);
         });
-    }
-
-    /**
-     * Registers a REST handler to be executed when the provided method and path match the request.
-     *
-     * @param singleMethod GET, POST, etc.
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
-     * @param handler The handler to actually execute
-     */
-    public void registerHandler(RestRequest.Method singleMethod, String path, RestHandler handler) {
-        RestRequest.Method[] methods = new RestRequest.Method[1];
-        methods[0] = singleMethod;
-        registerHandler(path, handler, methods);
     }
 
     /**

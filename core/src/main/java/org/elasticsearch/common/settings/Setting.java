@@ -343,7 +343,7 @@ public class Setting<T> extends ToXContentToBytes {
                 if (it.hasNext()) {
                     map = new HashMap<>();
                     final Setting<T> setting = it.next();
-                    map.put(setting, setting.get(settings, false));
+                    map.put(setting, setting.get(settings, false)); // we have to disable validation or we will stack overflow
                 } else {
                     map = Collections.emptyMap();
                 }

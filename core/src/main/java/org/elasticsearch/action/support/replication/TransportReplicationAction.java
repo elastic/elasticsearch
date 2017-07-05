@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -293,6 +294,13 @@ public abstract class TransportReplicationAction<
                     final ShardRouting primary = primaryShardReference.routingEntry();
                     assert primary.relocating() : "indexShard is marked as relocated but routing isn't" + primary;
                     DiscoveryNode relocatingNode = clusterService.state().nodes().get(primary.relocatingNodeId());
+                    if (relocatingNode != null && relocatingNode.getVersion().major > Version.CURRENT.major) {
+                        // ES 6.x requires a primary context hand-off during primary relocation which is not implemented on ES 5.x.
+                        // As a fallback, ES 6.x detects that the primary is relocating from a 5.x node, and initializes the primary
+                        // context by itself on activation of the relocation target. This means, however, that requests cannot be handled
+                        // as long as the relocation target shard has not been activated.
+                        throw new ReplicationOperation.RetryOnPrimaryException(request.shardId(), "waiting for 6.x primary to be activated");
+                    }
                     transportService.sendRequest(relocatingNode, transportPrimaryAction,
                         new ConcreteShardRequest<>(request, primary.allocationId().getRelocationId()),
                         transportOptions,

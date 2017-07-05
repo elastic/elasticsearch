@@ -498,7 +498,7 @@ The following example sets the `_id` metadata field of a document to `1`:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`, `_parent`.
+The following metadata fields are accessible by a processor: `_index`, `_type`, `_id`, `_routing`.
 
 [float]
 [[accessing-ingest-metadata]]
@@ -1186,7 +1186,7 @@ that is generally written for humans and not computer consumption.
 This processor comes packaged with over
 https://github.com/elastic/elasticsearch/tree/master/modules/ingest-common/src/main/resources/patterns[120 reusable patterns].
 
-If you need help building patterns to match your logs, you will find the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! The Grok Debugger is an {xpack} feature under the Basic License and is therefore *free to use*. The Grok Constructor at <http://grokconstructor.appspot.com/> is also a useful tool. 
+If you need help building patterns to match your logs, you will find the {kibana-ref}/xpack-grokdebugger.html[Grok Debugger] tool quite useful! The Grok Debugger is an {xpack} feature under the Basic License and is therefore *free to use*. The Grok Constructor at <http://grokconstructor.appspot.com/> is also a useful tool.
 
 [[grok-basics]]
 ==== Grok Basics

@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.plugins.PluginInfo;
-import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.TcpTransport;
 
 import java.io.FilePermission;
 import java.io.IOException;
@@ -324,8 +324,8 @@ final class Security {
         final Permissions policy,
         final Settings settings) {
         // transport is way over-engineered
-        final Map<String, Settings> profiles = new HashMap<>(TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups());
-        profiles.putIfAbsent(TransportSettings.DEFAULT_PROFILE, Settings.EMPTY);
+        final Map<String, Settings> profiles = new HashMap<>(TcpTransport.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups());
+        profiles.putIfAbsent(TcpTransport.DEFAULT_PROFILE, Settings.EMPTY);
 
         // loop through all profiles and add permissions for each one, if it's valid; otherwise Netty transports are lenient and ignores it
         for (final Map.Entry<String, Settings> entry : profiles.entrySet()) {
@@ -335,7 +335,7 @@ final class Security {
             // a profile is only valid if it's the default profile, or if it has an actual name and specifies a port
             // TODO: can this leniency be removed?
             final boolean valid =
-                TransportSettings.DEFAULT_PROFILE.equals(name) ||
+                TcpTransport.DEFAULT_PROFILE.equals(name) ||
                     (name != null && name.length() > 0 && profileSettings.get("port") != null);
             if (valid) {
                 final String transportRange = profileSettings.get("port");
@@ -355,7 +355,7 @@ final class Security {
      * @param settings        the {@link Settings} instance to read the transport settings from
      */
     private static void addSocketPermissionForTransport(final Permissions policy, final Settings settings) {
-        final String transportRange = TransportSettings.PORT.get(settings);
+        final String transportRange = TcpTransport.PORT.get(settings);
         addSocketPermissionForPortRange(policy, transportRange);
     }
 

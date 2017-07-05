@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -105,8 +104,7 @@ public final class CategoryQueryContext implements ToXContent {
         CATEGORY_PARSER.declareBoolean(Builder::setPrefix, new ParseField(CONTEXT_PREFIX));
     }
 
-    public static CategoryQueryContext fromXContent(QueryParseContext context) throws IOException {
-        XContentParser parser = context.parser();
+    public static CategoryQueryContext fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         Builder builder = builder();
         if (token == XContentParser.Token.START_OBJECT) {
@@ -114,7 +112,7 @@ public final class CategoryQueryContext implements ToXContent {
                 CATEGORY_PARSER.parse(parser, builder, null);
             } catch(ParsingException e) {
                 throw new ElasticsearchParseException("category context must be a string, number or boolean");
-            } 
+            }
         } else if (token == XContentParser.Token.VALUE_STRING || token == XContentParser.Token.VALUE_BOOLEAN
                 || token == XContentParser.Token.VALUE_NUMBER) {
             builder.setCategory(parser.text());

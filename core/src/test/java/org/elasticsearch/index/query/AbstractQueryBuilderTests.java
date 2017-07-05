@@ -20,17 +20,13 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -38,7 +34,8 @@ import java.io.IOException;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
-public class QueryParseContextTests extends ESTestCase {
+public class AbstractQueryBuilderTests extends ESTestCase {
+
     private static NamedXContentRegistry xContentRegistry;
 
     @BeforeClass
@@ -49,20 +46,6 @@ public class QueryParseContextTests extends ESTestCase {
     @AfterClass
     public static void cleanup() {
         xContentRegistry = null;
-    }
-
-    private ThreadContext threadContext;
-
-    @Before
-    public void beforeTest() throws IOException {
-        this.threadContext = new ThreadContext(Settings.EMPTY);
-        DeprecationLogger.setThreadContext(threadContext);
-    }
-
-    @After
-    public void teardown() throws IOException {
-        DeprecationLogger.removeThreadContext(this.threadContext);
-        this.threadContext.close();
     }
 
     public void testParseInnerQueryBuilder() throws IOException {
@@ -91,7 +74,6 @@ public class QueryParseContextTests extends ESTestCase {
 
         source = "{ \"foo\" : \"bar\" }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            QueryParseContext context = new QueryParseContext(parser);
             ParsingException exception = expectThrows(ParsingException.class, () ->  parseInnerQueryBuilder(parser));
             assertEquals("[foo] query malformed, no start_object after query name", exception.getMessage());
         }
@@ -107,4 +89,5 @@ public class QueryParseContextTests extends ESTestCase {
     protected NamedXContentRegistry xContentRegistry() {
         return xContentRegistry;
     }
+
 }

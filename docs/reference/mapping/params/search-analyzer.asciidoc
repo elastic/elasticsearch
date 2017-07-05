@@ -78,6 +78,5 @@ GET my_index/_search
 See {defguide}/_index_time_search_as_you_type.html[Index time search-as-you-
 type] for a full explanation of this example.
 
-TIP: The `search_analyzer` setting must have the same setting for fields of
-the same name in the same index.  Its value can be updated on existing fields
+TIP: The `search_analyzer` setting can be updated on existing fields
 using the <<indices-put-mapping,PUT mapping API>>.

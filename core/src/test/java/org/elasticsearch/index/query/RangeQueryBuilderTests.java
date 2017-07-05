@@ -224,7 +224,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     /**
      * Specifying a timezone together with a numeric range query should throw an exception.
      */
-    public void testToQueryNonDateWithTimezone() throws QueryShardException, IOException {
+    public void testToQueryNonDateWithTimezone() throws QueryShardException {
         RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
         query.from(1).to(10).timeZone("UTC");
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(createShardContext()));
@@ -234,7 +234,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     /**
      * Specifying a timezone together with an unmapped field should throw an exception.
      */
-    public void testToQueryUnmappedWithTimezone() throws QueryShardException, IOException {
+    public void testToQueryUnmappedWithTimezone() throws QueryShardException {
         RangeQueryBuilder query = new RangeQueryBuilder("bogus_field");
         query.from(1).to(10).timeZone("UTC");
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(createShardContext()));
@@ -410,7 +410,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
                 return Relation.WITHIN;
             }
         };
@@ -431,7 +431,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
                 return Relation.WITHIN;
             }
         };
@@ -456,7 +456,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
                 return Relation.DISJOINT;
             }
         };
@@ -473,7 +473,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
                 return Relation.INTERSECTS;
             }
         };
@@ -490,7 +490,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String fieldName = randomAlphaOfLengthBetween(1, 20);
         RangeQueryBuilder query = new RangeQueryBuilder(fieldName) {
             @Override
-            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+            protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) {
                 return Relation.INTERSECTS;
             }
         };
@@ -499,7 +499,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rewritten, sameInstance(query));
     }
 
-    public void testParseFailsWithMultipleFields() throws IOException {
+    public void testParseFailsWithMultipleFields() {
         String json =
                 "{\n" +
                 "    \"range\": {\n" +
@@ -517,7 +517,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertEquals("[range] query doesn't support multiple fields, found [age] and [price]", e.getMessage());
     }
 
-    public void testParseFailsWithMultipleFieldsWhenOneIsDate() throws IOException {
+    public void testParseFailsWithMultipleFieldsWhenOneIsDate() {
         String json =
                 "{\n" +
                 "    \"range\": {\n" +

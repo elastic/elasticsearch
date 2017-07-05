@@ -23,7 +23,9 @@ Each index has one or more _mapping types_, which are used to divide the
 documents in an index into logical groups. User documents might be stored in a
 `user` type, and blog posts in a `blogpost` type.
 
-Each mapping type has:
+deprecated[6.0.0,See <<removal-of-types>>].
+
+A mapping type has:
 
 <<mapping-fields,Meta-fields>>::
 
@@ -188,6 +190,8 @@ PUT my_index <1>
 
 
 --
+
+include::mapping/removal_of_types.asciidoc[]
 
 include::mapping/types.asciidoc[]
 

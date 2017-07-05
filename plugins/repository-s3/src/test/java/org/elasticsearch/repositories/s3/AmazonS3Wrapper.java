@@ -30,6 +30,7 @@ import com.amazonaws.services.s3.S3ResponseMetadata;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.AccessControlList;
 import com.amazonaws.services.s3.model.Bucket;
+import com.amazonaws.services.s3.model.BucketAccelerateConfiguration;
 import com.amazonaws.services.s3.model.BucketCrossOriginConfiguration;
 import com.amazonaws.services.s3.model.BucketLifecycleConfiguration;
 import com.amazonaws.services.s3.model.BucketLoggingConfiguration;
@@ -59,6 +60,7 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsResult;
 import com.amazonaws.services.s3.model.DeleteVersionRequest;
 import com.amazonaws.services.s3.model.GeneratePresignedUrlRequest;
+import com.amazonaws.services.s3.model.GetBucketAccelerateConfigurationRequest;
 import com.amazonaws.services.s3.model.GetBucketAclRequest;
 import com.amazonaws.services.s3.model.GetBucketCrossOriginConfigurationRequest;
 import com.amazonaws.services.s3.model.GetBucketLifecycleConfigurationRequest;
@@ -83,6 +85,8 @@ import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
 import com.amazonaws.services.s3.model.ListNextBatchOfObjectsRequest;
 import com.amazonaws.services.s3.model.ListNextBatchOfVersionsRequest;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
+import com.amazonaws.services.s3.model.ListObjectsV2Request;
+import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.ListPartsRequest;
 import com.amazonaws.services.s3.model.ListVersionsRequest;
 import com.amazonaws.services.s3.model.MultipartUploadListing;
@@ -94,6 +98,7 @@ import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.RestoreObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.SetBucketAccelerateConfigurationRequest;
 import com.amazonaws.services.s3.model.SetBucketAclRequest;
 import com.amazonaws.services.s3.model.SetBucketCrossOriginConfigurationRequest;
 import com.amazonaws.services.s3.model.SetBucketLifecycleConfigurationRequest;
@@ -165,6 +170,21 @@ public class AmazonS3Wrapper implements AmazonS3 {
     @Override
     public ObjectListing listObjects(ListObjectsRequest listObjectsRequest) throws AmazonClientException, AmazonServiceException {
         return delegate.listObjects(listObjectsRequest);
+    }
+
+    @Override
+    public ListObjectsV2Result listObjectsV2(final String bucketName) throws AmazonClientException, AmazonServiceException {
+        return delegate.listObjectsV2(bucketName);
+    }
+
+    @Override
+    public ListObjectsV2Result listObjectsV2(final String bucketName, final String prefix) throws AmazonClientException, AmazonServiceException {
+        return delegate.listObjectsV2(bucketName, prefix);
+    }
+
+    @Override
+    public ListObjectsV2Result listObjectsV2(final ListObjectsV2Request listObjectsV2Request) throws AmazonClientException, AmazonServiceException {
+        return delegate.listObjectsV2(listObjectsV2Request);
     }
 
     @Override
@@ -333,6 +353,11 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
+    public String getObjectAsString(final String bucketName, final String key) throws AmazonServiceException, AmazonClientException {
+        return null;
+    }
+
+    @Override
     public void deleteBucket(DeleteBucketRequest deleteBucketRequest) throws AmazonClientException, AmazonServiceException {
         delegate.deleteBucket(deleteBucketRequest);
     }
@@ -374,6 +399,36 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
+    public BucketAccelerateConfiguration getBucketAccelerateConfiguration(final String bucket) throws AmazonServiceException, AmazonClientException {
+        return delegate.getBucketAccelerateConfiguration(bucket);
+    }
+
+    @Override
+    public BucketAccelerateConfiguration getBucketAccelerateConfiguration(final GetBucketAccelerateConfigurationRequest getBucketAccelerateConfigurationRequest) throws AmazonServiceException, AmazonClientException {
+        return delegate.getBucketAccelerateConfiguration(getBucketAccelerateConfigurationRequest);
+    }
+
+    @Override
+    public void setBucketAccelerateConfiguration(final String bucketName, final BucketAccelerateConfiguration accelerateConfiguration) throws AmazonServiceException, AmazonClientException {
+        delegate.setBucketAccelerateConfiguration(bucketName, accelerateConfiguration);
+    }
+
+    @Override
+    public void setBucketAccelerateConfiguration(final SetBucketAccelerateConfigurationRequest setBucketAccelerateConfigurationRequest) throws AmazonServiceException, AmazonClientException {
+        delegate.setBucketAccelerateConfiguration(setBucketAccelerateConfigurationRequest);
+    }
+
+    @Override
+    public com.amazonaws.services.s3.model.Region getRegion() {
+        return delegate.getRegion();
+    }
+
+    @Override
+    public URL getUrl(final String bucketName, final String key) {
+        return delegate.getUrl(bucketName,key);
+    }
+
+    @Override
     public PutObjectResult putObject(PutObjectRequest putObjectRequest) throws AmazonClientException, AmazonServiceException {
         return delegate.putObject(putObjectRequest);
     }
@@ -386,6 +441,11 @@ public class AmazonS3Wrapper implements AmazonS3 {
     @Override
     public PutObjectResult putObject(String bucketName, String key, InputStream input, ObjectMetadata metadata) throws AmazonClientException, AmazonServiceException {
         return delegate.putObject(bucketName, key, input, metadata);
+    }
+
+    @Override
+    public PutObjectResult putObject(final String bucketName, final String key, final String content) throws AmazonServiceException, AmazonClientException {
+        return delegate.putObject(bucketName, key, content);
     }
 
     @Override

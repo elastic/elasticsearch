@@ -118,8 +118,8 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-refresh]
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-retry]
 --------------------------------------------------
 <1> How many times to retry the update operation if the document to update has
-been changed by another operation between the start and the end of the current
-update operation.
+been changed by another operation between the get and indexing phases of the
+update operation
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -209,8 +209,9 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-response]
 <4> Handle the case where the document was not impacted by the update,
 ie no operation (noop) was executed on the document
 
-When the source retrieval is enabled in the `UpdateRequest` using the `fetchSource(true)`
-method, the response contains the source of the updated document:
+When the source retrieval is enabled in the `UpdateRequest`
+through the fetchSource method, the response contains the
+source of the updated document:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

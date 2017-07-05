@@ -97,17 +97,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public static final boolean INDEX_MAPPER_DYNAMIC_DEFAULT = true;
     public static final Setting<Boolean> INDEX_MAPPER_DYNAMIC_SETTING =
         Setting.boolSetting("index.mapper.dynamic", INDEX_MAPPER_DYNAMIC_DEFAULT, Property.Dynamic, Property.IndexScope);
-    public static final Setting<Boolean> INDEX_MAPPING_SINGLE_TYPE_SETTING;
-    static {
-        Function<Settings, String> defValue = settings -> {
-            boolean singleType = true;
-            if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null) {
-                singleType = Version.indexCreated(settings).onOrAfter(Version.V_6_0_0_alpha1);
-            }
-            return Boolean.valueOf(singleType).toString();
-        };
-        INDEX_MAPPING_SINGLE_TYPE_SETTING = Setting.boolSetting("index.mapping.single_type", defValue, Property.IndexScope, Property.Final);
-    }
+
     private static ObjectHashSet<String> META_FIELDS = ObjectHashSet.from(
             "_uid", "_id", "_type", "_all", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"

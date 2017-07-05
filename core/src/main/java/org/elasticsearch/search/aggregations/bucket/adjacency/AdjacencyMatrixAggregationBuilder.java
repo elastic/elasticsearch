@@ -24,12 +24,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
@@ -56,26 +55,23 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     private List<KeyedFilter> filters;
     private String separator = DEFAULT_SEPARATOR;
 
-    public static Aggregator.Parser getParser() {
-        ObjectParser<AdjacencyMatrixAggregationBuilder, QueryParseContext> parser = new ObjectParser<>(
-                AdjacencyMatrixAggregationBuilder.NAME);
-        parser.declareString(AdjacencyMatrixAggregationBuilder::separator, SEPARATOR_FIELD);
-        parser.declareNamedObjects(AdjacencyMatrixAggregationBuilder::setFiltersAsList, KeyedFilter.PARSER, FILTERS_FIELD);
-        return new Aggregator.Parser() {
-            @Override
-            public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-                AdjacencyMatrixAggregationBuilder result = parser.parse(context.parser(),
-                        new AdjacencyMatrixAggregationBuilder(aggregationName), context);
-                result.checkConsistency();
-                return result;
-            }
-        };
+    private static final ObjectParser<AdjacencyMatrixAggregationBuilder, Void> PARSER = new ObjectParser<>(
+            AdjacencyMatrixAggregationBuilder.NAME);
+    static {
+        PARSER.declareString(AdjacencyMatrixAggregationBuilder::separator, SEPARATOR_FIELD);
+        PARSER.declareNamedObjects(AdjacencyMatrixAggregationBuilder::setFiltersAsList, KeyedFilter.PARSER, FILTERS_FIELD);
+    }
+
+    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        AdjacencyMatrixAggregationBuilder result = PARSER.parse(parser, new AdjacencyMatrixAggregationBuilder(aggregationName), null);
+        result.checkConsistency();
+        return result;
     }
 
     protected void checkConsistency() {
         if ((filters == null) || (filters.size() == 0)) {
             throw new IllegalStateException("[" + name  + "] is missing : " + FILTERS_FIELD.getPreferredName() + " parameter");
-        }        
+        }
     }
 
 
@@ -96,17 +92,17 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         // the order of the filters in the request
         Collections.sort(this.filters, Comparator.comparing(KeyedFilter::key));
     }
-    
-   
+
+
     /**
      * @param name
      *            the name of this aggregation
      */
     protected AdjacencyMatrixAggregationBuilder(String name) {
         super(name);
-    }    
-    
-    
+    }
+
+
     /**
      * @param name
      *            the name of this aggregation
@@ -171,8 +167,8 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
      */
     public String separator() {
         return separator;
-    }        
-    
+    }
+
     /**
      * Get the filters. This will be an unmodifiable map
      */
@@ -182,8 +178,8 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
             result.put(keyedFilter.key(), keyedFilter.filter());
         }
         return result;
-    }    
-    
+    }
+
 
     @Override
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)

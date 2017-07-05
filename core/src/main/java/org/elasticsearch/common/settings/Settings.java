@@ -55,7 +55,6 @@ import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -63,6 +62,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -717,6 +717,10 @@ public final class Settings implements ToXContent {
         public Builder setSecureSettings(SecureSettings secureSettings) {
             if (secureSettings.isLoaded() == false) {
                 throw new IllegalStateException("Secure settings must already be loaded");
+            }
+            if (this.secureSettings.get() != null) {
+                throw new IllegalArgumentException("Secure settings already set. Existing settings: " +
+                    this.secureSettings.get().getSettingNames() + ", new settings: " + secureSettings.getSettingNames());
             }
             this.secureSettings.set(secureSettings);
             return this;

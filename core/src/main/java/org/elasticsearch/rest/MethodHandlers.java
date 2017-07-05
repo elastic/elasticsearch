@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -28,12 +27,12 @@ import java.util.Set;
 /**
  * Encapsulate multiple handlers for the same path, allowing different handlers for different HTTP verbs.
  */
-public class MethodHandlers {
+final class MethodHandlers {
 
     private final String path;
     private final Map<RestRequest.Method, RestHandler> methodHandlers;
 
-    public MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
+    MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
         this.path = path;
         this.methodHandlers = new HashMap<>(methods.length);
         for (RestRequest.Method method : methods) {
@@ -57,7 +56,7 @@ public class MethodHandlers {
      * Add a handler for an additional array of methods. Note that {@code MethodHandlers}
      * does not allow replacing the handler for an already existing method.
      */
-    public MethodHandlers addMethods(RestRequest.Method[] methods, RestHandler handler) {
+    public MethodHandlers addMethods(RestHandler handler, RestRequest.Method... methods) {
         for (RestRequest.Method method : methods) {
             addMethod(method, handler);
         }

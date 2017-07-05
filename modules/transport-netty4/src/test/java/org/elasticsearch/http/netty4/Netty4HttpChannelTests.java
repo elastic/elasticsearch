@@ -97,7 +97,7 @@ public class Netty4HttpChannelTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        networkService = new NetworkService(Settings.EMPTY, Collections.emptyList());
+        networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
         bigArrays = new MockBigArrays(Settings.EMPTY, new NoneCircuitBreakerService());
     }

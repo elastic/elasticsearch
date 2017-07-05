@@ -98,7 +98,6 @@ import org.elasticsearch.transport.MockTransportClient;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 import org.junit.Assert;
 
 import java.io.Closeable;
@@ -319,7 +318,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve("custom"));
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
-        builder.put(TransportSettings.PORT.getKey(), TRANSPORT_BASE_PORT + "-" + (TRANSPORT_BASE_PORT + PORTS_PER_CLUSTER));
+        builder.put(TcpTransport.PORT.getKey(), TRANSPORT_BASE_PORT + "-" + (TRANSPORT_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put("http.port", HTTP_BASE_PORT + "-" + (HTTP_BASE_PORT + PORTS_PER_CLUSTER));
         builder.put("http.pipelining", enableHttpPipelining);
         if (Strings.hasLength(System.getProperty("tests.es.logger.level"))) {
@@ -608,7 +607,7 @@ public final class InternalTestCluster extends TestCluster {
             throw new IllegalArgumentException(DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " must be configured");
         }
         SecureSettings secureSettings = finalSettings.getSecureSettings();
-        MockNode node = new MockNode(finalSettings.build(), plugins);
+        MockNode node = new MockNode(finalSettings.build(), plugins, nodeConfigurationSource.nodeConfigPath(nodeId));
         try {
             IOUtils.close(secureSettings);
         } catch (IOException e) {

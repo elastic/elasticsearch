@@ -67,12 +67,12 @@ public class InternalOrderTests extends AbstractSerializingTestCase<BucketOrder>
     protected BucketOrder doParseInstance(XContentParser parser) throws IOException {
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT) {
-            return InternalOrder.Parser.parseOrderParam(parser, null);
+            return InternalOrder.Parser.parseOrderParam(parser);
         }
         if (token == Token.START_ARRAY) {
             List<BucketOrder> orders = new ArrayList<>();
             while (parser.nextToken() == Token.START_OBJECT) {
-                orders.add(InternalOrder.Parser.parseOrderParam(parser, null));
+                orders.add(InternalOrder.Parser.parseOrderParam(parser));
             }
             return BucketOrder.compound(orders);
         }

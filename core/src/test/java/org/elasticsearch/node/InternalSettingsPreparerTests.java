@@ -181,7 +181,7 @@ public class InternalSettingsPreparerTests extends ESTestCase {
 
     public void testDefaultPropertiesDoNothing() throws Exception {
         Map<String, String> props = Collections.singletonMap("default.setting", "foo");
-        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props);
+        Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, null, props, null);
         assertEquals("foo", env.settings().get("default.setting"));
         assertNull(env.settings().get("setting"));
     }

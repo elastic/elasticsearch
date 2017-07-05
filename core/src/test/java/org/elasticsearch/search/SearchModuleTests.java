@@ -24,8 +24,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -91,6 +91,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 () -> new SearchModule(Settings.EMPTY, false, singletonList(registersDupeHighlighter)));
 
         SearchPlugin registersDupeSuggester = new SearchPlugin() {
+            @Override
             public List<SearchPlugin.SuggesterSpec<?>> getSuggesters() {
                 return singletonList(new SuggesterSpec<>("term", TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent));
             }
@@ -136,6 +137,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 singletonList(registersDupeFetchSubPhase)));
 
         SearchPlugin registersDupeQuery = new SearchPlugin() {
+            @Override
             public List<SearchPlugin.QuerySpec<?>> getQueries() {
                 return singletonList(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
             }
@@ -144,6 +146,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 new SearchModule(Settings.EMPTY, false, singletonList(registersDupeQuery)).getNamedXContents()));
 
         SearchPlugin registersDupeAggregation = new SearchPlugin() {
+            @Override
             public List<AggregationSpec> getAggregations() {
                 return singletonList(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
                         TermsAggregationBuilder::parse));
@@ -153,6 +156,7 @@ public class SearchModuleTests extends ModuleTestCase {
                 singletonList(registersDupeAggregation)).getNamedXContents()));
 
         SearchPlugin registersDupePipelineAggregation = new SearchPlugin() {
+            @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(new PipelineAggregationSpec(
                         DerivativePipelineAggregationBuilder.NAME,
@@ -229,6 +233,7 @@ public class SearchModuleTests extends ModuleTestCase {
 
     public void testRegisterAggregation() {
         SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+            @Override
             public List<AggregationSpec> getAggregations() {
                 return singletonList(new AggregationSpec("test", TestAggregationBuilder::new, TestAggregationBuilder::fromXContent));
             }
@@ -243,6 +248,7 @@ public class SearchModuleTests extends ModuleTestCase {
 
     public void testRegisterPipelineAggregation() {
         SearchModule module = new SearchModule(Settings.EMPTY, false, singletonList(new SearchPlugin() {
+            @Override
             public List<PipelineAggregationSpec> getPipelineAggregations() {
                 return singletonList(new PipelineAggregationSpec("test",
                         TestPipelineAggregationBuilder::new, TestPipelineAggregator::new, TestPipelineAggregationBuilder::fromXContent));
@@ -344,7 +350,7 @@ public class SearchModuleTests extends ModuleTestCase {
             return false;
         }
 
-        private static TestAggregationBuilder fromXContent(String name, QueryParseContext c) {
+        private static TestAggregationBuilder fromXContent(String name, XContentParser p) {
             return null;
         }
     }
@@ -389,7 +395,7 @@ public class SearchModuleTests extends ModuleTestCase {
             return false;
         }
 
-        private static TestPipelineAggregationBuilder fromXContent(String name, QueryParseContext c) {
+        private static TestPipelineAggregationBuilder fromXContent(String name, XContentParser p) {
             return null;
         }
     }

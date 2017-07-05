@@ -3,8 +3,6 @@ setup:
       indices.create:
         index: test
         body:
-            settings:
-              mapping.single_type: true
             mappings:
               doc:
                 properties:

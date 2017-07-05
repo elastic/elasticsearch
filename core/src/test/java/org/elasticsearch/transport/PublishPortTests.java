@@ -46,11 +46,11 @@ public class PublishPortTests extends ESTestCase {
         final Settings profileSettings;
         if (useProfile) {
             profile = "some_profile";
-            settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put(TransportSettings.PUBLISH_PORT.getKey(), 9081).build();
+            settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put(TcpTransport.PUBLISH_PORT.getKey(), 9081).build();
             profileSettings = Settings.builder().put("publish_port", 9080).build();
         } else {
-            profile = TransportSettings.DEFAULT_PROFILE;
-            settings = Settings.builder().put(TransportSettings.PUBLISH_PORT.getKey(), 9081).build();
+            profile = TcpTransport.DEFAULT_PROFILE;
+            settings = Settings.builder().put(TcpTransport.PUBLISH_PORT.getKey(), 9081).build();
             profileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("publish_port", 9080).build();;
         }
 

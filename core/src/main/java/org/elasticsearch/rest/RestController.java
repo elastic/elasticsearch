@@ -48,6 +48,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -146,28 +147,15 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      *
      * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
      * @param handler The handler to actually execute
-     * @param methods GET, POST, etc.
+     * @param method GET, POST, etc.
      */
-    public void registerHandler(String path, RestHandler handler, RestRequest.Method... methods) {
+    public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
         if (handler instanceof BaseRestHandler) {
             usageService.addRestHandler((BaseRestHandler) handler);
         }
-        handlers.insertOrUpdate(path, new MethodHandlers(path, handler, methods), (mHandlers, newMHandler) -> {
-            return mHandlers.addMethods(methods, handler);
+        handlers.insertOrUpdate(path, new MethodHandlers(path, handler, method), (mHandlers, newMHandler) -> {
+            return mHandlers.addMethods(handler, method);
         });
-    }
-
-    /**
-     * Registers a REST handler to be executed when the provided method and path match the request.
-     *
-     * @param singleMethod GET, POST, etc.
-     * @param path Path to handle (e.g., "/{index}/{type}/_bulk")
-     * @param handler The handler to actually execute
-     */
-    public void registerHandler(RestRequest.Method singleMethod, String path, RestHandler handler) {
-        RestRequest.Method[] methods = new RestRequest.Method[1];
-        methods[0] = singleMethod;
-        registerHandler(path, handler, methods);
     }
 
     /**
@@ -338,7 +326,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
 
         if (checkRequestParameters(request, channel) == false) {
             channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel,
-                            BAD_REQUEST, "error traces in responses are disabled."));
+                BAD_REQUEST, "error traces in responses are disabled."));
             requestHandled = true;
         }
 
@@ -417,7 +405,7 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      */
     private void handleBadRequest(RestRequest request, RestChannel channel) {
         channel.sendResponse(new BytesRestResponse(BAD_REQUEST,
-                "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
+            "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
     }
 
     /**

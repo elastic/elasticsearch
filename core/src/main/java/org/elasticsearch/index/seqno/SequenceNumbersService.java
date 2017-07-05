@@ -21,6 +21,7 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Set;
@@ -106,6 +107,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Resets the local checkpoint to the specified value.
+     *
+     * @param localCheckpoint the local checkpoint to reset to
+     */
+    public void resetLocalCheckpoint(final long localCheckpoint) {
+        localCheckpointTracker.resetCheckpoint(localCheckpoint);
+    }
+
+    /**
      * The current sequence number stats.
      *
      * @return stats encapsulating the maximum sequence number, the local checkpoint and the global checkpoint
@@ -165,13 +175,24 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     /**
      * Notifies the service of the current allocation IDs in the cluster state. See
-     * {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(Set, Set)} for details.
+     * {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(long, Set, Set)} for details.
      *
-     * @param activeAllocationIds       the allocation IDs of the currently active shard copies
-     * @param initializingAllocationIds the allocation IDs of the currently initializing shard copies
+     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
+     * @param activeAllocationIds         the allocation IDs of the currently active shard copies
+     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
      */
-    public void updateAllocationIdsFromMaster(final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
-        globalCheckpointTracker.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+    public void updateAllocationIdsFromMaster(
+            final long applyingClusterStateVersion, final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
+        globalCheckpointTracker.updateAllocationIdsFromMaster(applyingClusterStateVersion, activeAllocationIds, initializingAllocationIds);
+    }
+
+    /**
+     * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
+     *
+     * @param primaryContext the sequence number context
+     */
+    public void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
+        globalCheckpointTracker.updateAllocationIdsFromPrimaryContext(primaryContext);
     }
 
     /**
@@ -181,6 +202,22 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public boolean pendingInSync() {
         return globalCheckpointTracker.pendingInSync();
+    }
+
+    /**
+     * Get the primary context for the shard. This includes the state of the global checkpoint tracker.
+     *
+     * @return the primary context
+     */
+    public PrimaryContext primaryContext() {
+        return globalCheckpointTracker.primaryContext();
+    }
+
+    /**
+     * Releases a previously acquired primary context.
+     */
+    public void releasePrimaryContext() {
+        globalCheckpointTracker.releasePrimaryContext();
     }
 
 }

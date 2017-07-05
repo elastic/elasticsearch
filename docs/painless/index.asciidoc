@@ -1,8 +1,6 @@
 [[painless]]
 = Painless Scripting Language
 
-:ref: https://www.elastic.co/guide/en/elasticsearch/reference
-
 include::../Versions.asciidoc[]
 
 include::painless-getting-started.asciidoc[]
@@ -20,7 +18,7 @@ include::painless-api-reference.asciidoc[]
 ////
 Proposed Outline (WIP)
 Getting Started with Painless
-  Accessing Doc Values 
+  Accessing Doc Values
   Updating Fields
   Working with Dates
   Using Regular Expressions

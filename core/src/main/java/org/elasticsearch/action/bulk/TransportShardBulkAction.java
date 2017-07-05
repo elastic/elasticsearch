@@ -531,38 +531,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
     }
 
-    /** Syncs operation result to the translog or throws a shard not available failure */
-    private static Translog.Location syncOperationResultOrThrow(final Engine.Result operationResult,
-                                                                final Translog.Location currentLocation) throws Exception {
-        final Translog.Location location;
-        if (operationResult.hasFailure()) {
-            // check if any transient write operation failures should be bubbled up
-            Exception failure = operationResult.getFailure();
-            assert failure instanceof MapperParsingException : "expected mapper parsing failures. got " + failure;
-            if (!TransportActions.isShardNotAvailableException(failure)) {
-                throw failure;
-            } else {
-                location = currentLocation;
-            }
-        } else {
-            location = locationToSync(currentLocation, operationResult.getTranslogLocation());
-        }
-        return location;
-    }
-
-    private static Translog.Location locationToSync(Translog.Location current,
-                                                    Translog.Location next) {
-        /* here we are moving forward in the translog with each operation. Under the hood this might
-         * cross translog files which is ok since from the user perspective the translog is like a
-         * tape where only the highest location needs to be fsynced in order to sync all previous
-         * locations even though they are not in the same file. When the translog rolls over files
-         * the previous file is fsynced on after closing if needed.*/
-        assert next != null : "next operation can't be null";
-        assert current == null || current.compareTo(next) < 0 :
-                "translog locations are not increasing";
-        return next;
-    }
-
     /** Executes index operation on primary shard after updates mapping if dynamic mappings are found */
     static Engine.IndexResult executeIndexRequestOnPrimary(IndexRequest request, IndexShard primary,
                                                            MappingUpdatePerformer mappingUpdater) throws Exception {

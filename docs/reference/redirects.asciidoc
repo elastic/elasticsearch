@@ -55,6 +55,11 @@ directory.  Instead, mappings should be created using the API with:
 * <<indices-put-mapping>>
 * <<indices-templates>>
 
+[role="exclude",id="mapping-parent-field"]
+=== `_parent` field
+
+The `_parent` field has been removed in favour of the <<parent-join,`join` field>>.
+
 [role="exclude",id="modules-memcached"]
 === memcached
 
@@ -465,7 +470,7 @@ index that make warmers not necessary anymore.
 The index time boost mapping has been replaced with query time boost (see <<mapping-boost>>).
 
 [role="exclude",id="modules-scripting-native"]
-=== Native scripting 
+=== Native scripting
 
 Native scripts have been replaced with writing custom `ScriptEngine` backends (see <<modules-scripting-engine>>).
 

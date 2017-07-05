@@ -18,6 +18,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             'centos-6',
             'centos-7',
             'debian-8',
+            'debian-9',
             'fedora-25',
             'oel-6',
             'oel-7',

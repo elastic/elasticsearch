@@ -349,29 +349,30 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             SourceToParse.source("test", "test", "1", new BytesArray("{}"), XContentType.JSON),
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false, update -> {});
         assertTrue(shard.shouldFlush());
-        assertEquals(2, shard.getEngine().getTranslog().totalOperations());
+        final Translog translog = shard.getEngine().getTranslog();
+        assertEquals(2, translog.uncommittedOperations());
         client().prepareIndex("test", "test", "2").setSource("{}", XContentType.JSON)
             .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE).get();
         assertBusy(() -> { // this is async
             assertFalse(shard.shouldFlush());
         });
-        assertEquals(0, shard.getEngine().getTranslog().totalOperations());
-        shard.getEngine().getTranslog().sync();
-        long size = shard.getEngine().getTranslog().sizeInBytes();
-        logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", shard.getEngine().getTranslog().sizeInBytes(),
-            shard.getEngine().getTranslog().totalOperations(), shard.getEngine().getTranslog().getGeneration());
+        assertEquals(0, translog.uncommittedOperations());
+        translog.sync();
+        long size = translog.uncommittedSizeInBytes();
+        logger.info("--> current translog size: [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
+            translog.uncommittedOperations(), translog.getGeneration());
         client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put(
             IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), new ByteSizeValue(size, ByteSizeUnit.BYTES))
             .build()).get();
         client().prepareDelete("test", "test", "2").get();
-        logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]", shard.getEngine().getTranslog().sizeInBytes(),
-            shard.getEngine().getTranslog().totalOperations(), shard.getEngine().getTranslog().getGeneration());
+        logger.info("--> translog size after delete: [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
+            translog.uncommittedOperations(), translog.getGeneration());
         assertBusy(() -> { // this is async
-            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]", shard.getEngine().getTranslog().sizeInBytes(),
-                shard.getEngine().getTranslog().totalOperations(), shard.getEngine().getTranslog().getGeneration());
+            logger.info("--> translog size on iter  : [{}] num_ops [{}] generation [{}]", translog.uncommittedSizeInBytes(),
+                translog.uncommittedOperations(), translog.getGeneration());
             assertFalse(shard.shouldFlush());
         });
-        assertEquals(0, shard.getEngine().getTranslog().totalOperations());
+        assertEquals(0, translog.uncommittedOperations());
     }
 
     public void testMaybeRollTranslogGeneration() throws Exception {
@@ -524,16 +525,16 @@ public class IndexShardIT extends ESSingleNodeTestCase {
     }
 
 
-    public  static final IndexShard recoverShard(IndexShard newShard) throws IOException {
+    public static final IndexShard recoverShard(IndexShard newShard) throws IOException {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());
-        newShard.updateRoutingEntry(newShard.routingEntry().moveToStarted());
+        IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
         return newShard;
     }
 
-    public  static final IndexShard newIndexShard(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper,
-                                                  IndexingOperationListener... listeners) throws IOException {
+    public static final IndexShard newIndexShard(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper,
+                                                 IndexingOperationListener... listeners) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
         IndexShard newShard = new IndexShard(initializingShardRouting, indexService.getIndexSettings(), shard.shardPath(),
             shard.store(), indexService.getIndexSortSupplier(), indexService.cache(), indexService.mapperService(), indexService.similarityService(),

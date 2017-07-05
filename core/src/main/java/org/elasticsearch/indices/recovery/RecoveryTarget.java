@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -61,7 +62,6 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 import java.util.function.LongConsumer;
 
 /**
@@ -379,6 +379,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
+    public void handoffPrimaryContext(final PrimaryContext primaryContext) {
+        indexShard.updateAllocationIdsFromPrimaryContext(primaryContext);
+    }
+
+    @Override
     public long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException {
         final RecoveryState.Translog translog = state().getTranslog();
         translog.totalOperations(totalTranslogOps);
@@ -387,13 +392,17 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             throw new IndexShardNotRecoveringException(shardId, indexShard().state());
         }
         for (Translog.Operation operation : operations) {
-            indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY, update -> {
+            Engine.Result result = indexShard().applyTranslogOperation(operation, Engine.Operation.Origin.PEER_RECOVERY, update -> {
                 throw new MapperException("mapping updates are not allowed [" + operation + "]");
             });
+            assert result.hasFailure() == false : "unexpected failure while replicating translog entry: " + result.getFailure();
+            ExceptionsHelper.reThrowIfNotNull(result.getFailure());
         }
         // update stats only after all operations completed (to ensure that mapping updates don't mess with stats)
         translog.incrementRecoveredOperations(operations.size());
         indexShard().sync();
+        // roll over / flush / trim if needed
+        indexShard().afterWriteOperation();
         return indexShard().getLocalCheckpoint();
     }
 

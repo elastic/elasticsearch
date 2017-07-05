@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -128,12 +127,11 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         return builder;
     }
 
-    public static ReverseNestedAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+    public static ReverseNestedAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
         String path = null;
 
         XContentParser.Token token;
         String currentFieldName = null;
-        XContentParser parser = context.parser();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();

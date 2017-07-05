@@ -53,6 +53,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -95,17 +96,17 @@ public abstract class TransportReplicationAction<
             Response extends ReplicationResponse
         > extends TransportAction<Request, Response> {
 
-    private final TransportService transportService;
+    protected final TransportService transportService;
     protected final ClusterService clusterService;
     protected final ShardStateAction shardStateAction;
-    private final IndicesService indicesService;
-    private final TransportRequestOptions transportOptions;
-    private final String executor;
+    protected final IndicesService indicesService;
+    protected final TransportRequestOptions transportOptions;
+    protected final String executor;
 
     // package private for testing
-    private final String transportReplicaAction;
-    private final String transportPrimaryAction;
-    private final ReplicationOperation.Replicas replicasProxy;
+    protected final String transportReplicaAction;
+    protected final String transportPrimaryAction;
+    protected final ReplicationOperation.Replicas replicasProxy;
 
     protected TransportReplicationAction(Settings settings, String actionName, TransportService transportService,
                                          ClusterService clusterService, IndicesService indicesService,
@@ -122,6 +123,15 @@ public abstract class TransportReplicationAction<
 
         this.transportPrimaryAction = actionName + "[p]";
         this.transportReplicaAction = actionName + "[r]";
+        registerRequestHandlers(actionName, transportService, request, replicaRequest, executor);
+
+        this.transportOptions = transportOptions();
+
+        this.replicasProxy = newReplicasProxy();
+    }
+
+    protected void registerRequestHandlers(String actionName, TransportService transportService, Supplier<Request> request,
+                                           Supplier<ReplicaRequest> replicaRequest, String executor) {
         transportService.registerRequestHandler(actionName, request, ThreadPool.Names.SAME, new OperationTransportHandler());
         transportService.registerRequestHandler(transportPrimaryAction, () -> new ConcreteShardRequest<>(request), executor,
             new PrimaryOperationTransportHandler());
@@ -130,10 +140,6 @@ public abstract class TransportReplicationAction<
             () -> new ConcreteReplicaRequest<>(replicaRequest),
             executor, true, true,
             new ReplicaOperationTransportHandler());
-
-        this.transportOptions = transportOptions();
-
-        this.replicasProxy = newReplicasProxy();
     }
 
     @Override
@@ -178,7 +184,7 @@ public abstract class TransportReplicationAction<
 
     /**
      * Synchronously execute the specified replica operation. This is done under a permit from
-     * {@link IndexShard#acquireReplicaOperationPermit(long, ActionListener, String)}.
+     * {@link IndexShard#acquireReplicaOperationPermit(long, long, ActionListener, String)}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
@@ -217,7 +223,12 @@ public abstract class TransportReplicationAction<
                 || TransportActions.isShardNotAvailableException(e);
     }
 
-    class OperationTransportHandler implements TransportRequestHandler<Request> {
+    protected class OperationTransportHandler implements TransportRequestHandler<Request> {
+
+        public OperationTransportHandler() {
+
+        }
+
         @Override
         public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
             execute(task, request, new ActionListener<Response>() {
@@ -250,7 +261,12 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    class PrimaryOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<Request>> {
+    protected class PrimaryOperationTransportHandler implements TransportRequestHandler<ConcreteShardRequest<Request>> {
+
+        public PrimaryOperationTransportHandler() {
+
+        }
+
         @Override
         public void messageReceived(final ConcreteShardRequest<Request> request, final TransportChannel channel) throws Exception {
             throw new UnsupportedOperationException("the task parameter is required for this operation");
@@ -314,7 +330,6 @@ public abstract class TransportReplicationAction<
                         });
                 } else {
                     setPhase(replicationTask, "primary");
-                    final IndexMetaData indexMetaData = clusterService.state().getMetaData().index(request.shardId().getIndex());
                     final ActionListener<Response> listener = createResponseListener(primaryShardReference);
                     createReplicatedOperation(request,
                             ActionListener.wrap(result -> result.respond(listener), listener::onFailure),
@@ -437,7 +452,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    class ReplicaOperationTransportHandler implements TransportRequestHandler<ConcreteReplicaRequest<ReplicaRequest>> {
+    public class ReplicaOperationTransportHandler implements TransportRequestHandler<ConcreteReplicaRequest<ReplicaRequest>> {
 
         @Override
         public void messageReceived(
@@ -507,11 +522,9 @@ public abstract class TransportReplicationAction<
         @Override
         public void onResponse(Releasable releasable) {
             try {
-                replica.updateGlobalCheckpointOnReplica(globalCheckpoint);
                 final ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
                 releasable.close(); // release shard operation lock before responding to caller
-                final TransportReplicationAction.ReplicaResponse response =
-                    new ReplicaResponse(replica.routingEntry().allocationId().getId(), replica.getLocalCheckpoint());
+                final TransportReplicationAction.ReplicaResponse response = new ReplicaResponse(replica.getLocalCheckpoint());
                 replicaResult.respond(new ResponseListener(response));
             } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
@@ -582,7 +595,7 @@ public abstract class TransportReplicationAction<
                 throw new ShardNotFoundException(this.replica.shardId(), "expected aID [{}] but found [{}]", targetAllocationID,
                     actualAllocationId);
             }
-            replica.acquireReplicaOperationPermit(request.primaryTerm, this, executor);
+            replica.acquireReplicaOperationPermit(request.primaryTerm, globalCheckpoint, this, executor);
         }
 
         /**
@@ -998,14 +1011,12 @@ public abstract class TransportReplicationAction<
 
     public static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
         private long localCheckpoint;
-        private String allocationId;
 
         ReplicaResponse() {
 
         }
 
-        public ReplicaResponse(String allocationId, long localCheckpoint) {
-            this.allocationId = allocationId;
+        public ReplicaResponse(long localCheckpoint) {
             this.localCheckpoint = localCheckpoint;
         }
 
@@ -1014,9 +1025,9 @@ public abstract class TransportReplicationAction<
             if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 super.readFrom(in);
                 localCheckpoint = in.readZLong();
-                allocationId = in.readString();
             } else {
                 // 5.x used to read empty responses, which don't really read anything off the stream, so just do nothing.
+                localCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
         }
 
@@ -1025,7 +1036,6 @@ public abstract class TransportReplicationAction<
             if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 super.writeTo(out);
                 out.writeZLong(localCheckpoint);
-                out.writeString(allocationId);
             } else {
                 // we use to write empty responses
                 Empty.INSTANCE.writeTo(out);
@@ -1036,11 +1046,6 @@ public abstract class TransportReplicationAction<
         public long localCheckpoint() {
             return localCheckpoint;
         }
-
-        @Override
-        public String allocationId() {
-            return allocationId;
-        }
     }
 
     /**
@@ -1049,7 +1054,11 @@ public abstract class TransportReplicationAction<
      * shards. It also encapsulates the logic required for failing the replica
      * if deemed necessary as well as marking it as stale when needed.
      */
-    class ReplicasProxy implements ReplicationOperation.Replicas<ReplicaRequest> {
+    protected class ReplicasProxy implements ReplicationOperation.Replicas<ReplicaRequest> {
+
+        public ReplicasProxy() {
+
+        }
 
         @Override
         public void performOn(
@@ -1112,13 +1121,13 @@ public abstract class TransportReplicationAction<
 
         private R request;
 
-        ConcreteShardRequest(Supplier<R> requestSupplier) {
+        public ConcreteShardRequest(Supplier<R> requestSupplier) {
             request = requestSupplier.get();
             // null now, but will be populated by reading from the streams
             targetAllocationID = null;
         }
 
-        ConcreteShardRequest(R request, String targetAllocationID) {
+        public ConcreteShardRequest(R request, String targetAllocationID) {
             Objects.requireNonNull(request);
             Objects.requireNonNull(targetAllocationID);
             this.request = request;

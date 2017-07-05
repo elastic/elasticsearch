@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -52,7 +51,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     public static final ParseField MAX_CONCURRENT_GROUP_REQUESTS_FIELD = new ParseField("max_concurrent_group_searches");
-    private static final ObjectParser<CollapseBuilder, QueryParseContext> PARSER =
+    private static final ObjectParser<CollapseBuilder, Void> PARSER =
         new ObjectParser<>("collapse", CollapseBuilder::new);
 
     static {
@@ -61,12 +60,12 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         PARSER.declareField((parser, builder, context) -> {
             XContentParser.Token currentToken = parser.currentToken();
             if (currentToken == XContentParser.Token.START_OBJECT) {
-                builder.setInnerHits(InnerHitBuilder.fromXContent(context));
+                builder.setInnerHits(InnerHitBuilder.fromXContent(parser));
             } else if (currentToken == XContentParser.Token.START_ARRAY) {
                 List<InnerHitBuilder> innerHitBuilders = new ArrayList<>();
                 for (currentToken = parser.nextToken(); currentToken != XContentParser.Token.END_ARRAY; currentToken = parser.nextToken()) {
                     if (currentToken == XContentParser.Token.START_OBJECT) {
-                        innerHitBuilders.add(InnerHitBuilder.fromXContent(context));
+                        innerHitBuilders.add(InnerHitBuilder.fromXContent(parser));
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "Invalid token in inner_hits array");
                     }
@@ -122,8 +121,8 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
        }
     }
 
-    public static CollapseBuilder fromXContent(QueryParseContext context) throws IOException {
-        CollapseBuilder builder = PARSER.parse(context.parser(), new CollapseBuilder(), context);
+    public static CollapseBuilder fromXContent(XContentParser parser) throws IOException {
+        CollapseBuilder builder = PARSER.parse(parser, new CollapseBuilder(), null);
         return builder;
     }
 

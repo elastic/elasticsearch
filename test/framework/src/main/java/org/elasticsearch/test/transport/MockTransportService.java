@@ -49,6 +49,7 @@ import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.RequestHandlerRegistry;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -100,7 +101,7 @@ public final class MockTransportService extends TransportService {
             @Nullable ClusterSettings clusterSettings) {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-                new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version);
+                new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Collections.emptyList()), version);
         return createNewService(settings, transport, version, threadPool, clusterSettings);
     }
 
@@ -359,7 +360,7 @@ public final class MockTransportService extends TransportService {
                 }
 
                 // TODO: Replace with proper setting
-                TimeValue connectingTimeout = NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
+                TimeValue connectingTimeout = TcpTransport.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
                 try {
                     if (delay.millis() < connectingTimeout.millis()) {
                         Thread.sleep(delay.millis());
@@ -381,7 +382,7 @@ public final class MockTransportService extends TransportService {
                 }
 
                 // TODO: Replace with proper setting
-                TimeValue connectingTimeout = NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
+                TimeValue connectingTimeout = TcpTransport.TCP_CONNECT_TIMEOUT.getDefault(Settings.EMPTY);
                 try {
                     if (delay.millis() < connectingTimeout.millis()) {
                         Thread.sleep(delay.millis());

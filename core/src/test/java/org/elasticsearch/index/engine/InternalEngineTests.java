@@ -127,7 +127,6 @@ import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
-import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.DummyShardLock;
@@ -163,6 +162,7 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -866,14 +866,14 @@ public class InternalEngineTests extends ESTestCase {
             recoveringEngine = new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)) {
                 @Override
                 public CommitId flush(boolean force, boolean waitIfOngoing) throws EngineException {
-                    assertThat(getTranslog().totalOperations(), equalTo(docs));
+                    assertThat(getTranslog().uncommittedOperations(), equalTo(docs));
                     final CommitId commitId = super.flush(force, waitIfOngoing);
                     flushed.set(true);
                     return commitId;
                 }
             };
 
-            assertThat(recoveringEngine.getTranslog().totalOperations(), equalTo(docs));
+            assertThat(recoveringEngine.getTranslog().uncommittedOperations(), equalTo(docs));
             recoveringEngine.recoverFromTranslog();
             assertTrue(flushed.get());
         } finally {
@@ -1486,7 +1486,7 @@ public class InternalEngineTests extends ESTestCase {
             .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_4_0)
-            .put(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, true)
             .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.getKey(),
                 between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
             .build());
@@ -1963,7 +1963,7 @@ public class InternalEngineTests extends ESTestCase {
             final String formattedMessage = event.getMessage().getFormattedMessage();
             if (event.getLevel() == Level.TRACE && event.getMarker().getName().contains("[index][0] ")) {
                 if (event.getLoggerName().endsWith(".IW") &&
-                    formattedMessage.contains("IW: apply all deletes during flush")) {
+                    formattedMessage.contains("IW: now apply all deletes")) {
                     sawIndexWriterMessage = true;
                 }
                 if (event.getLoggerName().endsWith(".IFD")) {
@@ -2022,7 +2022,10 @@ public class InternalEngineTests extends ESTestCase {
             initialEngine = engine;
             initialEngine
                 .seqNoService()
-                .updateAllocationIdsFromMaster(new HashSet<>(Arrays.asList("primary", "replica")), Collections.emptySet());
+                .updateAllocationIdsFromMaster(
+                        randomNonNegativeLong(),
+                        new HashSet<>(Arrays.asList("primary", "replica")),
+                        Collections.emptySet());
             for (int op = 0; op < opCount; op++) {
                 final String id;
                 // mostly index, sometimes delete
@@ -2136,6 +2139,7 @@ public class InternalEngineTests extends ESTestCase {
             final int numDocsPerThread = randomIntBetween(500, 1000);
             final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
             final List<Thread> indexingThreads = new ArrayList<>();
+            final CountDownLatch doneLatch = new CountDownLatch(numIndexingThreads);
             // create N indexing threads to index documents simultaneously
             for (int threadNum = 0; threadNum < numIndexingThreads; threadNum++) {
                 final int threadIdx = threadNum;
@@ -2150,7 +2154,10 @@ public class InternalEngineTests extends ESTestCase {
                         }
                     } catch (Exception e) {
                         throw new RuntimeException(e);
+                    } finally {
+                        doneLatch.countDown();
                     }
+
                 });
                 indexingThreads.add(indexingThread);
             }
@@ -2160,12 +2167,19 @@ public class InternalEngineTests extends ESTestCase {
                 thread.start();
             }
             barrier.await(); // wait for indexing threads to all be ready to start
-
+            int commitLimit = randomIntBetween(10, 20);
+            long sleepTime = 1;
             // create random commit points
             boolean doneIndexing;
             do {
-                doneIndexing = indexingThreads.stream().filter(Thread::isAlive).count() == 0;
+                doneIndexing = doneLatch.await(sleepTime, TimeUnit.MILLISECONDS);
                 commits.add(engine.acquireIndexCommit(true));
+                if (commits.size() > commitLimit) { // don't keep on piling up too many commits
+                    IOUtils.close(commits.remove(randomIntBetween(0, commits.size()-1)));
+                    // we increase the wait time to make sure we eventually if things are slow wait for threads to finish.
+                    // this will reduce pressure on disks and will allow threads to make progress without piling up too many commits
+                    sleepTime = sleepTime * 2;
+                }
             } while (doneIndexing == false);
 
             // now, verify all the commits have the correct docs according to the user commit data
@@ -2491,10 +2505,19 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testTranslogCleanUpPostCommitCrash() throws Exception {
+        IndexSettings indexSettings = new IndexSettings(defaultSettings.getIndexMetaData(), defaultSettings.getNodeSettings(),
+            defaultSettings.getScopedSettings());
+        IndexMetaData.Builder builder = IndexMetaData.builder(indexSettings.getIndexMetaData());
+        builder.settings(Settings.builder().put(indexSettings.getSettings())
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey(), "-1")
+            .put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), "-1")
+        );
+        indexSettings.updateIndexMetaData(builder.build());
+
         try (Store store = createStore()) {
             AtomicBoolean throwErrorOnCommit = new AtomicBoolean();
             final Path translogPath = createTempDir();
-            try (InternalEngine engine = new InternalEngine(config(defaultSettings, store, translogPath, newMergePolicy(), null, null)) {
+            try (InternalEngine engine = new InternalEngine(config(indexSettings, store, translogPath, newMergePolicy(), null, null)) {
                 @Override
                 protected void commitIndexWriter(IndexWriter writer, Translog translog, String syncId) throws IOException {
                     super.commitIndexWriter(writer, translog, syncId);
@@ -2509,7 +2532,7 @@ public class InternalEngineTests extends ESTestCase {
                 FlushFailedEngineException e = expectThrows(FlushFailedEngineException.class, engine::flush);
                 assertThat(e.getCause().getMessage(), equalTo("power's out"));
             }
-            try (InternalEngine engine = new InternalEngine(config(defaultSettings, store, translogPath, newMergePolicy(), null, null))) {
+            try (InternalEngine engine = new InternalEngine(config(indexSettings, store, translogPath, newMergePolicy(), null, null))) {
                 engine.recoverFromTranslog();
                 assertVisibleCount(engine, 1);
                 final long committedGen = Long.valueOf(
@@ -2535,7 +2558,7 @@ public class InternalEngineTests extends ESTestCase {
         engine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_CREATE_TRANSLOG));
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
-            assertThat(topDocs.totalHits, equalTo(0));
+            assertThat(topDocs.totalHits, equalTo(0L));
         }
     }
 
@@ -2626,7 +2649,7 @@ public class InternalEngineTests extends ESTestCase {
                 engine.refresh("test");
                 try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
                     TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + numExtraDocs));
-                    assertThat(topDocs.totalHits, equalTo(numDocs + numExtraDocs));
+                    assertThat(topDocs.totalHits, equalTo((long) numDocs + numExtraDocs));
                 }
             }
             IOUtils.close(store, directory);
@@ -2694,14 +2717,14 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(result.getVersion(), equalTo(2L));
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
-            assertThat(topDocs.totalHits, equalTo(numDocs + 1));
+            assertThat(topDocs.totalHits, equalTo(numDocs + 1L));
         }
 
         engine.close();
         engine = createEngine(store, primaryTranslogDir);
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
-            assertThat(topDocs.totalHits, equalTo(numDocs + 1));
+            assertThat(topDocs.totalHits, equalTo(numDocs + 1L));
         }
         parser = (TranslogHandler) engine.config().getTranslogRecoveryRunner();
         assertEquals(flush ? 1 : 2, parser.appliedOperations.get());
@@ -2714,7 +2737,7 @@ public class InternalEngineTests extends ESTestCase {
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs);
-            assertThat(topDocs.totalHits, equalTo(numDocs));
+            assertThat(topDocs.totalHits, equalTo((long) numDocs));
         }
     }
 
@@ -2933,7 +2956,7 @@ public class InternalEngineTests extends ESTestCase {
                     assertEquals(engine.getTranslog().getTranslogUUID(), userData.get(Translog.TRANSLOG_UUID_KEY));
                     expectThrows(IllegalStateException.class, () -> engine.recoverFromTranslog());
                     assertEquals(1, engine.getTranslog().currentFileGeneration());
-                    assertEquals(0L, engine.getTranslog().totalOperations());
+                    assertEquals(0L, engine.getTranslog().uncommittedOperations());
                 }
             }
 
@@ -3850,7 +3873,7 @@ public class InternalEngineTests extends ESTestCase {
                             System.nanoTime(),
                             reason));
             assertThat(noOpEngine.seqNoService().getLocalCheckpoint(), equalTo((long) (maxSeqNo + 1)));
-            assertThat(noOpEngine.getTranslog().totalOperations(), equalTo(1 + gapsFilled));
+            assertThat(noOpEngine.getTranslog().uncommittedOperations(), equalTo(1 + gapsFilled));
             // skip to the op that we added to the translog
             Translog.Operation op;
             Translog.Operation last = null;
@@ -3996,7 +4019,7 @@ public class InternalEngineTests extends ESTestCase {
             assertEquals(maxSeqIDOnReplica, replicaEngine.seqNoService().getMaxSeqNo());
             assertEquals(checkpointOnReplica, replicaEngine.seqNoService().getLocalCheckpoint());
             recoveringEngine = new InternalEngine(copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
-            assertEquals(numDocsOnReplica, recoveringEngine.getTranslog().totalOperations());
+            assertEquals(numDocsOnReplica, recoveringEngine.getTranslog().uncommittedOperations());
             recoveringEngine.recoverFromTranslog();
             assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());
             assertEquals(checkpointOnReplica, recoveringEngine.seqNoService().getLocalCheckpoint());
@@ -4027,7 +4050,7 @@ public class InternalEngineTests extends ESTestCase {
         try {
             recoveringEngine = new InternalEngine(copy(replicaEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG));
             if (flushed) {
-                assertEquals(0, recoveringEngine.getTranslog().totalOperations());
+                assertEquals(0, recoveringEngine.getTranslog().uncommittedOperations());
             }
             recoveringEngine.recoverFromTranslog();
             assertEquals(maxSeqIDOnReplica, recoveringEngine.seqNoService().getMaxSeqNo());

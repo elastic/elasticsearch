@@ -1215,7 +1215,7 @@ public class InternalEngine extends Engine {
             ensureOpen();
             ensureCanFlush();
             String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
-            if (syncId != null && translog.totalOperations() == 0 && indexWriter.hasUncommittedChanges()) {
+            if (syncId != null && translog.uncommittedOperations() == 0 && indexWriter.hasUncommittedChanges()) {
                 logger.trace("start renewing sync commit [{}]", syncId);
                 commitIndexWriter(indexWriter, translog, syncId);
                 logger.debug("successfully sync committed. sync id [{}].", syncId);
@@ -1315,6 +1315,25 @@ public class InternalEngine extends Engine {
             pruneDeletedTombstones();
         }
         return new CommitId(newCommitId);
+    }
+
+    @Override
+    public void rollTranslogGeneration() throws EngineException {
+        try (ReleasableLock ignored = readLock.acquire()) {
+            ensureOpen();
+            translog.rollGeneration();
+            translog.trimUnreferencedReaders();
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("translog trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new EngineException(shardId, "failed to roll translog", e);
+        }
     }
 
     private void pruneDeletedTombstones() {

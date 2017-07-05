@@ -21,6 +21,7 @@ package org.elasticsearch.common.path;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -57,6 +58,9 @@ public class PathTrie<T> {
          */
         WILDCARD_NODES_ALLOWED
     }
+
+    static EnumSet<TrieMatchingMode> EXPLICIT_OR_ROOT_WILDCARD =
+            EnumSet.of(TrieMatchingMode.EXPLICIT_NODES_ONLY, TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED);
 
     public interface Decoder {
         String decode(String value);
@@ -239,8 +243,7 @@ public class PathTrie<T> {
                 }
             } else {
                 if (index + 1 == path.length && node.value == null && children.get(wildcard) != null
-                        && trieMatchingMode != TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED
-                        && trieMatchingMode != TrieMatchingMode.EXPLICIT_NODES_ONLY) {
+                        && EXPLICIT_OR_ROOT_WILDCARD.contains(trieMatchingMode) == false) {
                     /*
                      * If we are at the end of the path, the current node does not have a value but
                      * there is a child wildcard node, use the child wildcard node.
@@ -379,10 +382,10 @@ public class PathTrie<T> {
             this.path = path;
             this.trie = trie;
             this.paramSupplier = paramSupplier;
-            this.modes = Arrays.asList(TrieMatchingMode.EXPLICIT_NODES_ONLY,
+            this.modes = new ArrayList<>(Arrays.asList(TrieMatchingMode.EXPLICIT_NODES_ONLY,
                 TrieMatchingMode.WILDCARD_ROOT_NODES_ALLOWED,
                 TrieMatchingMode.WILDCARD_LEAF_NODES_ALLOWED,
-                TrieMatchingMode.WILDCARD_NODES_ALLOWED);
+                TrieMatchingMode.WILDCARD_NODES_ALLOWED));
             assert TrieMatchingMode.values().length == 4 : "missing trie matching mode";
         }
 

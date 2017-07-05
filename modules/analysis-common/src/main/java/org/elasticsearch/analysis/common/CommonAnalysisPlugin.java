@@ -107,6 +107,14 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("ngram", NGramTokenFilterFactory::new);
         filters.put("edgeNGram", EdgeNGramTokenFilterFactory::new);
         filters.put("edge_ngram", EdgeNGramTokenFilterFactory::new);
+        filters.put("stemmer", StemmerTokenFilterFactory::new);
+        filters.put("stemmer_override", requriesAnalysisSettings(StemmerOverrideTokenFilterFactory::new));
+        filters.put("kstem", KStemTokenFilterFactory::new);
+        filters.put("dictionary_decompounder", requriesAnalysisSettings(DictionaryCompoundWordTokenFilterFactory::new));
+        filters.put("hyphenation_decompounder", requriesAnalysisSettings(HyphenationCompoundWordTokenFilterFactory::new));
+        filters.put("reverse", ReverseTokenFilterFactory::new);
+        filters.put("elision", ElisionTokenFilterFactory::new);
+        filters.put("truncate", requriesAnalysisSettings(TruncateTokenFilterFactory::new));
         return filters;
     }
 

@@ -188,4 +188,15 @@ public class AugmentationTests extends ScriptTestCase {
                 exec("Map m = new TreeMap(); m.a = -1; m.b = 1; " +
                      "return m.groupBy((key,value) -> value < 0 ? 'negative' : 'positive')"));
     }
+
+    public void testFeatureTest() {
+        assertEquals(5, exec("org.elasticsearch.painless.FeatureTest ft = new org.elasticsearch.painless.FeatureTest();" +
+            " ft.setX(3); ft.setY(2); return ft.getTotal()"));
+        assertEquals(5, exec("def ft = new org.elasticsearch.painless.FeatureTest();" +
+            " ft.setX(3); ft.setY(2); return ft.getTotal()"));
+        assertEquals(8, exec("org.elasticsearch.painless.FeatureTest ft = new org.elasticsearch.painless.FeatureTest();" +
+            " ft.setX(3); ft.setY(2); return ft.addToTotal(3)"));
+        assertEquals(8, exec("def ft = new org.elasticsearch.painless.FeatureTest();" +
+            " ft.setX(3); ft.setY(2); return ft.addToTotal(3)"));
+    }
 }

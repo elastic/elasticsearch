@@ -121,7 +121,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
     class TestSingleItemBulkWriteAction extends TransportSingleItemBulkWriteAction<IndexRequest, IndexResponse> {
 
         TestSingleItemBulkWriteAction(TestTransportBulkAction bulkAction) {
-            super(Settings.EMPTY, IndexAction.NAME, transportService, TransportBulkActionIngestTests.this.clusterService,
+            super(Settings.EMPTY, IndexAction.NAME, TransportBulkActionIngestTests.this.transportService,
+                    TransportBulkActionIngestTests.this.clusterService,
                     null, null, null, new ActionFilters(Collections.emptySet()), null,
                     IndexRequest::new, IndexRequest::new, ThreadPool.Names.INDEX, bulkAction, null);
         }

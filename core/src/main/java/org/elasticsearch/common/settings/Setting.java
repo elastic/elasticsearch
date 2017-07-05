@@ -207,7 +207,7 @@ public class Setting<T> extends ToXContentToBytes {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Setting<T> fallbackSetting, Function<String, T> parser, Property... properties) {
-        this(key, fallbackSetting, fallbackSetting::getRaw, parser, (v, s) -> {}, properties);
+        this(key, fallbackSetting, fallbackSetting::getRaw, parser, (v, m) -> {}, properties);
     }
 
     /**

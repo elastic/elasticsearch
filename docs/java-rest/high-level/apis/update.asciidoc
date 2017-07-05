@@ -1,0 +1,4 @@
+[[java-rest-high-document-update]]
+=== Update API
+
+See https://github.com/elastic/elasticsearch/pull/25536

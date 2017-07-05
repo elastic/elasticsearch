@@ -478,4 +478,5 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertThat(fooMapper, instanceOf(KeywordFieldMapper.class));
         assertWarnings("Expected a boolean [true/false] for property [index] but got [not_analyzed]");
     }
+
 }

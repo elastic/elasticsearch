@@ -188,10 +188,6 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      *                  This is useful to add additional validation to settings at runtime compared to at startup time.
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> validator) {
-        addSettingsUpdateConsumer(setting, consumer, (v, m) -> validator.accept(v));
-    }
-
-    public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Setting.Validator<T> validator) {
         if (setting != get(setting.getKey())) {
             throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
         }

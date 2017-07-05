@@ -51,14 +51,14 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         Settings newSettings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), false)
-            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1000mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "500mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "30s")
             .build();
         nss.applySettings(newSettings);
 
-        assertEquals(ByteSizeValue.parseBytesSizeValue("0b", "test"), diskThresholdSettings.getFreeBytesThresholdHigh());
-        assertEquals(30.0D, diskThresholdSettings.getFreeDiskThresholdHigh(), 0.0D);
+        assertEquals(ByteSizeValue.parseBytesSizeValue("1000mb", "test"), diskThresholdSettings.getFreeBytesThresholdHigh());
+        assertEquals(0.0D, diskThresholdSettings.getFreeDiskThresholdHigh(), 0.0D);
         assertEquals(ByteSizeValue.parseBytesSizeValue("500mb", "test"), diskThresholdSettings.getFreeBytesThresholdLow());
         assertEquals(0.0D, diskThresholdSettings.getFreeDiskThresholdLow(), 0.0D);
         assertEquals(30L, diskThresholdSettings.getRerouteInterval().seconds());
@@ -66,7 +66,18 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertFalse(diskThresholdSettings.includeRelocations());
     }
 
-    public void testInvalidUpdate() {
+    public void testInvalidConstruction() {
+        final Settings settings = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "80%")
+                .build();
+        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final IllegalArgumentException e =
+                expectThrows(IllegalArgumentException.class, () -> new DiskThresholdSettings(settings, clusterSettings));
+        assertThat(e, hasToString(containsString("low disk watermark [90%] more than high disk watermark [80%]")));
+    }
+
+    public void testInvalidPercentageUpdate() {
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         new DiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
 
@@ -82,6 +93,44 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         assertThat(cause, hasToString(containsString("low disk watermark [90%] more than high disk watermark [80%]")));
+    }
+
+    public void testInvalidByteSizeUpdate() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        new DiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
+
+        final Settings newSettings = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1000m")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "500m")
+                .build();
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
+        final String expected = "illegal value can't update [cluster.routing.allocation.disk.watermark.low] from [85%] to [1000m]";
+        assertThat(e, hasToString(containsString(expected)));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
+        assertThat(cause, hasToString(containsString("low disk watermark [1000m] more than high disk watermark [500m]")));
+    }
+
+    public void testIncompatibleThresholdUpdate() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        new DiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
+
+        final Settings newSettings = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "90%")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1000m")
+                .build();
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
+        final String expected = "illegal value can't update [cluster.routing.allocation.disk.watermark.low] from [85%] to [90%]";
+        assertThat(e, hasToString(containsString(expected)));
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
+        final String incompatibleExpected =
+                "low disk watermark [90%] represents a percentage but high disk watermark [1000m] represents a byte size";
+        assertThat(cause, hasToString(containsString(incompatibleExpected)));
     }
 
 }

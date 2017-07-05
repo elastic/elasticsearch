@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -41,10 +42,12 @@ public class DiskThresholdSettings {
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING =
         new Setting<>("cluster.routing.allocation.disk.watermark.low", "85%",
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.low"),
+            new LowDiskWatermarkValidator(),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING =
         new Setting<>("cluster.routing.allocation.disk.watermark.high", "90%",
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.high"),
+            new HighDiskWatermarkValidator(),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING =
         Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true,
@@ -66,21 +69,13 @@ public class DiskThresholdSettings {
     public DiskThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
         final String lowWatermark = CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings);
         final String highWatermark = CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings);
-        final LowDiskWatermarkValidator lowDiskWatermarkValidator = new LowDiskWatermarkValidator();
-        final HighDiskWatermarkValidator highDiskWatermarkValidator = new HighDiskWatermarkValidator();
-        lowDiskWatermarkValidator.validate(
-                lowWatermark, Collections.singletonMap(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, highWatermark));
-        highDiskWatermarkValidator.validate(
-                highWatermark, Collections.singletonMap(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, lowWatermark));
         setHighWatermark(highWatermark);
         setLowWatermark(lowWatermark);
         this.includeRelocations = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.get(settings);
         this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(
-                CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark, lowDiskWatermarkValidator);
-        clusterSettings.addSettingsUpdateConsumer(
-                CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark, highDiskWatermarkValidator);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING, this::setIncludeRelocations);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
@@ -90,12 +85,42 @@ public class DiskThresholdSettings {
 
         @Override
         public void validate(String value, Map<Setting<String>, String> settings) {
-            final double lowWatermarkThreshold = thresholdPercentageFromWatermark(value);
             final String highWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
-            final double highWatermarkThreshold = thresholdPercentageFromWatermark(highWatermarkRaw);
-            if (lowWatermarkThreshold > highWatermarkThreshold) {
-                throw new IllegalArgumentException(
-                        "low disk watermark [" + value + "] more than high disk watermark [" + highWatermarkRaw + "]");
+            try {
+                final double lowWatermarkThreshold = thresholdPercentageFromWatermark(value, false);
+                try {
+                    final double highWatermarkThreshold = thresholdPercentageFromWatermark(highWatermarkRaw, false);
+                    if (lowWatermarkThreshold > highWatermarkThreshold) {
+                        throw new IllegalArgumentException(
+                                "low disk watermark [" + value + "] more than high disk watermark [" + highWatermarkRaw + "]");
+                    }
+                } catch (final ElasticsearchParseException e) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "low disk watermark [%s] represents a percentage but high disk watermark [%s] represents a byte size",
+                            value,
+                            highWatermarkRaw);
+                    throw new IllegalArgumentException(message);
+                }
+            } catch (final ElasticsearchParseException e) {
+                final ByteSizeValue lowWatermarkBytes =
+                        thresholdBytesFromWatermark(value, CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey());
+                try {
+                    final ByteSizeValue highWatermarkBytes =
+                            thresholdBytesFromWatermark(
+                                    highWatermarkRaw, CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), false);
+                    if (lowWatermarkBytes.getBytes() > highWatermarkBytes.getBytes()) {
+                        throw new IllegalArgumentException(
+                                "low disk watermark [" + value + "] more than high disk watermark [" + highWatermarkRaw + "]");
+                    }
+                } catch (final ElasticsearchParseException inner) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "low disk watermark [%s] represents a byte size but high disk watermark [%s] represents a percentage",
+                            value,
+                            highWatermarkRaw);
+                    throw new IllegalArgumentException(message);
+                }
             }
         }
 
@@ -103,18 +128,49 @@ public class DiskThresholdSettings {
         public Iterator<Setting<String>> settings() {
             return Collections.singletonList(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING).iterator();
         }
+
     }
 
     static final class HighDiskWatermarkValidator implements Setting.Validator<String> {
 
         @Override
         public void validate(String value, Map<Setting<String>, String> settings) {
-            final double highWatermarkThreshold = thresholdPercentageFromWatermark(value);
             final String lowWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
-            final double lowWatermarkThreshold = thresholdPercentageFromWatermark(lowWatermarkRaw);
-            if (highWatermarkThreshold < lowWatermarkThreshold) {
-                throw new IllegalArgumentException(
-                        "high disk watermark [" + value + "] less than low disk watermark [" + lowWatermarkRaw + "]");
+            try {
+                final double highWatermarkThreshold = thresholdPercentageFromWatermark(value, false);
+                try {
+                    final double lowWatermarkThreshold = thresholdPercentageFromWatermark(lowWatermarkRaw, false);
+                    if (highWatermarkThreshold < lowWatermarkThreshold) {
+                        throw new IllegalArgumentException(
+                                "high disk watermark [" + value + "] less than high disk watermark [" + lowWatermarkRaw + "]");
+                    }
+                } catch (final ElasticsearchParseException e) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "high disk watermark [%s] represents a percentage but low disk watermark [%s] represents a byte size",
+                            value,
+                            lowWatermarkRaw);
+                    throw new IllegalArgumentException(message);
+                }
+            } catch (final ElasticsearchParseException e) {
+                final ByteSizeValue highWatermarkBytes =
+                        thresholdBytesFromWatermark(value, CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey());
+                try {
+                    final ByteSizeValue lowWatermarkBytes =
+                            thresholdBytesFromWatermark(
+                                    lowWatermarkRaw, CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), false);
+                    if (highWatermarkBytes.getBytes() < lowWatermarkBytes.getBytes()) {
+                        throw new IllegalArgumentException(
+                                "high disk watermark [" + value + "] less than low disk watermark [" + lowWatermarkRaw + "]");
+                    }
+                } catch (final ElasticsearchParseException inner) {
+                    final String message = String.format(
+                            Locale.ROOT,
+                            "high disk watermark [%s] represents a byte size but low disk watermark [%s] represents a percentage",
+                            value,
+                            lowWatermarkRaw);
+                    throw new IllegalArgumentException(message);
+                }
             }
         }
 
@@ -200,12 +256,27 @@ public class DiskThresholdSettings {
      * it cannot be parsed.
      */
     private static double thresholdPercentageFromWatermark(String watermark) {
+        return thresholdPercentageFromWatermark(watermark, true);
+    }
+
+    /**
+     * Attempts to parse the watermark into a percentage, returning 100.0% if it can not be parsed and the specified lenient parameter is
+     * true, otherwise throwing an {@link ElasticsearchParseException}.
+     *
+     * @param watermark the watermark to parse as a percentage
+     * @param lenient true if lenient parsing should be applied
+     * @return the parsed percentage
+     */
+    private static double thresholdPercentageFromWatermark(String watermark, boolean lenient) {
         try {
             return RatioValue.parseRatioValue(watermark).getAsPercent();
         } catch (ElasticsearchParseException ex) {
             // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
             // cases separately
-            return 100.0;
+            if (lenient) {
+                return 100.0;
+            }
+            throw ex;
         }
     }
 
@@ -213,13 +284,29 @@ public class DiskThresholdSettings {
      * Attempts to parse the watermark into a {@link ByteSizeValue}, returning
      * a ByteSizeValue of 0 bytes if the value cannot be parsed.
      */
-    private ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName) {
+    private static ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName) {
+        return thresholdBytesFromWatermark(watermark, settingName, true);
+    }
+
+    /**
+     * Attempts to parse the watermark into a {@link ByteSizeValue}, returning zero bytes if it can not be parsed and the specified lenient
+     * parameter is true, otherwise throwing an {@link ElasticsearchParseException}.
+     *
+     * @param watermark the watermark to parse as a byte size
+     * @param settingName the name of the setting
+     * @param lenient true if lenient parsing should be applied
+     * @return the parsed byte size value
+     */
+    private static ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName, boolean lenient) {
         try {
             return ByteSizeValue.parseBytesSizeValue(watermark, settingName);
         } catch (ElasticsearchParseException ex) {
             // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
             // cases separately
-            return ByteSizeValue.parseBytesSizeValue("0b", settingName);
+            if (lenient) {
+                return ByteSizeValue.parseBytesSizeValue("0b", settingName);
+            }
+            throw ex;
         }
     }
 

@@ -121,18 +121,20 @@ public class Setting<T> extends ToXContentToBytes {
     @Nullable
     private final Setting<T> fallbackSetting;
     private final Function<String, T> parser;
+    private final Validator<T> validator;
     private final EnumSet<Property> properties;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
 
     private Setting(Key key, @Nullable Setting<T> fallbackSetting, Function<Settings, String> defaultValue, Function<String, T> parser,
-            Property... properties) {
+            Validator<T> validator, Property... properties) {
         assert this instanceof SecureSetting || this.isGroupSetting() || parser.apply(defaultValue.apply(Settings.EMPTY)) != null
                : "parser returned null";
         this.key = key;
         this.fallbackSetting = fallbackSetting;
         this.defaultValue = defaultValue;
         this.parser = parser;
+        this.validator = validator;
         if (properties == null) {
             throw new IllegalArgumentException("properties cannot be null for setting [" + key + "]");
         }
@@ -154,7 +156,21 @@ public class Setting<T> extends ToXContentToBytes {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Property... properties) {
-        this(key, null, defaultValue, parser, properties);
+        this(key, defaultValue, parser, (v, s) -> {}, properties);
+    }
+
+    /**
+     * Creates a new {@code Setting} instance.
+     *
+     * @param key          the settings key for this setting
+     * @param defaultValue a dfeault value function that results a string representation of the default value
+     * @param parser       a parser that parses a string representation into the concrete type for this setting
+     * @param validator    a {@link Validator} for validating this setting
+     * @param properties   properties for this setting
+     */
+    public Setting(
+            Key key, Function<Settings, String> defaultValue, Function<String, T> parser, Validator<T> validator, Property... properties) {
+        this(key, null, defaultValue, parser, validator, properties);
     }
 
     /**
@@ -166,6 +182,10 @@ public class Setting<T> extends ToXContentToBytes {
      */
     public Setting(String key, String defaultValue, Function<String, T> parser, Property... properties) {
         this(key, s -> defaultValue, parser, properties);
+    }
+
+    public Setting(String key, String defaultValue, Function<String, T> parser, Validator<T> validator, Property... properties) {
+        this(new SimpleKey(key), s -> defaultValue, parser, validator, properties);
     }
 
     /**
@@ -187,7 +207,7 @@ public class Setting<T> extends ToXContentToBytes {
      * @param properties properties for this setting like scope, filtering...
      */
     public Setting(Key key, Setting<T> fallbackSetting, Function<String, T> parser, Property... properties) {
-        this(key, fallbackSetting, fallbackSetting::getRaw, parser, properties);
+        this(key, fallbackSetting, fallbackSetting::getRaw, parser, (v, s) -> {}, properties);
     }
 
     /**
@@ -310,9 +330,26 @@ public class Setting<T> extends ToXContentToBytes {
      * instead.
      */
     public T get(Settings settings) {
+        return get(settings, true);
+    }
+
+    private T get(Settings settings, boolean validate) {
         String value = getRaw(settings);
         try {
-            return parser.apply(value);
+            T parsed = parser.apply(value);
+            if (validate) {
+                final Iterator<Setting<T>> it = validator.settings();
+                final Map<Setting<T>, T> map;
+                if (it.hasNext()) {
+                    map = new HashMap<>();
+                    final Setting<T> setting = it.next();
+                    map.put(setting, setting.get(settings, false));
+                } else {
+                    map = Collections.emptyMap();
+                }
+                validator.validate(parsed, map);
+            }
+            return parsed;
         } catch (ElasticsearchParseException ex) {
             throw new IllegalArgumentException(ex.getMessage(), ex);
         } catch (NumberFormatException ex) {
@@ -426,13 +463,9 @@ public class Setting<T> extends ToXContentToBytes {
      * Build the updater responsible for validating new values, logging the new
      * value, and eventually setting the value where it belongs.
      */
-    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> validator) {
-        return newUpdater(consumer, logger, (v, s) -> validator.accept(v));
-    }
-
-    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Validator<T> validator) {
+    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
         if (isDynamic()) {
-            return new Updater(consumer, logger, validator);
+            return new Updater(consumer, logger, accept);
         } else {
             throw new IllegalStateException("setting [" + getKey() + "] is not dynamic");
         }
@@ -595,12 +628,12 @@ public class Setting<T> extends ToXContentToBytes {
     private final class Updater implements AbstractScopedSettings.SettingUpdater<T> {
         private final Consumer<T> consumer;
         private final Logger logger;
-        private final Validator<T> validator;
+        private final Consumer<T> accept;
 
-        Updater(Consumer<T> consumer, Logger logger, Validator<T> validator) {
+        Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
             this.consumer = consumer;
             this.logger = logger;
-            this.validator = validator;
+            this.accept = accept;
         }
 
         @Override
@@ -622,23 +655,14 @@ public class Setting<T> extends ToXContentToBytes {
         public T getValue(Settings current, Settings previous) {
             final String newValue = getRaw(current);
             final String value = getRaw(previous);
-            T inst = get(current);
-            Iterator<Setting<T>> it = validator.settings();
-            final Map<Setting<T>, T> map;
-            if (it.hasNext()) {
-                map = new HashMap<>();
-                final Setting<T> setting = it.next();
-                map.put(setting, setting.get(current));
-            } else {
-                map = Collections.emptyMap();
-            }
             try {
-                validator.validate(inst, map);
+                T inst = get(current);
+                accept.accept(inst);
+                return inst;
             } catch (Exception | AssertionError e) {
                 throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" + newValue + "]",
                         e);
             }
-            return inst;
         }
 
         @Override

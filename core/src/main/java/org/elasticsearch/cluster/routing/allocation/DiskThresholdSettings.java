@@ -135,9 +135,9 @@ public class DiskThresholdSettings {
                 final ByteSizeValue highWatermarkBytes =
                         thresholdBytesFromWatermark(
                                 high, CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), false);
-                if (lowWatermarkBytes.getBytes() > highWatermarkBytes.getBytes()) {
+                if (lowWatermarkBytes.getBytes() < highWatermarkBytes.getBytes()) {
                     throw new IllegalArgumentException(
-                            "low disk watermark [" + low + "] more than high disk watermark [" + high + "]");
+                            "low disk watermark [" + low + "] less than high disk watermark [" + high + "]");
                 }
             } catch (final ElasticsearchParseException inner) {
                 final String message = String.format(

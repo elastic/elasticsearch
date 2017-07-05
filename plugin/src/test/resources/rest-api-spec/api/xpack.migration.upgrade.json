@@ -1,5 +1,5 @@
 {
-  "xpack.upgrade": {
+  "xpack.migration.upgrade": {
     "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/migration/upgrade/{index}",

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -13,6 +14,7 @@ import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,10 +30,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 
 import java.io.IOException;
+import java.util.Date;
 import java.util.Objects;
 
 public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobAction.Response, FlushJobAction.RequestBuilder> {
@@ -59,6 +63,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
         public static final ParseField ADVANCE_TIME = new ParseField("advance_time");
+        public static final ParseField SKIP_TIME = new ParseField("skip_time");
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -68,6 +73,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
             PARSER.declareString(Request::setStart, START);
             PARSER.declareString(Request::setEnd, END);
             PARSER.declareString(Request::setAdvanceTime, ADVANCE_TIME);
+            PARSER.declareString(Request::setSkipTime, SKIP_TIME);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser) {
@@ -82,6 +88,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         private String start;
         private String end;
         private String advanceTime;
+        private String skipTime;
 
         Request() {
         }
@@ -114,10 +121,20 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
             this.end = end;
         }
 
-        public String getAdvanceTime() { return advanceTime; }
+        public String getAdvanceTime() {
+            return advanceTime;
+        }
 
         public void setAdvanceTime(String advanceTime) {
             this.advanceTime = advanceTime;
+        }
+
+        public String getSkipTime() {
+            return skipTime;
+        }
+
+        public void setSkipTime(String skipTime) {
+            this.skipTime = skipTime;
         }
 
         @Override
@@ -127,6 +144,9 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
             start = in.readOptionalString();
             end = in.readOptionalString();
             advanceTime = in.readOptionalString();
+            if (in.getVersion().after(Version.V_5_5_0)) {
+                skipTime = in.readOptionalString();
+            }
         }
 
         @Override
@@ -136,11 +156,14 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
             out.writeOptionalString(start);
             out.writeOptionalString(end);
             out.writeOptionalString(advanceTime);
+            if (out.getVersion().after(Version.V_5_5_0)) {
+                out.writeOptionalString(skipTime);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, calcInterim, start, end, advanceTime);
+            return Objects.hash(jobId, calcInterim, start, end, advanceTime, skipTime);
         }
 
         @Override
@@ -156,7 +179,8 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
                     calcInterim == other.calcInterim &&
                     Objects.equals(start, other.start) &&
                     Objects.equals(end, other.end) &&
-                    Objects.equals(advanceTime, other.advanceTime);
+                    Objects.equals(advanceTime, other.advanceTime) &&
+                    Objects.equals(skipTime, other.skipTime);
         }
 
         @Override
@@ -173,6 +197,9 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
             if (advanceTime != null) {
                 builder.field(ADVANCE_TIME.getPreferredName(), advanceTime);
             }
+            if (skipTime != null) {
+                builder.field(SKIP_TIME.getPreferredName(), skipTime);
+            }
             builder.endObject();
             return builder;
         }
@@ -188,36 +215,52 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
         private boolean flushed;
+        private Date lastFinalizedBucketEnd;
 
         Response() {
             super(null, null);
         }
 
-        Response(boolean flushed) {
+        public Response(boolean flushed, @Nullable Date lastFinalizedBucketEnd) {
             super(null, null);
             this.flushed = flushed;
+            this.lastFinalizedBucketEnd = lastFinalizedBucketEnd;
         }
 
         public boolean isFlushed() {
             return flushed;
         }
 
+        public Date getLastFinalizedBucketEnd() {
+            return lastFinalizedBucketEnd;
+        }
+
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             flushed = in.readBoolean();
+            if (in.getVersion().after(Version.V_5_5_0)) {
+                lastFinalizedBucketEnd = new Date(in.readVLong());
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(flushed);
+            if (out.getVersion().after(Version.V_5_5_0)) {
+                out.writeVLong(lastFinalizedBucketEnd.getTime());
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("flushed", flushed);
+            if (lastFinalizedBucketEnd != null) {
+                builder.dateField(FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName(),
+                        FlushAcknowledgement.LAST_FINALIZED_BUCKET_END.getPreferredName() + "_string", lastFinalizedBucketEnd.getTime());
+            }
             builder.endObject();
             return builder;
         }
@@ -227,12 +270,13 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return flushed == response.flushed;
+            return flushed == response.flushed &&
+                    Objects.equals(lastFinalizedBucketEnd, response.lastFinalizedBucketEnd);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(flushed);
+            return Objects.hash(flushed, lastFinalizedBucketEnd);
         }
     }
 
@@ -261,6 +305,9 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
             if (request.getAdvanceTime() != null) {
                 paramsBuilder.advanceTime(request.getAdvanceTime());
             }
+            if (request.getSkipTime() != null) {
+                paramsBuilder.skipTime(request.getSkipTime());
+            }
             TimeRange.Builder timeRangeBuilder = TimeRange.builder();
             if (request.getStart() != null) {
                 timeRangeBuilder.startTime(request.getStart());
@@ -269,13 +316,12 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
                 timeRangeBuilder.endTime(request.getEnd());
             }
             paramsBuilder.forTimeRange(timeRangeBuilder.build());
-            processManager.flushJob(task, paramsBuilder.build(), e ->  {
-                if (e == null) {
-                    listener.onResponse(new Response(true));
-                } else {
-                    listener.onFailure(e);
-                }
-            });
+            processManager.flushJob(task, paramsBuilder.build(), ActionListener.wrap(
+                    flushAcknowledgement -> {
+                        listener.onResponse(new Response(true,
+                                flushAcknowledgement == null ? null : flushAcknowledgement.getLastFinalizedBucketEnd()));
+                    }, listener::onFailure
+            ));
         }
     }
 }

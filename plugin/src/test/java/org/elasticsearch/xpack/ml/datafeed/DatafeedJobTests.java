@@ -27,9 +27,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -139,6 +141,7 @@ public class DatafeedJobTests extends ESTestCase {
         assertEquals(10000 + frequencyMs + 100, next);
 
         verify(dataExtractorFactory).newExtractor(5000 + 1L, currentTime - queryDelayMs);
+        assertThat(flushJobRequests.getAllValues().size(), equalTo(1));
         FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
         flushRequest.setCalcInterim(true);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
@@ -148,14 +151,17 @@ public class DatafeedJobTests extends ESTestCase {
         // We need to return empty counts so that the lookback doesn't update the last end time
         when(postDataFuture.actionGet()).thenReturn(new PostDataAction.Response(new DataCounts("_job_id")));
 
-        currentTime = 10000L;
+        currentTime = 9999L;
         long latestFinalBucketEndTimeMs = 5000;
         long latestRecordTimeMs = 5000;
+
+        FlushJobAction.Response skipTimeResponse = new FlushJobAction.Response(true, new Date(10000L));
+        when(flushJobFuture.actionGet()).thenReturn(skipTimeResponse);
 
         long frequencyMs = 1000;
         long queryDelayMs = 500;
         DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, latestFinalBucketEndTimeMs, latestRecordTimeMs);
-        datafeedJob.runLookBack(10000L, null);
+        datafeedJob.runLookBack(currentTime, null);
 
         // advance time
         currentTime = 12000L;
@@ -163,6 +169,13 @@ public class DatafeedJobTests extends ESTestCase {
         expectThrows(DatafeedJob.EmptyDataCountException.class, () -> datafeedJob.runRealtime());
 
         verify(dataExtractorFactory, times(1)).newExtractor(10000L, 11000L);
+        List<FlushJobAction.Request> capturedFlushJobRequests = flushJobRequests.getAllValues();
+        assertThat(capturedFlushJobRequests.size(), equalTo(2));
+        assertThat(capturedFlushJobRequests.get(0).getCalcInterim(), is(false));
+        assertThat(capturedFlushJobRequests.get(0).getSkipTime(), equalTo("9999"));
+        assertThat(capturedFlushJobRequests.get(1).getCalcInterim(), is(true));
+        assertThat(capturedFlushJobRequests.get(1).getSkipTime(), is(nullValue()));
+        assertThat(capturedFlushJobRequests.get(1).getAdvanceTime(), equalTo("11000"));
         Mockito.verifyNoMoreInteractions(dataExtractorFactory);
     }
 

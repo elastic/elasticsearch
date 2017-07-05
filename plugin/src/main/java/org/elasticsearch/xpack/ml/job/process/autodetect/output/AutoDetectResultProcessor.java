@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -231,7 +232,7 @@ public class AutoDetectResultProcessor {
             // through to the data store
             context.bulkResultsPersister.executeRequest();
             persister.commitResultWrites(context.jobId);
-            flushListener.acknowledgeFlush(flushAcknowledgement.getId());
+            flushListener.acknowledgeFlush(flushAcknowledgement);
             // Interim results may have been produced by the flush,
             // which need to be
             // deleted when the next finalized results come through
@@ -291,13 +292,11 @@ public class AutoDetectResultProcessor {
      *
      * @param flushId the id of the flush request to wait for
      * @param timeout the timeout
-     * @return {@code true} if the flush has completed or the parsing finished; {@code false} if the timeout expired
+     * @return The {@link FlushAcknowledgement} if the flush has completed or the parsing finished; {@code null} if the timeout expired
      */
-    public boolean waitForFlushAcknowledgement(String flushId, Duration timeout) {
-        if (failed) {
-            return false;
-        }
-        return flushListener.waitForFlush(flushId, timeout);
+    @Nullable
+    public FlushAcknowledgement waitForFlushAcknowledgement(String flushId, Duration timeout) {
+        return failed ? null : flushListener.waitForFlush(flushId, timeout);
     }
 
     public void clearAwaitingFlush(String flushId) {

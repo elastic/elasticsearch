@@ -41,8 +41,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
 
     public void testWriteFlushControlMessage_GivenAdvanceTime() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
-        FlushJobParams flushJobParams = FlushJobParams.builder()
-                .advanceTime("1234567890").build();
+        FlushJobParams flushJobParams = FlushJobParams.builder().advanceTime("1234567890").build();
 
         writer.writeFlushControlMessage(flushJobParams);
 
@@ -51,6 +50,30 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         inOrder.verify(lengthEncodedWriter).writeField("t1234567890");
         verifyNoMoreInteractions(lengthEncodedWriter);
+    }
+
+    public void testWriteFlushControlMessage_GivenSkipTime() throws IOException {
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
+        FlushJobParams flushJobParams = FlushJobParams.builder().skipTime("1234567890").build();
+
+        writer.writeFlushControlMessage(flushJobParams);
+
+        InOrder inOrder = inOrder(lengthEncodedWriter);
+        inOrder.verify(lengthEncodedWriter).writeNumFields(4);
+        inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
+        inOrder.verify(lengthEncodedWriter).writeField("s1234567890");
+        verifyNoMoreInteractions(lengthEncodedWriter);
+    }
+
+    public void testWriteFlushControlMessage_GivenSkipAndAdvanceTime() throws IOException {
+        ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
+        FlushJobParams flushJobParams = FlushJobParams.builder().skipTime("1000").advanceTime("2000").build();
+
+        writer.writeFlushControlMessage(flushJobParams);
+
+        InOrder inOrder = inOrder(lengthEncodedWriter);
+        inOrder.verify(lengthEncodedWriter).writeField("s1000");
+        inOrder.verify(lengthEncodedWriter).writeField("t2000");
     }
 
     public void testWriteFlushControlMessage_GivenCalcInterimResultsWithNoTimeParams() throws IOException {
@@ -67,7 +90,7 @@ public class ControlMsgToProcessWriterTests extends ESTestCase {
         verifyNoMoreInteractions(lengthEncodedWriter);
     }
 
-    public void testWriteFlushControlMessage_GivenNeitherCalcInterimNorAdvanceTime() throws IOException {
+    public void testWriteFlushControlMessage_GivenPlainFlush() throws IOException {
         ControlMsgToProcessWriter writer = new ControlMsgToProcessWriter(lengthEncodedWriter, 2);
         FlushJobParams flushJobParams = FlushJobParams.builder().build();
 

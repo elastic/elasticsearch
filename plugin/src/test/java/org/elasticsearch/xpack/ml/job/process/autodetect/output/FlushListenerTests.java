@@ -9,22 +9,26 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.is;
 
 public class FlushListenerTests extends ESTestCase {
 
     public void testAcknowledgeFlush() throws Exception {
         FlushListener listener = new FlushListener();
-        AtomicBoolean bool = new AtomicBoolean();
+        AtomicReference<FlushAcknowledgement> flushAcknowledgementHolder = new AtomicReference<>();
         new Thread(() -> {
-            boolean result = listener.waitForFlush("_id", Duration.ofMillis(10000));
-            bool.set(result);
+            FlushAcknowledgement flushAcknowledgement = listener.waitForFlush("_id", Duration.ofMillis(10000));
+            flushAcknowledgementHolder.set(flushAcknowledgement);
         }).start();
         assertBusy(() -> assertTrue(listener.awaitingFlushed.containsKey("_id")));
-        assertFalse(bool.get());
-        listener.acknowledgeFlush("_id");
-        assertBusy(() -> assertTrue(bool.get()));
+        assertNull(flushAcknowledgementHolder.get());
+        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement("_id", new Date(12345678L));
+        listener.acknowledgeFlush(flushAcknowledgement);
+        assertBusy(() -> assertNotNull(flushAcknowledgementHolder.get()));
         assertEquals(1, listener.awaitingFlushed.size());
 
         listener.clear("_id");
@@ -35,27 +39,26 @@ public class FlushListenerTests extends ESTestCase {
         FlushListener listener = new FlushListener();
 
         int numWaits = 9;
-        List<AtomicBoolean> bools = new ArrayList<>(numWaits);
+        List<AtomicReference<FlushAcknowledgement>> flushAcknowledgementHolders = new ArrayList<>(numWaits);
         for (int i = 0; i < numWaits; i++) {
             int id = i;
-            AtomicBoolean bool = new AtomicBoolean();
-            bools.add(bool);
+            AtomicReference<FlushAcknowledgement> flushAcknowledgementHolder = new AtomicReference<>();
+            flushAcknowledgementHolders.add(flushAcknowledgementHolder);
             new Thread(() -> {
-                boolean result = listener.waitForFlush(String.valueOf(id), Duration.ofMillis(10000));
-                bool.set(result);
+                FlushAcknowledgement flushAcknowledgement = listener.waitForFlush(String.valueOf(id), Duration.ofMillis(10000));
+                flushAcknowledgementHolder.set(flushAcknowledgement);
             }).start();
         }
         assertBusy(() -> assertEquals(numWaits, listener.awaitingFlushed.size()));
-        for (AtomicBoolean bool : bools) {
-            assertFalse(bool.get());
-        }
+        assertThat(flushAcknowledgementHolders.stream().map(f -> f.get()).filter(f -> f != null).findAny().isPresent(), is(false));
         assertFalse(listener.cleared.get());
+
         listener.clear();
-        for (AtomicBoolean bool : bools) {
-            assertBusy(() -> assertTrue(bool.get()));
+
+        for (AtomicReference<FlushAcknowledgement> f : flushAcknowledgementHolders) {
+            assertBusy(() -> assertNotNull(f.get()));
         }
         assertTrue(listener.awaitingFlushed.isEmpty());
         assertTrue(listener.cleared.get());
     }
-
 }

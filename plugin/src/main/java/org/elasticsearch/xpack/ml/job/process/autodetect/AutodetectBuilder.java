@@ -43,7 +43,6 @@ public class AutodetectBuilder {
     private Job job;
     private List<Path> filesToDelete;
     private Logger logger;
-    private boolean ignoreDowntime;
     private Set<MlFilter> referencedFilters;
     private Quantiles quantiles;
     private Environment env;
@@ -68,19 +67,7 @@ public class AutodetectBuilder {
         this.job = Objects.requireNonNull(job);
         this.filesToDelete = Objects.requireNonNull(filesToDelete);
         this.logger = Objects.requireNonNull(logger);
-        ignoreDowntime = false;
         referencedFilters = new HashSet<>();
-    }
-
-    /**
-     * Set ignoreDowntime
-     *
-     * @param ignoreDowntime If true set the ignore downtime flag overriding the
-     *                       setting in the job configuration
-     */
-    public AutodetectBuilder ignoreDowntime(boolean ignoreDowntime) {
-        this.ignoreDowntime = ignoreDowntime;
-        return this;
     }
 
     public AutodetectBuilder referencedFilters(Set<MlFilter> filters) {
@@ -103,7 +90,7 @@ public class AutodetectBuilder {
      */
     public void build() throws IOException, TimeoutException {
 
-        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job, logger, ignoreDowntime, controller.getPid());
+        List<String> command = ProcessCtrl.buildAutodetectCommand(env, settings, job, logger, controller.getPid());
 
         buildLimits(command);
         buildModelPlotConfig(command);

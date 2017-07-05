@@ -78,7 +78,6 @@ public class ProcessCtrl {
      */
     static final String BUCKET_SPAN_ARG = "--bucketspan=";
     public static final String DELETE_STATE_FILES_ARG = "--deleteStateFiles";
-    static final String IGNORE_DOWNTIME_ARG = "--ignoreDowntime";
     static final String LENGTH_ENCODED_INPUT_ARG = "--lengthEncodedInput";
     static final String MODEL_CONFIG_ARG = "--modelconfig=";
     public static final String QUANTILES_STATE_PATH_ARG = "--quantilesState=";
@@ -151,8 +150,7 @@ public class ProcessCtrl {
         return rng.nextInt(SECONDS_IN_HOUR);
     }
 
-    public static List<String> buildAutodetectCommand(Environment env, Settings settings, Job job, Logger logger, boolean ignoreDowntime,
-                                                      long controllerPid) {
+    public static List<String> buildAutodetectCommand(Environment env, Settings settings, Job job, Logger logger, long controllerPid) {
         List<String> command = new ArrayList<>();
         command.add(AUTODETECT_PATH);
 
@@ -212,10 +210,6 @@ public class ProcessCtrl {
 
         int maxQuantileInterval = BASE_MAX_QUANTILE_INTERVAL + intervalStagger;
         command.add(MAX_QUANTILE_INTERVAL_ARG + maxQuantileInterval);
-
-        if (ignoreDowntime) {
-            command.add(IGNORE_DOWNTIME_ARG);
-        }
 
         if (modelConfigFilePresent(env)) {
             String modelConfigFile = XPackPlugin.resolveConfigFile(env, ML_MODEL_CONF).toString();

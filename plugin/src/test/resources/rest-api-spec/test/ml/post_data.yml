@@ -66,6 +66,7 @@ setup:
       xpack.ml.flush_job:
         job_id: post-data-job
   - match: { flushed: true }
+  - match: { last_finalized_bucket_end: 1403481600000 }
 
   - do:
       xpack.ml.close_job:
@@ -100,6 +101,7 @@ setup:
       xpack.ml.flush_job:
         job_id: post-data-job
   - match: { flushed: true }
+  - match: { last_finalized_bucket_end: 0 }
 
   - do:
       xpack.ml.close_job:
@@ -110,6 +112,68 @@ setup:
       xpack.ml.get_job_stats:
         job_id: post-data-job
   - match: { jobs.0.state: "closed" }
+
+---
+"Test flush with skip_time":
+
+  - do:
+      xpack.ml.post_data:
+        job_id: post-data-job
+        body:
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: post-data-job
+            time: 1403481600
+          - airline: AAL
+            responsetime: 990.4628
+            sourcetype: post-data-job
+            time: 1403485200
+
+  # Skip a bucket
+  - do:
+      xpack.ml.flush_job:
+        job_id: post-data-job
+        skip_time: 1403488700
+  - match: { flushed: true }
+  - match: { last_finalized_bucket_end: 1403488800000 }
+
+  # Send some data that should be ignored
+  - do:
+      xpack.ml.post_data:
+        job_id: post-data-job
+        body:
+          airline: AAL
+          responsetime: 132.2046
+          sourcetype: post-data-job
+          time: 1403488700
+
+  # Send data that will create results for the bucket after the skipped one
+  - do:
+      xpack.ml.post_data:
+        job_id: post-data-job
+        body:
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: post-data-job
+            time: 1403488900
+          - airline: AAL
+            responsetime: 132.2046
+            sourcetype: post-data-job
+            time: 1403492400
+
+  - do:
+      xpack.ml.close_job:
+        job_id: post-data-job
+  - match: { closed: true }
+
+  - do:
+      xpack.ml.get_buckets:
+        job_id: "post-data-job"
+  - match: { count: 2 }
+  - match: { buckets.0.timestamp: 1403481600000 }
+  - match: { buckets.0.event_count: 1 }
+  - match: { buckets.1.timestamp: 1403488800000 }
+  - match: { buckets.1.event_count: 1 }
 
 ---
 "Test POST data with invalid parameters":

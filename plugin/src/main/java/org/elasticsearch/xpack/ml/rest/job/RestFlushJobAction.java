@@ -24,6 +24,7 @@ public class RestFlushJobAction extends BaseRestHandler {
     private final String DEFAULT_START = "";
     private final String DEFAULT_END = "";
     private final String DEFAULT_ADVANCE_TIME = "";
+    private final String DEFAULT_SKIP_TIME = "";
 
     public RestFlushJobAction(Settings settings, RestController controller) {
         super(settings);
@@ -50,6 +51,7 @@ public class RestFlushJobAction extends BaseRestHandler {
             request.setStart(restRequest.param(FlushJobAction.Request.START.getPreferredName(), DEFAULT_START));
             request.setEnd(restRequest.param(FlushJobAction.Request.END.getPreferredName(), DEFAULT_END));
             request.setAdvanceTime(restRequest.param(FlushJobAction.Request.ADVANCE_TIME.getPreferredName(), DEFAULT_ADVANCE_TIME));
+            request.setSkipTime(restRequest.param(FlushJobAction.Request.SKIP_TIME.getPreferredName(), DEFAULT_SKIP_TIME));
         }
 
         return channel -> client.execute(FlushJobAction.INSTANCE, request, new RestToXContentListener<>(channel));

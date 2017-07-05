@@ -354,7 +354,7 @@ public class AutodetectResultProcessorIT extends XPackSingleNodeTestCase {
     }
 
     private FlushAcknowledgement createFlushAcknowledgement() {
-        return new FlushAcknowledgement(randomAlphaOfLength(5));
+        return new FlushAcknowledgement(randomAlphaOfLength(5), new Date(randomNonNegativeLong()));
     }
 
     private class ResultsBuilder {

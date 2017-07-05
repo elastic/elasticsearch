@@ -430,7 +430,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             String mappings = "{\n" +
                     "    \"mappings\" : {\n" +
-                    "        \"type\" : {\n" +
+                    "        \"doc\" : {\n" +
                     "            \"properties\" : {\n" +
                     "                \"message\" : {\n" +
                     "                    \"type\": \"text\",\n" +
@@ -442,10 +442,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                     "}";
 
             NStringEntity entity = new NStringEntity(mappings, ContentType.APPLICATION_JSON);
-            Response response = client().performRequest("PUT", "/index", Collections.emptyMap(), entity);
+            Response response = client().performRequest("PUT", "/posts", Collections.emptyMap(), entity);
             assertEquals(200, response.getStatusLine().getStatusCode());
 
-            IndexRequest indexRequest = new IndexRequest("index", "type", "id")
+            IndexRequest indexRequest = new IndexRequest("posts", "doc", "1")
                     .source("user", "kimchy",
                             "postDate", new Date(),
                             "message", "trying out Elasticsearch");
@@ -455,9 +455,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::get-request
             GetRequest getRequest = new GetRequest(
-                    "index", // <1>
-                    "type",  // <2>
-                    "id");   // <3>
+                    "posts", // <1>
+                    "doc",  // <2>
+                    "1");   // <3>
             //end::get-request
 
             //tag::get-execute
@@ -480,7 +480,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::get-response
         }
         {
-            GetRequest request = new GetRequest("index", "type", "id");
+            GetRequest request = new GetRequest("posts", "doc", "1");
             //tag::get-request-no-source
             request.fetchSourceContext(new FetchSourceContext(false)); // <1>
             //end::get-request-no-source
@@ -488,11 +488,11 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNull(getResponse.getSourceInternal());
         }
         {
-            GetRequest request = new GetRequest("index", "type", "id");
+            GetRequest request = new GetRequest("posts", "doc", "1");
             //tag::get-request-source-include
-            FetchSourceContext fetchSourceContext = new FetchSourceContext(true,
-                    new String[]{"message", "*Date"},
-                    Strings.EMPTY_ARRAY);
+            String[] includes = new String[]{"message", "*Date"};
+            String[] excludes = Strings.EMPTY_ARRAY;
+            FetchSourceContext fetchSourceContext = new FetchSourceContext(true, includes, excludes);
             request.fetchSourceContext(fetchSourceContext); // <1>
             //end::get-request-source-include
             GetResponse getResponse = client.get(request);
@@ -502,11 +502,11 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(sourceAsMap.containsKey("postDate"));
         }
         {
-            GetRequest request = new GetRequest("index", "type", "id");
+            GetRequest request = new GetRequest("posts", "doc", "1");
             //tag::get-request-source-exclude
-            FetchSourceContext fetchSourceContext = new FetchSourceContext(true,
-                    Strings.EMPTY_ARRAY,
-                    new String[]{"message"});
+            String[] includes = Strings.EMPTY_ARRAY;
+            String[] excludes = new String[]{"message"};
+            FetchSourceContext fetchSourceContext = new FetchSourceContext(true, includes, excludes);
             request.fetchSourceContext(fetchSourceContext); // <1>
             //end::get-request-source-exclude
             GetResponse getResponse = client.get(request);
@@ -516,7 +516,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertTrue(sourceAsMap.containsKey("postDate"));
         }
         {
-            GetRequest request = new GetRequest("index", "type", "id");
+            GetRequest request = new GetRequest("posts", "doc", "1");
             //tag::get-request-stored
             request.storedFields("message"); // <1>
             GetResponse getResponse = client.get(request);
@@ -527,7 +527,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNull(getResponse.getSourceInternal());
         }
         {
-            GetRequest request = new GetRequest("index", "type", "id");
+            GetRequest request = new GetRequest("posts", "doc", "1");
             //tag::get-request-routing
             request.routing("routing"); // <1>
             //end::get-request-routing
@@ -551,11 +551,11 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::get-request-version-type
         }
         {
-            GetRequest request = new GetRequest("index", "type", "id");
+            GetRequest request = new GetRequest("posts", "doc", "1");
             //tag::get-execute-async
             client.getAsync(request, new ActionListener<GetResponse>() {
                 @Override
-                public void onResponse(GetResponse documentFields) {
+                public void onResponse(GetResponse getResponse) {
                     // <1>
                 }
 
@@ -568,7 +568,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::get-indexnotfound
-            GetRequest request = new GetRequest("does_not_exist", "type", "id");
+            GetRequest request = new GetRequest("does_not_exist", "doc", "1");
             try {
                 GetResponse getResponse = client.get(request);
             } catch (ElasticsearchException e) {
@@ -581,7 +581,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::get-conflict
             try {
-                GetRequest request = new GetRequest("index", "type", "id").version(2);
+                GetRequest request = new GetRequest("posts", "doc", "1").version(2);
                 GetResponse getResponse = client.get(request);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {

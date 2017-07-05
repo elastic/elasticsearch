@@ -665,6 +665,34 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         assertTrue(mapper.mappers().getMapper("field").fieldType().eagerGlobalOrdinals());
     }
 
+    public void testFielddataOnAnalyzedString() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                    .field("type", "string")
+                    .field("fielddata", false)
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+        assertFalse(((StringFieldType) mapper.mappers().getMapper("field").fieldType()).fielddata());
+    }
+
+    public void testFielddataOnNotAnalyzedString() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field")
+                    .field("type", "string")
+                    .field("index", "not_analyzed")
+                    .field("doc_values", false)
+                    .field("fielddata", false)
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mappingSource().toString());
+        assertFalse(((StringFieldType) mapper.mappers().getMapper("field").fieldType()).fielddata());
+    }
+
     public void testFielddataFilter() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field")
@@ -768,7 +796,6 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         Map<String, Object> expectedMapping = new HashMap<>();
         expectedMapping.put("type", "string");
         expectedMapping.put("index", "not_analyzed");
-        expectedMapping.put("fielddata", false);
         mergeMappingStep(expectedMapping, b -> b.field("type", "string").field("index", "not_analyzed"));
         mergeMappingStep(expectedMapping, b -> b.field("type", "keyword"));
     }
@@ -785,7 +812,6 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         Map<String, Object> expectedMapping = new HashMap<>();
         expectedMapping.put("type", "string");
         expectedMapping.put("index", "not_analyzed");
-        expectedMapping.put("fielddata", false);
         expectedMapping.put("store", true);
         mergeMappingStep(expectedMapping, b -> b.field("type", "string").field("index", "not_analyzed").field("store", true));
         mergeMappingStep(expectedMapping, b -> b.field("type", "keyword").field("store", true));
@@ -804,7 +830,6 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         Map<String, Object> expectedMapping = new HashMap<>();
         expectedMapping.put("type", "string");
         expectedMapping.put("index", "not_analyzed");
-        expectedMapping.put("fielddata", false);
         expectedMapping.put("norms", true);
         mergeMappingStep(expectedMapping, b -> b.field("type", "string").field("index", "not_analyzed").field("norms", true));
         mergeMappingStep(expectedMapping, b -> b.field("type", "keyword").field("norms", true));
@@ -825,7 +850,6 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         Map<String, Object> expectedMapping = new HashMap<>();
         expectedMapping.put("type", "string");
         expectedMapping.put("index", "not_analyzed");
-        expectedMapping.put("fielddata", false);
         expectedMapping.put("boost", 1.5);
         expectedMapping.put("norms", true); // Implied by having a boost
         mergeMappingStep(expectedMapping, b -> b.field("type", "string").field("index", "not_analyzed").field("boost", 1.5));
@@ -838,7 +862,6 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         Map<String, Object> expectedMapping = new HashMap<>();
         expectedMapping.put("type", "string");
         expectedMapping.put("index", "not_analyzed");
-        expectedMapping.put("fielddata", false);
         Map<String, Object> expectedFields = new HashMap<>();
         expectedMapping.put("fields", expectedFields);
         Map<String, Object> expectedFoo = new HashMap<>();
@@ -892,7 +915,6 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         Map<String, Object> expectedMapping = new HashMap<>();
         expectedMapping.put("type", "string");
         expectedMapping.put("index", "not_analyzed");
-        expectedMapping.put("fielddata", false);
         expectedMapping.put("copy_to", singletonList("another_field"));
         mergeMappingStep(expectedMapping, b -> b.field("type", "string").field("index", "not_analyzed").field("copy_to", "another_field"));
         mergeMappingStep(expectedMapping, b -> b.field("type", "keyword").field("copy_to", "another_field"));
@@ -902,7 +924,6 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         Map<String, Object> expectedMapping = new HashMap<>();
         expectedMapping.put("type", "string");
         expectedMapping.put("index", "not_analyzed");
-        expectedMapping.put("fielddata", false);
         expectedMapping.put("include_in_all", false);
         mergeMappingStep(expectedMapping, b -> b.field("type", "string").field("index", "not_analyzed").field("include_in_all", false));
         mergeMappingStep(expectedMapping, b -> b.field("type", "keyword").field("include_in_all", false));
@@ -912,7 +933,6 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         Map<String, Object> expectedMapping = new HashMap<>();
         expectedMapping.put("type", "string");
         expectedMapping.put("index", "not_analyzed");
-        expectedMapping.put("fielddata", false);
         expectedMapping.put("ignore_above", 128);
         mergeMappingStep(expectedMapping, b -> b.field("type", "string").field("index", "not_analyzed").field("ignore_above", 128));
         mergeMappingStep(expectedMapping, b -> b.field("type", "keyword").field("ignore_above", 128));
@@ -922,7 +942,6 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         Map<String, Object> expectedMapping = new HashMap<>();
         expectedMapping.put("type", "string");
         expectedMapping.put("index", "not_analyzed");
-        expectedMapping.put("fielddata", false);
         expectedMapping.put("index_options", "freqs");
         mergeMappingStep(expectedMapping, b -> b.field("type", "string").field("index", "not_analyzed").field("index_options", "freqs"));
         mergeMappingStep(expectedMapping, b -> b.field("type", "keyword").field("index_options", "freqs"));
@@ -932,7 +951,6 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         Map<String, Object> expectedMapping = new HashMap<>();
         expectedMapping.put("type", "string");
         expectedMapping.put("index", "not_analyzed");
-        expectedMapping.put("fielddata", false);
         expectedMapping.put("similarity", "BM25");
         mergeMappingStep(expectedMapping, b -> b.field("type", "string").field("index", "not_analyzed").field("similarity", "BM25"));
         mergeMappingStep(expectedMapping, b -> b.field("type", "keyword").field("similarity", "BM25"));
@@ -1199,5 +1217,19 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         default:
             throw new IllegalArgumentException("Unknown options [" + options + "]");
         }
+    }
+
+    public void testOldMappingsAreMinimal() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("text").field("type", "string")
+                .endObject().endObject().endObject().endObject().string();
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mapping().toString());
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("text").field("type", "string").field("index", "not_analyzed")
+                .endObject().endObject().endObject().endObject().string();
+        mapper = parser.parse("type", new CompressedXContent(mapping));
+        assertEquals(mapping, mapper.mapping().toString());
     }
 }

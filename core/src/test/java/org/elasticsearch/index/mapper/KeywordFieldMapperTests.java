@@ -297,7 +297,6 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                             .field("boost", 2f)
                             .field("index", "not_analyzed")
                             .field("norms", true)
-                            .field("fielddata", false)
                         .endObject()
                     .endObject()
                 .endObject().endObject().string();
@@ -409,7 +408,6 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                         .startObject("")
                             .field("type", "string")
                             .field("index", "not_analyzed")
-                            .field("fielddata", false)
                         .endObject()
                     .endObject()
                 .endObject().endObject().string();

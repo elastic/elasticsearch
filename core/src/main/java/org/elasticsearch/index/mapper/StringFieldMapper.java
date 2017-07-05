@@ -652,8 +652,9 @@ public class StringFieldMapper extends FieldMapper {
             builder.field("ignore_above", ignoreAbove);
         }
 
-        boolean defaultFieldData = fieldType().tokenized() && fieldType.indexOptions() != IndexOptions.NONE;
-        if (includeDefaults || fieldType().fielddata() != defaultFieldData) {
+        if (includeDefaults || (fieldType.indexOptions() != IndexOptions.NONE
+                && fieldType().hasDocValues() == false
+                && fieldType().fielddata() == false)) {
             builder.field("fielddata", fieldType().fielddata());
         }
         if (fieldType().fielddata()) {

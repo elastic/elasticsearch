@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentFieldMappers;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -101,6 +100,40 @@ public class ParentJoinFieldMapperTests extends ESSingleNodeTestCase {
                     .field("join_field", "unknown")
                     .endObject().bytes(), XContentType.JSON)));
         assertThat(exc.getRootCause().getMessage(), containsString("unknown join name [unknown] for field [join_field]"));
+    }
+
+    public void testParentIdSpecifiedAsNumber() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+                .startObject("join_field")
+                    .field("type", "join")
+                        .startObject("relations")
+                            .field("parent", "child")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject().string();
+        IndexService service = createIndex("test");
+        DocumentMapper docMapper = service.mapperService().merge("type", new CompressedXContent(mapping),
+            MapperService.MergeReason.MAPPING_UPDATE, false);
+        ParsedDocument doc = docMapper.parse(SourceToParse.source("test", "type", "2",
+            XContentFactory.jsonBuilder().startObject()
+                .startObject("join_field")
+                .field("name", "child")
+                .field("parent", 1)
+                .endObject()
+                .endObject().bytes(), XContentType.JSON).routing("1"));
+        assertEquals("1", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
+        assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
+        doc = docMapper.parse(SourceToParse.source("test", "type", "2",
+            XContentFactory.jsonBuilder().startObject()
+                .startObject("join_field")
+                .field("name", "child")
+                .field("parent", 1.0)
+                .endObject()
+                .endObject().bytes(), XContentType.JSON).routing("1"));
+        assertEquals("1.0", doc.rootDoc().getBinaryValue("join_field#parent").utf8ToString());
+        assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
     }
 
     public void testMultipleLevels() throws Exception {

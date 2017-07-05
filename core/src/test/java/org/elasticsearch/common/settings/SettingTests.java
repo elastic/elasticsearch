@@ -36,6 +36,8 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
@@ -64,8 +66,13 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized",
-                    ex.getMessage());
+            assertThat(ex, hasToString(containsString("illegal value can't update [a.byte.size] from [2048b] to [12]")));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            final String expected =
+                    "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
+            assertThat(cause, hasToString(containsString(expected)));
         }
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
@@ -99,8 +106,13 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(Settings.builder().put("a.byte.size", 12).build(), Settings.EMPTY);
             fail("no unit");
         } catch (IllegalArgumentException ex) {
-            assertEquals("failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized",
-                    ex.getMessage());
+            assertThat(ex, hasToString(containsString("illegal value can't update [a.byte.size] from [25%] to [12]")));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            final String expected =
+                    "failed to parse setting [a.byte.size] with value [12] as a size in bytes: unit is missing or unrecognized";
+            assertThat(cause, hasToString(containsString(expected)));
         }
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "12b").build(), Settings.EMPTY));
@@ -127,8 +139,13 @@ public class SettingTests extends ESTestCase {
             settingUpdater.apply(build, Settings.EMPTY);
             fail("not a boolean");
         } catch (IllegalArgumentException ex) {
-            assertEquals("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.",
-                    ex.getMessage());
+            assertThat(ex, hasToString(containsString("illegal value can't update [foo.bar] from [false] to [I am not a boolean]")));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            assertThat(
+                    cause,
+                    hasToString(containsString("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.")));
         }
     }
 

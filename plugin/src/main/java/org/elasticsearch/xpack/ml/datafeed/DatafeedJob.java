@@ -77,7 +77,7 @@ class DatafeedJob {
     }
 
     Long runLookBack(long startTime, Long endTime) throws Exception {
-        lookbackStartTimeMs = (lastEndTimeMs != null && lastEndTimeMs + 1 > startTime) ? lastEndTimeMs + 1 : startTime;
+        lookbackStartTimeMs = skipToStartTime(startTime);
         Optional<Long> endMs = Optional.ofNullable(endTime);
         long lookbackEnd = endMs.orElse(currentTimeSupplier.get() - queryDelayMs);
         boolean isLookbackOnly = endMs.isPresent();
@@ -113,6 +113,22 @@ class DatafeedJob {
             LOGGER.debug("Lookback finished after being stopped");
         }
         return null;
+    }
+
+    private long skipToStartTime(long startTime) {
+        if (lastEndTimeMs != null) {
+            if (lastEndTimeMs + 1 > startTime) {
+                // start time is before last checkpoint, thus continue from checkpoint
+                return lastEndTimeMs + 1;
+            }
+            // start time is after last checkpoint, thus we need to skip time
+            FlushJobAction.Request request = new FlushJobAction.Request(jobId);
+            request.setSkipTime(String.valueOf(startTime));
+            FlushJobAction.Response flushResponse = flushJob(request);
+            LOGGER.info("Skipped to time [" + flushResponse.getLastFinalizedBucketEnd().getTime() + "]");
+            return flushResponse.getLastFinalizedBucketEnd().getTime();
+        }
+        return startTime;
     }
 
     long runRealtime() throws Exception {
@@ -265,10 +281,10 @@ class DatafeedJob {
         return (epochMs / frequencyMs) * frequencyMs;
     }
 
-    private void flushJob(FlushJobAction.Request flushRequest) {
+    private FlushJobAction.Response flushJob(FlushJobAction.Request flushRequest) {
         try {
             LOGGER.trace("[" + jobId + "] Sending flush request");
-            client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
+            return client.execute(FlushJobAction.INSTANCE, flushRequest).actionGet();
         } catch (Exception e) {
             LOGGER.debug("[" + jobId + "] error while flushing job", e);
 

@@ -1,6 +1,6 @@
 {
   "xpack.info": {
-    "documentation": "Retrieve information about xpack, including build number/timestamp and license status",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/info-api.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack",

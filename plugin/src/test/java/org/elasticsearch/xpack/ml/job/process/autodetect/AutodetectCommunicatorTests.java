@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
@@ -35,9 +36,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
@@ -70,10 +73,13 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         when(process.isProcessAlive()).thenReturn(true);
         AutoDetectResultProcessor processor = mock(AutoDetectResultProcessor.class);
-        when(processor.waitForFlushAcknowledgement(anyString(), any())).thenReturn(true);
+        FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
+        when(processor.waitForFlushAcknowledgement(anyString(), any())).thenReturn(flushAcknowledgement);
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, processor)) {
             FlushJobParams params = FlushJobParams.builder().build();
-            communicator.flushJob(params, (aVoid, e) -> {});
+            AtomicReference<FlushAcknowledgement> flushAcknowledgementHolder = new AtomicReference<>();
+            communicator.flushJob(params, (f, e) -> flushAcknowledgementHolder.set(f));
+            assertThat(flushAcknowledgementHolder.get(), equalTo(flushAcknowledgement));
             Mockito.verify(process).flushJob(params);
         }
     }
@@ -83,7 +89,7 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         when(process.isProcessAlive()).thenReturn(true);
         AutoDetectResultProcessor processor = mock(AutoDetectResultProcessor.class);
         when(processor.isFailed()).thenReturn(true);
-        when(processor.waitForFlushAcknowledgement(anyString(), any())).thenReturn(false);
+        when(processor.waitForFlushAcknowledgement(anyString(), any())).thenReturn(null);
         AutodetectCommunicator communicator = createAutodetectCommunicator(process, processor);
         expectThrows(ElasticsearchException.class, () -> communicator.waitFlushToCompletion("foo"));
     }
@@ -103,8 +109,9 @@ public class AutodetectCommunicatorTests extends ESTestCase {
         AutodetectProcess process = mockAutodetectProcessWithOutputStream();
         when(process.isProcessAlive()).thenReturn(true);
         AutoDetectResultProcessor autoDetectResultProcessor = Mockito.mock(AutoDetectResultProcessor.class);
+        FlushAcknowledgement flushAcknowledgement = mock(FlushAcknowledgement.class);
         when(autoDetectResultProcessor.waitForFlushAcknowledgement(anyString(), eq(Duration.ofSeconds(1))))
-                .thenReturn(false).thenReturn(true);
+                .thenReturn(null).thenReturn(flushAcknowledgement);
         FlushJobParams params = FlushJobParams.builder().build();
 
         try (AutodetectCommunicator communicator = createAutodetectCommunicator(process, autoDetectResultProcessor)) {

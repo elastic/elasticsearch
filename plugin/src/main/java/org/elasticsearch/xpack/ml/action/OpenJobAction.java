@@ -186,13 +186,15 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
     public static class JobParams implements PersistentTaskParams {
 
+        /** TODO Remove in 7.0.0 */
         public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
+
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static ObjectParser<JobParams, Void> PARSER = new ObjectParser<>(TASK_NAME, JobParams::new);
 
         static {
             PARSER.declareString(JobParams::setJobId, Job.ID);
-            PARSER.declareBoolean(JobParams::setIgnoreDowntime, IGNORE_DOWNTIME);
+            PARSER.declareBoolean((p, v) -> {}, IGNORE_DOWNTIME);
             PARSER.declareString((params, val) ->
                     params.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         }
@@ -210,7 +212,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         }
 
         private String jobId;
-        private boolean ignoreDowntime = true;
         // A big state can take a while to restore.  For symmetry with the _close endpoint any
         // changes here should be reflected there too.
         private TimeValue timeout = MachineLearning.STATE_PERSIST_RESTORE_TIMEOUT;
@@ -224,7 +225,10 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         public JobParams(StreamInput in) throws IOException {
             jobId = in.readString();
-            ignoreDowntime = in.readBoolean();
+            if (in.getVersion().onOrBefore(Version.V_5_5_0)) {
+                // Read `ignoreDowntime`
+                in.readBoolean();
+            }
             timeout = TimeValue.timeValueMillis(in.readVLong());
         }
 
@@ -234,14 +238,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         public void setJobId(String jobId) {
             this.jobId = jobId;
-        }
-
-        public boolean isIgnoreDowntime() {
-            return ignoreDowntime;
-        }
-
-        public void setIgnoreDowntime(boolean ignoreDowntime) {
-            this.ignoreDowntime = ignoreDowntime;
         }
 
         public TimeValue getTimeout() {
@@ -260,7 +256,10 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(jobId);
-            out.writeBoolean(ignoreDowntime);
+            if (out.getVersion().onOrBefore(Version.V_5_5_0)) {
+                // Write `ignoreDowntime` - true by default
+                out.writeBoolean(true);
+            }
             out.writeVLong(timeout.millis());
         }
 
@@ -268,7 +267,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Job.ID.getPreferredName(), jobId);
-            builder.field(IGNORE_DOWNTIME.getPreferredName(), ignoreDowntime);
             builder.field(TIMEOUT.getPreferredName(), timeout.getStringRep());
             builder.endObject();
             return builder;
@@ -276,7 +274,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, ignoreDowntime, timeout);
+            return Objects.hash(jobId, timeout);
         }
 
         @Override
@@ -289,7 +287,6 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             }
             OpenJobAction.JobParams other = (OpenJobAction.JobParams) obj;
             return Objects.equals(jobId, other.jobId) &&
-                    Objects.equals(ignoreDowntime, other.ignoreDowntime) &&
                     Objects.equals(timeout, other.timeout);
         }
 
@@ -588,7 +585,7 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
         protected void nodeOperation(AllocatedPersistentTask task, JobParams params) {
             JobTask jobTask = (JobTask) task;
             jobTask.autodetectProcessManager = autodetectProcessManager;
-            autodetectProcessManager.openJob(jobTask, params.isIgnoreDowntime(), e2 -> {
+            autodetectProcessManager.openJob(jobTask, e2 -> {
                 if (e2 == null) {
                     task.markAsCompleted();
                 } else {

@@ -55,6 +55,11 @@ public class ControlMsgToProcessWriter {
     /**
      * This must match the code defined in the api::CAnomalyDetector C++ class.
      */
+    private static final String SKIP_TIME_MESSAGE_CODE = "s";
+
+    /**
+     * This must match the code defined in the api::CAnomalyDetector C++ class.
+     */
     public static final String UPDATE_MESSAGE_CODE = "u";
 
     /**
@@ -108,6 +113,9 @@ public class ControlMsgToProcessWriter {
      *               (e.g. calculating interim results, time control, etc.)
      */
     public void writeFlushControlMessage(FlushJobParams params) throws IOException {
+        if (params.shouldSkipTime()) {
+            writeMessage(SKIP_TIME_MESSAGE_CODE + params.getSkipTime());
+        }
         if (params.shouldAdvanceTime()) {
             writeMessage(ADVANCE_TIME_MESSAGE_CODE + params.getAdvanceTime());
         }

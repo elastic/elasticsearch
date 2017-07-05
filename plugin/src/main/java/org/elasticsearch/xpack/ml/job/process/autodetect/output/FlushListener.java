@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
+import org.elasticsearch.common.Nullable;
+
 import java.time.Duration;
 import java.util.Iterator;
 import java.util.concurrent.ConcurrentHashMap;
@@ -15,29 +17,34 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 class FlushListener {
 
-    final ConcurrentMap<String, CountDownLatch> awaitingFlushed = new ConcurrentHashMap<>();
+    final ConcurrentMap<String, FlushAcknowledgementHolder> awaitingFlushed = new ConcurrentHashMap<>();
     final AtomicBoolean cleared = new AtomicBoolean(false);
 
-    boolean waitForFlush(String flushId, Duration timeout) {
+    @Nullable
+    FlushAcknowledgement waitForFlush(String flushId, Duration timeout) {
         if (cleared.get()) {
-            return false;
+            return null;
         }
 
-        CountDownLatch latch = awaitingFlushed.computeIfAbsent(flushId, (key) -> new CountDownLatch(1));
+        FlushAcknowledgementHolder holder = awaitingFlushed.computeIfAbsent(flushId, (key) -> new FlushAcknowledgementHolder(flushId));
         try {
-            return latch.await(timeout.toMillis(), TimeUnit.MILLISECONDS);
+            if (holder.latch.await(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                return holder.flushAcknowledgement;
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return false;
         }
+        return null;
     }
 
-    void acknowledgeFlush(String flushId) {
+    void acknowledgeFlush(FlushAcknowledgement flushAcknowledgement) {
         // acknowledgeFlush(...) could be called before waitForFlush(...)
         // a flush api call writes a flush command to the analytical process and then via a different thread the
         // result reader then reads whether the flush has been acked.
-        CountDownLatch latch = awaitingFlushed.computeIfAbsent(flushId, (key) -> new CountDownLatch(1));
-        latch.countDown();
+        String flushId = flushAcknowledgement.getId();
+        FlushAcknowledgementHolder holder = awaitingFlushed.computeIfAbsent(flushId, (key) -> new FlushAcknowledgementHolder(flushId));
+        holder.flushAcknowledgement = flushAcknowledgement;
+        holder.latch.countDown();
     }
 
     void clear(String flushId) {
@@ -46,11 +53,22 @@ class FlushListener {
 
     void clear() {
         if (cleared.compareAndSet(false, true)) {
-            Iterator<ConcurrentMap.Entry<String, CountDownLatch>> latches = awaitingFlushed.entrySet().iterator();
+            Iterator<ConcurrentMap.Entry<String, FlushAcknowledgementHolder>> latches = awaitingFlushed.entrySet().iterator();
             while (latches.hasNext()) {
-                latches.next().getValue().countDown();
+                latches.next().getValue().latch.countDown();
                 latches.remove();
             }
+        }
+    }
+
+    private static class FlushAcknowledgementHolder {
+
+        private final CountDownLatch latch;
+        private volatile FlushAcknowledgement flushAcknowledgement;
+
+        private FlushAcknowledgementHolder(String flushId) {
+            this.flushAcknowledgement = new FlushAcknowledgement(flushId, null);
+            this.latch = new CountDownLatch(1);
         }
     }
 }

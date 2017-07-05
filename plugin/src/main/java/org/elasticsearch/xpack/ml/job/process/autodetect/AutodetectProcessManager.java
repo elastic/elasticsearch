@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.AutodetectParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
@@ -201,23 +202,23 @@ public class AutodetectProcessManager extends AbstractComponent {
      * @param params Parameters describing the controls that will accompany the flushing
      *               (e.g. calculating interim results, time control, etc.)
      */
-    public void flushJob(JobTask jobTask, FlushJobParams params, Consumer<Exception> handler) {
+    public void flushJob(JobTask jobTask, FlushJobParams params, ActionListener<FlushAcknowledgement> handler) {
         logger.debug("Flushing job {}", jobTask.getJobId());
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobTask.getAllocationId());
         if (communicator == null) {
             String message = String.format(Locale.ROOT, "Cannot flush because job [%s] is not open", jobTask.getJobId());
             logger.debug(message);
-            handler.accept(ExceptionsHelper.conflictStatusException(message));
+            handler.onFailure(ExceptionsHelper.conflictStatusException(message));
             return;
         }
 
-        communicator.flushJob(params, (aVoid, e) -> {
-            if (e == null) {
-                handler.accept(null);
-            } else {
+        communicator.flushJob(params, (flushAcknowledgement, e) -> {
+            if (e != null) {
                 String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", jobTask.getJobId());
                 logger.error(msg);
-                handler.accept(ExceptionsHelper.serverError(msg, e));
+                handler.onFailure(ExceptionsHelper.serverError(msg, e));
+            } else {
+                handler.onResponse(flushAcknowledgement);
             }
         });
     }
@@ -240,7 +241,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         });
     }
 
-    public void openJob(JobTask jobTask, boolean ignoreDowntime, Consumer<Exception> handler) {
+    public void openJob(JobTask jobTask, Consumer<Exception> handler) {
         String jobId = jobTask.getJobId();
         Job job = jobManager.getJobOrThrowIfUnknown(jobId);
 
@@ -263,7 +264,7 @@ public class AutodetectProcessManager extends AbstractComponent {
                 protected void doRun() throws Exception {
                     try {
                         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.computeIfAbsent(jobTask.getAllocationId(),
-                                id -> create(jobTask, params, ignoreDowntime, handler));
+                                id -> create(jobTask, params, handler));
                         communicator.init(params.modelSnapshot());
                         setJobState(jobTask, JobState.OPENED);
                     } catch (Exception e1) {
@@ -286,8 +287,7 @@ public class AutodetectProcessManager extends AbstractComponent {
         });
     }
 
-    AutodetectCommunicator create(JobTask jobTask, AutodetectParams autodetectParams,
-                                  boolean ignoreDowntime, Consumer<Exception> handler) {
+    AutodetectCommunicator create(JobTask jobTask, AutodetectParams autodetectParams, Consumer<Exception> handler) {
         if (autoDetectCommunicatorByJob.size() == maxAllowedRunningJobs) {
             throw new ElasticsearchStatusException("max running job capacity [" + maxAllowedRunningJobs + "] reached",
                     RestStatus.TOO_MANY_REQUESTS);
@@ -321,8 +321,8 @@ public class AutodetectProcessManager extends AbstractComponent {
                 renormalizerExecutorService, job.getAnalysisConfig().getUsePerPartitionNormalization());
 
         AutodetectProcess process = autodetectProcessFactory.createAutodetectProcess(job, autodetectParams.modelSnapshot(),
-                autodetectParams.quantiles(), autodetectParams.filters(), ignoreDowntime,
-                autoDetectExecutorService, () -> setJobState(jobTask, JobState.FAILED));
+                autodetectParams.quantiles(), autodetectParams.filters(), autoDetectExecutorService,
+                () -> setJobState(jobTask, JobState.FAILED));
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(
                 client, jobId, renormalizer, jobResultsPersister, autodetectParams.modelSizeStats());
         ExecutorService autodetectWorkerExecutor;

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
@@ -13,14 +14,32 @@ import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 import java.util.Objects;
 
 public class FlushJobParams {
+
+    /**
+     * Whether interim results should be calculated
+     */
     private final boolean calcInterim;
+
+    /**
+     * The time range for which interim results should be calculated
+     */
     private final TimeRange timeRange;
+
+    /**
+     * The epoch (seconds) to advance time to
+     */
     private final Long advanceTimeSeconds;
 
-    private FlushJobParams(boolean calcInterim, TimeRange timeRange, Long advanceTimeSeconds) {
+    /**
+     * The epoch (seconds) to skip time to
+     */
+    private final Long skipTimeSeconds;
+
+    private FlushJobParams(boolean calcInterim, TimeRange timeRange, Long advanceTimeSeconds, Long skipTimeSeconds) {
         this.calcInterim = calcInterim;
         this.timeRange = Objects.requireNonNull(timeRange);
         this.advanceTimeSeconds = advanceTimeSeconds;
+        this.skipTimeSeconds = skipTimeSeconds;
     }
 
     public boolean shouldCalculateInterim() {
@@ -29,6 +48,10 @@ public class FlushJobParams {
 
     public boolean shouldAdvanceTime() {
         return advanceTimeSeconds != null;
+    }
+
+    public boolean shouldSkipTime() {
+        return skipTimeSeconds != null;
     }
 
     public String getStart() {
@@ -46,6 +69,13 @@ public class FlushJobParams {
         return advanceTimeSeconds;
     }
 
+    public long getSkipTime() {
+        if (!shouldSkipTime()) {
+            throw new IllegalStateException();
+        }
+        return skipTimeSeconds;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -57,24 +87,20 @@ public class FlushJobParams {
         FlushJobParams that = (FlushJobParams) o;
         return calcInterim == that.calcInterim &&
                 Objects.equals(timeRange, that.timeRange) &&
-                Objects.equals(advanceTimeSeconds, that.advanceTimeSeconds);
+                Objects.equals(advanceTimeSeconds, that.advanceTimeSeconds) &&
+                Objects.equals(skipTimeSeconds, that.skipTimeSeconds);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(calcInterim, timeRange, advanceTimeSeconds);
+        return Objects.hash(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds);
     }
 
     public static class Builder {
         private boolean calcInterim = false;
-        private TimeRange timeRange;
+        private TimeRange timeRange = TimeRange.builder().build();
         private String advanceTime;
-
-        private Builder() {
-            calcInterim = false;
-            timeRange = TimeRange.builder().build();
-            advanceTime = "";
-        }
+        private String skipTime;
 
         public Builder calcInterim(boolean value) {
             calcInterim = value;
@@ -87,14 +113,24 @@ public class FlushJobParams {
         }
 
         public Builder advanceTime(String timestamp) {
-            advanceTime = ExceptionsHelper.requireNonNull(timestamp, "advance");
+            advanceTime = ExceptionsHelper.requireNonNull(timestamp, "advance_time");
+            return this;
+        }
+
+        public Builder skipTime(String timestamp) {
+            skipTime = ExceptionsHelper.requireNonNull(timestamp, "skip_time");
             return this;
         }
 
         public FlushJobParams build() {
             checkValidFlushArgumentsCombination();
-            Long advanceTimeSeconds = checkAdvanceTimeParam();
-            return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds);
+            Long advanceTimeSeconds = parseTimeParam("advance_time", advanceTime);
+            Long skipTimeSeconds = parseTimeParam("skip_time", skipTime);
+            if (skipTimeSeconds != null && advanceTimeSeconds != null && advanceTimeSeconds <= skipTimeSeconds) {
+                throw ExceptionsHelper.badRequestException("advance_time [" + advanceTime + "] must be later than skip_time ["
+                        + skipTime + "]");
+            }
+            return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds);
         }
 
         private void checkValidFlushArgumentsCombination() {
@@ -107,11 +143,11 @@ public class FlushJobParams {
             }
         }
 
-        private Long checkAdvanceTimeParam() {
-            if (advanceTime != null && !advanceTime.isEmpty()) {
-                return paramToEpochIfValidOrThrow("advance_time", advanceTime) / TimeRange.MILLISECONDS_IN_SECOND;
+        private Long parseTimeParam(String name, String value) {
+            if (Strings.isNullOrEmpty(value)) {
+                return null;
             }
-            return null;
+            return paramToEpochIfValidOrThrow(name, value) / TimeRange.MILLISECONDS_IN_SECOND;
         }
 
         private long paramToEpochIfValidOrThrow(String paramName, String date) {

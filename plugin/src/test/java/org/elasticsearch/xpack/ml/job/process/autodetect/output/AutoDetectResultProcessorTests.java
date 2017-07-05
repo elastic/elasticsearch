@@ -34,6 +34,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeoutException;
 
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
@@ -200,7 +202,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         when(result.getFlushAcknowledgement()).thenReturn(flushAcknowledgement);
         processorUnderTest.processResult(context, result);
 
-        verify(flushListener, times(1)).acknowledgeFlush(JOB_ID);
+        verify(flushListener, times(1)).acknowledgeFlush(flushAcknowledgement);
         verify(persister, times(1)).commitResultWrites(JOB_ID);
         verify(bulkBuilder, times(1)).executeRequest();
         verifyNoMoreInteractions(persister);
@@ -225,7 +227,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         inOrder.verify(persister, times(1)).persistCategoryDefinition(categoryDefinition);
         inOrder.verify(bulkBuilder, times(1)).executeRequest();
         inOrder.verify(persister, times(1)).commitResultWrites(JOB_ID);
-        inOrder.verify(flushListener, times(1)).acknowledgeFlush(JOB_ID);
+        inOrder.verify(flushListener, times(1)).acknowledgeFlush(flushAcknowledgement);
         verifyNoMoreInteractions(persister);
         assertTrue(context.deleteInterimRequired);
     }
@@ -342,7 +344,9 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         assertTrue(processorUnderTest.isFailed());
 
         // Wait for flush should return immediately
-        assertFalse(processorUnderTest.waitForFlushAcknowledgement("foo", Duration.of(300, ChronoUnit.SECONDS)));
+        FlushAcknowledgement flushAcknowledgement = processorUnderTest.waitForFlushAcknowledgement(
+                "foo", Duration.of(300, ChronoUnit.SECONDS));
+        assertThat(flushAcknowledgement, is(nullValue()));
     }
 
     public void testKill() throws TimeoutException {

@@ -136,16 +136,18 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
                 logger.trace("Watch[{}] reporting[{}] pdf is not ready, polling in [{}] again", context.watch().id(), attachment.id(),
                         TimeValue.timeValueMillis(sleepMillis));
             } else if (response.status() >= 400) {
+                String body = response.body() != null ? response.body().utf8ToString() : null;
                 throw new ElasticsearchException("Watch[{}] reporting[{}] Error when polling pdf from host[{}], port[{}], " +
-                        "method[{}], path[{}], status[{}]", context.watch().id(), attachment.id(), request.host(), request.port(),
-                        request.method(), request.path(), reportGenerationResponse.status());
+                        "method[{}], path[{}], status[{}], body[{}]", context.watch().id(), attachment.id(), request.host(),
+                        request.port(), request.method(), request.path(), response.status(), body);
             } else if (response.status() == 200) {
                 return new Attachment.Bytes(attachment.id(), BytesReference.toBytes(response.body()),
                         response.contentType(), attachment.inline());
             } else {
+                String body = response.body() != null ? response.body().utf8ToString() : null;
                 String message = LoggerMessageFormat.format("", "Watch[{}] reporting[{}] Unexpected status code host[{}], port[{}], " +
-                                "method[{}], path[{}], status[{}]", context.watch().id(), attachment.id(), request.host(), request.port(),
-                        request.method(), request.path(), reportGenerationResponse.status());
+                                "method[{}], path[{}], status[{}], body[{}]", context.watch().id(), attachment.id(), request.host(),
+                        request.port(), request.method(), request.path(), response.status(), body);
                 throw new IllegalStateException(message);
             }
         }

@@ -59,13 +59,12 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     @Override
     public AutodetectProcess createAutodetectProcess(Job job, ModelSnapshot modelSnapshot,
                                                      Quantiles quantiles, Set<MlFilter> filters,
-                                                     boolean ignoreDowntime,
                                                      ExecutorService executorService,
                                                      Runnable onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
         ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, ProcessCtrl.AUTODETECT, job.getId(),
                 true, false, true, true, modelSnapshot != null, !ProcessCtrl.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
-        createNativeProcess(job, quantiles, filters, processPipes, ignoreDowntime, filesToDelete);
+        createNativeProcess(job, quantiles, filters, processPipes, filesToDelete);
         int numberOfAnalysisFields = job.getAnalysisConfig().analysisFields().size();
 
         StateProcessor stateProcessor = new StateProcessor(settings, client);
@@ -88,11 +87,10 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     }
 
     private void createNativeProcess(Job job, Quantiles quantiles, Set<MlFilter> filters, ProcessPipes processPipes,
-                                     boolean ignoreDowntime, List<Path> filesToDelete) {
+                                     List<Path> filesToDelete) {
         try {
             AutodetectBuilder autodetectBuilder = new AutodetectBuilder(job, filesToDelete, LOGGER, env,
                     settings, nativeController, processPipes)
-                    .ignoreDowntime(ignoreDowntime)
                     .referencedFilters(filters);
 
             // if state is null or empty it will be ignored

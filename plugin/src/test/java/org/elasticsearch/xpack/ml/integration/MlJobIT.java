@@ -444,8 +444,9 @@ public class MlJobIT extends ESRestTestCase {
         response = client().performRequest("delete", indexName + "/_alias/" + writeAliasName);
         assertEquals(200, response.getStatusLine().getStatusCode());
 
-        // check alias was deleted
-        expectThrows(ResponseException.class, () -> client().performRequest("get", "_cat/aliases"));
+        // check aliases were deleted
+        expectThrows(ResponseException.class, () -> client().performRequest("get", indexName + "/_alias/" + readAliasName));
+        expectThrows(ResponseException.class, () -> client().performRequest("get", indexName + "/_alias/" + writeAliasName));
 
         response = client().performRequest("delete", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

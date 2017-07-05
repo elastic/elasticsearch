@@ -1,6 +1,6 @@
 {
   "xpack.ml.get_datafeed_stats": {
-    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-get-datafeed-stats.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-datafeed-stats.html",
     "methods": [ "GET"],
     "url": {
       "path": "/_xpack/ml/datafeeds/{datafeed_id}/_stats",

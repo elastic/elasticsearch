@@ -1,6 +1,6 @@
 {
   "xpack.watcher.ack_watch": {
-    "documentation": "http://www.elastic.co/guide/en/watcher/current/appendix-api-ack-watch.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-ack-watch.html",
     "methods": [ "PUT", "POST" ],
     "url": {
       "path": "/_xpack/watcher/watch/{watch_id}/_ack",

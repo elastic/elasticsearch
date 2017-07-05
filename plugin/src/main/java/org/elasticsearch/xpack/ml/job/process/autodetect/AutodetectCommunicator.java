@@ -10,6 +10,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.ml.job.persistence.StateStreamer;
 import org.elasticsearch.xpack.ml.job.process.CountingInputStream;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.output.AutoDetectResultProcessor;
+import org.elasticsearch.xpack.ml.job.process.autodetect.output.FlushAcknowledgement;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.state.DataCounts;
@@ -196,23 +198,24 @@ public class AutodetectCommunicator implements Closeable {
         }, handler);
     }
 
-    public void flushJob(FlushJobParams params, BiConsumer<Void, Exception> handler) {
+    public void flushJob(FlushJobParams params, BiConsumer<FlushAcknowledgement, Exception> handler) {
         submitOperation(() -> {
             String flushId = autodetectProcess.flushJob(params);
-            waitFlushToCompletion(flushId);
-            return null;
+            return waitFlushToCompletion(flushId);
         }, handler);
     }
 
-    void waitFlushToCompletion(String flushId) {
+    @Nullable
+    FlushAcknowledgement waitFlushToCompletion(String flushId) {
         LOGGER.debug("[{}] waiting for flush", job.getId());
 
+        FlushAcknowledgement flushAcknowledgement;
         try {
-            boolean isFlushComplete = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
-            while (isFlushComplete == false) {
+            flushAcknowledgement = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
+            while (flushAcknowledgement == null) {
                 checkProcessIsAlive();
                 checkResultsProcessorIsAlive();
-                isFlushComplete = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
+                flushAcknowledgement = autoDetectResultProcessor.waitForFlushAcknowledgement(flushId, FLUSH_PROCESS_CHECK_FREQUENCY);
             }
         } finally {
             autoDetectResultProcessor.clearAwaitingFlush(flushId);
@@ -225,6 +228,8 @@ public class AutodetectCommunicator implements Closeable {
 
             LOGGER.debug("[{}] Flush completed", job.getId());
         }
+
+        return flushAcknowledgement;
     }
 
     /**

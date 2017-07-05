@@ -240,9 +240,10 @@ public class ReportingAttachmentParserTests extends ESTestCase {
     }
 
     public void testPollingRequestIsError() throws Exception {
+        boolean hasBody = randomBoolean();
         when(httpClient.execute(any(HttpRequest.class)))
                 .thenReturn(new HttpResponse(200, "{\"path\":\"whatever\"}"))
-                .thenReturn(new HttpResponse(403));
+                .thenReturn(new HttpResponse(403, hasBody ? "no permissions" : null));
 
         ReportingAttachment attachment =
                 new ReportingAttachment("foo", "http://www.example.org/", randomBoolean(), TimeValue.timeValueMillis(1), 10, null, null);
@@ -250,6 +251,9 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
                 () -> reportingAttachmentParser.toAttachment(createWatchExecutionContext(), Payload.EMPTY, attachment));
         assertThat(e.getMessage(), containsString("Error when polling pdf"));
+        if (hasBody) {
+            assertThat(e.getMessage(), containsString("body[no permissions]"));
+        }
     }
 
     public void testPollingRequestRetryIsExceeded() throws Exception {

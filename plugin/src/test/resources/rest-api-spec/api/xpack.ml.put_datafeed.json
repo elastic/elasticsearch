@@ -1,6 +1,6 @@
 {
   "xpack.ml.put_datafeed": {
-    "documentation": "http://www.elastic.co/guide/en/x-pack/current/ml-put-datafeed.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/current/ml-put-datafeed.html",
     "methods": [ "PUT" ],
     "url": {
       "path": "/_xpack/ml/datafeeds/{datafeed_id}",

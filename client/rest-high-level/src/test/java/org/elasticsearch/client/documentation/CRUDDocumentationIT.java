@@ -36,7 +36,6 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -65,7 +64,7 @@ import java.util.Map;
  * --------------------------------------------------
  */
 public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
-
+    
     public void testIndex() throws IOException {
         RestHighLevelClient client = highLevelClient();
 
@@ -75,7 +74,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             jsonMap.put("user", "kimchy");
             jsonMap.put("postDate",new Date());
             jsonMap.put("message","trying out Elasticsearch");
-            IndexRequest indexRequest = new IndexRequest("index", "type", "id")
+            IndexRequest indexRequest = new IndexRequest("posts", "doc", "1")
                     .source(jsonMap); // <1>
             //end::index-request-map
             IndexResponse indexResponse = client.index(indexRequest);
@@ -91,7 +90,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 builder.field("message", "trying out Elasticsearch");
             }
             builder.endObject();
-            IndexRequest indexRequest = new IndexRequest("index", "type", "id")
+            IndexRequest indexRequest = new IndexRequest("posts", "doc", "1")
                     .source(builder);  // <1>
             //end::index-request-xcontent
             IndexResponse indexResponse = client.index(indexRequest);
@@ -99,7 +98,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::index-request-shortcut
-            IndexRequest indexRequest = new IndexRequest("index", "type", "id")
+            IndexRequest indexRequest = new IndexRequest("posts", "doc", "1")
                     .source("user", "kimchy",
                             "postDate", new Date(),
                             "message", "trying out Elasticsearch"); // <1>
@@ -110,9 +109,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             //tag::index-request-string
             IndexRequest request = new IndexRequest(
-                    "index", // <1>
-                    "type",  // <2>
-                    "id");   // <3>
+                    "posts", // <1>
+                    "doc",  // <2>
+                    "1");   // <3>
             String jsonString = "{" +
                     "\"user\":\"kimchy\"," +
                     "\"postDate\":\"2013-01-30\"," +
@@ -162,7 +161,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::index-execute-async
         }
         {
-            IndexRequest request = new IndexRequest("index", "type", "id");
+            IndexRequest request = new IndexRequest("posts", "doc", "1");
             // tag::index-request-routing
             request.routing("routing"); // <1>
             // end::index-request-routing
@@ -193,7 +192,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::index-conflict
-            IndexRequest request = new IndexRequest("index", "type", "id")
+            IndexRequest request = new IndexRequest("posts", "doc", "1")
                     .source("field", "value")
                     .version(1);
             try {
@@ -208,7 +207,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             // tag::index-optype
-            IndexRequest request = new IndexRequest("index", "type", "id")
+            IndexRequest request = new IndexRequest("posts", "doc", "1")
                     .source("field", "value")
                     .opType(DocWriteRequest.OpType.CREATE);
             try {
@@ -226,7 +225,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            IndexRequest indexRequest = new IndexRequest("index", "type", "id").source("field", "value");
+            IndexRequest indexRequest = new IndexRequest("posts", "doc", "1").source("field", "value");
             IndexResponse indexResponse = client.index(indexRequest);
             assertSame(indexResponse.status(), RestStatus.CREATED);
         }
@@ -234,9 +233,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::delete-request
             DeleteRequest request = new DeleteRequest(
-                    "index",    // <1>
-                    "type",     // <2>
-                    "id");      // <3>
+                    "posts",    // <1>
+                    "doc",     // <2>
+                    "1");      // <3>
             // end::delete-request
 
             // tag::delete-execute
@@ -276,7 +275,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            DeleteRequest request = new DeleteRequest("index", "type", "id");
+            DeleteRequest request = new DeleteRequest("posts", "doc", "1");
             // tag::delete-request-routing
             request.routing("routing"); // <1>
             // end::delete-request-routing
@@ -301,7 +300,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::delete-notfound
-            DeleteRequest request = new DeleteRequest("index", "type", "does_not_exist");
+            DeleteRequest request = new DeleteRequest("posts", "doc", "does_not_exist");
             DeleteResponse deleteResponse = client.delete(request);
             if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
                 // <1>
@@ -310,12 +309,12 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            IndexResponse indexResponse = client.index(new IndexRequest("index", "type", "id").source("field", "value"));
+            IndexResponse indexResponse = client.index(new IndexRequest("posts", "doc", "1").source("field", "value"));
             assertSame(indexResponse.status(), RestStatus.CREATED);
 
             // tag::delete-conflict
             try {
-                DeleteRequest request = new DeleteRequest("index", "type", "id").version(2);
+                DeleteRequest request = new DeleteRequest("posts", "doc", "1").version(2);
                 DeleteResponse deleteResponse = client.delete(request);
             } catch (ElasticsearchException exception) {
                 if (exception.status() == RestStatus.CONFLICT) {
@@ -331,11 +330,11 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::bulk-request
             BulkRequest request = new BulkRequest(); // <1>
-            request.add(new IndexRequest("index", "type", "0")  // <2>
+            request.add(new IndexRequest("posts", "doc", "1")  // <2>
                     .source(XContentType.JSON,"field", "foo"));
-            request.add(new IndexRequest("index", "type", "1")  // <3>
+            request.add(new IndexRequest("posts", "doc", "2")  // <3>
                     .source(XContentType.JSON,"field", "bar"));
-            request.add(new IndexRequest("index", "type", "2")  // <4>
+            request.add(new IndexRequest("posts", "doc", "3")  // <4>
                     .source(XContentType.JSON,"field", "baz"));
             // end::bulk-request
             // tag::bulk-execute
@@ -347,10 +346,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::bulk-request-with-mixed-operations
             BulkRequest request = new BulkRequest();
-            request.add(new DeleteRequest("index", "type", "2")); // <1>
-            request.add(new UpdateRequest("index", "type", "1") // <2>
+            request.add(new DeleteRequest("posts", "doc", "3")); // <1>
+            request.add(new UpdateRequest("posts", "doc", "2") // <2>
                     .doc(XContentType.JSON,"other", "test"));
-            request.add(new IndexRequest("index", "type", "4")  // <3>
+            request.add(new IndexRequest("posts", "doc", "4")  // <3>
                     .source(XContentType.JSON,"field", "baz"));
             // end::bulk-request-with-mixed-operations
             BulkResponse bulkResponse = client.bulk(request);

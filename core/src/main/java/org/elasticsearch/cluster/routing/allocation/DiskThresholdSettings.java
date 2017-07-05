@@ -96,6 +96,21 @@ public class DiskThresholdSettings {
 
     }
 
+    static final class HighDiskWatermarkValidator implements Setting.Validator<String> {
+
+        @Override
+        public void validate(String value, Map<Setting<String>, String> settings) {
+            final String lowWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
+            doValidate(lowWatermarkRaw, value);
+        }
+
+        @Override
+        public Iterator<Setting<String>> settings() {
+            return Collections.singletonList(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING).iterator();
+        }
+
+    }
+
     private static void doValidate(String low, String high) {
         try {
             final double lowWatermarkThreshold = thresholdPercentageFromWatermark(low, false);
@@ -133,21 +148,6 @@ public class DiskThresholdSettings {
                 throw new IllegalArgumentException(message);
             }
         }
-    }
-
-    static final class HighDiskWatermarkValidator implements Setting.Validator<String> {
-
-        @Override
-        public void validate(String value, Map<Setting<String>, String> settings) {
-            final String lowWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
-            doValidate(lowWatermarkRaw, value);
-        }
-
-        @Override
-        public Iterator<Setting<String>> settings() {
-            return Collections.singletonList(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING).iterator();
-        }
-
     }
 
     private void setIncludeRelocations(boolean includeRelocations) {

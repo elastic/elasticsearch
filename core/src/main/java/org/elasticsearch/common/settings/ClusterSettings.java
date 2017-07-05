@@ -91,7 +91,6 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -270,12 +269,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING,
                     HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING,
                     Transport.TRANSPORT_TCP_COMPRESS,
-                    TransportSettings.TRANSPORT_PROFILES_SETTING,
-                    TransportSettings.HOST,
-                    TransportSettings.PUBLISH_HOST,
-                    TransportSettings.BIND_HOST,
-                    TransportSettings.PUBLISH_PORT,
-                    TransportSettings.PORT,
+                    TcpTransport.TRANSPORT_PROFILES_SETTING,
+                    TcpTransport.HOST,
+                    TcpTransport.PUBLISH_HOST,
+                    TcpTransport.BIND_HOST,
+                    TcpTransport.PUBLISH_PORT,
+                    TcpTransport.PORT,
                     TcpTransport.CONNECTIONS_PER_NODE_RECOVERY,
                     TcpTransport.CONNECTIONS_PER_NODE_BULK,
                     TcpTransport.CONNECTIONS_PER_NODE_REG,
@@ -292,12 +291,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     NetworkService.GLOBAL_NETWORK_HOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING,
                     NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING,
-                    NetworkService.TcpSettings.TCP_NO_DELAY,
-                    NetworkService.TcpSettings.TCP_KEEP_ALIVE,
-                    NetworkService.TcpSettings.TCP_REUSE_ADDRESS,
-                    NetworkService.TcpSettings.TCP_SEND_BUFFER_SIZE,
-                    NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
-                    NetworkService.TcpSettings.TCP_CONNECT_TIMEOUT,
+                    NetworkService.TCP_NO_DELAY,
+                    NetworkService.TCP_KEEP_ALIVE,
+                    NetworkService.TCP_REUSE_ADDRESS,
+                    NetworkService.TCP_SEND_BUFFER_SIZE,
+                    NetworkService.TCP_RECEIVE_BUFFER_SIZE,
+                    NetworkService.TCP_CONNECT_TIMEOUT,
                     IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
                     IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
                     ScriptService.SCRIPT_CACHE_SIZE_SETTING,
@@ -314,12 +313,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     HunspellService.HUNSPELL_IGNORE_CASE,
                     HunspellService.HUNSPELL_DICTIONARY_OPTIONS,
                     IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT,
-                    Environment.DEFAULT_PATH_CONF_SETTING,
-                    Environment.PATH_CONF_SETTING,
-                    Environment.DEFAULT_PATH_DATA_SETTING,
                     Environment.PATH_DATA_SETTING,
                     Environment.PATH_HOME_SETTING,
-                    Environment.DEFAULT_PATH_LOGS_SETTING,
                     Environment.PATH_LOGS_SETTING,
                     Environment.PATH_REPO_SETTING,
                     Environment.PATH_SHARED_DATA_SETTING,

@@ -347,7 +347,8 @@ These are the linux flavors the Vagrantfile currently supports:
 
 * ubuntu-1404 aka trusty
 * ubuntu-1604 aka xenial
-* debian-8 aka jessie, the current debian stable distribution
+* debian-8 aka jessie
+* debian-9 aka stretch, the current debian stable distribution
 * centos-6
 * centos-7
 * fedora-25

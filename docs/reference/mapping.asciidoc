@@ -17,13 +17,14 @@ are stored and indexed.  For instance, use mappings to define:
 
 [float]
 [[mapping-type]]
-== Mapping Types
+== Mapping Type
 
-Each index has one or more _mapping types_, which are used to divide the
-documents in an index into logical groups. User documents might be stored in a
-`user` type, and blog posts in a `blogpost` type.
+Each index has one _mapping type_ which determines how the document will be
+indexed.
 
-Each mapping type has:
+deprecated[6.0.0,See <<removal-of-types>>].
+
+A mapping type has:
 
 <<mapping-fields,Meta-fields>>::
 
@@ -34,11 +35,8 @@ treated. Examples of meta-fields include the document's
 
 <<mapping-types,Fields>> or _properties_::
 
-Each mapping type contains a list of fields or `properties` pertinent to that
-type.  A `user` type might contain `title`, `name`, and `age` fields, while a
-`blogpost` type might contain `title`, `body`, `user_id` and `created` fields.
-Fields with the same name in different mapping types in the same index
-<<field-conflicts,must have the same mapping>>.
+A mapping type contains a list of fields or `properties` pertinent to the
+document.
 
 
 [float]
@@ -91,14 +89,12 @@ causing a mapping explosion:
 == Dynamic mapping
 
 Fields and mapping types do not need to be defined before being used. Thanks
-to _dynamic mapping_, new mapping types and new field names will be added
-automatically, just by indexing a document. New fields can be added both to
-the top-level mapping type, and to inner <<object,`object`>>  and
-<<nested,`nested`>> fields.
+to _dynamic mapping_, new field names will be added automatically, just by
+indexing a document. New fields can be added both to the top-level mapping
+type, and to inner <<object,`object`>>  and <<nested,`nested`>> fields.
 
-The
-<<dynamic-mapping,dynamic mapping>> rules can be configured to
-customise the mapping that is used for new types and new fields.
+The <<dynamic-mapping,dynamic mapping>> rules can be configured to customise
+the mapping that is used for new fields.
 
 [float]
 == Explicit mappings
@@ -107,70 +103,33 @@ You know more about your data than Elasticsearch can guess, so while dynamic
 mapping can be useful to get started, at some point you will want to specify
 your own explicit mappings.
 
-You can create mapping types and field mappings when you
-<<indices-create-index,create an index>>, and you can add mapping types and
+You can create field mappings when you
+<<indices-create-index,create an index>>, and you can add
 fields to an existing index with the <<indices-put-mapping,PUT mapping API>>.
 
 [float]
-== Updating existing mappings
+== Updating existing field mappings
 
-Other than where documented, *existing type and field mappings cannot be
+Other than where documented, *existing field mappings cannot be
 updated*. Changing the mapping would mean invalidating already indexed
 documents.  Instead, you should create a new index with the correct mappings
-and reindex your data into that index.
-
-[[field-conflicts]]
-[float]
-== Fields are shared across mapping types
-
-Mapping types are used to group fields, but the fields in each mapping type
-are not independent of each other. Fields with:
-
-* the _same name_
-* in the _same index_
-* in _different mapping types_
-* map to the _same field_ internally,
-* and *must have the same mapping*.
-
-If a `title` field exists in both the `user` and `blogpost` mapping types, the
-`title` fields must have exactly the same mapping in each type. The only
-exceptions to this rule are the <<copy-to>>, <<dynamic>>, <<enabled>>,
-<<ignore-above>>, and <<properties>> parameters, which may have different
-settings per field.
-
-Usually, fields with the same name also contain the same type of data, so
-having the same mapping is not a problem.  When conflicts do arise, these can
-be solved by choosing more descriptive names, such as `user_title` and
-`blog_title`.
+and <<docs-reindex,reindex>> your data into that index.
 
 [float]
 == Example mapping
 
-A mapping for the example described above could be specified when creating the
-index, as follows:
+A mapping could be specified when creating an index, as follows:
 
 [source,js]
 ---------------------------------------
 PUT my_index <1>
 {
-  "settings": {
-    "mapping.single_type": false
-  },
   "mappings": {
-    "user": { <2>
+    "doc": { <2>
       "properties": { <3>
         "title":    { "type": "text"  }, <4>
         "name":     { "type": "text"  }, <4>
-        "age":      { "type": "integer" }  <4>
-      }
-    },
-    "blogpost": { <2>
-      "properties": { <3>
-        "title":    { "type": "text"  }, <4>
-        "body":     { "type": "text"  }, <4>
-        "user_id":  {
-          "type":   "keyword" <4>
-        },
+        "age":      { "type": "integer" },  <4>
         "created":  {
           "type":   "date", <4>
           "format": "strict_date_optional_time||epoch_millis"
@@ -182,12 +141,14 @@ PUT my_index <1>
 ---------------------------------------
 // CONSOLE
 <1> Create an index called `my_index`.
-<2> Add mapping types called `user` and `blogpost`.
-<3> Specify fields or _properties_ in each mapping type.
+<2> Add a mapping type called `doc`.
+<3> Specify fields or _properties_.
 <4> Specify the data `type` and mapping for each field.
 
 
 --
+
+include::mapping/removal_of_types.asciidoc[]
 
 include::mapping/types.asciidoc[]
 

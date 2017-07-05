@@ -85,7 +85,7 @@ declare -a args=("$@")
 path_props=(-Des.path.home="$ES_HOME")
 
 if [ -e "$CONF_DIR" ]; then
-  path_props=("${path_props[@]}" -Des.path.conf="$CONF_DIR")
+  args=("${args[@]}" --path.conf "$CONF_DIR")
 fi
 
 exec "$JAVA" $ES_JAVA_OPTS -Delasticsearch "${path_props[@]}" -cp "$ES_HOME/lib/*" org.elasticsearch.plugins.PluginCli "${args[@]}"

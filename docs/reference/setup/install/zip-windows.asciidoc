@@ -111,9 +111,7 @@ The commands available are:
 
 `manager`:: Start a GUI for managing the installed service
 
-Based on the architecture of the available JDK/JRE (set through `JAVA_HOME`),
-the appropriate 64-bit(x64) or 32-bit(x86) service will be installed. This
-information is made available during install:
+The name of the service and the value of `JAVA_HOME` will be made available during install:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------------
@@ -141,7 +139,8 @@ The Elasticsearch service can be configured prior to installation by setting the
 [horizontal]
 `SERVICE_ID`::
 
-  A unique identifier for the service.  Useful if installing multiple instances on the same machine.  Defaults to `elasticsearch-service-x86` (on 32-bit Windows) or `elasticsearch-service-x64` (on 64-bit Windows).
+  A unique identifier for the service. Useful if installing multiple instances
+  on the same machine. Defaults to `elasticsearch-service-x64`.
 
 `SERVICE_USERNAME`::
 
@@ -163,13 +162,12 @@ The Elasticsearch service can be configured prior to installation by setting the
 
   The installation directory of the desired JVM to run the service under.
 
-`LOG_DIR`::
+`SERVICE_LOG_DIR`::
 
-    Log directory, defaults to `%ES_HOME%\logs`.
-
-`DATA_DIR`::
-
-    Data directory, defaults to `%ES_HOME%\data`.
+    Service log directory, defaults to `%ES_HOME%\logs`. Note that this does
+    not control the path for the Elasticsearch logs; the path for these is set
+    via the setting `path.logs` in the `elasticsearch.yml` configuration file,
+    or on the command line.
 
 `CONF_DIR`::
 

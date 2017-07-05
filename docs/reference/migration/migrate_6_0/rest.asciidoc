@@ -31,6 +31,13 @@ value `false` and boolean "true" as the value `true`. All other values will rais
 
 The deprecated request parameters and plain text in request body has been removed. Define parameters in request body.
 
+==== Support custom normalizer in Analyze API
+
+Analyze API can analyze normalizer and custom normalizer.
+In previous versions of Elasticsearch, Analyze API is requiring a `tokenizer` or `analyzer` parameter.
+In Elasticsearch 6.0.0, Analyze API can analyze a text as a keyword field with custom normalizer
+or if `char_filter`/`filter` is set and `tokenizer`/`analyzer` is not set.
+
 ==== Indices exists API
 
 The `ignore_unavailable` and `allow_no_indices` options are no longer accepted
@@ -68,3 +75,9 @@ This comma-separation for retrieving multiple pieces of information has been
 removed.. `GET /_all` can be used to retrieve all aliases, settings, and
 mappings for all indices. In order to retrieve only the mappings for an index,
 `GET /myindex/_mappings` (or `_aliases`, or `_settings`).
+
+==== Dissallow using `_cache` and `_cache_key`
+
+The `_cache` and `_cache_key` options in queries have been deprecated since version 2.0.0 and
+have been ignored since then, issuing a deprecation warning. These options have now been completely
+removed, so using them now will throw an error.

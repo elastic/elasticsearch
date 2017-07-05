@@ -58,7 +58,6 @@ import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
@@ -71,6 +70,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 
 public class PercolatorFieldMapper extends FieldMapper {
 
@@ -277,7 +278,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
         XContentParser parser = context.parser();
         QueryBuilder queryBuilder = parseQueryBuilder(
-                queryShardContext.newParseContext(parser), parser.getTokenLocation()
+                parser, parser.getTokenLocation()
         );
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
@@ -320,12 +321,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     public static Query parseQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, XContentParser parser) throws IOException {
-        return parseQuery(context, mapUnmappedFieldsAsString, context.newParseContext(parser), parser);
-    }
-
-    public static Query parseQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryParseContext queryParseContext,
-                                   XContentParser parser) throws IOException {
-        return toQuery(context, mapUnmappedFieldsAsString, parseQueryBuilder(queryParseContext, parser.getTokenLocation()));
+        return toQuery(context, mapUnmappedFieldsAsString, parseQueryBuilder(parser, parser.getTokenLocation()));
     }
 
     static Query toQuery(QueryShardContext context, boolean mapUnmappedFieldsAsString, QueryBuilder queryBuilder) throws IOException {
@@ -346,9 +342,9 @@ public class PercolatorFieldMapper extends FieldMapper {
         return queryBuilder.toQuery(context);
     }
 
-    private static QueryBuilder parseQueryBuilder(QueryParseContext context, XContentLocation location) {
+    private static QueryBuilder parseQueryBuilder(XContentParser parser, XContentLocation location) {
         try {
-            return context.parseInnerQueryBuilder();
+            return parseInnerQueryBuilder(parser);
         } catch (IOException e) {
             throw new ParsingException(location, "Failed to parse", e);
         }

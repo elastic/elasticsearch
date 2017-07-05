@@ -457,9 +457,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         builder.endObject();
     }
 
-    public static GeoShapeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
-
+    public static GeoShapeQueryBuilder fromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         ShapeRelation shapeRelation = null;
         SpatialStrategy strategy = null;

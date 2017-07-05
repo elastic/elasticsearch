@@ -68,11 +68,9 @@ public class TribeServiceTests extends ESTestCase {
         Settings globalSettings = Settings.builder()
             .put("node.name", "nodename")
             .put("path.home", "some/path")
-            .put("path.conf", "conf/path")
             .put("path.logs", "logs/path").build();
         Settings clientSettings = TribeService.buildClientSettings("tribe1", "parent_id", globalSettings, Settings.EMPTY);
         assertEquals("some/path", clientSettings.get("path.home"));
-        assertEquals("conf/path", clientSettings.get("path.conf"));
         assertEquals("logs/path", clientSettings.get("path.logs"));
 
         Settings tribeSettings = Settings.builder()

@@ -54,7 +54,6 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
@@ -357,7 +356,7 @@ public class SearchModule {
         registerAggregation(new AggregationSpec(FiltersAggregationBuilder.NAME, FiltersAggregationBuilder::new,
                 FiltersAggregationBuilder::parse).addResultReader(InternalFilters::new));
         registerAggregation(new AggregationSpec(AdjacencyMatrixAggregationBuilder.NAME, AdjacencyMatrixAggregationBuilder::new,
-                AdjacencyMatrixAggregationBuilder.getParser()).addResultReader(InternalAdjacencyMatrix::new));
+                AdjacencyMatrixAggregationBuilder::parse).addResultReader(InternalAdjacencyMatrix::new));
         registerAggregation(new AggregationSpec(SamplerAggregationBuilder.NAME, SamplerAggregationBuilder::new,
                 SamplerAggregationBuilder::parse)
                     .addResultReader(InternalSampler.NAME, InternalSampler::new)
@@ -411,7 +410,7 @@ public class SearchModule {
         if (false == transportClient) {
             namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
                 AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
-                return spec.getParser().parse(context.name, context.queryParseContext);
+                return spec.getParser().parse(context.name, p);
             }));
         }
         namedWriteables.add(
@@ -508,7 +507,7 @@ public class SearchModule {
         if (false == transportClient) {
             namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
                 AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
-                return spec.getParser().parse(context.name, context.queryParseContext);
+                return spec.getParser().parse(context.name, p);
             }));
         }
         namedWriteables.add(
@@ -606,7 +605,7 @@ public class SearchModule {
         // TODO remove funky contexts
         namedXContents.add(new NamedXContentRegistry.Entry(
                 ScoreFunctionBuilder.class, scoreFunction.getName(),
-                (XContentParser p, Object c) -> scoreFunction.getParser().fromXContent((QueryParseContext) c)));
+                (XContentParser p, Object c) -> scoreFunction.getParser().fromXContent(p)));
     }
 
     private void registerValueFormats() {
@@ -751,7 +750,7 @@ public class SearchModule {
     private void registerQuery(QuerySpec<?> spec) {
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, spec.getName(),
-                (p, c) -> spec.getParser().fromXContent((QueryParseContext) c)));
+                (p, c) -> spec.getParser().fromXContent(p)));
     }
 
     public FetchPhase getFetchPhase() {

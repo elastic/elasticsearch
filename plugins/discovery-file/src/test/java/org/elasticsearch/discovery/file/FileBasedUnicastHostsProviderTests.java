@@ -88,7 +88,7 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
                                     BigArrays.NON_RECYCLING_INSTANCE,
                                     new NoneCircuitBreakerService(),
                                     new NamedWriteableRegistry(Collections.emptyList()),
-                                    new NetworkService(Settings.EMPTY, Collections.emptyList())) {
+                                    new NetworkService(Collections.emptyList())) {
                 @Override
                 public BoundTransportAddress boundAddress() {
                     return new BoundTransportAddress(

@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchModule;
@@ -97,8 +96,7 @@ public final class DecayFunctionParser<DFB extends DecayFunctionBuilder<DFB>> im
      * </pre>
      */
     @Override
-    public DFB fromXContent(QueryParseContext context) throws IOException, ParsingException {
-        XContentParser parser = context.parser();
+    public DFB fromXContent(XContentParser parser) throws IOException, ParsingException {
         String currentFieldName;
         XContentParser.Token token;
         MultiValueMode multiValueMode = DecayFunctionBuilder.DEFAULT_MULTI_VALUE_MODE;

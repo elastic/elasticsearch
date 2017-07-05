@@ -54,10 +54,8 @@ public class ScriptServiceTests extends ESTestCase {
 
     @Before
     public void setup() throws IOException {
-        Path genericConfigFolder = createTempDir();
         baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 10000)
                 .build();
         Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();

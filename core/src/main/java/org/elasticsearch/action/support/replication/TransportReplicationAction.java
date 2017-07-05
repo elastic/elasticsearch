@@ -53,6 +53,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -183,7 +184,7 @@ public abstract class TransportReplicationAction<
 
     /**
      * Synchronously execute the specified replica operation. This is done under a permit from
-     * {@link IndexShard#acquireReplicaOperationPermit(long, ActionListener, String)}.
+     * {@link IndexShard#acquireReplicaOperationPermit(long, long, ActionListener, String)}.
      *
      * @param shardRequest the request to the replica shard
      * @param replica      the replica shard to perform the operation on
@@ -521,11 +522,9 @@ public abstract class TransportReplicationAction<
         @Override
         public void onResponse(Releasable releasable) {
             try {
-                replica.updateGlobalCheckpointOnReplica(globalCheckpoint);
                 final ReplicaResult replicaResult = shardOperationOnReplica(request, replica);
                 releasable.close(); // release shard operation lock before responding to caller
-                final TransportReplicationAction.ReplicaResponse response =
-                    new ReplicaResponse(replica.routingEntry().allocationId().getId(), replica.getLocalCheckpoint());
+                final TransportReplicationAction.ReplicaResponse response = new ReplicaResponse(replica.getLocalCheckpoint());
                 replicaResult.respond(new ResponseListener(response));
             } catch (final Exception e) {
                 Releasables.closeWhileHandlingException(releasable); // release shard operation lock before responding to caller
@@ -596,7 +595,7 @@ public abstract class TransportReplicationAction<
                 throw new ShardNotFoundException(this.replica.shardId(), "expected aID [{}] but found [{}]", targetAllocationID,
                     actualAllocationId);
             }
-            replica.acquireReplicaOperationPermit(request.primaryTerm, this, executor);
+            replica.acquireReplicaOperationPermit(request.primaryTerm, globalCheckpoint, this, executor);
         }
 
         /**
@@ -1012,14 +1011,12 @@ public abstract class TransportReplicationAction<
 
     public static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
         private long localCheckpoint;
-        private String allocationId;
 
         ReplicaResponse() {
 
         }
 
-        public ReplicaResponse(String allocationId, long localCheckpoint) {
-            this.allocationId = allocationId;
+        public ReplicaResponse(long localCheckpoint) {
             this.localCheckpoint = localCheckpoint;
         }
 
@@ -1028,9 +1025,9 @@ public abstract class TransportReplicationAction<
             if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 super.readFrom(in);
                 localCheckpoint = in.readZLong();
-                allocationId = in.readString();
             } else {
                 // 5.x used to read empty responses, which don't really read anything off the stream, so just do nothing.
+                localCheckpoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
             }
         }
 
@@ -1039,7 +1036,6 @@ public abstract class TransportReplicationAction<
             if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
                 super.writeTo(out);
                 out.writeZLong(localCheckpoint);
-                out.writeString(allocationId);
             } else {
                 // we use to write empty responses
                 Empty.INSTANCE.writeTo(out);
@@ -1049,11 +1045,6 @@ public abstract class TransportReplicationAction<
         @Override
         public long localCheckpoint() {
             return localCheckpoint;
-        }
-
-        @Override
-        public String allocationId() {
-            return allocationId;
         }
     }
 

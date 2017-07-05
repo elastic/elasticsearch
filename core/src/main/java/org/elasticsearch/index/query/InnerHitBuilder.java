@@ -53,7 +53,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
     public static final QueryBuilder DEFAULT_INNER_HIT_QUERY = new MatchAllQueryBuilder();
 
-    private static final ObjectParser<InnerHitBuilder, QueryParseContext> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
+    private static final ObjectParser<InnerHitBuilder, Void> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
 
     static {
         PARSER.declareString(InnerHitBuilder::setName, NAME_FIELD);
@@ -75,23 +75,23 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             try {
                 Set<ScriptField> scriptFields = new HashSet<>();
                 for (XContentParser.Token token = p.nextToken(); token != END_OBJECT; token = p.nextToken()) {
-                    scriptFields.add(new ScriptField(c));
+                    scriptFields.add(new ScriptField(p));
                 }
                 i.setScriptFields(scriptFields);
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner script definition", e);
             }
         }, SearchSourceBuilder.SCRIPT_FIELDS_FIELD, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((p, i, c) -> i.setSorts(SortBuilder.fromXContent(c)), SearchSourceBuilder.SORT_FIELD,
+        PARSER.declareField((p, i, c) -> i.setSorts(SortBuilder.fromXContent(p)), SearchSourceBuilder.SORT_FIELD,
                 ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareField((p, i, c) -> {
             try {
-                i.setFetchSourceContext(FetchSourceContext.fromXContent(c.parser()));
+                i.setFetchSourceContext(FetchSourceContext.fromXContent(p));
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner _source definition", e);
             }
         }, SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
-        PARSER.declareObject(InnerHitBuilder::setHighlightBuilder, (p, c) -> HighlightBuilder.fromXContent(c),
+        PARSER.declareObject(InnerHitBuilder::setHighlightBuilder, (p, c) -> HighlightBuilder.fromXContent(p),
                 SearchSourceBuilder.HIGHLIGHT_FIELD);
     }
 
@@ -582,7 +582,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 storedFieldsContext, docValueFields, scriptFields, fetchSourceContext, sorts, highlightBuilder);
     }
 
-    public static InnerHitBuilder fromXContent(QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new InnerHitBuilder(), context);
+    public static InnerHitBuilder fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new InnerHitBuilder(), null);
     }
 }

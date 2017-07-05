@@ -7,20 +7,7 @@ fields to an existing type:
 [source,js]
 --------------------------------------------------
 PUT twitter <1>
-{
-  "settings": {
-    "mapping.single_type": false
-  },
-  "mappings": {
-    "tweet": {
-      "properties": {
-        "message": {
-          "type": "text"
-        }
-      }
-    }
-  }
-}
+{}
 
 PUT twitter/_mapping/user <2>
 {
@@ -31,19 +18,19 @@ PUT twitter/_mapping/user <2>
   }
 }
 
-PUT twitter/_mapping/tweet <3>
+PUT twitter/_mapping/user <3>
 {
   "properties": {
-    "user_name": {
-      "type": "text"
+    "email": {
+      "type": "keyword"
     }
   }
 }
 --------------------------------------------------
 // CONSOLE
-<1> <<indices-create-index,Creates an index>> called `twitter` with the `message` field in the `tweet` <<mapping-type,mapping type>>.
+<1> <<indices-create-index,Creates an index>> called `twitter` without any type mapping.
 <2> Uses the PUT mapping API to add a new mapping type called `user`.
-<3> Uses the PUT mapping API to add a new field called `user_name` to the `tweet` mapping type.
+<3> Uses the PUT mapping API to add a new field called `email` to the `user` mapping type.
 
 More information on how to define type mappings can be found in the
 <<mapping,mapping>> section.
@@ -139,80 +126,3 @@ PUT my_index/_mapping/user
 Each <<mapping-params,mapping parameter>> specifies whether or not its setting
 can be updated on an existing field.
 
-[float]
-[[merging-conflicts]]
-=== Conflicts between fields in different types
-
-Fields in the same index with the same name in two different types must have
-the same mapping, as they are backed by the same field internally.  Trying to
-<<updating-field-mappings,update a mapping parameter>> for a field which
-exists in more than one type will throw an exception, unless you specify the
-`update_all_types` parameter, in which case it will update that parameter
-across all fields with the same name in the same index.
-
-TIP: The only parameters which are exempt from this rule -- they can be set to
-different values on each field -- can be found in <<field-conflicts>>.
-
-For example, this fails:
-
-[source,js]
------------------------------------
-PUT my_index
-{
-  "settings": {
-    "mapping.single_type": false
-  },
-  "mappings": {
-    "type_one": {
-      "properties": {
-        "text": { <1>
-          "type": "text",
-          "analyzer": "standard"
-        }
-      }
-    },
-    "type_two": {
-      "properties": {
-        "text": { <1>
-          "type": "text",
-          "analyzer": "standard"
-        }
-      }
-    }
-  }
-}
-
-PUT my_index/_mapping/type_one <2>
-{
-  "properties": {
-    "text": {
-      "type": "text",
-      "analyzer": "standard",
-      "search_analyzer": "whitespace"
-    }
-  }
-}
------------------------------------
-// CONSOLE
-// TEST[catch:request]
-<1> Create an index with two types, both of which contain a `text` field which have the same mapping.
-<2> Trying to update the `search_analyzer` just for `type_one` throws an exception like `"Merge failed with failures..."`.
-
-But this then running this succeeds:
-
-[source,js]
------------------------------------
-PUT my_index/_mapping/type_one?update_all_types <1>
-{
-  "properties": {
-    "text": {
-      "type": "text",
-      "analyzer": "standard",
-      "search_analyzer": "whitespace"
-    }
-  }
-}
------------------------------------
-// CONSOLE
-// TEST[continued]
-<1> Adding the `update_all_types` parameter updates the `text` field in `type_one` and `type_two`.

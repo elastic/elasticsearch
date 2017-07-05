@@ -31,6 +31,7 @@ import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -52,6 +54,7 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
 import java.io.BufferedOutputStream;
@@ -60,7 +63,9 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
@@ -122,6 +127,10 @@ public class RecoverySourceHandler {
         this.logger = Loggers.getLogger(getClass(), nodeSettings, request.shardId(), "recover to " + request.targetNode().getName());
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         this.response = new RecoveryResponse();
+    }
+
+    public StartRecoveryRequest getRequest() {
+        return request;
     }
 
     /**
@@ -450,7 +459,21 @@ public class RecoverySourceHandler {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("finalizing recovery");
         cancellableThreads.execute(() -> {
-            shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint);
+            /*
+             * Before marking the shard as in-sync we acquire an operation permit. We do this so that there is a barrier between marking a
+             * shard as in-sync and relocating a shard. If we acquire the permit then no relocation handoff can complete before we are done
+             * marking the shard as in-sync. If the relocation handoff holds all the permits then after the handoff completes and we acquire
+             * the permit then the state of the shard will be relocated and this recovery will fail.
+             */
+            final PlainActionFuture<Releasable> onAcquired = new PlainActionFuture<>();
+            shard.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME);
+            try (Releasable ignored = onAcquired.actionGet()) {
+                if (shard.state() == IndexShardState.RELOCATED) {
+                    throw new IndexShardRelocatedException(shard.shardId());
+                }
+                shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint);
+            }
+
             recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint());
         });
 
@@ -465,7 +488,7 @@ public class RecoverySourceHandler {
                 cancellableThreads.execute(() -> recoveryTarget.ensureClusterStateVersion(currentClusterStateVersion));
 
                 logger.trace("performing relocation hand-off");
-                cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode()));
+                cancellableThreads.execute(() -> shard.relocated("to " + request.targetNode(), recoveryTarget::handoffPrimaryContext));
             }
             /*
              * if the recovery process fails after setting the shard state to RELOCATED, both relocation source and

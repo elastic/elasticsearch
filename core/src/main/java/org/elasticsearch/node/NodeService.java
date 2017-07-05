@@ -19,6 +19,7 @@
 
 package org.elasticsearch.node;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -121,9 +122,13 @@ public class NodeService extends AbstractComponent implements Closeable {
         return ingestService;
     }
 
+    public MonitorService getMonitorService() {
+        return monitorService;
+    }
+
     @Override
     public void close() throws IOException {
-        indicesService.close();
+        IOUtils.close(indicesService, monitorService);
     }
 
 }

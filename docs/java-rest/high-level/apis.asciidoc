@@ -10,7 +10,7 @@ The Java High Level REST Client supports the following APIs:
 
 * Update API
 
-* Bulk API
+* <<java-rest-high-document-bulk>>
 
 * Search API
 

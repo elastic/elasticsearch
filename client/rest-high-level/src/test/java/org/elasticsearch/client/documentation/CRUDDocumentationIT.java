@@ -23,13 +23,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -316,6 +323,98 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
             // end::delete-conflict
+        }
+    }
+
+    public void testBulk() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::bulk-request
+            BulkRequest request = new BulkRequest(); // <1>
+            request.add(new IndexRequest("index", "type", "0")  // <2>
+                    .source(XContentType.JSON,"field", "foo"));
+            request.add(new IndexRequest("index", "type", "1")  // <3>
+                    .source(XContentType.JSON,"field", "bar"));
+            request.add(new IndexRequest("index", "type", "2")  // <4>
+                    .source(XContentType.JSON,"field", "baz"));
+            // end::bulk-request
+            // tag::bulk-execute
+            BulkResponse bulkResponse = client.bulk(request);
+            // end::bulk-execute
+            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertFalse(bulkResponse.hasFailures());
+        }
+        {
+            // tag::bulk-request-with-mixed-operations
+            BulkRequest request = new BulkRequest();
+            request.add(new DeleteRequest("index", "type", "2")); // <1>
+            request.add(new UpdateRequest("index", "type", "1") // <2>
+                    .doc(XContentType.JSON,"other", "test"));
+            request.add(new IndexRequest("index", "type", "4")  // <3>
+                    .source(XContentType.JSON,"field", "baz"));
+            // end::bulk-request-with-mixed-operations
+            BulkResponse bulkResponse = client.bulk(request);
+            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertFalse(bulkResponse.hasFailures());
+
+            // tag::bulk-response
+            for (BulkItemResponse bulkItemResponse : bulkResponse) { // <1>
+                DocWriteResponse itemResponse = bulkItemResponse.getResponse(); // <2>
+
+                if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.INDEX
+                        || bulkItemResponse.getOpType() == DocWriteRequest.OpType.CREATE) { // <3>
+                    IndexResponse indexResponse = (IndexResponse)itemResponse;
+
+                } else if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.UPDATE) { // <4>
+                    UpdateResponse updateResponse = (UpdateResponse)itemResponse;
+
+                } else if (bulkItemResponse.getOpType() == DocWriteRequest.OpType.DELETE) { // <5>
+                    DeleteResponse deleteResponse = (DeleteResponse) itemResponse;
+                }
+            }
+            // end::bulk-response
+            // tag::bulk-has-failures
+            if (bulkResponse.hasFailures()) { // <1>
+
+            }
+            // end::bulk-has-failures
+            // tag::bulk-errors
+            for (BulkItemResponse bulkItemResponse : bulkResponse) {
+                if (bulkItemResponse.isFailed()) { // <1>
+                    BulkItemResponse.Failure failure = bulkItemResponse.getFailure(); // <2>
+
+                }
+            }
+            // end::bulk-errors
+        }
+        {
+            BulkRequest request = new BulkRequest();
+            // tag::bulk-request-timeout
+            request.timeout(TimeValue.timeValueMinutes(2)); // <1>
+            request.timeout("2m"); // <2>
+            // end::bulk-request-timeout
+            // tag::bulk-request-refresh
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL); // <1>
+            request.setRefreshPolicy("wait_for");                            // <2>
+            // end::bulk-request-refresh
+            // tag::bulk-request-active-shards
+            request.waitForActiveShards(2); // <1>
+            request.waitForActiveShards(ActiveShardCount.ALL); // <2>
+            // end::bulk-request-active-shards
+
+            // tag::bulk-execute-async
+            client.bulkAsync(request, new ActionListener<BulkResponse>() {
+                @Override
+                public void onResponse(BulkResponse bulkResponse) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    // <2>
+                }
+            });
+            // end::bulk-execute-async
         }
     }
 }

@@ -148,7 +148,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        assertThat(cause, hasToString(containsString("high disk watermark [75%] less than high disk watermark [85%]")));
+        assertThat(cause, hasToString(containsString("low disk watermark [85%] more than high disk watermark [75%]")));
     }
 
 }

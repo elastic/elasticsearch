@@ -299,7 +299,8 @@ public abstract class TransportReplicationAction<
                         // As a fallback, ES 6.x detects that the primary is relocating from a 5.x node, and initializes the primary
                         // context by itself on activation of the relocation target. This means, however, that requests cannot be handled
                         // as long as the relocation target shard has not been activated.
-                        throw new ReplicationOperation.RetryOnPrimaryException(request.shardId(), "waiting for 6.x primary to be activated");
+                        throw new ReplicationOperation.RetryOnPrimaryException(request.shardId(),
+                            "waiting for 6.x primary to be activated");
                     }
                     transportService.sendRequest(relocatingNode, transportPrimaryAction,
                         new ConcreteShardRequest<>(request, primary.allocationId().getRelocationId()),

@@ -45,7 +45,7 @@ public class JdbcConfiguration extends ConnectionConfiguration {
     static final String DEBUG_OUTPUT_DEFAULT = "err";
 
     static final String TIME_ZONE = "time_zone";
-    static final String TIME_ZONE_DEFAULT = "UTC";
+    static final String TIME_ZONE_DEFAULT = "UTC_CALENDAR";
 
     private static final List<String> KNOWN_OPTIONS = Arrays.asList(DEBUG, DEBUG_OUTPUT, TIME_ZONE);
 

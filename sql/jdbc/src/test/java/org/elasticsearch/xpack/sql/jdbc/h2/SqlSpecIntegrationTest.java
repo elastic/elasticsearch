@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.h2;
 
-import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.xpack.sql.jdbc.framework.LocalH2;
 import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase;
-import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase.Parser;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 import org.junit.ClassRule;
 import org.junit.Test;
@@ -32,7 +30,7 @@ public class SqlSpecIntegrationTest extends SpecBaseIntegrationTestCase {
     @ClassRule
     public static LocalH2 H2 = new LocalH2();
 
-    @ParametersFactory(shuffle = false, argumentFormatting = "name=%1s")
+    @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTNG)
     public static List<Object[]> readScriptSpec() throws Exception {
         SqlSpecParser parser = new SqlSpecParser();
         return CollectionUtils.combine(
@@ -54,7 +52,7 @@ public class SqlSpecIntegrationTest extends SpecBaseIntegrationTestCase {
         return H2.get();
     }
     
-    public SqlSpecIntegrationTest(String groupName, @Name("testName") String testName, Integer lineNumber, Path source, String query) {
+    public SqlSpecIntegrationTest(String groupName, String testName, Integer lineNumber, Path source, String query) {
         super(groupName, testName, lineNumber, source);
         this.query = query;
     }
@@ -73,7 +71,7 @@ public class SqlSpecIntegrationTest extends SpecBaseIntegrationTestCase {
                 throw reworkException(new AssertionError(errorMessage(ae), ae.getCause()));
             }
         } catch (Throwable th) {
-            throw reworkException(new RuntimeException(errorMessage(th)));
+            throw reworkException(th);
         }
     }
 

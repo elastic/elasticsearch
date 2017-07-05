@@ -12,7 +12,6 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.sql.JDBCType;
-import java.sql.Timestamp;
 import java.util.Locale;
 
 import static java.lang.String.format;
@@ -30,7 +29,6 @@ import static java.sql.Types.NULL;
 import static java.sql.Types.REAL;
 import static java.sql.Types.SMALLINT;
 import static java.sql.Types.TIMESTAMP;
-import static java.sql.Types.TIMESTAMP_WITH_TIMEZONE;
 import static java.sql.Types.TINYINT;
 import static java.sql.Types.VARBINARY;
 import static java.sql.Types.VARCHAR;
@@ -169,8 +167,9 @@ public abstract class ProtoUtils {
             case LONGVARCHAR:
                 result = in.readUTF();
                 break;
+            // NB: date/time is kept in its raw form since the JdbcDriver has to do calendar/timezone conversion anyway and thus the long value is relevant
             case TIMESTAMP:
-                result = new Timestamp(in.readLong());
+                result = in.readLong();
                 break;
             default:
                 throw new IOException("Don't know how to read type [" + type + " / " + JDBCType.valueOf(type) + "]");

@@ -11,7 +11,13 @@ AVG             |AGGREGATE
 COUNT           |AGGREGATE      
 MAX             |AGGREGATE      
 MIN             |AGGREGATE      
-SUM             |AGGREGATE      
+SUM             |AGGREGATE
+MEAN            |AGGREGATE
+STDDEV_POP      |AGGREGATE
+VAR_POP         |AGGREGATE
+SUM_OF_SQUARES  |AGGREGATE
+SKEWNESS        |AGGREGATE
+KURTOSIS        |AGGREGATE
 DAY_OF_MONTH    |SCALAR         
 DAY             |SCALAR         
 DOM             |SCALAR         
@@ -98,10 +104,10 @@ describe
 DESCRIBE "test_emp.emp"; 
 
     column     |         type          
-birth_date     |TIMESTAMP_WITH_TIMEZONE
+birth_date     |TIMESTAMP
 emp_no         |INTEGER                
 first_name     |VARCHAR                
 gender         |VARCHAR                
-hire_date      |TIMESTAMP_WITH_TIMEZONE
+hire_date      |TIMESTAMP
 last_name      |VARCHAR    
 ;

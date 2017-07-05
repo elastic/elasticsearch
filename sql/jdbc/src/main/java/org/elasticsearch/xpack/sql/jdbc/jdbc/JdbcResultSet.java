@@ -39,7 +39,7 @@ import static java.lang.String.format;
 class JdbcResultSet implements ResultSet, JdbcWrapper {
 
     // temporary calendar instance (per connection) used for normalizing the date and time
-    // even though the info is already in UTC format, JDBC 3.0 requires java.sql.Time to have its date
+    // even though the info is already in UTC_CALENDAR format, JDBC 3.0 requires java.sql.Time to have its date
     // removed (set to Jan 01 1970) and java.sql.Date to have its HH:mm:ss component removed
     // instead of dealing with longs, a Calendar object is used instead
     private final Calendar DEFAULT_CALENDAR = TypeConverter.defaultCalendar();

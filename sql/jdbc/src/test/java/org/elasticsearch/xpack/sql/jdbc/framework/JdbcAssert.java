@@ -8,11 +8,7 @@ package org.elasticsearch.xpack.sql.jdbc.framework;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.sql.Timestamp;
 import java.sql.Types;
-import java.time.Instant;
-import java.util.Locale;
-import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcUtils.nameOf;
 import static org.junit.Assert.assertEquals;
@@ -73,23 +69,10 @@ public class JdbcAssert {
                 String msg = "Different result for column [" + metaData.getColumnName(column)  + "], entry [" + count + "]";
 
                 if (type == Types.TIMESTAMP) {
-                    /*
-                     * Life is just too confusing with timestamps and default
-                     * time zones and default locales. Instead we compare the
-                     * string representations of the dates converted into UTC
-                     * in the ROOT locale. This gives us error messages in UTC
-                     * on failure which is *way* easier to reason about.
-                     *
-                     * Life is confusing because H2 always uses the default
-                     * locale and time zone for date functions.
-                     */
-                    msg += " locale is [" + Locale.getDefault() + "] and time zone is [" + TimeZone.getDefault() + "]";
-                    expectedObject = TestUtils.UTC_FORMATTER.format(Instant.ofEpochMilli(((Timestamp) expectedObject).getTime()));
-                    actualObject = TestUtils.UTC_FORMATTER.format(Instant.ofEpochMilli(((Timestamp) actualObject).getTime()));
-                    // NOCOMMIT look at ResultSet.getTimestamp(int, Calendar)
+                    assertEquals(getTime(expected, column), getTime(actual, column));
                 }
 
-                if (type == Types.DOUBLE) {
+                else if (type == Types.DOUBLE) {
                     // NOCOMMIT 1d/1f seems like a huge difference.
                     assertEquals(msg, (double) expectedObject, (double) actualObject, 1d);
                 } else if (type == Types.FLOAT) {
@@ -100,5 +83,9 @@ public class JdbcAssert {
             }
         }
         assertEquals("[" + actual + "] still has data after [" + count + "] entries", expected.next(), actual.next());
+    }
+
+    private static Object getTime(ResultSet rs, int column) throws SQLException {
+        return rs.getTime(column, TestUtils.UTC_CALENDAR).getTime();
     }
 }

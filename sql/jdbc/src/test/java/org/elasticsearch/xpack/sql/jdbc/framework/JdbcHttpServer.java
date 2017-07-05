@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.sql.test.server.ProtoHttpServer;
 public class JdbcHttpServer extends ProtoHttpServer<Response> {
 
     public JdbcHttpServer(Client client) {
-        super(client, new SqlProtoHandler(client), "/jdbc/", "sql/");
+        super(client, new SqlProtoHandler(client), "/_jdbc");
     }
 
     @Override

@@ -51,7 +51,7 @@ import static java.util.Calendar.YEAR;
 
 abstract class TypeConverter {
 
-    static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+    static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC_CALENDAR"), Locale.ROOT);
 
     private static final long DAY_IN_MILLIS = 60 * 60 * 24;
 
@@ -182,7 +182,7 @@ abstract class TypeConverter {
             case TIMESTAMP:
                 result = v;
                 break;
-            // since the date is already in UTC just do calendar math
+            // since the date is already in UTC_CALENDAR just do calendar math
             case DATE:
                 result = new Date(utcMillisRemoveTime(((Long) v).longValue()));
                 break;

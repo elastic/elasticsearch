@@ -42,8 +42,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -424,6 +427,10 @@ public class Setting<T> extends ToXContentToBytes {
      * value, and eventually setting the value where it belongs.
      */
     AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> validator) {
+        return newUpdater(consumer, logger, (v, s) -> validator.accept(v));
+    }
+
+    AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Validator<T> validator) {
         if (isDynamic()) {
             return new Updater(consumer, logger, validator);
         } else {
@@ -574,16 +581,26 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
+    @FunctionalInterface
+    public interface Validator<T> {
+
+        void validate(T value, Map<Setting<T>, T> settings);
+
+        default Iterator<Setting<T>> settings() {
+            return Collections.emptyIterator();
+        }
+
+    }
 
     private final class Updater implements AbstractScopedSettings.SettingUpdater<T> {
         private final Consumer<T> consumer;
         private final Logger logger;
-        private final Consumer<T> accept;
+        private final Validator<T> validator;
 
-        Updater(Consumer<T> consumer, Logger logger, Consumer<T> accept) {
+        Updater(Consumer<T> consumer, Logger logger, Validator<T> validator) {
             this.consumer = consumer;
             this.logger = logger;
-            this.accept = accept;
+            this.validator = validator;
         }
 
         @Override
@@ -606,8 +623,17 @@ public class Setting<T> extends ToXContentToBytes {
             final String newValue = getRaw(current);
             final String value = getRaw(previous);
             T inst = get(current);
+            Iterator<Setting<T>> it = validator.settings();
+            final Map<Setting<T>, T> map;
+            if (it.hasNext()) {
+                map = new HashMap<>();
+                final Setting<T> setting = it.next();
+                map.put(setting, setting.get(current));
+            } else {
+                map = Collections.emptyMap();
+            }
             try {
-                accept.accept(inst);
+                validator.validate(inst, map);
             } catch (Exception | AssertionError e) {
                 throw new IllegalArgumentException("illegal value can't update [" + key + "] from [" + value + "] to [" + newValue + "]",
                         e);

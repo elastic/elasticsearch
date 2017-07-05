@@ -27,6 +27,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.TimeValue;
 
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.Map;
+
 /**
  * A container to keep settings for disk thresholds up to date with cluster setting changes.
  */
@@ -62,16 +66,63 @@ public class DiskThresholdSettings {
     public DiskThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
         final String lowWatermark = CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings);
         final String highWatermark = CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings);
+        final LowDiskWatermarkValidator lowDiskWatermarkValidator = new LowDiskWatermarkValidator();
+        final HighDiskWatermarkValidator highDiskWatermarkValidator = new HighDiskWatermarkValidator();
+        lowDiskWatermarkValidator.validate(
+                lowWatermark, Collections.singletonMap(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, highWatermark));
+        highDiskWatermarkValidator.validate(
+                highWatermark, Collections.singletonMap(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, lowWatermark));
         setHighWatermark(highWatermark);
         setLowWatermark(lowWatermark);
         this.includeRelocations = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.get(settings);
         this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
+        clusterSettings.addSettingsUpdateConsumer(
+                CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark, lowDiskWatermarkValidator);
+        clusterSettings.addSettingsUpdateConsumer(
+                CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark, highDiskWatermarkValidator);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING, this::setIncludeRelocations);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
+    }
+
+    static final class LowDiskWatermarkValidator implements Setting.Validator<String> {
+
+        @Override
+        public void validate(String value, Map<Setting<String>, String> settings) {
+            final double lowWatermarkThreshold = thresholdPercentageFromWatermark(value);
+            final String highWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
+            final double highWatermarkThreshold = thresholdPercentageFromWatermark(highWatermarkRaw);
+            if (lowWatermarkThreshold > highWatermarkThreshold) {
+                throw new IllegalArgumentException(
+                        "low disk watermark [" + value + "] more than high disk watermark [" + highWatermarkRaw + "]");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<String>> settings() {
+            return Collections.singletonList(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING).iterator();
+        }
+    }
+
+    static final class HighDiskWatermarkValidator implements Setting.Validator<String> {
+
+        @Override
+        public void validate(String value, Map<Setting<String>, String> settings) {
+            final double highWatermarkThreshold = thresholdPercentageFromWatermark(value);
+            final String lowWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
+            final double lowWatermarkThreshold = thresholdPercentageFromWatermark(lowWatermarkRaw);
+            if (highWatermarkThreshold < lowWatermarkThreshold) {
+                throw new IllegalArgumentException(
+                        "high disk watermark [" + value + "] less than low disk watermark [" + lowWatermarkRaw + "]");
+            }
+        }
+
+        @Override
+        public Iterator<Setting<String>> settings() {
+            return Collections.singletonList(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING).iterator();
+        }
+
     }
 
     private void setIncludeRelocations(boolean includeRelocations) {
@@ -148,7 +199,7 @@ public class DiskThresholdSettings {
      * Attempts to parse the watermark into a percentage, returning 100.0% if
      * it cannot be parsed.
      */
-    private double thresholdPercentageFromWatermark(String watermark) {
+    private static double thresholdPercentageFromWatermark(String watermark) {
         try {
             return RatioValue.parseRatioValue(watermark).getAsPercent();
         } catch (ElasticsearchParseException ex) {

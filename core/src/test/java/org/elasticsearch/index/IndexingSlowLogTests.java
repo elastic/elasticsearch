@@ -35,6 +35,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -89,7 +91,12 @@ public class IndexingSlowLogTests extends ESTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING.getKey(), "NOT A BOOLEAN").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse value [NOT A BOOLEAN] as only [true] or [false] are allowed.");
+            final String expected = "illegal value can't update [index.indexing.slowlog.reformat] from [true] to [NOT A BOOLEAN]";
+            assertThat(ex, hasToString(containsString(expected)));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            assertThat(cause, hasToString(containsString("Failed to parse value [NOT A BOOLEAN] as only [true] or [false] are allowed.")));
         }
         assertTrue(log.isReformat());
     }
@@ -127,7 +134,12 @@ public class IndexingSlowLogTests extends ESTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), "NOT A LEVEL").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL");
+            final String expected = "illegal value can't update [index.indexing.slowlog.level] from [TRACE] to [NOT A LEVEL]";
+            assertThat(ex, hasToString(containsString(expected)));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            assertThat(cause, hasToString(containsString("No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
     }
@@ -178,28 +190,48 @@ public class IndexingSlowLogTests extends ESTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.trace] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            final String expected = "illegal value can't update [index.indexing.slowlog.threshold.index.trace] from [-1] to [NOT A TIME VALUE]";
+            assertThat(ex, hasToString(containsString(expected)));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            assertThat(cause, hasToString(containsString("failed to parse setting [index.indexing.slowlog.threshold.index.trace] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized")));
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.debug] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            final String expected = "illegal value can't update [index.indexing.slowlog.threshold.index.debug] from [-1] to [NOT A TIME VALUE]";
+            assertThat(ex, hasToString(containsString(expected)));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            assertThat(cause, hasToString(containsString("failed to parse setting [index.indexing.slowlog.threshold.index.debug] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized")));
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.info] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            final String expected = "illegal value can't update [index.indexing.slowlog.threshold.index.info] from [-1] to [NOT A TIME VALUE]";
+            assertThat(ex, hasToString(containsString(expected)));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            assertThat(cause, hasToString(containsString("failed to parse setting [index.indexing.slowlog.threshold.index.info] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized")));
         }
 
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING.getKey(), "NOT A TIME VALUE").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "failed to parse setting [index.indexing.slowlog.threshold.index.warn] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized");
+            final String expected = "illegal value can't update [index.indexing.slowlog.threshold.index.warn] from [-1] to [NOT A TIME VALUE]";
+            assertThat(ex, hasToString(containsString(expected)));
+            assertNotNull(ex.getCause());
+            assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
+            final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
+            assertThat(cause, hasToString(containsString("failed to parse setting [index.indexing.slowlog.threshold.index.warn] with value [NOT A TIME VALUE] as a time value: unit is missing or unrecognized")));
         }
     }
 

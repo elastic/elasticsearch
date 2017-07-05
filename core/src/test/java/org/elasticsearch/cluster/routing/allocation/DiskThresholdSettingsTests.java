@@ -133,4 +133,22 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertThat(cause, hasToString(containsString(incompatibleExpected)));
     }
 
+    public void testInvalidHighDiskThreshold() {
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        new DiskThresholdSettings(Settings.EMPTY, clusterSettings); // this has the effect of registering the settings updater
+
+        final Settings newSettings = Settings.builder()
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "75%")
+                .build();
+
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
+        final String expected = "illegal value can't update [cluster.routing.allocation.disk.watermark.high] from [90%] to [75%]";
+        assertThat(e, hasToString(containsString(expected)));
+        assertNotNull(e.getCause());
+        assertNotNull(e.getCause());
+        assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
+        assertThat(cause, hasToString(containsString("high disk watermark [75%] less than high disk watermark [85%]")));
+    }
+
 }

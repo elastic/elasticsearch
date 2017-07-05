@@ -147,5 +147,3 @@ same index, type and id already existed:
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[index-optype]
 --------------------------------------------------
 <1> The raised exception indicates that a version conflict error was returned
-
-

@@ -1,0 +1,157 @@
+[[java-rest-high-search-scroll]]
+=== Search Scroll API
+
+The Scroll API can be used to retrieve a large number of results from
+a search request.
+
+In order to use scrolling, the initial search request must define
+a value for the scroll parameter:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-request]
+--------------------------------------------------
+<1> Create a new `SearchRequest`. See <<java-rest-high-search>>
+for more information on how to build `SearchRequest`.
+<2> Set the `scroll` parameter as a `TimeValue` corresponding to one minute
+
+When executing the `SearchRequest`, Elasticsearch detects the presence
+of the `scroll` parameter and keeps the search context alive during the time
+defined by the parameter.
+
+It then returns a `SearchResponse` that includes a scroll id:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-scroll-id]
+--------------------------------------------------
+<1> Execute the `SearchRequest`
+<2> Retrieve the search hits
+<3> Retrieve the scroll id
+
+This scroll id should be passed to a `SearchScrollRequest`:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-id]
+--------------------------------------------------
+<1> Create a new `SearchScrollRequest`
+<2> Set the `scroll` parameter again to tell Elasticsearch to keep the search context
+alive for another minute
+<3> Set the scroll id
+
+And the `SearchScrollRequest` can be executed using the Search Scroll API in order
+to retrieve the next batch of results:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-execute]
+--------------------------------------------------
+<1> Execute the `SearchScrollRequest`
+<2> Retrieve the next batch of search hits
+<3> Retrieve the next scroll id to use in upcoming requests
+
+Then the same process can be repeated over and over until no more results are
+returned. The initial search request as well as all subsequent scroll requests
+return a scroll id that can be passed to the next scroll request until results
+are exhausted.
+
+Finally, the scroll id can be deleted using the <<java-rest-high-clear-scroll>>.
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[scroll-request-scroll]
+--------------------------------------------------
+<1> Scroll value (ie, the time to keep alive the search context) as a `TimeValue`
+<2> Scroll value (ie, the time to keep alive the search context) as a `String`
+
+[[java-rest-high-search-scroll-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-execute-sync]
+--------------------------------------------------
+
+[[java-rest-high-search-scroll-async]]
+==== Asynchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-execute-async]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+
+[[java-rest-high-clear-scroll]]
+=== Clear Scroll API
+
+The search contexts used by the Scroll API are automatically deleted when the scroll
+times out. But it is advised to release search contexts as soon as they are not
+necessary anymore using the Clear Scroll API:
+
+[[java-rest-high-clear-scroll-request]]
+==== Clear Scroll Request
+
+A `ClearScrollRequest` can be created as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-request]
+--------------------------------------------------
+<1> Create a new `ClearScrollRequest`
+<2> Adds a scroll id to the list of scroll identifiers to clear
+
+==== Providing the scroll identifiers
+The `ClearScrollRequest` allows to clear one or more scroll identifiers in a single request.
+
+The scroll identifier can be added to the request one by one:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-add-scroll-id]
+--------------------------------------------------
+
+Or all together using:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-add-scroll-ids]
+--------------------------------------------------
+
+[[java-rest-high-clear-scroll-sync]]
+==== Synchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-execute]
+--------------------------------------------------
+
+[[java-rest-high-clear-scroll-async]]
+==== Asynchronous Execution
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-execute-async]
+--------------------------------------------------
+<1> Called when the execution is successfully completed. The response is
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
+
+[[java-rest-high-clear-scroll-response]]
+==== Clear Scroll Response
+
+The returned `ClearScrollResponse` allows to retrieve information about the released
+ search contexts:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-response]
+--------------------------------------------------
+<1> Return true if the request succeed
+<2> Return the number of released search contexts

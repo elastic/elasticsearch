@@ -2,6 +2,7 @@
 
 include::_index.asciidoc[]
 include::update.asciidoc[]
+include::get.asciidoc[]
 include::delete.asciidoc[]
 include::bulk.asciidoc[]
 

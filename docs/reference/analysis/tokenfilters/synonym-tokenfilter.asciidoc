@@ -12,17 +12,17 @@ PUT /test_index
     "settings": {
         "index" : {
             "analysis" : {
+                "filter" : {
+                    "synonym" : {
+                        "type" : "synonym", <1>
+                        "synonyms_path" : "analysis/synonym.txt",
+                        "tokenizer" : "whitespace" <2>
+                    }
+                },
                 "analyzer" : {
                     "synonym" : {
                         "tokenizer" : "whitespace",
-                        "filter" : ["synonym"]
-                    }
-                },
-                "filter" : {
-                    "synonym" : {
-                        "type" : "synonym",
-                        "synonyms_path" : "analysis/synonym.txt",
-                        "tokenizer" : "whitespace"
+                        "filter" : ["synonym"] <3>
                     }
                 }
             }
@@ -32,14 +32,13 @@ PUT /test_index
 --------------------------------------------------
 // CONSOLE
 
-The above configures a `synonym` filter, with a path of
-`analysis/synonym.txt` (relative to the `config` location). The
-`synonym` analyzer is then configured with the filter. Additional
-settings are: `ignore_case` (defaults to `false`), and `expand`
-(defaults to `true`).
-
-The `tokenizer` parameter controls the tokenizers that will be used to
-tokenize the synonym, and defaults to the `whitespace` tokenizer.
+<1> We configure a `synonym` filter, with a path of `analysis/synonym.txt`
+    (relative to the `config` location).
+<2> The `tokenizer` parameter controls the tokenizers that will be used to
+    tokenize the synonym, and defaults to the `whitespace` tokenizer.
+    Additional settings are: `ignore_case` (defaults to `false`), and
+    `expand` (defaults to `true`).
+<3> The `synonym` analyzer is then configured with the filter.
 
 Two synonym formats are supported: Solr, WordNet.
 

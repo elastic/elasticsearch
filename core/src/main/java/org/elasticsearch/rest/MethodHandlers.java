@@ -32,7 +32,7 @@ final class MethodHandlers {
     private final String path;
     private final Map<RestRequest.Method, RestHandler> methodHandlers;
 
-    public MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
+    MethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
         this.path = path;
         this.methodHandlers = new HashMap<>(methods.length);
         for (RestRequest.Method method : methods) {

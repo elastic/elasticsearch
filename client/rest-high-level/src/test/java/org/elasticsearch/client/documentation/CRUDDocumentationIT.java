@@ -24,6 +24,8 @@ import org.apache.http.nio.entity.NStringEntity;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -51,6 +53,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -63,6 +66,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 
 /**
  * This class is used to generate the Java CRUD API documentation.
@@ -218,7 +222,6 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
             // end::index-conflict
-
         }
         {
             // tag::index-optype
@@ -239,52 +242,56 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testUpdate() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
-            IndexRequest indexRequest = new IndexRequest("index", "type", "id").source("field", 0);
+            IndexRequest indexRequest = new IndexRequest("posts", "doc", "1").source("field", 0);
             IndexResponse indexResponse = client.index(indexRequest);
             assertSame(indexResponse.status(), RestStatus.CREATED);
 
             XContentType xContentType = XContentType.JSON;
-            BytesRef script = XContentBuilder.builder(xContentType.xContent())
+            String script = XContentBuilder.builder(xContentType.xContent())
                     .startObject()
                         .startObject("script")
                             .field("lang", "painless")
                             .field("code", "ctx._source.field += params.count")
                         .endObject()
-                    .endObject().bytes().toBytesRef();
-            HttpEntity body = new ByteArrayEntity(script.bytes, script.offset, script.length, ContentType.create(xContentType.mediaType()));
+                    .endObject().string();
+            HttpEntity body = new NStringEntity(script, ContentType.create(xContentType.mediaType()));
             Response response = client().performRequest(HttpPost.METHOD_NAME, "/_scripts/increment-field", emptyMap(), body);
             assertEquals(response.getStatusLine().getStatusCode(), RestStatus.OK.getStatus());
         }
         {
             //tag::update-request
             UpdateRequest request = new UpdateRequest(
-                    "index", // <1>
-                    "type",  // <2>
-                    "id");   // <3>
+                    "posts", // <1>
+                    "doc",  // <2>
+                    "1");   // <3>
             //end::update-request
+            request.fetchSource(true);
             //tag::update-request-with-inline-script
-            Map<String, Object> parameters = new HashMap<>(); // <1>
-            parameters.put("count", 4);
+            Map<String, Object> parameters = singletonMap("count", 4); // <1>
 
             Script inline = new Script(ScriptType.INLINE, "painless", "ctx._source.field += params.count", parameters);  // <2>
             request.script(inline);  // <3>
             //end::update-request-with-inline-script
-
-            if (randomBoolean()) {
-                //tag::update-request-with-stored-script
-                Script stored = new Script(ScriptType.STORED, "painless", "increment-field", parameters);  // <1>
-                request.script(stored);  // <2>
-                //end::update-request-with-stored-script
-            }
             UpdateResponse updateResponse = client.update(request);
             assertEquals(updateResponse.getResult(), DocWriteResponse.Result.UPDATED);
+            assertEquals(4, updateResponse.getGetResult().getSource().get("field"));
+
+            request = new UpdateRequest("posts", "doc", "1").fetchSource(true);
+            //tag::update-request-with-stored-script
+            Script stored =
+                    new Script(ScriptType.STORED, "painless", "increment-field", parameters);  // <1>
+            request.script(stored);  // <2>
+            //end::update-request-with-stored-script
+            updateResponse = client.update(request);
+            assertEquals(updateResponse.getResult(), DocWriteResponse.Result.UPDATED);
+            assertEquals(8, updateResponse.getGetResult().getSource().get("field"));
         }
         {
             //tag::update-request-with-doc-as-map
             Map<String, Object> jsonMap = new HashMap<>();
             jsonMap.put("updated", new Date());
             jsonMap.put("reason", "daily update");
-            UpdateRequest request = new UpdateRequest("index", "type", "id")
+            UpdateRequest request = new UpdateRequest("posts", "doc", "1")
                     .doc(jsonMap); // <1>
             //end::update-request-with-doc-as-map
             UpdateResponse updateResponse = client.update(request);
@@ -299,7 +306,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 builder.field("reason", "daily update");
             }
             builder.endObject();
-            UpdateRequest request = new UpdateRequest("index", "type", "id")
+            UpdateRequest request = new UpdateRequest("posts", "doc", "1")
                     .doc(builder);  // <1>
             //end::update-request-with-doc-as-xcontent
             UpdateResponse updateResponse = client.update(request);
@@ -307,7 +314,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::update-request-shortcut
-            UpdateRequest request = new UpdateRequest("index", "type", "id")
+            UpdateRequest request = new UpdateRequest("posts", "doc", "1")
                     .doc("updated", new Date(),
                          "reason", "daily update"); // <1>
             //end::update-request-shortcut
@@ -316,14 +323,14 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             //tag::update-request-with-doc-as-string
-            UpdateRequest request = new UpdateRequest("index", "type", "id");
+            UpdateRequest request = new UpdateRequest("posts", "doc", "1");
             String jsonString = "{" +
                     "\"updated\":\"2017-01-01\"," +
                     "\"reason\":\"daily update\"" +
                     "}";
             request.doc(jsonString, XContentType.JSON); // <1>
             //end::update-request-with-doc-as-string
-
+            request.fetchSource(true);
             // tag::update-execute
             UpdateResponse updateResponse = client.update(request);
             // end::update-execute
@@ -344,6 +351,19 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 // <4>
             }
             // end::update-response
+
+            // tag::update-getresult
+            GetResult result = updateResponse.getGetResult(); // <1>
+            if (result.isExists()) {
+                String sourceAsString = result.sourceAsString(); // <2>
+                Map<String, Object> sourceAsMap = result.sourceAsMap(); // <3>
+                byte[] sourceAsBytes = result.source(); // <4>
+            } else {
+                // <5>
+            }
+            // end::update-getresult
+            assertNotNull(result);
+            assertEquals(3, result.sourceAsMap().size());
             // tag::update-failure
             ReplicationResponse.ShardInfo shardInfo = updateResponse.getShardInfo();
             if (shardInfo.getTotal() != shardInfo.getSuccessful()) {
@@ -371,8 +391,20 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::update-execute-async
         }
         {
+            //tag::update-docnotfound
+            UpdateRequest request = new UpdateRequest("posts", "type", "does_not_exist").doc("field", "value");
+            try {
+                UpdateResponse updateResponse = client.update(request);
+            } catch (ElasticsearchException e) {
+                if (e.status() == RestStatus.NOT_FOUND) {
+                    // <1>
+                }
+            }
+            //end::update-docnotfound
+        }
+        {
             // tag::update-conflict
-            UpdateRequest request = new UpdateRequest("index", "type", "id")
+            UpdateRequest request = new UpdateRequest("posts", "doc", "1")
                     .doc("field", "value")
                     .version(1);
             try {
@@ -385,7 +417,45 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::update-conflict
         }
         {
-            UpdateRequest request = new UpdateRequest("index", "type", "id");
+            UpdateRequest request = new UpdateRequest("posts", "doc", "1").doc("reason", "no source");
+            //tag::update-request-no-source
+            request.fetchSource(true); // <1>
+            //end::update-request-no-source
+            UpdateResponse updateResponse = client.update(request);
+            assertEquals(updateResponse.getResult(), DocWriteResponse.Result.UPDATED);
+            assertNotNull(updateResponse.getGetResult());
+            assertEquals(3, updateResponse.getGetResult().sourceAsMap().size());
+        }
+        {
+            UpdateRequest request = new UpdateRequest("posts", "doc", "1").doc("reason", "source includes");
+            //tag::update-request-source-include
+            String[] includes = new String[]{"updated", "r*"};
+            String[] excludes = Strings.EMPTY_ARRAY;
+            request.fetchSource(new FetchSourceContext(true, includes, excludes)); // <1>
+            //end::update-request-source-include
+            UpdateResponse updateResponse = client.update(request);
+            assertEquals(updateResponse.getResult(), DocWriteResponse.Result.UPDATED);
+            Map<String, Object> sourceAsMap = updateResponse.getGetResult().sourceAsMap();
+            assertEquals(2, sourceAsMap.size());
+            assertEquals("source includes", sourceAsMap.get("reason"));
+            assertTrue(sourceAsMap.containsKey("updated"));
+        }
+        {
+            UpdateRequest request = new UpdateRequest("posts", "doc", "1").doc("reason", "source excludes");
+            //tag::update-request-source-exclude
+            String[] includes = Strings.EMPTY_ARRAY;
+            String[] excludes = new String[]{"updated"};
+            request.fetchSource(new FetchSourceContext(true, includes, excludes)); // <1>
+            //end::update-request-source-exclude
+            UpdateResponse updateResponse = client.update(request);
+            assertEquals(updateResponse.getResult(), DocWriteResponse.Result.UPDATED);
+            Map<String, Object> sourceAsMap = updateResponse.getGetResult().sourceAsMap();
+            assertEquals(2, sourceAsMap.size());
+            assertEquals("source excludes", sourceAsMap.get("reason"));
+            assertTrue(sourceAsMap.containsKey("field"));
+        }
+        {
+            UpdateRequest request = new UpdateRequest("posts", "doc", "id");
             // tag::update-request-routing
             request.routing("routing"); // <1>
             // end::update-request-routing
@@ -396,6 +466,9 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.timeout(TimeValue.timeValueSeconds(1)); // <1>
             request.timeout("1s"); // <2>
             // end::update-request-timeout
+            // tag::update-request-retry
+            request.retryOnConflict(3); // <1>
+            // end::update-request-retry
             // tag::update-request-refresh
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL); // <1>
             request.setRefreshPolicy("wait_for");                            // <2>
@@ -407,9 +480,7 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             request.detectNoop(false); // <1>
             // end::update-request-detect-noop
             // tag::update-request-upsert
-            String jsonString = "{" +
-                    "\"created\":\"2017-01-01\"" +
-                    "}";
+            String jsonString = "{\"created\":\"2017-01-01\"}";
             request.upsert(jsonString, XContentType.JSON);  // <1>
             // end::update-request-upsert
             // tag::update-request-scripted-upsert
@@ -418,6 +489,10 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::update-request-doc-upsert
             request.docAsUpsert(true); // <1>
             // end::update-request-doc-upsert
+            // tag::update-request-active-shards
+            request.waitForActiveShards(2); // <1>
+            request.waitForActiveShards(ActiveShardCount.ALL); // <2>
+            // end::update-request-active-shards
         }
     }
 

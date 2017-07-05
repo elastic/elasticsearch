@@ -26,7 +26,7 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-with-inline-
 --------------------------------------------------
 <1> Script parameters provided as a `Map` of objects
 <2> Create an inline script using the `painless` language and the previous parameters
-<3> Sets the script in the update request
+<3> Sets the script to the update request
 
 Or as a stored script:
 
@@ -38,7 +38,7 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-with-stored-
 <2> Sets the script in the update request
 
 ==== Updates with a partial document
-When using updates with a partial document, the partial document will be merged into the
+When using updates with a partial document, the partial document will be merged with the
 existing document.
 
 The partial document can be provided in different ways:
@@ -115,6 +115,32 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-refresh]
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-retry]
+--------------------------------------------------
+<1> How many times to retry the update operation if the document to update has
+been changed by another operation between the start and the end of the current
+update operation.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-no-source]
+--------------------------------------------------
+<1> Enable source retrieval, disabled by default
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-source-include]
+--------------------------------------------------
+<1> Configure source inclusion for specific fields
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-source-exclude]
+--------------------------------------------------
+<1> Configure source exclusion for specific fields
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-version]
 --------------------------------------------------
 <1> Version
@@ -138,6 +164,15 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-doc-upsert]
 --------------------------------------------------
 <1> Indicate that the partial document must be used as the upsert document if it
 does not exist yet.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-request-active-shards]
+--------------------------------------------------
+<1> Sets the number of shard copies that must be active before proceeding with
+the update operation.
+<2> Number of shard copies provided as a `ActiveShardCount`: can be `ActiveShardCount.ALL`,
+`ActiveShardCount.ONE` or `ActiveShardCount.DEFAULT` (default)
 
 [[java-rest-high-document-update-sync]]
 ==== Synchronous Execution
@@ -168,12 +203,25 @@ The returned `UpdateResponse` allows to retrieve information about the executed
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-response]
 --------------------------------------------------
-<1> Handle the case where the document was created for the first time
+<1> Handle the case where the document was created for the first time (upsert)
 <2> Handle the case where the document was updated
 <3> Handle the case where the document was deleted
 <4> Handle the case where the document was not impacted by the update,
 ie no operation (noop) was executed on the document
 
+When the source retrieval is enabled in the `UpdateRequest` using the `fetchSource(true)`
+method, the response contains the source of the updated document:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-getresult]
+--------------------------------------------------
+<1> Retrieve the updated document as a `GetResult`
+<2> Retrieve the source of the updated document as a `String`
+<3> Retrieve the source of the updated document as a `Map<String, Object>`
+<4> Retrieve the source of the updated document as a `byte[]`
+<5> Handle the scenario where the source of the document is not present in
+the response (this is the case by default)
 
 It is also possible to check for shard failures:
 
@@ -185,6 +233,15 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-failure]
 total shards
 <2> Handle the potential failures
 
+When a `UpdateRequest` is performed against a document that does not exist,
+the response has `404` status code, an `ElasticsearchException` gets thrown
+which needs to be handled as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[update-docnotfound]
+--------------------------------------------------
+<1> Handle the exception thrown because the document not exist
 
 If there is a version conflict, an `ElasticsearchException` will
 be thrown:

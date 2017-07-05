@@ -387,7 +387,14 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
     @Override
     protected void closeChannels(final List<Channel> channels) throws IOException {
-        Netty4Utils.closeChannels(channels);
+        for (Channel channel : channels) {
+            ChannelFuture closeFuture = channel.close();
+            closeFuture.addListener((f) -> {
+                if (f.isSuccess() == false) {
+                    logger.warn("failed to close channel", f.cause());
+                }
+            });
+        }
     }
 
     @Override

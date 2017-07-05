@@ -562,7 +562,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         if (runOnce.compareAndSet(false, true)) {
                             NodeChannels connection = connectionRef.get();
                             if (connection != null) {
-                                threadPool.generic().execute(() -> disconnectFromNodeCloseAndNotify(node, connection));
+                                disconnectFromNodeCloseAndNotify(node, connection);
                             }
                         }
                     }

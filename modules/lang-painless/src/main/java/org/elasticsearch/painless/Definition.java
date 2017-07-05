@@ -841,7 +841,7 @@ public final class Definition {
             throw new IllegalArgumentException("Invalid method name [" + alias + "] with the struct [" + owner.name + "].");
         }
 
-        MethodKey methodKey = new MethodKey(alias, method.getParameterCount());
+        MethodKey methodKey = new MethodKey(alias, method.getParameterCount() - (augmented ? 1 : 0));
 
         if (owner.staticMethods.containsKey(methodKey) || owner.methods.containsKey(methodKey)) {
             throw new IllegalArgumentException(
@@ -946,38 +946,8 @@ public final class Definition {
             for (Map.Entry<MethodKey,Method> kvPair : child.methods.entrySet()) {
                 MethodKey methodKey = kvPair.getKey();
                 Method method = kvPair.getValue();
+
                 if (owner.methods.get(methodKey) == null) {
-                    // sanity check, look for missing covariant/generic override
-                    if (owner.clazz.isInterface() && structsMap.get("def").methods.containsKey(methodKey)) {
-                        // ok
-                    } else if (child.clazz == Spliterator.OfPrimitive.class || child.clazz == PrimitiveIterator.class) {
-                        // ok, we rely on generics erasure for these (its guaranteed in the javadocs though!!!!)
-                    } else if (Constants.JRE_IS_MINIMUM_JAVA9 && owner.clazz == LocalDate.class) {
-                        // ok, java 9 added covariant override for LocalDate.getEra() to return IsoEra:
-                        // https://bugs.openjdk.java.net/browse/JDK-8072746
-                    } else {
-                        try {
-                            final Class<?> impl = method.augmentation == null ? owner.clazz : method.augmentation;
-                            final Class<?> arguments[];
-                            arguments = new Class<?>[method.arguments.size()];
-                            for (int i = 0; i < method.arguments.size(); i++) {
-                                arguments[i] = method.arguments.get(i).clazz;
-                            }
-                            java.lang.reflect.Method m = impl.getMethod(method.method.getName(), arguments);
-                            if (m.getReturnType() != method.rtn.clazz) {
-                                throw new IllegalStateException("missing covariant override for: " + m + " in " + owner.name);
-                            }
-                            if (m.isBridge() && !Modifier.isVolatile(method.modifiers)) {
-                                // its a bridge in the destination, but not in the source, but it might still be ok, check generics:
-                                java.lang.reflect.Method source = child.clazz.getMethod(method.method.getName(), arguments);
-                                if (!Arrays.equals(source.getGenericParameterTypes(), source.getParameterTypes())) {
-                                    throw new IllegalStateException("missing generic override for: " + m + " in " + owner.name);
-                                }
-                            }
-                        } catch (ReflectiveOperationException e) {
-                            throw new AssertionError(e);
-                        }
-                    }
                     owner.methods.put(methodKey, method);
                 }
             }

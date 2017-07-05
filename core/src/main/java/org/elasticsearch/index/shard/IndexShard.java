@@ -467,6 +467,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 () -> {
                     latch.await();
                     try {
+                        getEngine().restoreLocalCheckpointTracker(getLocalCheckpoint());
                         getEngine().fillSeqNoGaps(newPrimaryTerm);
                         primaryReplicaSyncer.accept(IndexShard.this, new ActionListener<ResyncTask>() {
                             @Override
@@ -1658,6 +1659,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public long getLocalCheckpoint() {
         return getEngine().seqNoService().getLocalCheckpoint();
+    }
+
+    /**
+     * Returns the maximum sequence number for the shard.
+     *
+     * @return the maximum sequence number
+     */
+    public long getMaxSeqNo() {
+        return getEngine().seqNoService().getMaxSeqNo();
     }
 
     /**

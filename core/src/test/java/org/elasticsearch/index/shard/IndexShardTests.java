@@ -80,7 +80,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -695,6 +694,59 @@ public class IndexShardTests extends IndexShardTestCase {
             thread.join();
             assertEquals(0, indexShard.getActiveOperationsCount());
         }
+
+        closeShards(indexShard);
+    }
+
+    public void testRestoreLocalCheckpointTrackerStateOnPromotion() throws IOException, InterruptedException {
+        final IndexShard indexShard = newStartedShard(false);
+        final int operations = 1024 - scaledRandomIntBetween(0, 1024);
+        indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED));
+
+        final long maxSeqNo = indexShard.getMaxSeqNo();
+        final long globalCheckpointOnReplica = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        randomIntBetween(
+                Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
+                Math.toIntExact(indexShard.getLocalCheckpoint()));
+        indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica);
+
+        final int globalCheckpoint =
+                randomIntBetween(
+                        Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
+                        Math.toIntExact(indexShard.getLocalCheckpoint()));
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        indexShard.acquireReplicaOperationPermit(
+                indexShard.getPrimaryTerm() + 1,
+                globalCheckpoint,
+                new ActionListener<Releasable>() {
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        releasable.close();
+                        latch.countDown();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+
+                    }
+                },
+                ThreadPool.Names.SAME);
+
+        latch.await();
+
+        final ShardRouting newRouting = indexShard.routingEntry().moveActiveReplicaToPrimary();
+        final CountDownLatch resyncLatch = new CountDownLatch(1);
+        indexShard.updateShardState(
+                newRouting,
+                indexShard.getPrimaryTerm() + 1,
+                (s, r) -> resyncLatch.countDown(),
+                1L,
+                Collections.singleton(newRouting.allocationId().getId()),
+                Collections.emptySet());
+        resyncLatch.await();
+        assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
+        assertThat(indexShard.getMaxSeqNo(), equalTo(maxSeqNo));
 
         closeShards(indexShard);
     }

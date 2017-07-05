@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
-import java.util.Collection;
+import org.elasticsearch.xpack.sql.util.StringUtils;
+
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -48,12 +48,12 @@ public abstract class InMemoryCatalog implements Catalog {
     }
 
     @Override
-    public Collection<EsIndex> listIndices() {
-        return indices.values();
+    public List<EsIndex> listIndices() {
+        return new ArrayList<>(indices.values());
     }
 
     @Override
-    public Collection<EsIndex> listIndices(String pattern) {
+    public List<EsIndex> listIndices(String pattern) {
         Pattern p = StringUtils.likeRegex(pattern);
         return indices.entrySet().stream()
             .filter(e -> p.matcher(e.getKey()).matches())
@@ -78,13 +78,13 @@ public abstract class InMemoryCatalog implements Catalog {
     }
 
     @Override
-    public Collection<EsType> listTypes(String index) {
+    public List<EsType> listTypes(String index) {
         Map<String, EsType> typs = types.get(index);
-        return typs != null ? typs.values() : emptyList();
+        return typs != null ? new ArrayList<>(typs.values()) : emptyList();
     }
 
     @Override
-    public Collection<EsType> listTypes(String index, String pattern) {
+    public List<EsType> listTypes(String index, String pattern) {
         Map<String, EsType> typs = types.get(index);
         if (typs == null) {
             return emptyList();

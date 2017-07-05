@@ -51,7 +51,7 @@ public class EsIndex {
         return settings;
     }
 
-    static Collection<EsIndex> build(Iterator<IndexMetaData> metadata) {
+    static List<EsIndex> build(Iterator<IndexMetaData> metadata) {
         if (metadata == null || !metadata.hasNext()) {
             return emptyList();
         }

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.catalog;
 
-import java.util.Collection;
+import java.util.List;
 
 
 public interface Catalog {
@@ -15,15 +15,15 @@ public interface Catalog {
 
     boolean indexExists(String index);
 
-    Collection<EsIndex> listIndices();
+    List<EsIndex> listIndices();
 
-    Collection<EsIndex> listIndices(String pattern);
+    List<EsIndex> listIndices(String pattern);
 
     EsType getType(String index, String type);
 
     boolean typeExists(String index, String type);
 
-    Collection<EsType> listTypes(String index);
+    List<EsType> listTypes(String index);
 
-    Collection<EsType> listTypes(String index, String pattern);
+    List<EsType> listTypes(String index, String pattern);
 }

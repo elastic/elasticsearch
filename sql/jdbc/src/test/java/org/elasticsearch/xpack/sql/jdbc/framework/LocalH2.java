@@ -6,21 +6,36 @@
 package org.elasticsearch.xpack.sql.jdbc.framework;
 
 import org.elasticsearch.common.CheckedSupplier;
-import org.h2.Driver;
 import org.junit.rules.ExternalResource;
 
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.util.Properties;
 import java.util.TimeZone;
 
 public class LocalH2 extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
+    static {
+        try {
+            // Initialize h2 so we can use it for testing
+            Class.forName("org.h2.Driver");
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
-    private final Driver driver = Driver.load();
-    // add any defaults in here
-    private final Properties DEFAULTS = new Properties();
+    /**
+     * Creates an in memory anonymous database and returns the only connection to it.
+     * Closing the connection will remove the db.
+     */
+    public static Connection anonymousDb() throws SQLException {
+        return DriverManager.getConnection("jdbc:h2:mem:;DATABASE_TO_UPPER=false;ALIAS_COLUMN_NAME=true");
+    }
+
+    private static final Properties DEFAULTS = new Properties();
+
     private final String url;
-    // H2 in-memory will keep the db alive as long as the connection is opened
+    // H2 in-memory will keep the db alive as long as this connection is opened
     private Connection keepAlive;
 
     /*
@@ -43,8 +58,8 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
         keepAlive = get();
         TimeZone tz = TimeZone.getDefault();
         try {
-            TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
-            keepAlive.createStatement().execute("RUNSCRIPT FROM 'classpath:/h2-setup.sql'");
+            TimeZone.setDefault(TimeZone.getTimeZone("UTC")); // NOCOMMIT requires permissions we'd rather not grant
+            keepAlive.createStatement().execute("RUNSCRIPT FROM 'classpath:/setup_test_emp.sql'");
         } finally {
             TimeZone.setDefault(tz);
         }
@@ -61,6 +76,6 @@ public class LocalH2 extends ExternalResource implements CheckedSupplier<Connect
 
     @Override
     public Connection get() throws SQLException {
-        return driver.connect(url, DEFAULTS);
+        return DriverManager.getConnection(url, DEFAULTS);
     }
 }

@@ -5,15 +5,16 @@
  */
 package org.elasticsearch.xpack.sql.jdbc.framework;
 
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.Assert;
-import org.junit.ClassRule;
+import org.elasticsearch.common.io.PathUtils;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,36 +23,57 @@ import java.util.Map;
 
 import static java.lang.String.format;
 
-public abstract class SpecBaseIntegrationTestCase extends ESTestCase {
-
+/**
+ * Tests that compare the Elasticsearch JDBC client to some other JDBC client
+ * after loading a specific set of test data.
+ */
+public abstract class SpecBaseIntegrationTestCase extends JdbcIntegrationTestCase {
     protected static final String PARAM_FORMATTNG = "%0$s.test%2$s";
+
+    private static boolean haveSetupTestData;
 
     protected final String groupName;
     protected final String testName;
     protected final Integer lineNumber;
     protected final Path source;
 
-    @ClassRule
-    public static EsJdbcServer ES = new EsJdbcServer();
+    @BeforeClass
+    public static void clearSetupTestData() {
+        haveSetupTestData = false;
+    }
 
-    //
-    //    This typically is uncommented when starting up a new instance of ES
-    //
-    //    @BeforeClass
-    //    public static void start() throws Exception {
-    //        TestUtils.loadDatasetInEs(TestUtils.restClient("localhost", 9200));
-    //        System.out.println("Loaded dataset in ES");
-    //    }
+    @Before
+    public void setupTestData() throws Exception {
+        if (haveSetupTestData) {
+            // We only need to load the test data once
+            return;
+        }
+        loadDatasetIntoEs();
+        haveSetupTestData = true;
+    }
+
+    @AfterClass
+    public static void cleanupTestData() throws IOException {
+        try {
+            client().performRequest("DELETE", "/*");
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() != 404) {
+                // 404 means no indices which shouldn't cause a failure
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
 
     public SpecBaseIntegrationTestCase(String groupName, String testName, Integer lineNumber, Path source) {
         this.groupName = groupName;
         this.testName = testName;
         this.lineNumber = lineNumber;
         this.source = source;
-    }
-
-    public Connection esCon() throws Exception {
-        return ES.get();
     }
 
     protected Throwable reworkException(Throwable th) {
@@ -63,14 +85,14 @@ public abstract class SpecBaseIntegrationTestCase extends ESTestCase {
         th.setStackTrace(redone);
         return th;
     }
-    
+
     //
     // spec reader
     //
     
     // returns groupName, testName, its line location, its source and the custom object (based on each test parser)
     protected static List<Object[]> readScriptSpec(String url, Parser parser) throws Exception {
-        Path source = Paths.get(TestUtils.class.getResource(url).toURI());
+        Path source = PathUtils.get(SpecBaseIntegrationTestCase.class.getResource(url).toURI());
         String fileName = source.getFileName().toString();
         int dot = fileName.indexOf(".");
         String groupName = dot > 0 ? fileName.substring(0, dot) : fileName;
@@ -105,7 +127,7 @@ public abstract class SpecBaseIntegrationTestCase extends ESTestCase {
                 }
             }
         }
-        Assert.assertNull("Cannot find spec for test " + testName, testName);
+        assertNull("Cannot find spec for test " + testName, testName);
 
         return pairs;
     }

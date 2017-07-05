@@ -44,15 +44,12 @@ dependencies {
   compile project(':x-pack-elasticsearch:sql:net-client')
   compile project(':x-pack-elasticsearch:sql:jdbc-proto')
 
-  testCompile project(":x-pack-elasticsearch:transport-client") // NOCOMMIT probably can remove this
+  testCompile project(path: ':client:transport', configuration: 'runtime')
   testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
   testCompile project(':x-pack-elasticsearch:sql:test-utils')
-
-  // Used by the hack to run InternalTestCluster if not running against a gradle-started cluster.
-  testCompile project(path: ':modules:lang-painless', configuration: 'runtime')
+  testCompile "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
 
   testRuntime "com.h2database:h2:1.4.194"
-  testRuntime "net.sourceforge.csvjdbc:csvjdbc:1.0.31"
 }
 
 dependencyLicenses {
@@ -80,6 +77,7 @@ integTestCluster {
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
+  setting 'script.max_compilations_per_minute', '1000'
 }
 
 task run(type: RunTask) {
@@ -91,4 +89,22 @@ task run(type: RunTask) {
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
+  setting 'script.max_compilations_per_minute', '1000'
+}
+
+// Allow for com.sun.net.httpserver.* usage for testing
+eclipse {
+  classpath.file {
+    whenMerged { cp ->
+      def con = entries.find { e ->
+        e.kind == "con" && e.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER")
+      }
+      con.accessRules.add(new org.gradle.plugins.ide.eclipse.model.AccessRule(
+        "accessible", "com/sun/net/httpserver/*"))
+    }
+  }
+}
+forbiddenApisTest {
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
 }

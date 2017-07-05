@@ -9,12 +9,17 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
+import java.util.Calendar;
+import java.util.Locale;
+import java.util.TimeZone;
 
 import static org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcUtils.nameOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class JdbcAssert {
+    private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
+
     public static void assertResultSets(ResultSet expected, ResultSet actual) throws SQLException {
         assertResultSetMetadata(expected, actual);
         assertResultSetData(expected, actual);
@@ -86,6 +91,6 @@ public class JdbcAssert {
     }
 
     private static Object getTime(ResultSet rs, int column) throws SQLException {
-        return rs.getTime(column, TestUtils.UTC_CALENDAR).getTime();
+        return rs.getTime(column, UTC_CALENDAR).getTime();
     }
 }

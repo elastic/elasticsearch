@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.function.Supplier;
@@ -54,12 +53,12 @@ public class EsCatalog implements Catalog {
     }
 
     @Override
-    public Collection<EsIndex> listIndices() {
+    public List<EsIndex> listIndices() {
         return listIndices(null);
     }
 
     @Override
-    public Collection<EsIndex> listIndices(String pattern) {
+    public List<EsIndex> listIndices(String pattern) {
         Iterator<IndexMetaData> indexMetadata = null;
         MetaData md = metadata();
         if (pattern == null) {
@@ -97,12 +96,12 @@ public class EsCatalog implements Catalog {
     }
 
     @Override
-    public Collection<EsType> listTypes(String index) {
+    public List<EsType> listTypes(String index) {
         return listTypes(index, null);
     }
 
     @Override
-    public Collection<EsType> listTypes(String indexPattern, String pattern) {
+    public List<EsType> listTypes(String indexPattern, String pattern) {
         if (!Strings.hasText(indexPattern)) {
             indexPattern = WILDCARD;
         }

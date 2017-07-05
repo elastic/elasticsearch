@@ -9,11 +9,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
 import org.elasticsearch.xpack.sql.test.server.ProtoHttpServer;
 
+/**
+ * Internal server used for testing without starting a new Elasticsearch instance.
+ */
 public class CliHttpServer extends ProtoHttpServer<Response> {
-    // NOCOMMIT replace me with the same hack that JdbcIntegrationTestCase uses
-
     public CliHttpServer(Client client) {
-        super(client, new CliProtoHandler(client), "/cli/", "sql/");
+        super(client, new CliProtoHandler(client), "/cli/");
     }
 
     @Override

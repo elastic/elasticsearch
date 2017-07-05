@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.jdbc.h2;
+package org.elasticsearch.xpack.sql.jdbc;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
@@ -11,20 +11,21 @@ import org.elasticsearch.xpack.sql.jdbc.framework.LocalH2;
 import org.elasticsearch.xpack.sql.jdbc.framework.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.util.CollectionUtils;
 import org.junit.ClassRule;
-import org.junit.Test;
 
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.sql.jdbc.framework.JdbcAssert.assertResultSets;
 
-public class SqlSpecIntegrationTest extends SpecBaseIntegrationTestCase {
-
+/**
+ * Tests comparing sql queries executed against our jdbc client
+ * with those executed against H2's jdbc client.
+ */
+public class SqlSpecIT extends SpecBaseIntegrationTestCase {
     private String query;
 
     @ClassRule
@@ -48,20 +49,14 @@ public class SqlSpecIntegrationTest extends SpecBaseIntegrationTestCase {
         }
     }
 
-    public Connection h2Con() throws SQLException {
-        return H2.get();
-    }
-    
-    public SqlSpecIntegrationTest(String groupName, String testName, Integer lineNumber, Path source, String query) {
+    public SqlSpecIT(String groupName, String testName, Integer lineNumber, Path source, String query) {
         super(groupName, testName, lineNumber, source);
         this.query = query;
     }
 
-    @Test
-    public void testQuery() throws Throwable {
-        // H2 resultset
-        try (Connection h2 = h2Con(); 
-             Connection es = esCon()) {
+    public void test() throws Throwable {
+        try (Connection h2 = H2.get(); 
+             Connection es = esJdbc()) {
             ResultSet expected, actual;
             try {
                 expected = h2.createStatement().executeQuery(query);

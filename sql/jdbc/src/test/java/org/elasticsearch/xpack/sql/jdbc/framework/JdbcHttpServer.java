@@ -9,6 +9,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.Response;
 import org.elasticsearch.xpack.sql.test.server.ProtoHttpServer;
 
+/**
+ * Internal server used for testing without starting a new Elasticsearch instance.
+ */
 public class JdbcHttpServer extends ProtoHttpServer<Response> {
 
     public JdbcHttpServer(Client client) {

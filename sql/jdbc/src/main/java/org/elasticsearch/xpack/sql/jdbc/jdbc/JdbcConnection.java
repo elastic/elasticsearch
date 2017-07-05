@@ -433,11 +433,12 @@ public class JdbcConnection implements Connection, JdbcWrapper {
         return userName;
     }
 
-    int esInfoMajorVersion() throws SQLException {
+    // NOCOMMIT should this be one of those wrapped things?
+    public int esInfoMajorVersion() throws SQLException {
         return client.serverInfo().majorVersion;
     }
 
-    int esInfoMinorVersion() throws SQLException {
+    public int esInfoMinorVersion() throws SQLException {
         return client.serverInfo().minorVersion;
     }
 }

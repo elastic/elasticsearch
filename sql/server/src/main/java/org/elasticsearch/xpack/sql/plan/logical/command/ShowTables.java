@@ -5,10 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.xpack.sql.analysis.catalog.EsType;
 import org.elasticsearch.xpack.sql.expression.Attribute;
 import org.elasticsearch.xpack.sql.expression.RootFieldAttribute;
@@ -18,7 +14,12 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.tree.Location;
 import org.elasticsearch.xpack.sql.type.DataTypes;
 
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+
 import static java.util.Arrays.asList;
+import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
 
 public class ShowTables extends Command {
@@ -47,8 +48,10 @@ public class ShowTables extends Command {
 
     @Override
     protected RowSetCursor execute(SqlSession session) {
-        Collection<EsType> types = session.catalog().listTypes(index, pattern);
-        
+        List<EsType> types = session.catalog().listTypes(index, pattern);
+        // Consistent sorting is nice both for testing and humans
+        Collections.sort(types, comparing(EsType::index).thenComparing(EsType::name));
+
         return Rows.of(output(), types.stream()
                 .map(t -> asList(t.index(), t.name()))
                 .collect(toList()));

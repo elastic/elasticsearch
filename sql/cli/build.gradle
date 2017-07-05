@@ -128,3 +128,20 @@ task runServer(type: RunTask) {
   setting 'xpack.watcher.enabled', 'false'
   run.dependsOn this
 }
+
+// Allow for com.sun.net.httpserver.* usage for testing
+eclipse {
+  classpath.file {
+    whenMerged { cp ->
+      def con = entries.find { e ->
+        e.kind == "con" && e.toString().contains("org.eclipse.jdt.launching.JRE_CONTAINER")
+      }
+      con.accessRules.add(new org.gradle.plugins.ide.eclipse.model.AccessRule(
+        "accessible", "com/sun/net/httpserver/*"))
+    }
+  }
+}
+forbiddenApisTest {
+  bundledSignatures -= 'jdk-non-portable'
+  bundledSignatures += 'jdk-internal'
+}

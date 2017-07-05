@@ -156,9 +156,7 @@ public class DiskThresholdMonitor extends AbstractComponent {
                 logger.info("rerouting shards: [{}]", explanation);
                 reroute();
             }
-            indicesToMarkReadOnly.removeIf(index ->
-                state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index)
-            );
+            indicesToMarkReadOnly.removeIf(index -> state.getBlocks().indexBlocked(ClusterBlockLevel.WRITE, index));
             if (indicesToMarkReadOnly.isEmpty() == false) {
                 markIndicesReadOnly(indicesToMarkReadOnly);
             }

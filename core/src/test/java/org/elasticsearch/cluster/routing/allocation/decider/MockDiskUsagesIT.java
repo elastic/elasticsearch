@@ -74,7 +74,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), randomFrom("20b", "80%"))
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), randomFrom("10b", "90%"))
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_SETTING.getKey(), randomFrom("0b", "100%"))
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), randomFrom("0b", "100%"))
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "1ms")).get();
         // Create an index with 10 shards so we can check allocation for it
         prepareCreate("test").setSettings(Settings.builder()

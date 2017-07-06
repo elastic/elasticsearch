@@ -45,16 +45,14 @@ dependencies {
 
 === Usage
 
-Once a `RestClient` instance has been created, a `Sniffer` can be associated
-to it. The `Sniffer` will make use of the provided `RestClient` to periodically
-(every 5 minutes by default) fetch the list of current nodes from the cluster
+Once a `RestClient` instance has been created as shown in <<java-rest-low-usage-initialization>>,
+a `Sniffer` can be associated to it. The `Sniffer` will make use of the provided `RestClient`
+to periodically (every 5 minutes by default) fetch the list of current nodes from the cluster
 and update them by calling `RestClient#setHosts`.
 
-
-
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-Sniffer sniffer = Sniffer.builder(restClient).build();
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniffer-init]
 --------------------------------------------------
 
 It is important to close the `Sniffer` so that its background thread gets
@@ -62,43 +60,17 @@ properly shutdown and all of its resources are released. The `Sniffer`
 object should have the same lifecycle as the `RestClient` and get closed
 right before the client:
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-sniffer.close();
-restClient.close();
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniffer-close]
 --------------------------------------------------
-
-The Elasticsearch Nodes Info api doesn't return the protocol to use when
-connecting to the nodes but only their `host:port` key-pair, hence `http`
-is used by default. In case `https` should be used instead, the
-`ElasticsearchHostsSniffer` object has to be manually created and provided
-as follows:
-
-[source,java]
---------------------------------------------------
-HostsSniffer hostsSniffer = new ElasticsearchHostsSniffer(restClient,
-        ElasticsearchHostsSniffer.DEFAULT_SNIFF_REQUEST_TIMEOUT,
-        ElasticsearchHostsSniffer.Scheme.HTTPS);
-Sniffer sniffer = Sniffer.builder(restClient)
-        .setHostsSniffer(hostsSniffer).build();
---------------------------------------------------
-
-In the same way it is also possible to customize the `sniffRequestTimeout`,
-which defaults to one second. That is the `timeout` parameter provided as a
-querystring parameter when calling the Nodes Info api, so that when the
-timeout expires on the server side, a valid response is still returned
-although it may contain only a subset of the nodes that are part of the
-cluster, the ones that have responsed until then.
-Also, a custom `HostsSniffer` implementation can be provided for advanced
-use-cases that may require fetching the hosts from external sources.
 
 The `Sniffer` updates the nodes by default every 5 minutes. This interval can
 be customized by providing it (in milliseconds) as follows:
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-Sniffer sniffer = Sniffer.builder(restClient)
-        .setSniffIntervalMillis(60000).build();
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniffer-interval]
 --------------------------------------------------
 
 It is also possible to enable sniffing on failure, meaning that after each
@@ -109,26 +81,49 @@ be created at first and provided at `RestClient` creation. Also once the
 `SniffOnFailureListener` instance, which will be notified at each failure
 and use the `Sniffer` to perform the additional sniffing round as described.
 
-[source,java]
+["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-SniffOnFailureListener sniffOnFailureListener = new SniffOnFailureListener();
-RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
-        .setFailureListener(sniffOnFailureListener).build();
-Sniffer sniffer = Sniffer.builder(restClient).build();
-sniffOnFailureListener.setSniffer(sniffer);
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniff-on-failure]
 --------------------------------------------------
-
-When using sniffing on failure, not only do the nodes get updated after each
+<1> Set the failure listener to the `RestClient` instance
+<2> When sniffing on failure, not only do the nodes get updated after each
 failure, but an additional sniffing round is also scheduled sooner than usual,
 by default one minute after the failure, assuming that things will go back to
-normal and we want  to detect that as soon as possible. Said interval can be
-customized  at `Sniffer` creation time as follows:
-
-[source,java]
---------------------------------------------------
-Sniffer sniffer = Sniffer.builder(restClient)
-        .setSniffAfterFailureDelayMillis(30000).build();
---------------------------------------------------
-
-Note that this last configuration parameter has no effect in case sniffing
+normal and we want to detect that as soon as possible. Said interval can be
+customized  at `Sniffer` creation time through the `setSniffAfterFailureDelayMillis`
+method. Note that this last configuration parameter has no effect in case sniffing
 on failure is not enabled like explained above.
+<3> Set the `Sniffer` instance to the failure listener
+
+The Elasticsearch Nodes Info api doesn't return the protocol to use when
+connecting to the nodes but only their `host:port` key-pair, hence `http`
+is used by default. In case `https` should be used instead, the
+`ElasticsearchHostsSniffer` instance has to be manually created and provided
+as follows:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniffer-https]
+--------------------------------------------------
+
+In the same way it is also possible to customize the `sniffRequestTimeout`,
+which defaults to one second. That is the `timeout` parameter provided as a
+querystring parameter when calling the Nodes Info api, so that when the
+timeout expires on the server side, a valid response is still returned
+although it may contain only a subset of the nodes that are part of the
+cluster, the ones that have responded until then.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnifferDocumentation.java[sniff-request-timeout]
+--------------------------------------------------
+
+Also, a custom `HostsSniffer` implementation can be provided for advanced
+use-cases that may require fetching the hosts from external sources rather
+than from Elasticsearch:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SnifferDocumentation.java[custom-hosts-sniffer]
+--------------------------------------------------
+<1> Fetch the hosts from the external source

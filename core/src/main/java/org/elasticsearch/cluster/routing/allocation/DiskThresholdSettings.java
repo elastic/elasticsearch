@@ -27,11 +27,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.common.unit.TimeValue;
 
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.Locale;
-import java.util.Map;
-
 /**
  * A container to keep settings for disk thresholds up to date with cluster setting changes.
  */
@@ -42,17 +37,14 @@ public class DiskThresholdSettings {
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING =
         new Setting<>("cluster.routing.allocation.disk.watermark.low", "85%",
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.low"),
-            new LowDiskWatermarkValidator(),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING =
         new Setting<>("cluster.routing.allocation.disk.watermark.high", "90%",
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.high"),
-            new HighDiskWatermarkValidator(),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<String> CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING =
         new Setting<>("cluster.routing.allocation.disk.watermark.floodstage", "95%",
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.floodstage"),
-            new FloodStageValidator(),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING =
         Setting.boolSetting("cluster.routing.allocation.disk.include_relocations", true,
@@ -90,116 +82,6 @@ public class DiskThresholdSettings {
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING, this::setIncludeRelocations);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
-    }
-
-    static final class LowDiskWatermarkValidator implements Setting.Validator<String> {
-
-        @Override
-        public void validate(String value, Map<Setting<String>, String> settings) {
-            final String highWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
-            final String floodStageRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
-            doValidate(value, highWatermarkRaw, floodStageRaw);
-        }
-
-        @Override
-        public Iterator<Setting<String>> settings() {
-            return Arrays.asList(
-                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING)
-                    .iterator();
-        }
-
-    }
-
-    static final class HighDiskWatermarkValidator implements Setting.Validator<String> {
-
-        @Override
-        public void validate(String value, Map<Setting<String>, String> settings) {
-            final String lowWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
-            final String floodStageRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING);
-            doValidate(lowWatermarkRaw, value, floodStageRaw);
-        }
-
-        @Override
-        public Iterator<Setting<String>> settings() {
-            return Arrays.asList(
-                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING)
-                    .iterator();
-        }
-
-    }
-
-    static final class FloodStageValidator implements Setting.Validator<String> {
-
-        @Override
-        public void validate(String value, Map<Setting<String>, String> settings) {
-            final String lowWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING);
-            final String highWatermarkRaw = settings.get(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING);
-            doValidate(lowWatermarkRaw, highWatermarkRaw, value);
-        }
-
-        @Override
-        public Iterator<Setting<String>> settings() {
-            return Arrays.asList(
-                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
-                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING)
-                    .iterator();
-        }
-    }
-
-    private static void doValidate(String low, String high, String flood) {
-        try {
-            doValidateAsPercentage(low, high, flood);
-            return; // early return so that we do not try to parse as bytes
-        } catch (final ElasticsearchParseException e) {
-            // swallow as we are now going to try to parse as bytes
-        }
-        try {
-            doValidateAsBytes(low, high, flood);
-        } catch (final ElasticsearchParseException e) {
-            final String message = String.format(
-                    Locale.ROOT,
-                    "unable to consistently parse [%s=%s], [%s=%s], and [%s=%s] as percentage or bytes",
-                    CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
-                    low,
-                    CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
-                    high,
-                    CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
-                    flood);
-            throw new IllegalArgumentException(message, e);
-        }
-    }
-
-    private static void doValidateAsPercentage(final String low, final String high, final String flood) {
-        final double lowWatermarkThreshold = thresholdPercentageFromWatermark(low, false);
-        final double highWatermarkThreshold = thresholdPercentageFromWatermark(high, false);
-        final double floodThreshold = thresholdPercentageFromWatermark(flood, false);
-        if (lowWatermarkThreshold > highWatermarkThreshold) {
-            throw new IllegalArgumentException(
-                    "low disk watermark [" + low + "] more than high disk watermark [" + high + "]");
-        }
-        if (highWatermarkThreshold > floodThreshold) {
-            throw new IllegalArgumentException(
-                    "high disk watermark [" + high + "] more than flood stage disk watermark [" + flood + "]");
-        }
-    }
-
-    private static void doValidateAsBytes(final String low, final String high, final String flood) {
-        final ByteSizeValue lowWatermarkBytes =
-                thresholdBytesFromWatermark(low, CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), false);
-        final ByteSizeValue highWatermarkBytes =
-                thresholdBytesFromWatermark(high, CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), false);
-        final ByteSizeValue floodStageBytes =
-                thresholdBytesFromWatermark(flood, CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), false);
-        if (lowWatermarkBytes.getBytes() < highWatermarkBytes.getBytes()) {
-            throw new IllegalArgumentException(
-                    "low disk watermark [" + low + "] less than high disk watermark [" + high + "]");
-        }
-        if (highWatermarkBytes.getBytes() < floodStageBytes.getBytes()) {
-            throw new IllegalArgumentException(
-                    "high disk watermark [" + high + "] less than flood stage disk watermark [" + flood + "]");
-        }
     }
 
     private void setIncludeRelocations(boolean includeRelocations) {
@@ -296,28 +178,13 @@ public class DiskThresholdSettings {
      * Attempts to parse the watermark into a percentage, returning 100.0% if
      * it cannot be parsed.
      */
-    private static double thresholdPercentageFromWatermark(String watermark) {
-        return thresholdPercentageFromWatermark(watermark, true);
-    }
-
-    /**
-     * Attempts to parse the watermark into a percentage, returning 100.0% if it can not be parsed and the specified lenient parameter is
-     * true, otherwise throwing an {@link ElasticsearchParseException}.
-     *
-     * @param watermark the watermark to parse as a percentage
-     * @param lenient true if lenient parsing should be applied
-     * @return the parsed percentage
-     */
-    private static double thresholdPercentageFromWatermark(String watermark, boolean lenient) {
+    private double thresholdPercentageFromWatermark(String watermark) {
         try {
             return RatioValue.parseRatioValue(watermark).getAsPercent();
         } catch (ElasticsearchParseException ex) {
             // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
             // cases separately
-            if (lenient) {
-                return 100.0;
-            }
-            throw ex;
+            return 100.0;
         }
     }
 
@@ -325,29 +192,13 @@ public class DiskThresholdSettings {
      * Attempts to parse the watermark into a {@link ByteSizeValue}, returning
      * a ByteSizeValue of 0 bytes if the value cannot be parsed.
      */
-    private static ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName) {
-        return thresholdBytesFromWatermark(watermark, settingName, true);
-    }
-
-    /**
-     * Attempts to parse the watermark into a {@link ByteSizeValue}, returning zero bytes if it can not be parsed and the specified lenient
-     * parameter is true, otherwise throwing an {@link ElasticsearchParseException}.
-     *
-     * @param watermark the watermark to parse as a byte size
-     * @param settingName the name of the setting
-     * @param lenient true if lenient parsing should be applied
-     * @return the parsed byte size value
-     */
-    private static ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName, boolean lenient) {
+    private ByteSizeValue thresholdBytesFromWatermark(String watermark, String settingName) {
         try {
             return ByteSizeValue.parseBytesSizeValue(watermark, settingName);
         } catch (ElasticsearchParseException ex) {
             // NOTE: this is not end-user leniency, since up above we check that it's a valid byte or percentage, and then store the two
             // cases separately
-            if (lenient) {
-                return ByteSizeValue.parseBytesSizeValue("0b", settingName);
-            }
-            throw ex;
+            return ByteSizeValue.parseBytesSizeValue("0b", settingName);
         }
     }
 

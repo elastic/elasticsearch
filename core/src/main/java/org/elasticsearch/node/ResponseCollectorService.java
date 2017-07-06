@@ -78,6 +78,7 @@ public class ResponseCollectorService extends AbstractComponent implements Clust
     }
 
     public Map<String, ComputedNodeStats> getAllNodeStatistics() {
+        // Transform the mutable object internally used for accounting into the computed version
         Map<String, ComputedNodeStats> nodeStats = new HashMap<>(nodeIdToStats.size());
         nodeIdToStats.forEach((k, v) -> {
             nodeStats.put(k, new ComputedNodeStats(v));
@@ -85,24 +86,28 @@ public class ResponseCollectorService extends AbstractComponent implements Clust
         return nodeStats;
     }
 
+    /**
+     * Struct-like class encapsulating a point-in-time snapshot of a particular
+     * node's statistics. This includes the EWMA of queue size, response time,
+     * and service time.
+     */
     public class ComputedNodeStats {
+        public final String nodeId;
         public final double queueSize;
         public final double responseTime;
         public final double serviceTime;
 
         ComputedNodeStats(NodeStatistics nodeStats) {
-            this(nodeStats.queueSize.getAverage(), nodeStats.responseTime.getAverage(), nodeStats.serviceTime);
-        }
-
-        ComputedNodeStats(double queueSize, double responseTime, double serviceTime) {
-            this.queueSize = queueSize;
-            this.responseTime = responseTime;
-            this.serviceTime = serviceTime;
+            this.nodeId = nodeStats.nodeId;
+            this.queueSize = nodeStats.queueSize.getAverage();
+            this.responseTime = nodeStats.responseTime.getAverage();
+            this.serviceTime = nodeStats.serviceTime;
         }
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder("ComputedNodeStats(");
+            StringBuilder sb = new StringBuilder("ComputedNodeStats[");
+            sb.append(nodeId).append("](");
             sb.append("queue: ").append(queueSize);
             sb.append(", response time: ").append(responseTime);
             sb.append(", service time: ").append(serviceTime);
@@ -112,7 +117,9 @@ public class ResponseCollectorService extends AbstractComponent implements Clust
     }
 
     /**
-     * Class encapsulating a node's exponentially weighted queue size, response time, and service time
+     * Class encapsulating a node's exponentially weighted queue size, response
+     * time, and service time, however, this class is private and intended only
+     * to be used for the internal accounting of {@code ResponseCollectorService}.
      */
     private class NodeStatistics {
         public final String nodeId;
@@ -128,16 +135,6 @@ public class ResponseCollectorService extends AbstractComponent implements Clust
             this.queueSize = queueSizeEWMA;
             this.responseTime = responseTimeEWMA;
             this.serviceTime = serviceTimeEWMA;
-        }
-
-        @Override
-        public String toString() {
-            StringBuilder sb = new StringBuilder("NodeStatistics(");
-            sb.append("queue: ").append(queueSize.getAverage());
-            sb.append(", response time: ").append(responseTime.getAverage());
-            sb.append(", service time: ").append(serviceTime);
-            sb.append(")");
-            return sb.toString();
         }
     }
 }

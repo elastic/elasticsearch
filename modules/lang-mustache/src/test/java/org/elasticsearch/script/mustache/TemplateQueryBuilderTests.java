@@ -23,6 +23,7 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -136,14 +137,11 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     public void testUnknownField() throws IOException {
         TemplateQueryBuilder testQuery = createTestQueryBuilder();
         XContentType xContentType = randomFrom(XContentType.JSON, XContentType.YAML);
-        String testQueryAsString = toXContent(testQuery, xContentType).string();
+        String testQueryAsString = toShuffledXContent(testQuery, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean()).utf8ToString();
         String queryAsString = testQueryAsString.replace("source", "bogusField");
-        try {
-            parseQuery(createParser(xContentType.xContent(), queryAsString));
-            fail("IllegalArgumentException expected");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("[script] unknown field [bogusField], parser not found"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> parseQuery(createParser(xContentType.xContent(), queryAsString)));
+        assertThat(e.getMessage(), containsString("[script] unknown field [bogusField], parser not found"));
     }
 
     public void testJSONGeneration() throws IOException {

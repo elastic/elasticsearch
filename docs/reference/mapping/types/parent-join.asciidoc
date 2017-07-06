@@ -157,12 +157,7 @@ Will return:
                 "_score": null,
                 "_source": {
                     "text": "This is a parent document",
-                    "my_join_field": "my_parent"
-                },
-                "fields": {
-                    "my_join_field": [
-                        "my_parent"   <1>
-                    ]
+                    "my_join_field": "my_parent" <1>
                 },
                 "sort": [
                     "1"
@@ -175,12 +170,7 @@ Will return:
                 "_score": null,
                 "_source": {
                     "text": "This is a another parent document",
-                    "my_join_field": "my_parent"
-                },
-                "fields": {
-                    "my_join_field": [
-                        "my_parent"  <2>
-                    ]
+                    "my_join_field": "my_parent" <2>
                 },
                 "sort": [
                     "2"
@@ -199,14 +189,6 @@ Will return:
                         "parent": "1"  <4>
                     }
                 },
-                "fields": {
-                    "my_join_field": [
-                        "my_child"
-                    ],
-                    "my_join_field#my_parent": [
-                        "1"
-                    ]
-                },
                 "sort": [
                     "3"
                 ]
@@ -223,14 +205,6 @@ Will return:
                         "name": "my_child",
                         "parent": "1"
                     }
-                },
-                "fields": {
-                    "my_join_field": [
-                        "my_child"
-                    ],
-                    "my_join_field#my_parent": [
-                        "1"
-                    ]
                 },
                 "sort": [
                     "4"

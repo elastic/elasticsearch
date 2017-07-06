@@ -1,4 +1,3 @@
-[[java-rest-license]]
 == License
 
 Copyright 2013-2017 Elasticsearch

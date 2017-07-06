@@ -93,7 +93,7 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     @Override
-    public void testUnknownField() throws IOException {
+    public void testUnknownField() {
         assumeTrue("test doesn't apply for query filter queries", false);
     }
 

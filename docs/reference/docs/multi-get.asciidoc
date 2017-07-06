@@ -216,11 +216,6 @@ GET test/type/_mget?stored_fields=field1,field2
 <2> Returns `field3` and `field4`
 
 [float]
-=== Generated fields
-
-See <<generated-fields>> for fields generated only when indexing.
-
-[float]
 [[mget-routing]]
 === Routing
 

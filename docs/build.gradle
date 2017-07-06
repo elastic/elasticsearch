@@ -74,6 +74,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/migration/migrate_5_0/scripting.asciidoc',
   'reference/release-notes/5.0.0-alpha5.asciidoc',
   'reference/query-dsl/exists-query.asciidoc',
+  'reference/mapping/removal_of_types.asciidoc',
   'reference/search/field-stats.asciidoc',
   'reference/search/profile.asciidoc',
 ]

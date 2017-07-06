@@ -344,13 +344,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             case DFS_QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                     aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators,
-                    timeProvider, clusterStateVersion, task, responseCollectorService);
+                    timeProvider, clusterStateVersion, task);
                 break;
             case QUERY_AND_FETCH:
             case QUERY_THEN_FETCH:
                 searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                     aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators,
-                    timeProvider, clusterStateVersion, task, responseCollectorService);
+                    timeProvider, clusterStateVersion, task);
                 break;
             default:
                 throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");

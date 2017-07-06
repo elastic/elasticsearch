@@ -37,22 +37,26 @@ public class ResponseListenerWrapper extends SearchActionListener<SearchPhaseRes
 
     private final SearchActionListener<SearchPhaseResult> listener;
     private final ResponseCollectorService collector;
+    private final long startNanos;
 
     public ResponseListenerWrapper(SearchActionListener<SearchPhaseResult> listener,
                                    ResponseCollectorService collector) {
         super(listener.searchShardTarget, listener.requestIndex);
         this.listener = listener;
         this.collector = collector;
+        this.startNanos = System.nanoTime();
     }
 
     @Override
     protected void innerOnResponse(SearchPhaseResult response) {
         QuerySearchResult queryResult = response.queryResult();
         if (queryResult != null && collector != null) {
-            long ewma = queryResult.serviceTimeEWMA();
-            int queueSize = queryResult.nodeQueueSize();
-            String nodeId = listener.searchShardTarget.getNodeId();
+            final long ewma = queryResult.serviceTimeEWMA();
+            final int queueSize = queryResult.nodeQueueSize();
+            final long responseDuration = System.nanoTime() - startNanos;
+            final String nodeId = listener.searchShardTarget.getNodeId();
             if (nodeId != null) {
+                collector.addResponseTime(nodeId, responseDuration);
                 collector.addQueueSize(nodeId, queueSize);
                 // EWMA may be -1 if the query node doesn't support capturing it
                 if (ewma > 0) {

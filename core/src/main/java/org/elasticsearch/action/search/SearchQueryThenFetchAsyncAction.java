@@ -23,7 +23,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
@@ -43,10 +42,9 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
                                     final SearchRequest request, final ActionListener<SearchResponse> listener,
                                     final GroupShardsIterator<SearchShardIterator> shardsIts,
                                     final TransportSearchAction.SearchTimeProvider timeProvider,
-                                    long clusterStateVersion, SearchTask task, ResponseCollectorService collectorService) {
+                                    long clusterStateVersion, SearchTask task) {
         super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor, request, listener,
-            shardsIts, timeProvider, clusterStateVersion, task, searchPhaseController.newSearchPhaseResults(request, shardsIts.size()),
-            collectorService);
+            shardsIts, timeProvider, clusterStateVersion, task, searchPhaseController.newSearchPhaseResults(request, shardsIts.size()));
         this.searchPhaseController = searchPhaseController;
     }
 

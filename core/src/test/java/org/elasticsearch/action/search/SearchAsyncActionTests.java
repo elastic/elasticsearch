@@ -108,7 +108,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                         new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                         0,
                         null,
-                        new InitialSearchPhase.SearchPhaseResults<>(shardsIter.size()), null) {
+                        new InitialSearchPhase.SearchPhaseResults<>(shardsIter.size())) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override

@@ -34,6 +34,7 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -100,24 +101,26 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         {
             String scrollId = lastScrollId;
-
-            // tag::search-scroll-id
-            SearchScrollRequest scrollRequest = new SearchScrollRequest(); // <1>
-            scrollRequest.scroll(TimeValue.timeValueMinutes(1L)); // <2>
-            scrollRequest.scrollId(scrollId); // <3>
-            // end::search-scroll-id
-
             // tag::search-scroll-execute
-            SearchResponse searchResponse = client.searchScroll(scrollRequest); // <1>
-            SearchHits searchHits = searchResponse.getHits();  // <2>
-            String nextScrollId = searchResponse.getScrollId();  // <3>
-            // end::search-scroll-execute
+            while (true) {
+                SearchScrollRequest scrollRequest = new SearchScrollRequest() // <1>
+                        .scroll("60s") // <2>
+                        .scrollId(scrollId);  // <3>
 
-            assertEquals(0, searchResponse.getFailedShards());
-            assertEquals(3L, searchResponse.getHits().getTotalHits());
-            assertEquals(1L, searchHits.getHits().length);
-            assertNotNull(nextScrollId);
-            lastScrollId = nextScrollId;
+                SearchResponse searchResponse = client.searchScroll(scrollRequest); // <4>
+                scrollId = searchResponse.getScrollId();  // <5>
+
+                SearchHit[] searchHits = searchResponse.getHits().getHits(); // <6>
+                if (searchHits != null && searchHits.length > 0) {
+                    // <7>
+                } else {
+                    // <8>
+                    break;
+                }
+            }
+            // end::search-scroll-execute
+            assertNotNull(scrollId);
+            lastScrollId = scrollId;
         }
         {
             SearchScrollRequest scrollRequest = new SearchScrollRequest();
@@ -134,9 +137,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertEquals(0, searchResponse.getFailedShards());
             assertEquals(3L, searchResponse.getHits().getTotalHits());
-            assertEquals(1L, searchResponse.getHits().getHits().length);
-            assertNotNull(searchResponse.getScrollId());
-            lastScrollId = searchResponse.getScrollId();
 
             // tag::search-scroll-execute-async
             client.searchScrollAsync(scrollRequest, new ActionListener<SearchResponse>() {

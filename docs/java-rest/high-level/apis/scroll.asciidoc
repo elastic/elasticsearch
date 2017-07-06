@@ -29,37 +29,30 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-scroll-id
 <2> Retrieve the search hits
 <3> Retrieve the scroll id
 
-This scroll id should be passed to a `SearchScrollRequest`:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-id]
---------------------------------------------------
-<1> Create a new `SearchScrollRequest`
-<2> Set the `scroll` parameter again to tell Elasticsearch to keep the search context
-alive for another minute
-<3> Set the scroll id
-
-And the `SearchScrollRequest` can be executed using the Search Scroll API in order
-to retrieve the next batch of results:
+This scroll id should be passed to a `SearchScrollRequest` which can be executed
+using the Search Scroll API in order to retrieve the next batch of results. Then
+the same process can be repeated over and over until no more results are returned.
+The initial search request as well as all subsequent scroll requests return a
+scroll id that can be passed to the next scroll request until results are exhausted.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-execute]
 --------------------------------------------------
-<1> Execute the `SearchScrollRequest`
-<2> Retrieve the next batch of search hits
-<3> Retrieve the next scroll id to use in upcoming requests
-
-Then the same process can be repeated over and over until no more results are
-returned. The initial search request as well as all subsequent scroll requests
-return a scroll id that can be passed to the next scroll request until results
-are exhausted.
+<1> Create a new `SearchScrollRequest`
+<2> Set the `scroll` parameter again to tell Elasticsearch to keep the search context
+alive for another minute
+<3> Set the scroll id
+<4> Execute the `SearchScrollRequest`
+<5> Retrieve the next scroll id to use in upcoming requests
+<6> Retrieve the next batch of search hits
+<7> The request returned search hits that can be processed
+<8> There are no more search hits to process, the scrolling is terminated
 
 Finally, the scroll id can be deleted using the <<java-rest-high-clear-scroll>>.
 
 ==== Optional arguments
-The following arguments can optionally be provided:
+The following argument can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -67,6 +60,10 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[scroll-request-scroll]
 --------------------------------------------------
 <1> Scroll value (ie, the time to keep alive the search context) as a `TimeValue`
 <2> Scroll value (ie, the time to keep alive the search context) as a `String`
+
+If no `scroll` value is set for the `SearchScrollRequest`, then the search context
+will expire once the initial scroll time expired (ie, the scroll time set in the
+initial search request).
 
 [[java-rest-high-search-scroll-sync]]
 ==== Synchronous Execution
@@ -93,7 +90,7 @@ provided as an argument
 
 The search contexts used by the Scroll API are automatically deleted when the scroll
 times out. But it is advised to release search contexts as soon as they are not
-necessary anymore using the Clear Scroll API:
+necessary anymore using the Clear Scroll API.
 
 [[java-rest-high-clear-scroll-request]]
 ==== Clear Scroll Request
@@ -110,7 +107,7 @@ include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-request]
 ==== Providing the scroll identifiers
 The `ClearScrollRequest` allows to clear one or more scroll identifiers in a single request.
 
-The scroll identifier can be added to the request one by one:
+The scroll identifiers can be added to the request one by one:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -153,5 +150,5 @@ The returned `ClearScrollResponse` allows to retrieve information about the rele
 --------------------------------------------------
 include-tagged::{doc-tests}/SearchDocumentationIT.java[clear-scroll-response]
 --------------------------------------------------
-<1> Return true if the request succeed
+<1> Return true if the request succeeded
 <2> Return the number of released search contexts

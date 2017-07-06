@@ -17,26 +17,24 @@
  * under the License.
  */
 
-package org.elasticsearch.node;
+package org.elasticsearch.common.xcontent.support.filtering;
 
-import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.monitor.MonitorService;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
-public class NodeModule extends AbstractModule {
+public class JsonXContentFilteringTests extends AbstractXContentFilteringTestCase {
 
-    private final Node node;
-    private final MonitorService monitorService;
-
-    public NodeModule(Node node, MonitorService monitorService) {
-        this.node = node;
-        this.monitorService = monitorService;
+    @Override
+    protected XContentType getXContentType() {
+        return XContentType.JSON;
     }
 
     @Override
-    protected void configure() {
-        bind(Node.class).toInstance(node);
-        bind(MonitorService.class).toInstance(monitorService);
-        bind(DiskThresholdMonitor.class).asEagerSingleton();
+    protected void assertFilterResult(XContentBuilder expected, XContentBuilder actual) {
+        if (randomBoolean()) {
+            assertXContentBuilderAsString(expected, actual);
+        } else {
+            assertXContentBuilderAsBytes(expected, actual);
+        }
     }
 }

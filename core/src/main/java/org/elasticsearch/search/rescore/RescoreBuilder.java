@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
@@ -75,8 +74,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXC
         return windowSize;
     }
 
-    public static RescoreBuilder<?> parseFromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static RescoreBuilder<?> parseFromXContent(XContentParser parser) throws IOException {
         String fieldName = null;
         RescoreBuilder<?> rescorer = null;
         Integer windowSize = null;
@@ -93,7 +91,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXC
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // we only have QueryRescorer at this point
                 if (QueryRescorerBuilder.NAME.equals(fieldName)) {
-                    rescorer = QueryRescorerBuilder.fromXContent(parseContext);
+                    rescorer = QueryRescorerBuilder.fromXContent(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support rescorer with name [" + fieldName + "]");
                 }

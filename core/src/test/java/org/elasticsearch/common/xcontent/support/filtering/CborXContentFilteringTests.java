@@ -22,15 +22,15 @@ package org.elasticsearch.common.xcontent.support.filtering;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
-public class JsonFilteringGeneratorTests extends AbstractFilteringJsonGeneratorTestCase {
+public class CborXContentFilteringTests extends AbstractXContentFilteringTestCase {
 
     @Override
     protected XContentType getXContentType() {
-        return XContentType.JSON;
+        return XContentType.CBOR;
     }
 
     @Override
-    protected void assertXContentBuilder(XContentBuilder expected, XContentBuilder builder) {
-        assertString(expected, builder);
+    protected void assertFilterResult(XContentBuilder expected, XContentBuilder actual) {
+        assertXContentBuilderAsBytes(expected, actual);
     }
 }

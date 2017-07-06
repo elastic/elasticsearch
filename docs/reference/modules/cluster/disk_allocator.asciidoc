@@ -28,6 +28,28 @@ file or updated dynamically on a live cluster with the
     relocate shards once less than the configured amount of space is available on
     the node.
 
+`cluster.routing.allocation.disk.watermark.floodstage`::
+
+    Controls the floodstage watermark. It defaults to 95%, meaning ES enforce a read-only
+    index block (`index.blocks.read_only_allow_delete`) on every index that has
+    one or more shards allocated on the node that has at least on disk exceeding the floodstage.
+    This is a last resort to prevent nodes from running out of disk space.
+    The index block must be released manually once there is enough disk space available
+    to allow indexing operations to continue.
+
+An example of resetting the read-only index block on the `twitter` index:
+
+[source,js]
+--------------------------------------------------
+PUT /twitter/_settings
+{
+  "index.blocks.read_only_allow_delete": null
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+
 NOTE: Percentage values refer to used disk space, while byte values refer to
 free disk space. This can be confusing, since it flips the meaning of high and
 low. For example, it makes sense to set the low watermark to 10gb and the high

@@ -276,7 +276,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
                             if (currentToken == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = contextParser.currentName();
                                 final ContextMapping mapping = contextMappings.get(currentFieldName);
-                                queryContexts.put(currentFieldName, mapping.parseQueryContext(context.newParseContext(contextParser)));
+                                queryContexts.put(currentFieldName, mapping.parseQueryContext(contextParser));
                             }
                         }
                         suggestionContext.setQueryContexts(queryContexts);

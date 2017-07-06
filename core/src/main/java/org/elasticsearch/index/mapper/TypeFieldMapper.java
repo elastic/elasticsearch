@@ -40,6 +40,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
@@ -85,7 +86,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
-            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
+            final IndexSettings indexSettings = context.mapperService().getIndexSettings();
             return new TypeFieldMapper(indexSettings, fieldType);
         }
     }
@@ -263,18 +264,18 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private TypeFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private TypeFieldMapper(IndexSettings indexSettings, MappedFieldType existing) {
         this(existing == null ? defaultFieldType(indexSettings) : existing.clone(),
              indexSettings);
     }
 
-    private TypeFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings);
+    private TypeFieldMapper(MappedFieldType fieldType, IndexSettings indexSettings) {
+        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings.getSettings());
     }
 
-    private static MappedFieldType defaultFieldType(Settings indexSettings) {
+    private static MappedFieldType defaultFieldType(IndexSettings indexSettings) {
         MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        if (MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING.get(indexSettings)) {
+        if (indexSettings.isSingleType()) {
             defaultFieldType.setIndexOptions(IndexOptions.NONE);
             defaultFieldType.setHasDocValues(false);
         } else {

@@ -104,11 +104,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
-            }
         };
         AllocationService strategy = new AllocationService(Settings.builder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)
@@ -292,11 +287,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
-            }
         };
 
         AllocationService strategy = new AllocationService(Settings.builder()
@@ -349,11 +339,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo2;
-            }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
             }
         };
         strategy = new AllocationService(Settings.builder()
@@ -548,11 +533,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
-            }
         };
 
         AllocationService strategy = new AllocationService(Settings.builder()
@@ -619,11 +599,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
-            }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
             }
         };
 
@@ -725,11 +700,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
-            }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
             }
         };
 
@@ -914,11 +884,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
             }
-
-            @Override
-            public void addListener(Listener listener) {
-                // noop
-            }
         };
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY, new HashSet<>(Arrays.asList(
                 new SameShardAllocationDecider(
@@ -1014,10 +979,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             public ClusterInfo getClusterInfo() {
                 logger.info("--> calling fake getClusterInfo");
                 return clusterInfo;
-            }
-
-            @Override
-            public void addListener(Listener listener) {
             }
         };
 

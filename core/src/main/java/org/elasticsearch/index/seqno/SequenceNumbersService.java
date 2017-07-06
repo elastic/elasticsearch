@@ -107,6 +107,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Resets the local checkpoint to the specified value.
+     *
+     * @param localCheckpoint the local checkpoint to reset to
+     */
+    public void resetLocalCheckpoint(final long localCheckpoint) {
+        localCheckpointTracker.resetCheckpoint(localCheckpoint);
+    }
+
+    /**
      * The current sequence number stats.
      *
      * @return stats encapsulating the maximum sequence number, the local checkpoint and the global checkpoint

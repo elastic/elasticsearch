@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations.bucket.global;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -62,8 +62,8 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
         return builder;
     }
 
-    public static GlobalAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        context.parser().nextToken();
+    public static GlobalAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        parser.nextToken();
         return new GlobalAggregationBuilder(aggregationName);
     }
 

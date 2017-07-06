@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchContextHighlight.FieldOptions;
 
@@ -258,7 +257,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     private static final BiFunction<XContentParser, HighlightBuilder, HighlightBuilder> PARSER;
     static {
-        ObjectParser<HighlightBuilder, QueryParseContext> parser = new ObjectParser<>("highlight");
+        ObjectParser<HighlightBuilder, Void> parser = new ObjectParser<>("highlight");
         parser.declareString(HighlightBuilder::tagsSchema, new ParseField("tags_schema"));
         parser.declareString(HighlightBuilder::encoder, ENCODER_FIELD);
         parser.declareNamedObjects(HighlightBuilder::fields, Field.PARSER, (HighlightBuilder hb) -> hb.useExplicitFieldOrder(true),
@@ -417,13 +416,13 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     }
 
     public static class Field extends AbstractHighlighterBuilder<Field> {
-        static final NamedObjectParser<Field, QueryParseContext> PARSER;
+        static final NamedObjectParser<Field, Void> PARSER;
         static {
-            ObjectParser<Field, QueryParseContext> parser = new ObjectParser<>("highlight_field");
+            ObjectParser<Field, Void> parser = new ObjectParser<>("highlight_field");
             parser.declareInt(Field::fragmentOffset, FRAGMENT_OFFSET_FIELD);
             parser.declareStringArray(fromList(String.class, Field::matchedFields), MATCHED_FIELDS_FIELD);
             BiFunction<XContentParser, Field, Field> decoratedParser = setupParser(parser);
-            PARSER = (XContentParser p, QueryParseContext c, String name) -> decoratedParser.apply(p, new Field(name));
+            PARSER = (XContentParser p, Void c, String name) -> decoratedParser.apply(p, new Field(name));
         }
 
         private final String name;

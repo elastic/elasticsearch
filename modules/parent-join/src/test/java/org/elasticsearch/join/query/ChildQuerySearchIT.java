@@ -60,6 +60,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
@@ -216,8 +217,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
             assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("c1"));
-            assertThat(searchResponse.getHits().getAt(0).field("join_field").getValue(), equalTo("child"));
-            assertThat(searchResponse.getHits().getAt(0).field("join_field#parent").getValue(), equalTo("p1"));
+            assertThat(extractValue("join_field.name", searchResponse.getHits().getAt(0).getSourceAsMap()), equalTo("child"));
+            assertThat(extractValue("join_field.parent", searchResponse.getHits().getAt(0).getSourceAsMap()), equalTo("p1"));
         }
 
         // TEST matching on parent
@@ -236,11 +237,11 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(2L));
             assertThat(searchResponse.getHits().getAt(0).getId(), anyOf(equalTo("c1"), equalTo("c2")));
-            assertThat(searchResponse.getHits().getAt(0).field("join_field").getValue(), equalTo("child"));
-            assertThat(searchResponse.getHits().getAt(0).field("join_field#parent").getValue(), equalTo("p1"));
+            assertThat(extractValue("join_field.name", searchResponse.getHits().getAt(0).getSourceAsMap()), equalTo("child"));
+            assertThat(extractValue("join_field.parent", searchResponse.getHits().getAt(0).getSourceAsMap()), equalTo("p1"));
             assertThat(searchResponse.getHits().getAt(1).getId(), anyOf(equalTo("c1"), equalTo("c2")));
-            assertThat(searchResponse.getHits().getAt(1).field("join_field").getValue(), equalTo("child"));
-            assertThat(searchResponse.getHits().getAt(1).field("join_field#parent").getValue(), equalTo("p1"));
+            assertThat(extractValue("join_field.name", searchResponse.getHits().getAt(1).getSourceAsMap()), equalTo("child"));
+            assertThat(extractValue("join_field.parent", searchResponse.getHits().getAt(1).getSourceAsMap()), equalTo("p1"));
         }
 
         if (legacy()) {

@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -37,7 +36,7 @@ import java.io.IOException;
 public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregationBuilder, Range> {
     public static final String NAME = "range";
 
-    private static final ObjectParser<RangeAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<RangeAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(RangeAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, false);
@@ -47,14 +46,14 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
             for (Range range : ranges) {
                 agg.addRange(range);
             }
-        }, RangeAggregationBuilder::parseRange, RangeAggregator.RANGES_FIELD);
+        }, (p, c) -> RangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new RangeAggregationBuilder(aggregationName), context);
+    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new RangeAggregationBuilder(aggregationName), null);
     }
 
-    private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
+    private static Range parseRange(XContentParser parser) throws IOException {
         return Range.fromXContent(parser);
     }
 

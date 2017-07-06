@@ -146,7 +146,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         }
     }
 
-    public void testInvalidParameters() throws IOException {
+    public void testInvalidParameters() {
         // test missing field name
         Exception e = expectThrows(NullPointerException.class, () -> new PhraseSuggestionBuilder((String) null));
         assertEquals("suggestion requires a field name", e.getMessage());

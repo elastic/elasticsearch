@@ -119,7 +119,7 @@ public class ActionModuleTests extends ESTestCase {
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(IllegalArgumentException.class, () ->
             actionModule.getRestController().registerHandler(Method.GET, "/", null));
-        assertThat(e.getMessage(), startsWith("Path [/] already has a value [" + RestMainAction.class.getName()));
+        assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
     }
 
     public void testPluginCantOverwriteBuiltinRestHandler() throws IOException {
@@ -139,7 +139,7 @@ public class ActionModuleTests extends ESTestCase {
                     settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
                     singletonList(dupsMainAction), null, null, usageService);
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
-            assertThat(e.getMessage(), startsWith("Path [/] already has a value [" + RestMainAction.class.getName()));
+            assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
         } finally {
             threadPool.shutdown();
         }
@@ -174,7 +174,7 @@ public class ActionModuleTests extends ESTestCase {
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(IllegalArgumentException.class, () ->
                 actionModule.getRestController().registerHandler(Method.GET, "/_dummy", null));
-            assertThat(e.getMessage(), startsWith("Path [/_dummy] already has a value [" + FakeHandler.class.getName()));
+            assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_dummy] for method: GET"));
         } finally {
             threadPool.shutdown();
         }

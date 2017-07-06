@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -81,7 +80,7 @@ public class DateHistogramAggregationBuilder
         DATE_FIELD_UNITS = unmodifiableMap(dateFieldUnits);
     }
 
-    private static final ObjectParser<DateHistogramAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<DateHistogramAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(DateHistogramAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
@@ -115,12 +114,12 @@ public class DateHistogramAggregationBuilder
         PARSER.declareField(DateHistogramAggregationBuilder::extendedBounds, parser -> ExtendedBounds.PARSER.apply(parser, null),
                 ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
 
-        PARSER.declareObjectArray(DateHistogramAggregationBuilder::order, InternalOrder.Parser::parseOrderParam,
+        PARSER.declareObjectArray(DateHistogramAggregationBuilder::order, (p, c) -> InternalOrder.Parser.parseOrderParam(p),
                 Histogram.ORDER_FIELD);
     }
 
-    public static DateHistogramAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new DateHistogramAggregationBuilder(aggregationName), context);
+    public static DateHistogramAggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new DateHistogramAggregationBuilder(aggregationName), null);
     }
 
     private long interval;

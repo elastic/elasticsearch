@@ -42,7 +42,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
 
@@ -107,8 +106,7 @@ public class SliceBuilderTests extends ESTestCase {
         sliceBuilder.innerToXContent(builder);
         builder.endObject();
         XContentParser parser = createParser(shuffleXContent(builder));
-        QueryParseContext context = new QueryParseContext(parser);
-        SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(context);
+        SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(parser);
         assertNotSame(sliceBuilder, secondSliceBuilder);
         assertEquals(sliceBuilder, secondSliceBuilder);
         assertEquals(sliceBuilder.hashCode(), secondSliceBuilder.hashCode());

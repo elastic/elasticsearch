@@ -42,9 +42,14 @@ import org.elasticsearch.usage.UsageService;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
@@ -58,12 +63,7 @@ import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestController extends AbstractComponent implements HttpServerTransport.Dispatcher {
 
-    private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandler> putHandlers = new PathTrie<>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandler> deleteHandlers = new PathTrie<>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandler> headHandlers = new PathTrie<>(RestUtils.REST_DECODER);
-    private final PathTrie<RestHandler> optionsHandlers = new PathTrie<>(RestUtils.REST_DECODER);
+    private final PathTrie<MethodHandlers> handlers = new PathTrie<>(RestUtils.REST_DECODER);
 
     private final UnaryOperator<RestHandler> handlerWrapper;
 
@@ -148,24 +148,19 @@ public class RestController extends AbstractComponent implements HttpServerTrans
      * @param handler The handler to actually execute
      */
     public void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
-        PathTrie<RestHandler> handlers = getHandlersForMethod(method);
-        if (handlers != null) {
-            handlers.insert(path, handler);
-            if (handler instanceof BaseRestHandler) {
-                usageService.addRestHandler((BaseRestHandler) handler);
-            }
-        } else {
-            throw new IllegalArgumentException("Can't handle [" + method + "] for path [" + path + "]");
+        if (handler instanceof BaseRestHandler) {
+            usageService.addRestHandler((BaseRestHandler) handler);
         }
+        handlers.insertOrUpdate(path, new MethodHandlers(path, handler, method), (mHandlers, newMHandler) -> {
+            return mHandlers.addMethods(handler, method);
+        });
     }
 
     /**
-     * @param request The current request. Must not be null.
      * @return true iff the circuit breaker limit must be enforced for processing this request.
      */
-    public boolean canTripCircuitBreaker(RestRequest request) {
-        RestHandler handler = getHandler(request);
-        return (handler != null) ? handler.canTripCircuitBreaker() : true;
+    public boolean canTripCircuitBreaker(final Optional<RestHandler> handler) {
+        return handler.map(h -> h.canTripCircuitBreaker()).orElse(true);
     }
 
     @Override
@@ -174,32 +169,11 @@ public class RestController extends AbstractComponent implements HttpServerTrans
             handleFavicon(request, channel);
             return;
         }
-        RestChannel responseChannel = channel;
         try {
-            final int contentLength = request.hasContent() ? request.content().length() : 0;
-            assert contentLength >= 0 : "content length was negative, how is that possible?";
-            final RestHandler handler = getHandler(request);
-
-            if (contentLength > 0 && hasContentType(request, handler) == false) {
-                sendContentTypeErrorMessage(request, responseChannel);
-            } else if (contentLength > 0 && handler != null && handler.supportsContentStream() &&
-                request.getXContentType() != XContentType.JSON && request.getXContentType() != XContentType.SMILE) {
-                responseChannel.sendResponse(BytesRestResponse.createSimpleErrorResponse(responseChannel,
-                    RestStatus.NOT_ACCEPTABLE, "Content-Type [" + request.getXContentType() +
-                        "] does not support stream parsing. Use JSON or SMILE instead"));
-            } else {
-                if (canTripCircuitBreaker(request)) {
-                    inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
-                } else {
-                    inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
-                }
-                // iff we could reserve bytes for the request we need to send the response also over this channel
-                responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
-                dispatchRequest(request, responseChannel, client, threadContext, handler);
-            }
+            tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
             try {
-                responseChannel.sendResponse(new BytesRestResponse(channel, e));
+                channel.sendResponse(new BytesRestResponse(channel, e));
             } catch (Exception inner) {
                 inner.addSuppressed(e);
                 logger.error((Supplier<?>) () ->
@@ -233,33 +207,56 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         }
     }
 
-    void dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client, ThreadContext threadContext,
-                         final RestHandler handler) throws Exception {
-        if (checkRequestParameters(request, channel) == false) {
-            channel
-                .sendResponse(BytesRestResponse.createSimpleErrorResponse(channel,BAD_REQUEST, "error traces in responses are disabled."));
-        } else {
-            for (String key : headersToCopy) {
-                String httpHeader = request.header(key);
-                if (httpHeader != null) {
-                    threadContext.putHeader(key, httpHeader);
-                }
-            }
+    /**
+     * Dispatch the request, if possible, returning true if a response was sent or false otherwise.
+     */
+    boolean dispatchRequest(final RestRequest request, final RestChannel channel, final NodeClient client,
+                            ThreadContext threadContext, final Optional<RestHandler> mHandler) throws Exception {
+        final int contentLength = request.hasContent() ? request.content().length() : 0;
 
-            if (handler == null) {
-                if (request.method() == RestRequest.Method.OPTIONS) {
-                    // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
+        RestChannel responseChannel = channel;
+        // Indicator of whether a response was sent or not
+        boolean requestHandled;
 
-                    channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+        if (contentLength > 0 && mHandler.map(h -> hasContentType(request, h) == false).orElse(false)) {
+            sendContentTypeErrorMessage(request, channel);
+            requestHandled = true;
+        } else if (contentLength > 0 && mHandler.map(h -> h.supportsContentStream()).orElse(false) &&
+            request.getXContentType() != XContentType.JSON && request.getXContentType() != XContentType.SMILE) {
+            channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel,
+                RestStatus.NOT_ACCEPTABLE, "Content-Type [" + request.getXContentType() +
+                    "] does not support stream parsing. Use JSON or SMILE instead"));
+            requestHandled = true;
+        } else if (mHandler.isPresent()) {
+            try {
+                if (canTripCircuitBreaker(mHandler)) {
+                    inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
                 } else {
-                    final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
-                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
+                    inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
                 }
+                // iff we could reserve bytes for the request we need to send the response also over this channel
+                responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+
+                final RestHandler wrappedHandler = mHandler.map(h -> handlerWrapper.apply(h)).get();
+                wrappedHandler.handleRequest(request, responseChannel, client);
+                requestHandled = true;
+            } catch (Exception e) {
+                responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
+                // We "handled" the request by returning a response, even though it was an error
+                requestHandled = true;
+            }
+        } else {
+            if (request.method() == RestRequest.Method.OPTIONS) {
+                // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
+
+                channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                requestHandled = true;
             } else {
-                final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
-                wrappedHandler.handleRequest(request, channel, client);
+                requestHandled = false;
             }
         }
+        // Return true if the request was handled, false otherwise.
+        return requestHandled;
     }
 
     /**
@@ -308,32 +305,69 @@ public class RestController extends AbstractComponent implements HttpServerTrans
         return true;
     }
 
-    private RestHandler getHandler(RestRequest request) {
-        String path = getPath(request);
-        PathTrie<RestHandler> handlers = getHandlersForMethod(request.method());
-        if (handlers != null) {
-            return handlers.retrieve(path, request.params());
-        } else {
-            return null;
+    void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
+        for (String key : headersToCopy) {
+            String httpHeader = request.header(key);
+            if (httpHeader != null) {
+                threadContext.putHeader(key, httpHeader);
+            }
+        }
+        // Request execution flag
+        boolean requestHandled = false;
+
+        if (checkRequestParameters(request, channel) == false) {
+            channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel,
+                BAD_REQUEST, "error traces in responses are disabled."));
+            requestHandled = true;
+        }
+
+        // Loop through all possible handlers, attempting to dispatch the request
+        Iterator<MethodHandlers> allHandlers = getAllHandlers(request);
+        for (Iterator<MethodHandlers> it = allHandlers; it.hasNext(); ) {
+            final Optional<RestHandler> mHandler = Optional.ofNullable(it.next()).flatMap(mh -> mh.getHandler(request.method()));
+            requestHandled = dispatchRequest(request, channel, client, threadContext, mHandler);
+            if (requestHandled) {
+                break;
+            }
+        }
+
+        // If request has not been handled, fallback to a bad request error.
+        if (requestHandled == false) {
+            handleBadRequest(request, channel);
         }
     }
 
-    private PathTrie<RestHandler> getHandlersForMethod(RestRequest.Method method) {
-        if (method == RestRequest.Method.GET) {
-            return getHandlers;
-        } else if (method == RestRequest.Method.POST) {
-            return postHandlers;
-        } else if (method == RestRequest.Method.PUT) {
-            return putHandlers;
-        } else if (method == RestRequest.Method.DELETE) {
-            return deleteHandlers;
-        } else if (method == RestRequest.Method.HEAD) {
-            return headHandlers;
-        } else if (method == RestRequest.Method.OPTIONS) {
-            return optionsHandlers;
-        } else {
-            return null;
+    Iterator<MethodHandlers> getAllHandlers(final RestRequest request) {
+        // Between retrieving the correct path, we need to reset the parameters,
+        // otherwise parameters are parsed out of the URI that aren't actually handled.
+        final Map<String, String> originalParams = new HashMap<>(request.params());
+        return handlers.retrieveAll(getPath(request), () -> {
+            // PathTrie modifies the request, so reset the params between each iteration
+            request.params().clear();
+            request.params().putAll(originalParams);
+            return request.params();
+        });
+    }
+
+    /**
+     * Handle a requests with no candidate handlers (return a 400 Bad Request
+     * error).
+     */
+    private void handleBadRequest(RestRequest request, RestChannel channel) {
+        channel.sendResponse(new BytesRestResponse(BAD_REQUEST,
+            "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]"));
+    }
+
+    /**
+     * Get the valid set of HTTP methods for a REST request.
+     */
+    private Set<RestRequest.Method> getValidHandlerMethodSet(RestRequest request) {
+        Set<RestRequest.Method> validMethods = new HashSet<>();
+        Iterator<MethodHandlers> allHandlers = getAllHandlers(request);
+        for (Iterator<MethodHandlers> it = allHandlers; it.hasNext(); ) {
+            Optional.ofNullable(it.next()).map(mh -> validMethods.addAll(mh.getValidMethods()));
         }
+        return validMethods;
     }
 
     private String getPath(RestRequest request) {

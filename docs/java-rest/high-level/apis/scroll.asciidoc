@@ -4,52 +4,50 @@
 The Scroll API can be used to retrieve a large number of results from
 a search request.
 
-In order to use scrolling, the initial search request must define
-a value for the scroll parameter:
+In order to use scrolling, several steps need to be executed in a given order:
+
+* At first, an initial search request with a non-null `scroll` parameter must
+be executed. When processing this `SearchRequest`, Elasticsearch detects the
+presence of the `scroll` parameter and keeps the search context alive during
+the time defined by the parameter. Elasticsearch generates a scroll identifier
+associated to this search context and returns it with the first batch of search
+results in a `SearchResponse`.
+
+* As a second step, the initial scroll parameter and the new scroll identifier
+are set in a `SearchScrollRequest`. This request is executed using the Search
+Scroll API and Elasticsearch returns the second batch of results with a new
+ scroll identifier. This new scroll id can then be used in another `SearchScrollRequest`
+ to retrieve the next batch of results. This process can be repeated over and
+  over until no more results are returned.
+
+* Finally, the last scroll identifier can be deleted using the <<java-rest-high-clear-scroll>>
+in order to release the search context.
+
+[[java-rest-high-search-scroll-example]]
+==== Example of Execution
+
+Here is an example of a scrolled search:
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-request]
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-example]
 --------------------------------------------------
-<1> Create a new `SearchRequest`. See <<java-rest-high-search>>
+<1> Define a scroll parameter as a `TimeValue` corresponding to one minute
+<2> Create a new `SearchRequest`. See <<java-rest-high-search>>
 for more information on how to build `SearchRequest`.
-<2> Set the `scroll` parameter as a `TimeValue` corresponding to one minute
-
-When executing the `SearchRequest`, Elasticsearch detects the presence
-of the `scroll` parameter and keeps the search context alive during the time
-defined by the parameter.
-
-It then returns a `SearchResponse` that includes a scroll id:
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-response-scroll-id]
---------------------------------------------------
-<1> Execute the `SearchRequest`
-<2> Retrieve the search hits
-<3> Retrieve the scroll id
-
-This scroll id should be passed to a `SearchScrollRequest` which can be executed
-using the Search Scroll API in order to retrieve the next batch of results. Then
-the same process can be repeated over and over until no more results are returned.
-The initial search request as well as all subsequent scroll requests return a
-scroll id that can be passed to the next scroll request until results are exhausted.
-
-["source","java",subs="attributes,callouts,macros"]
---------------------------------------------------
-include-tagged::{doc-tests}/SearchDocumentationIT.java[search-scroll-execute]
---------------------------------------------------
-<1> Create a new `SearchScrollRequest`
-<2> Set the `scroll` parameter again to tell Elasticsearch to keep the search context
+<3> Set the `scroll` parameter to the `SearchRequest`
+<4> Execute the `SearchRequest`
+<5> Retrieve the first scroll id
+<6> Retrieve the first batch of search hits
+<7> Iterate until there are no more search hits to process
+<8> Create a new `SearchScrollRequest`
+<9> Set the `scroll` parameter again to tell Elasticsearch to keep the search context
 alive for another minute
-<3> Set the scroll id
-<4> Execute the `SearchScrollRequest`
-<5> Retrieve the next scroll id to use in upcoming requests
-<6> Retrieve the next batch of search hits
-<7> The request returned search hits that can be processed
-<8> There are no more search hits to process, the scrolling is terminated
-
-Finally, the scroll id can be deleted using the <<java-rest-high-clear-scroll>>.
+<10> Set the scroll id
+<11> Execute the `SearchScrollRequest` using the Search Scroll API
+<12> Retrieve the next scroll id to use in upcoming requests
+<13> Retrieve the next batch of search hits
+<14> Clear the scroll id using the <<java-rest-high-clear-scroll>>.
 
 ==== Optional arguments
 The following argument can optionally be provided:

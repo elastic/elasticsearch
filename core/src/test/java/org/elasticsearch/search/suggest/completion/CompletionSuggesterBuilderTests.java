@@ -22,12 +22,18 @@ package org.elasticsearch.search.suggest.completion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
+import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -35,7 +41,11 @@ import java.util.Map;
 
 public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTestCase<CompletionSuggestionBuilder> {
 
-    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[] {CompletionSuggestionBuilder.CONTEXTS_FIELD.getPreferredName()};
+    private static final String[] SHUFFLE_PROTECTED_FIELDS = new String[] { CompletionSuggestionBuilder.CONTEXTS_FIELD.getPreferredName() };
+    private static final Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
+    private static String categoryContextName;
+    private static String geoQueryContextName;
+    private static List<ContextMapping> contextMappings;
 
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {
@@ -43,17 +53,18 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     }
 
     public static CompletionSuggestionBuilder randomCompletionSuggestionBuilder() {
-        return randomSuggestionBuilderWithContextInfo().builder;
-    }
-
-    private static class BuilderAndInfo {
-        CompletionSuggestionBuilder builder;
-        List<String> catContexts = new ArrayList<>();
-        List<String> geoContexts = new ArrayList<>();
-    }
-
-    private static BuilderAndInfo randomSuggestionBuilderWithContextInfo() {
-        final BuilderAndInfo builderAndInfo = new BuilderAndInfo();
+        // lazy initialization of context names and mappings, cannot be done in init method because other test
+        // also create random CompletionSuggestionBuilder instances
+        if (categoryContextName == null) {
+            categoryContextName = randomAlphaOfLength(10);
+        }
+        if (geoQueryContextName == null) {
+            geoQueryContextName = randomAlphaOfLength(10);
+        }
+        if (contextMappings == null) {
+            contextMappings = Arrays.asList(new ContextMapping[] { ContextBuilder.category(categoryContextName).build(),
+                    ContextBuilder.geo(geoQueryContextName).build() });
+        }
         CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);
         switch (randomIntBetween(0, 3)) {
@@ -77,9 +88,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
             for (int i = 0; i < numContext; i++) {
                 contexts.add(CategoryQueryContextTests.randomCategoryQueryContext());
             }
-            String name = randomAlphaOfLength(10);
-            contextMap.put(name, contexts);
-            builderAndInfo.catContexts.add(name);
+            contextMap.put(categoryContextName, contexts);
         }
         if (randomBoolean()) {
             int numContext = randomIntBetween(1, 5);
@@ -87,13 +96,10 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
             for (int i = 0; i < numContext; i++) {
                 contexts.add(GeoQueryContextTests.randomGeoQueryContext());
             }
-            String name = randomAlphaOfLength(10);
-            contextMap.put(name, contexts);
-            builderAndInfo.geoContexts.add(name);
+            contextMap.put(geoQueryContextName, contexts);
         }
         testBuilder.contexts(contextMap);
-        builderAndInfo.builder = testBuilder;
-        return builderAndInfo;
+        return testBuilder;
     }
 
     /**
@@ -136,5 +142,12 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
             default:
                 throw new IllegalStateException("should not through");
         }
+    }
+
+    @Override
+    protected MappedFieldType mockFieldType() {
+        CompletionFieldType completionFieldType = new CompletionFieldType();
+        completionFieldType.setContextMappings(new ContextMappings(contextMappings));
+        return completionFieldType;
     }
 }

@@ -81,8 +81,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     public TransportSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, SearchService searchService,
                                  SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
                                  ClusterService clusterService, ActionFilters actionFilters,
-                                 IndexNameExpressionResolver indexNameExpressionResolver,
-                                 ResponseCollectorService responseCollectorService) {
+                                 IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest::new);
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
@@ -90,7 +89,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTransportService.registerRequestHandler(transportService, searchService);
         this.clusterService = clusterService;
         this.searchService = searchService;
-        this.responseCollectorService = responseCollectorService;
+        this.responseCollectorService = searchService.getResponseCollectorService();
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState,

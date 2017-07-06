@@ -25,6 +25,8 @@ import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.query.QuerySearchResult;
 
+import java.util.Objects;
+
 /**
  * A wrapper of search action listeners (search results) that unwraps the query
  * result to get the piggybacked queue size and service time EWMA, adding those
@@ -38,15 +40,15 @@ public class ResponseListenerWrapper implements ActionListener<SearchPhaseResult
 
     public ResponseListenerWrapper(SearchActionListener<SearchPhaseResult> listener,
                                    ResponseCollectorService collector) {
-        this.listener = listener;
-        this.collector = collector;
+        this.listener = Objects.requireNonNull(listener, "listener cannot be null");
+        this.collector = Objects.requireNonNull(collector, "response collector cannot be null");
         this.startNanos = System.nanoTime();
     }
 
     @Override
     public void onResponse(SearchPhaseResult response) {
         QuerySearchResult queryResult = response.queryResult();
-        if (queryResult != null && collector != null) {
+        if (queryResult != null) {
             final long ewma = queryResult.serviceTimeEWMA();
             final int queueSize = queryResult.nodeQueueSize();
             final long responseDuration = System.nanoTime() - startNanos;

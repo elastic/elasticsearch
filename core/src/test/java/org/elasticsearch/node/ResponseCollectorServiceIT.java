@@ -32,6 +32,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -74,7 +75,7 @@ public class ResponseCollectorServiceIT extends ESIntegTestCase {
             client().prepareIndex("test", "doc", "" + i).setSource("test", English.intToEnglish(i)).get();
         }
         refresh("test");
-        ResponseCollectorService collector = internalCluster().getInstance(ResponseCollectorService.class);
+        ResponseCollectorService collector = internalCluster().getInstance(SearchService.class).getResponseCollectorService();
         Map<String, Double> avgQueues = collector.getAvgQueueSize();
         Map<String, Double> avgService = collector.getAvgServiceTime();
         Map<String, Double> avgResponse = collector.getAvgResponseTime();
@@ -89,8 +90,9 @@ public class ResponseCollectorServiceIT extends ESIntegTestCase {
 
         Set<String> nodeIds = new HashSet<>();
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-        Iterable<ResponseCollectorService> collectors = internalCluster().getInstances(ResponseCollectorService.class);
-        collectors.forEach(c -> {
+        Iterable<SearchService> searchServices = internalCluster().getInstances(SearchService.class);
+        searchServices.forEach(ss -> {
+            ResponseCollectorService c = ss.getResponseCollectorService();
 
             Map<String, Double> queues = c.getAvgQueueSize();
             Map<String, Double> service = c.getAvgServiceTime();
@@ -118,8 +120,9 @@ public class ResponseCollectorServiceIT extends ESIntegTestCase {
 
         final ClusterService newClusterService = internalCluster().getInstance(ClusterService.class);
         logger.info("--> there are now {} nodes", newClusterService.state().getNodes().getDataNodes().size());
-        collectors = internalCluster().getInstances(ResponseCollectorService.class);
-        collectors.forEach(c -> {
+        searchServices = internalCluster().getInstances(SearchService.class);
+        searchServices.forEach(ss -> {
+            ResponseCollectorService c = ss.getResponseCollectorService();
 
             Map<String, Double> queues = c.getAvgQueueSize();
             Map<String, Double> service = c.getAvgServiceTime();
@@ -143,8 +146,9 @@ public class ResponseCollectorServiceIT extends ESIntegTestCase {
         assertBusy(() -> {
             logger.info("--> checking that node was removed");
             Set<String> newNodeIds = new HashSet<>();
-            Iterable<ResponseCollectorService> innerCollectors = internalCluster().getInstances(ResponseCollectorService.class);
-            innerCollectors.forEach(c -> {
+            Iterable<SearchService> innerSearchServices = internalCluster().getInstances(SearchService.class);
+            innerSearchServices.forEach(ss -> {
+                ResponseCollectorService c = ss.getResponseCollectorService();
                 Map<String, Double> queues = c.getAvgQueueSize();
                 newNodeIds.addAll(queues.keySet());
             });

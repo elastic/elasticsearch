@@ -93,6 +93,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -158,7 +159,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.responseCollectorService = responseCollectorService;
+        this.responseCollectorService = Objects.requireNonNull(responseCollectorService, "response collector cannot be null");
         this.bigArrays = bigArrays;
         this.queryPhase = new QueryPhase(settings);
         this.fetchPhase = fetchPhase;
@@ -813,6 +814,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public int getActiveContexts() {
         return this.activeContexts.size();
+    }
+
+    public ResponseCollectorService getResponseCollectorService() {
+        return this.responseCollectorService;
     }
 
     class Reaper implements Runnable {

@@ -424,7 +424,7 @@ public class Node implements Closeable {
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(this.settings, clusterService);
             final SearchTransportService searchTransportService =  new SearchTransportService(settings,
-                    transportService, responseCollectorService);
+                transportService, responseCollectorService);
             final Consumer<Binder> httpBind;
             final HttpServerTransport httpServerTransport;
             if (networkModule.isHttpEnabled()) {
@@ -447,7 +447,6 @@ public class Node implements Closeable {
                 transportService, indicesService, pluginsService, circuitBreakerService, scriptModule.getScriptService(),
                 httpServerTransport, ingestService, clusterService, settingsModule.getSettingsFilter());
             modules.add(b -> {
-                    b.bind(ResponseCollectorService.class).toInstance(responseCollectorService);
                     b.bind(NodeService.class).toInstance(nodeService);
                     b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
                     b.bind(PluginsService.class).toInstance(pluginsService);

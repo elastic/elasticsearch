@@ -78,7 +78,7 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
      * anything else.
      */
     @Override
-    public void testUnknownField() throws IOException {
+    public void testUnknownField() {
         String json = "{ \"" + WrapperQueryBuilder.NAME + "\" : {\"bogusField\" : \"someValue\"} }";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertTrue(e.getMessage().contains("bogusField"));

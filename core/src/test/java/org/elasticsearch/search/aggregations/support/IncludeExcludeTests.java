@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude.OrdinalsFilter;
@@ -223,11 +222,10 @@ public class IncludeExcludeTests extends ESTestCase {
         assertEquals(field.getPreferredName(), parser.currentName());
         token = parser.nextToken();
 
-        QueryParseContext parseContext = new QueryParseContext(parser);
         if (field.getPreferredName().equalsIgnoreCase("include")) {
-            return IncludeExclude.parseInclude(parser, parseContext);
+            return IncludeExclude.parseInclude(parser);
         } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
-            return IncludeExclude.parseExclude(parser, parseContext);
+            return IncludeExclude.parseExclude(parser);
         } else {
             throw new IllegalArgumentException(
                     "Unexpected field name serialized in test: " + field.getPreferredName());
@@ -263,7 +261,6 @@ public class IncludeExcludeTests extends ESTestCase {
         builder.endObject();
 
         XContentParser parser = createParser(builder);
-        QueryParseContext parseContext = new QueryParseContext(parser);
         XContentParser.Token token = parser.nextToken();
         assertEquals(token, XContentParser.Token.START_OBJECT);
 
@@ -273,10 +270,10 @@ public class IncludeExcludeTests extends ESTestCase {
             assertEquals(XContentParser.Token.FIELD_NAME, token);
             if (IncludeExclude.INCLUDE_FIELD.match(parser.currentName())) {
                 token = parser.nextToken();
-                inc = IncludeExclude.parseInclude(parser, parseContext);
+                inc = IncludeExclude.parseInclude(parser);
             } else if (IncludeExclude.EXCLUDE_FIELD.match(parser.currentName())) {
                 token = parser.nextToken();
-                exc = IncludeExclude.parseExclude(parser, parseContext);
+                exc = IncludeExclude.parseExclude(parser);
             } else {
                 throw new IllegalArgumentException("Unexpected field name serialized in test: " + parser.currentName());
             }

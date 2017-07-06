@@ -25,8 +25,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 
@@ -53,7 +53,7 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
     private static ParseField RESCORE_QUERY_WEIGHT_FIELD = new ParseField("rescore_query_weight");
     private static ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
 
-    private static final ObjectParser<InnerBuilder, QueryParseContext> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME, null);
+    private static final ObjectParser<InnerBuilder, Void> QUERY_RESCORE_PARSER = new ObjectParser<>(NAME, null);
 
     static {
         QUERY_RESCORE_PARSER.declareObject(InnerBuilder::setQueryBuilder, (p, c) -> {
@@ -161,8 +161,8 @@ public class QueryRescorerBuilder extends RescoreBuilder<QueryRescorerBuilder> {
         builder.endObject();
     }
 
-    public static QueryRescorerBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        InnerBuilder innerBuilder = QUERY_RESCORE_PARSER.parse(parseContext.parser(), new InnerBuilder(), parseContext);
+    public static QueryRescorerBuilder fromXContent(XContentParser parser) throws IOException {
+        InnerBuilder innerBuilder = QUERY_RESCORE_PARSER.parse(parser, new InnerBuilder(), null);
         return innerBuilder.build();
     }
 

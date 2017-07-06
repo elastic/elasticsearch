@@ -48,6 +48,7 @@ import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TieredMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
@@ -68,7 +69,6 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -1486,7 +1486,7 @@ public class InternalEngineTests extends ESTestCase {
             .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_5_4_0)
-            .put(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING.getKey(), true)
+            .put(IndexSettings.INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, true)
             .put(IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.getKey(),
                 between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY)))
             .build());
@@ -2198,10 +2198,10 @@ public class InternalEngineTests extends ESTestCase {
                 assertThat(localCheckpoint, greaterThanOrEqualTo(prevLocalCheckpoint));
                 assertThat(maxSeqNo, greaterThanOrEqualTo(prevMaxSeqNo));
                 try (IndexReader reader = DirectoryReader.open(commit)) {
-                    FieldStats stats = SeqNoFieldMapper.SeqNoDefaults.FIELD_TYPE.stats(reader);
+                    Long highest = getHighestSeqNo(reader);
                     final long highestSeqNo;
-                    if (stats != null) {
-                        highestSeqNo = (long) stats.getMaxValue();
+                    if (highest != null) {
+                        highestSeqNo = highest.longValue();
                     } else {
                         highestSeqNo = SequenceNumbersService.NO_OPS_PERFORMED;
                     }
@@ -2221,6 +2221,16 @@ public class InternalEngineTests extends ESTestCase {
         } finally {
             IOUtils.close(commits);
         }
+    }
+
+    private static Long getHighestSeqNo(final IndexReader reader) throws IOException {
+        final String fieldName = SeqNoFieldMapper.NAME;
+        long size = PointValues.size(reader, fieldName);
+        if (size == 0) {
+            return null;
+        }
+        byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
+        return LongPoint.decodeDimension(max, 0);
     }
 
     private static FixedBitSet getSeqNosSet(final IndexReader reader, final long highestSeqNo) throws IOException {

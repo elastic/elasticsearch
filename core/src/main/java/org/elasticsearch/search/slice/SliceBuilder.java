@@ -30,13 +30,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
@@ -57,7 +56,7 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField MAX_FIELD = new ParseField("max");
-    private static final ObjectParser<SliceBuilder, QueryParseContext> PARSER =
+    private static final ObjectParser<SliceBuilder, Void> PARSER =
         new ObjectParser<>("slice", SliceBuilder::new);
 
     static {
@@ -169,8 +168,8 @@ public class SliceBuilder extends ToXContentToBytes implements Writeable {
         builder.field(MAX_FIELD.getPreferredName(), max);
     }
 
-    public static SliceBuilder fromXContent(QueryParseContext context) throws IOException {
-        SliceBuilder builder = PARSER.parse(context.parser(), new SliceBuilder(), context);
+    public static SliceBuilder fromXContent(XContentParser parser) throws IOException {
+        SliceBuilder builder = PARSER.parse(parser, new SliceBuilder(), null);
         return builder;
     }
 

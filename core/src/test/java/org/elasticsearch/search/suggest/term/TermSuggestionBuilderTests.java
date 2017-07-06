@@ -142,7 +142,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
         }
     }
 
-    public void testInvalidParameters() throws IOException {
+    public void testInvalidParameters() {
         // test missing field name
         Exception e = expectThrows(NullPointerException.class, () -> new TermSuggestionBuilder((String) null));
         assertEquals("suggestion requires a field name", e.getMessage());

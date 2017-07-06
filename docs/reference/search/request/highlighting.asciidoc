@@ -39,8 +39,7 @@ be used for highlighting if it mapped to have `store` set to `true`.
 ==================================
 
 The field name supports wildcard notation. For example, using `comment_*`
-will cause all <<text,text>> and <<keyword,keyword>> fields (and <<string,string>>
-from versions before 5.0) that match the expression to be highlighted.
+will cause all <<text,text>> and <<keyword,keyword>> fields that match the expression to be highlighted.
 Note that all other fields will not be highlighted. If you use a custom mapper and want to
 highlight on a field anyway, you have to provide the field name explicitly.
 

@@ -60,7 +60,7 @@ WARNING: It is required to index the lineage of a parent in the same shard so yo
 always route child documents using their greater parent id.
 
 
-For instance the following index two children documents pointing to the same parent `1
+For instance the following index two children documents pointing to the same parent `1`
 with a `routing` value equals to the `id` of the parent:
 
 [source,js]
@@ -150,12 +150,7 @@ Will return:
                 "_score": null,
                 "_source": {
                     "text": "This is a parent document",
-                    "my_join_field": "my_parent"
-                },
-                "fields": {
-                    "my_join_field": [
-                        "my_parent"   <1>
-                    ]
+                    "my_join_field": "my_parent" <1>
                 },
                 "sort": [
                     "1"
@@ -168,12 +163,7 @@ Will return:
                 "_score": null,
                 "_source": {
                     "text": "This is a another parent document",
-                    "my_join_field": "my_parent"
-                },
-                "fields": {
-                    "my_join_field": [
-                        "my_parent"  <2>
-                    ]
+                    "my_join_field": "my_parent" <2>
                 },
                 "sort": [
                     "2"
@@ -192,14 +182,6 @@ Will return:
                         "parent": "1"  <4>
                     }
                 },
-                "fields": {
-                    "my_join_field": [
-                        "my_child"
-                    ],
-                    "my_join_field#my_parent": [
-                        "1"
-                    ]
-                },
                 "sort": [
                     "3"
                 ]
@@ -216,14 +198,6 @@ Will return:
                         "name": "my_child",
                         "parent": "1"
                     }
-                },
-                "fields": {
-                    "my_join_field": [
-                        "my_child"
-                    ],
-                    "my_join_field#my_parent": [
-                        "1"
-                    ]
                 },
                 "sort": [
                     "4"

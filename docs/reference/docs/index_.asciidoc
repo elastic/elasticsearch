@@ -1,6 +1,8 @@
 [[docs-index_]]
 == Index API
 
+IMPORTANT: See <<removal-of-types>>.
+
 The index API adds or updates a typed JSON document in a specific index,
 making it searchable. The following example inserts the JSON document
 into the "twitter" index, under a type called "tweet" with an id of 1:
@@ -267,41 +269,6 @@ document itself. This does come at the (very minimal) cost of an
 additional document parsing pass. If the `_routing` mapping is defined
 and set to be `required`, the index operation will fail if no routing
 value is provided or extracted.
-
-[float]
-[[parent-children]]
-=== Parents & Children
-
-A child document can be indexed by specifying its parent when indexing.
-For example:
-
-[source,js]
---------------------------------------------------
-PUT blogs
-{
-  "settings": {
-    "mapping.single_type": false
-  },
-  "mappings": {
-    "tag_parent": {},
-    "blog_tag": {
-      "_parent": {
-        "type": "tag_parent"
-      }
-    }
-  }
-}
-
-PUT blogs/blog_tag/1122?parent=1111
-{
-    "tag" : "something"
-}
---------------------------------------------------
-// CONSOLE
-
-When indexing a child document, the routing value is automatically set
-to be the same as its parent, unless the routing value is explicitly
-specified using the `routing` parameter.
 
 [float]
 [[index-distributed]]

@@ -94,11 +94,12 @@ public class BulkItemRequest implements Streamable {
         request = DocWriteRequest.readDocumentRequest(in);
         if (in.readBoolean()) {
             primaryResponse = BulkItemResponse.readBulkItem(in);
-            if (in.getVersion().onOrAfter(Version.V_5_6_0_UNRELEASED)) {
-                // 6.0 no longer mutates the requests with these, do it here as a bwc layer
-                request.version(primaryResponse.getVersion());
-                request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-            }
+            // This is a bwc layer for 6.0 which no longer mutates the requests with these
+            // Since 5.x still requires it we do it here. Note that these are harmless
+            // as both operations are idempotent. This is something we rely for and assert on
+            // in InternalEngine.planIndexingAsNonPrimary()
+            request.version(primaryResponse.getVersion());
+            request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
         }
         if (in.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
             ignoreOnReplica = in.readBoolean();

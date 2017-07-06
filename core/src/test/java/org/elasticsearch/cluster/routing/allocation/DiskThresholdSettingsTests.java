@@ -24,6 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Locale;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -53,6 +55,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), false)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "500mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1000mb")
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "250mb")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(), "30s")
             .build();
         nss.applySettings(newSettings);
@@ -61,6 +64,8 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertEquals(0.0D, diskThresholdSettings.getFreeDiskThresholdHigh(), 0.0D);
         assertEquals(ByteSizeValue.parseBytesSizeValue("1000mb", "test"), diskThresholdSettings.getFreeBytesThresholdLow());
         assertEquals(0.0D, diskThresholdSettings.getFreeDiskThresholdLow(), 0.0D);
+        assertEquals(ByteSizeValue.parseBytesSizeValue("250mb", "test"), diskThresholdSettings.getFreeBytesThresholdFloodStage());
+        assertEquals(0.0D, diskThresholdSettings.getFreeDiskThresholdFloodStage(), 0.0D);
         assertEquals(30L, diskThresholdSettings.getRerouteInterval().seconds());
         assertFalse(diskThresholdSettings.isEnabled());
         assertFalse(diskThresholdSettings.includeRelocations());
@@ -102,6 +107,7 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         final Settings newSettings = Settings.builder()
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "500m")
                 .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1000m")
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "250m")
                 .build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.applySettings(newSettings));
@@ -128,8 +134,15 @@ public class DiskThresholdSettingsTests extends ESTestCase {
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
-        final String incompatibleExpected =
-                "low disk watermark [90%] represents a percentage but high disk watermark [1000m] represents a byte size";
+        final String incompatibleExpected = String.format(
+                Locale.ROOT,
+                "unable to consistently parse [%s=%s], [%s=%s], and [%s=%s] as percentage or bytes",
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(),
+                "90%",
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(),
+                "1000m",
+                DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(),
+                "95%");
         assertThat(cause, hasToString(containsString(incompatibleExpected)));
     }
 

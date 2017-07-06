@@ -76,12 +76,8 @@ public class ResponseCollectorServiceIT extends ESIntegTestCase {
         }
         refresh("test");
         ResponseCollectorService collector = internalCluster().getInstance(SearchService.class).getResponseCollectorService();
-        Map<String, Double> avgQueues = collector.getAvgQueueSize();
-        Map<String, Double> avgService = collector.getAvgServiceTime();
-        Map<String, Double> avgResponse = collector.getAvgResponseTime();
-        assertThat(avgQueues.size(), equalTo(0));
-        assertThat(avgService.size(), equalTo(0));
-        assertThat(avgResponse.size(), equalTo(0));
+        Map<String, ResponseCollectorService.ComputedNodeStats> allStats = collector.getAllNodeStatistics();
+        assertThat(allStats.size(), equalTo(0));
 
         // perform enough searches that each node will have some response data collected
         for (int i = 0; i < 30; i++) {
@@ -94,23 +90,16 @@ public class ResponseCollectorServiceIT extends ESIntegTestCase {
         searchServices.forEach(ss -> {
             ResponseCollectorService c = ss.getResponseCollectorService();
 
-            Map<String, Double> queues = c.getAvgQueueSize();
-            Map<String, Double> service = c.getAvgServiceTime();
-            Map<String, Double> response = c.getAvgResponseTime();
-            logger.info("--> queue sizes {}", queues);
-            logger.info("--> service EWMAs {}", service);
-            logger.info("--> response EWMAs {}", response);
-
-            assertThat(queues.size(), greaterThan(0));
-            assertThat(service.size(), greaterThan(0));
-            assertThat(response.size(), greaterThan(0));
-            nodeIds.addAll(queues.keySet());
+            Map<String, ResponseCollectorService.ComputedNodeStats> stats = collector.getAllNodeStatistics();
+            logger.info("--> stats {}", stats);
+            assertThat(stats.size(), greaterThan(0));
+            nodeIds.addAll(stats.keySet());
 
             clusterService.state().getNodes().getDataNodes().values().forEach((Consumer<? super ObjectCursor<DiscoveryNode>>) n -> {
                 String nodeId = n.value.getId();
-                assertThat(nodeId, queues.get(nodeId), greaterThanOrEqualTo(0.0));
-                assertThat(nodeId, service.get(nodeId), greaterThan(0.0));
-                assertThat(nodeId, response.get(nodeId), greaterThan(0.0));
+                assertThat(nodeId, stats.get(nodeId).queueSize, greaterThanOrEqualTo(0.0));
+                assertThat(nodeId, stats.get(nodeId).responseTime, greaterThan(0.0));
+                assertThat(nodeId, stats.get(nodeId).serviceTime, greaterThan(0.0));
             });
         });
 
@@ -124,22 +113,15 @@ public class ResponseCollectorServiceIT extends ESIntegTestCase {
         searchServices.forEach(ss -> {
             ResponseCollectorService c = ss.getResponseCollectorService();
 
-            Map<String, Double> queues = c.getAvgQueueSize();
-            Map<String, Double> service = c.getAvgServiceTime();
-            Map<String, Double> response = c.getAvgResponseTime();
-            logger.info("--> queue sizes {}", queues);
-            logger.info("--> service EWMAs {}", service);
-            logger.info("--> response EWMAs {}", response);
-
-            assertThat(queues.size(), greaterThan(0));
-            assertThat(service.size(), greaterThan(0));
-            assertThat(response.size(), greaterThan(0));
+            Map<String, ResponseCollectorService.ComputedNodeStats> stats = collector.getAllNodeStatistics();
+            logger.info("--> stats {}", stats);
+            assertThat(stats.size(), greaterThan(0));
 
             newClusterService.state().getNodes().getDataNodes().values().forEach((Consumer<? super ObjectCursor<DiscoveryNode>>) n -> {
                 String nodeId = n.value.getId();
-                assertThat(nodeId, queues.get(nodeId), greaterThanOrEqualTo(0.0));
-                assertThat(nodeId, service.get(nodeId), greaterThan(0.0));
-                assertThat(nodeId, response.get(nodeId), greaterThan(0.0));
+                assertThat(nodeId, stats.get(nodeId).queueSize, greaterThanOrEqualTo(0.0));
+                assertThat(nodeId, stats.get(nodeId).responseTime, greaterThan(0.0));
+                assertThat(nodeId, stats.get(nodeId).serviceTime, greaterThan(0.0));
             });
         });
 
@@ -149,7 +131,7 @@ public class ResponseCollectorServiceIT extends ESIntegTestCase {
             Iterable<SearchService> innerSearchServices = internalCluster().getInstances(SearchService.class);
             innerSearchServices.forEach(ss -> {
                 ResponseCollectorService c = ss.getResponseCollectorService();
-                Map<String, Double> queues = c.getAvgQueueSize();
+                Map<String, ResponseCollectorService.ComputedNodeStats> queues = c.getAllNodeStatistics();
                 newNodeIds.addAll(queues.keySet());
             });
             logger.info("--> original nodes: {}, new nodes: {}", nodeIds, newNodeIds);

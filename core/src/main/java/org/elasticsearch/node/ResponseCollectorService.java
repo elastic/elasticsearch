@@ -27,10 +27,12 @@ import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 /**
@@ -42,16 +44,10 @@ public class ResponseCollectorService extends AbstractComponent implements Clust
 
     private static final double ALPHA = 0.3;
 
-    private final Map<String, ExponentiallyWeightedMovingAverage> nodeIdToQueueSize;
-    private final Map<String, ExponentiallyWeightedMovingAverage> nodeIdToResponseTime;
-    private final Map<String, Double> nodeIdToAvgServiceTime;
+    private final ConcurrentMap<String, NodeStatistics> nodeIdToStats = ConcurrentCollections.newConcurrentMap();
 
-    @Inject
     public ResponseCollectorService(Settings settings, ClusterService clusterService) {
         super(settings);
-        this.nodeIdToQueueSize = new HashMap<>();
-        this.nodeIdToResponseTime = new HashMap<>();
-        this.nodeIdToAvgServiceTime = new HashMap<>();
         clusterService.addListener(this);
     }
 
@@ -59,58 +55,89 @@ public class ResponseCollectorService extends AbstractComponent implements Clust
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
-                synchronized (this) {
-                    nodeIdToQueueSize.remove(removedNode.getId());
-                    nodeIdToResponseTime.remove(removedNode.getId());
-                    nodeIdToAvgServiceTime.remove(removedNode.getId());
-                }
+                nodeIdToStats.remove(removedNode.getId());
             }
         }
     }
 
-    private void initializeOrAdd(Map<String, ExponentiallyWeightedMovingAverage> map, String key, double value) {
-        ExponentiallyWeightedMovingAverage avg = map.get(key);
-        if (avg == null) {
-            synchronized (this) {
-                avg = map.get(key);
-                if (avg == null) {
-                    map.put(key, new ExponentiallyWeightedMovingAverage(ALPHA, value));
-                } else {
-                    avg.addValue(value);
-                }
+    public void addNodeStatistics(String nodeId, int queueSize, long responseTimeNanos, long avgServiceTimeNanos) {
+        NodeStatistics nodeStats = nodeIdToStats.get(nodeId);
+        nodeIdToStats.compute(nodeId, (id, ns) -> {
+            if (ns == null) {
+                ExponentiallyWeightedMovingAverage queueEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, queueSize);
+                ExponentiallyWeightedMovingAverage responseEWMA = new ExponentiallyWeightedMovingAverage(ALPHA, responseTimeNanos);
+                NodeStatistics newStats = new NodeStatistics(nodeId, queueEWMA, responseEWMA, avgServiceTimeNanos);
+                return newStats;
+            } else {
+                ns.queueSize.addValue((double) queueSize);
+                ns.responseTime.addValue((double) responseTimeNanos);
+                ns.serviceTime = avgServiceTimeNanos;
+                return ns;
             }
-        } else {
-            avg.addValue(value);
+        });
+    }
+
+    public Map<String, ComputedNodeStats> getAllNodeStatistics() {
+        Map<String, ComputedNodeStats> nodeStats = new HashMap<>(nodeIdToStats.size());
+        nodeIdToStats.forEach((k, v) -> {
+            nodeStats.put(k, new ComputedNodeStats(v));
+        });
+        return nodeStats;
+    }
+
+    public class ComputedNodeStats {
+        public final double queueSize;
+        public final double responseTime;
+        public final double serviceTime;
+
+        ComputedNodeStats(NodeStatistics nodeStats) {
+            this(nodeStats.queueSize.getAverage(), nodeStats.responseTime.getAverage(), nodeStats.serviceTime);
+        }
+
+        ComputedNodeStats(double queueSize, double responseTime, double serviceTime) {
+            this.queueSize = queueSize;
+            this.responseTime = responseTime;
+            this.serviceTime = serviceTime;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder("ComputedNodeStats(");
+            sb.append("queue: ").append(queueSize);
+            sb.append(", response time: ").append(responseTime);
+            sb.append(", service time: ").append(serviceTime);
+            sb.append(")");
+            return sb.toString();
         }
     }
 
-    public void addQueueSize(String nodeId, int queueSize) {
-        initializeOrAdd(nodeIdToQueueSize, nodeId, (double) queueSize);
-    }
+    /**
+     * Class encapsulating a node's exponentially weighted queue size, response time, and service time
+     */
+    private class NodeStatistics {
+        public final String nodeId;
+        public final ExponentiallyWeightedMovingAverage queueSize;
+        public final ExponentiallyWeightedMovingAverage responseTime;
+        public double serviceTime;
 
-    public void addResponseTime(String nodeId, long responseTimeNanos) {
-        initializeOrAdd(nodeIdToResponseTime, nodeId, (double) responseTimeNanos);
-    }
+        NodeStatistics(String nodeId,
+                       ExponentiallyWeightedMovingAverage queueSizeEWMA,
+                       ExponentiallyWeightedMovingAverage responseTimeEWMA,
+                       double serviceTimeEWMA) {
+            this.nodeId = nodeId;
+            this.queueSize = queueSizeEWMA;
+            this.responseTime = responseTimeEWMA;
+            this.serviceTime = serviceTimeEWMA;
+        }
 
-    public void setServiceTime(String nodeId, long avgServiceTimeNanos) {
-        nodeIdToAvgServiceTime.put(nodeId, (double) avgServiceTimeNanos);
-    }
-
-    public synchronized Map<String, Double> getAvgQueueSize() {
-        return nodeIdToQueueSize
-                .entrySet()
-                .stream()
-                .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().getAverage()));
-    }
-
-    public synchronized Map<String, Double> getAvgResponseTime() {
-        return nodeIdToResponseTime
-                .entrySet()
-                .stream()
-                .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue().getAverage()));
-    }
-
-    public Map<String, Double> getAvgServiceTime() {
-        return Collections.unmodifiableMap(nodeIdToAvgServiceTime);
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder("NodeStatistics(");
+            sb.append("queue: ").append(queueSize.getAverage());
+            sb.append(", response time: ").append(responseTime.getAverage());
+            sb.append(", service time: ").append(serviceTime);
+            sb.append(")");
+            return sb.toString();
+        }
     }
 }

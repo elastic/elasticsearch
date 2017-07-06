@@ -921,7 +921,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final IndexShard shard = newStartedShard(false);
         int translogOps = 1;
         final Engine.Index index = shard.prepareIndexOnReplica(
-            SourceToParse.source(SourceToParse.Origin.PRIMARY, shard.shardId().getIndexName(), "type", "id", new BytesArray("{}"),
+            SourceToParse.source(SourceToParse.Origin.REPLICA, shard.shardId().getIndexName(), "type", "id", new BytesArray("{}"),
                 XContentType.JSON), 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         final Engine.Delete delete = shard.prepareDeleteOnReplica("type", "id", 2, VersionType.EXTERNAL);
         shard.delete(delete);
@@ -933,7 +933,8 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(result.getTranslogLocation(), nullValue());
         final ShardRouting replicaRouting = shard.routingEntry();
         IndexShard newShard = reinitShard(shard,
-            newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING));
+            newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING,
+                RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE));
         DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());

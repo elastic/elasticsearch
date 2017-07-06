@@ -155,10 +155,11 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 final Netty4OpenChannelsHandler openChannels = new Netty4OpenChannelsHandler(logger);
                 this.serverOpenChannels = openChannels;
                 // loop through all profiles and start them up, special handling for default one
+                Settings fallbackSettings = createFallbackSettings();
                 for (Map.Entry<String, Settings> entry : buildProfileSettings().entrySet()) {
                     // merge fallback settings with default settings with profile settings so we have complete settings with default values
                     final Settings settings = Settings.builder()
-                        .put(createFallbackSettings())
+                        .put(fallbackSettings)
                         .put(entry.getValue()).build();
                     createServerBootstrap(entry.getKey(), settings);
                     bindServer(entry.getKey(), settings);

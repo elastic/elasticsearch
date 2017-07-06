@@ -8,6 +8,18 @@ dependencies {
   compile "org.hamcrest:hamcrest-all:${versions.hamcrest}"
 }
 
+thirdPartyAudit.excludes = [
+   // Referneced by the test:framework but not used
+  'org.apache.tools.ant.BuildException',
+  'org.apache.tools.ant.DirectoryScanner',
+  'org.apache.tools.ant.Task',
+  'org.apache.tools.ant.types.FileSet',
+  'org.easymock.EasyMock',
+  'org.easymock.IArgumentMatcher',
+  'org.jmock.core.Constraint',
+]
+
+
 /* Elasticsearch traditionally disables this for test utilities because it is
  * hard to configure and (hopefully) much less important for tests than
  * production code. */
@@ -25,7 +37,7 @@ eclipse {
     }
   }
 }
-forbiddenApisTest {
+forbiddenApisMain {
   bundledSignatures -= 'jdk-non-portable'
   bundledSignatures += 'jdk-internal'
 }

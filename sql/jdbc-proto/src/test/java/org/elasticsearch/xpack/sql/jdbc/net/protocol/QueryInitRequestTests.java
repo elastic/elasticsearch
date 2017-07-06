@@ -18,8 +18,6 @@ public class QueryInitRequestTests extends ESTestCase {
     }
 
     public void testRoundTrip() throws IOException {
-        TimeoutInfo example = new TimeoutInfo(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
-        assertRoundTrip(example, TimeoutInfo::encode, TimeoutInfo::new);
+        assertRoundTrip(randomQueryInitRequest(), QueryInitRequest::encode, in -> (QueryInitRequest) ProtoUtils.readRequest(in));
     }
-
 }

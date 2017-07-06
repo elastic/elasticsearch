@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
@@ -23,14 +24,15 @@ import java.io.IOException;
 
 public abstract class ProtoHandler<R> implements HttpHandler, AutoCloseable {
 
-    protected final static Logger log = ESLoggerFactory.getLogger(ProtoHandler.class.getName());
+    protected static final Logger log = ESLoggerFactory.getLogger(ProtoHandler.class.getName());
     private final TimeValue TV = TimeValue.timeValueSeconds(5);
     protected final NodeInfo info;
     protected final String clusterName;
-    private final IOFunction<DataInput, String> headerReader;
-    private final IOFunction<R, BytesReference> toProto;
+    private final CheckedFunction<DataInput, String, IOException> headerReader;
+    private final CheckedFunction<R, BytesReference, IOException> toProto;
     
-    protected ProtoHandler(Client client, IOFunction<DataInput, String> headerReader, IOFunction<R, BytesReference> toProto) {
+    protected ProtoHandler(Client client, CheckedFunction<DataInput, String, IOException> headerReader,
+            CheckedFunction<R, BytesReference, IOException> toProto) {
         NodesInfoResponse niResponse = client.admin().cluster().prepareNodesInfo("_local").clear().get(TV);
         info = niResponse.getNodes().get(0);
         clusterName = niResponse.getClusterName().value();

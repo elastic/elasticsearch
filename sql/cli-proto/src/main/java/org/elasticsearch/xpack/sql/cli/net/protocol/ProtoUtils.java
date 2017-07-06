@@ -51,10 +51,10 @@ public abstract class ProtoUtils {
                     case INFO:
                         return InfoResponse.decode(in);
                     case COMMAND:
-                        return CommandResponse.decode(in);
+                        return new CommandResponse(in);
                     default:
                         // cannot find action type
-                        return null;
+                        return null;  // NOCOMMIT throw an exception?
                 }
             default:
                 return null;

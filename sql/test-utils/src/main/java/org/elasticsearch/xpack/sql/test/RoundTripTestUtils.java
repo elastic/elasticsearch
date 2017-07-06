@@ -41,7 +41,9 @@ public abstract class RoundTripTestUtils {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             encode.accept(example, new DataOutputStream(out));
             try (InputStream in = new ByteArrayInputStream(out.toByteArray())) {
-                return decode.apply(new DataInputStream(in));
+                T decoded = decode.apply(new DataInputStream(in));
+                assertEquals("should have emptied the stream", 0, in.available());
+                return decoded;
             }
         }
     }

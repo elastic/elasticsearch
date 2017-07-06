@@ -41,6 +41,7 @@ public class CliHttpClient implements AutoCloseable {
             Response response = readResponse(in, Action.COMMAND);
             // read data
             if (response instanceof CommandResponse) {
+                // NOCOMMIT embed data in response
                 String result = in.readUTF();
                 CommandResponse cr = (CommandResponse) response;
                 return new CommandResponse(cr.serverTimeQueryReceived, cr.serverTimeResponseSent, cr.requestId, result);

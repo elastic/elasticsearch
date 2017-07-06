@@ -60,7 +60,7 @@ public class CliServer {
     }
 
     public void command(CommandRequest req, ActionListener<Response> listener) {
-        final long start = System.currentTimeMillis();
+        final long start = System.currentTimeMillis(); // NOCOMMIT should be nanoTime or else clock skew will skew us
 
         // TODO support non-utc for cli server
         executor.sql(req.command, TimeZone.getTimeZone("UTC"), wrap(

@@ -8,40 +8,65 @@ package org.elasticsearch.xpack.sql.cli.net.protocol;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
+import java.util.Objects;
 
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Status;
 
 public class CommandResponse extends Response {
 
-    public final long serverTimeQueryReceived, serverTimeResponseSent, timeSpent;
+    public final long serverTimeQueryReceived, serverTimeResponseSent;
     public final String requestId;
-    public final Object data; // NOCOMMIT should be a string? reading it is weird.
+    public final Object data; // NOCOMMIT should be a string? serialization is weird too.
 
     public CommandResponse(long serverTimeQueryReceived, long serverTimeResponseSent, String requestId, Object data) {
         super(Action.COMMAND);
 
         this.serverTimeQueryReceived = serverTimeQueryReceived;
         this.serverTimeResponseSent = serverTimeResponseSent;
-        this.timeSpent = serverTimeQueryReceived - serverTimeResponseSent;
         this.requestId = requestId;
 
         this.data = data;
     }
 
+    public CommandResponse(DataInput in) throws IOException {
+        super(Action.COMMAND);
+        serverTimeQueryReceived = in.readLong();
+        serverTimeResponseSent = in.readLong();
+        requestId = in.readUTF();
+        data = null;
+    }
+
     public void encode(DataOutput out) throws IOException {
-        out.writeInt(Status.toSuccess(action));
+        out.writeInt(Status.toSuccess(action)); // NOCOMMIT no symetric!
 
         out.writeLong(serverTimeQueryReceived);
         out.writeLong(serverTimeResponseSent);
         out.writeUTF(requestId);
     }
 
-    public static CommandResponse decode(DataInput in) throws IOException {
-        long serverTimeQueryReceived = in.readLong();
-        long serverTimeResponseSent = in.readLong();
-        String requestId = in.readUTF();
+    @Override
+    public String toString() {
+        return "CommandResponse<received=[" + serverTimeQueryReceived 
+                + "] sent=[" + serverTimeResponseSent
+                + "] requestId=[" + requestId
+                + "] data=[" + data + "]>";
+    }
 
-        return new CommandResponse(serverTimeQueryReceived, serverTimeResponseSent, requestId, null);
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        CommandResponse other = (CommandResponse) obj;
+        return serverTimeQueryReceived == other.serverTimeQueryReceived
+                && serverTimeResponseSent == other.serverTimeResponseSent
+                && Objects.equals(requestId, other.requestId)
+                && Objects.equals(data, other.data);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(serverTimeQueryReceived, serverTimeResponseSent, requestId, data);
     }
 }

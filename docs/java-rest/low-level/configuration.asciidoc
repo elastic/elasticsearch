@@ -62,6 +62,7 @@ you can do so by disabling it via the `HttpAsyncClientBuilder`:
 --------------------------------------------------
 include-tagged::{doc-tests}/RestClientDocumentation.java[rest-client-config-disable-preemptive-auth]
 --------------------------------------------------
+<1> Disable preemptive authentication
 
 === Encrypted communication
 

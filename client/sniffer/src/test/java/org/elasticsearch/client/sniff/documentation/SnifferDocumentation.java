@@ -47,12 +47,11 @@ import java.util.concurrent.TimeUnit;
  * Note that this is not a test class as we are only interested in testing that docs snippets compile. We don't want
  * to send requests to a node and we don't even have the tools to do it.
  */
+@SuppressWarnings("unused")
 public class SnifferDocumentation {
 
     @SuppressWarnings("unused")
     public void testUsage() throws IOException {
-
-
         {
             //tag::sniffer-init
             RestClient restClient = RestClient.builder(

@@ -71,6 +71,7 @@ import java.util.concurrent.CountDownLatch;
  * Note that this is not a test class as we are only interested in testing that docs snippets compile. We don't want
  * to send requests to a node and we don't even have the tools to do it.
  */
+@SuppressWarnings("unused")
 public class RestClientDocumentation {
 
     @SuppressWarnings("unused")
@@ -308,8 +309,7 @@ public class RestClientDocumentation {
                     .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
                         @Override
                         public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
-                            // disable preemptive authentication
-                            httpClientBuilder.disableAuthCaching();
+                            httpClientBuilder.disableAuthCaching(); // <1>
                             return httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider);
                         }
                     });

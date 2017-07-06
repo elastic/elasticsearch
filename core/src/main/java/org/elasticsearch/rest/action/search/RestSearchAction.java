@@ -161,23 +161,12 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        if (request.param("fields") != null) {
-            throw new IllegalArgumentException("The parameter [" +
-                SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
-                SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
-                "if the field is not stored");
-        }
-
-
         StoredFieldsContext storedFieldsContext =
             StoredFieldsContext.fromRestRequest(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), request);
         if (storedFieldsContext != null) {
             searchSourceBuilder.storedFields(storedFieldsContext);
         }
         String sDocValueFields = request.param("docvalue_fields");
-        if (sDocValueFields == null) {
-            sDocValueFields = request.param("fielddata_fields");
-        }
         if (sDocValueFields != null) {
             if (Strings.hasText(sDocValueFields)) {
                 String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);

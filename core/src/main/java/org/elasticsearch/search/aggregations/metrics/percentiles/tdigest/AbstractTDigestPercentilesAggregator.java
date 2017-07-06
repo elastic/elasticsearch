@@ -90,7 +90,8 @@ public abstract class AbstractTDigestPercentilesAggregator extends NumericMetric
                 if (values.advanceExact(doc)) {
                     final int valueCount = values.docValueCount();
                     for (int i = 0; i < valueCount; i++) {
-                        state.add(values.nextValue());
+                        double nextValue = values.nextValue();
+                        state.add(nextValue);
                     }
                 }
             }

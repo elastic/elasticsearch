@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.fields;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -706,13 +705,13 @@ public class SearchFieldsIT extends ESIntegTestCase {
     }
 
     // see #8203
-    public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
+    public void testSingleValueDocValueField() throws ExecutionException, InterruptedException {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .addMapping("type", "test_field", "type=keyword").get());
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(
-                new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).fieldDataField("test_field")).get();
+                new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).docValueField("test_field")).get();
         assertHitCount(searchResponse, 1);
         Map<String, DocumentField> fields = searchResponse.getHits().getHits()[0].getFields();
         assertThat(fields.get("test_field").getValue(), equalTo("foobar"));

@@ -24,10 +24,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
@@ -52,6 +54,7 @@ import java.util.Objects;
  * indexing.
  */
 public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSuggestionBuilder> {
+    private static final XContentType CONTEXT_BYTES_XCONTENT_TYPE = XContentType.JSON;
     static final String SUGGESTION_NAME = "completion";
     static final ParseField CONTEXTS_FIELD = new ParseField("contexts", "context");
 
@@ -86,7 +89,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         PARSER.declareInt(CompletionSuggestionBuilder.InnerBuilder::shardSize, SHARDSIZE_FIELD);
         PARSER.declareField((p, v, c) -> {
             // Copy the current structure. We will parse, once the mapping is provided
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+            XContentBuilder builder = XContentFactory.contentBuilder(CONTEXT_BYTES_XCONTENT_TYPE);
             builder.copyCurrentStructure(p);
             v.contextBytes = builder.bytes();
             p.skipChildren();
@@ -186,7 +189,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     public CompletionSuggestionBuilder contexts(Map<String, List<? extends ToXContent>> queryContexts) {
         Objects.requireNonNull(queryContexts, "contexts must not be null");
         try {
-            XContentBuilder contentBuilder = XContentFactory.jsonBuilder();
+            XContentBuilder contentBuilder = XContentFactory.contentBuilder(CONTEXT_BYTES_XCONTENT_TYPE);
             contentBuilder.startObject();
             for (Map.Entry<String, List<? extends ToXContent>> contextEntry : queryContexts.entrySet()) {
                 contentBuilder.startArray(contextEntry.getKey());
@@ -255,39 +258,41 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
         suggestionContext.setFuzzyOptions(fuzzyOptions);
         suggestionContext.setRegexOptions(regexOptions);
         MappedFieldType mappedFieldType = mapperService.fullName(suggestionContext.getField());
-        if (mappedFieldType == null ||
-            mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
+        if (mappedFieldType == null || mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
             throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
         if (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
             CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
             suggestionContext.setFieldType(type);
             if (type.hasContextMappings() && contextBytes != null) {
-                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(context.getXContentRegistry(),
-                        contextBytes)) {
-                    if (type.hasContextMappings() && contextParser != null) {
-                        ContextMappings contextMappings = type.getContextMappings();
-                        contextParser.nextToken();
-                        Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = new HashMap<>(contextMappings.size());
-                        assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;
-                        XContentParser.Token currentToken;
-                        String currentFieldName;
-                        while ((currentToken = contextParser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (currentToken == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = contextParser.currentName();
-                                final ContextMapping mapping = contextMappings.get(currentFieldName);
-                                queryContexts.put(currentFieldName, mapping.parseQueryContext(contextParser));
-                            }
-                        }
-                        suggestionContext.setQueryContexts(queryContexts);
-                    }
-                }
+                Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(contextBytes,
+                        context.getXContentRegistry(), type.getContextMappings());
+                suggestionContext.setQueryContexts(queryContexts);
             } else if (contextBytes != null) {
                 throw new IllegalArgumentException("suggester [" + type.name() + "] doesn't expect any context");
             }
         }
         assert suggestionContext.getFieldType() != null : "no completion field type set";
         return suggestionContext;
+    }
+
+    static Map<String, List<ContextMapping.InternalQueryContext>> parseContextBytes(BytesReference contextBytes,
+            NamedXContentRegistry xContentRegistry, ContextMappings contextMappings) throws IOException {
+        try (XContentParser contextParser = XContentHelper.createParser(xContentRegistry, contextBytes, CONTEXT_BYTES_XCONTENT_TYPE)) {
+            contextParser.nextToken();
+            Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = new HashMap<>(contextMappings.size());
+            assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;
+            XContentParser.Token currentToken;
+            String currentFieldName;
+            while ((currentToken = contextParser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (currentToken == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = contextParser.currentName();
+                    final ContextMapping<?> mapping = contextMappings.get(currentFieldName);
+                    queryContexts.put(currentFieldName, mapping.parseQueryContext(contextParser));
+                }
+            }
+            return queryContexts;
+        }
     }
 
     @Override

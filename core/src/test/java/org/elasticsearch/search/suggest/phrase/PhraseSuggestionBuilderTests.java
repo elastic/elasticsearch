@@ -188,7 +188,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
     }
 
     @Override
-    protected void assertSuggester(PhraseSuggestionBuilder builder, SuggestionContext context) {
+    protected void assertSuggestionContext(PhraseSuggestionBuilder builder, SuggestionContext context) {
         assertThat(context, instanceOf(PhraseSuggestionContext.class));
         assertThat(context.getSuggester(), instanceOf(PhraseSuggester.class));
         PhraseSuggestionContext phraseSuggesterCtx = (PhraseSuggestionContext) context;

@@ -139,19 +139,26 @@ public class Cli {
                     else {
                         executeCommand(line, out);
                     }
-                } catch (RuntimeException ex) {
-                    // NOCOMMIT we should probably be able to throw these exceptions, if just for testing
-                    AttributedStringBuilder asb = new AttributedStringBuilder();
-                    asb.append("Communication error [", BOLD.foreground(RED));
-                    asb.append(ex.getMessage(), DEFAULT.boldOff().italic().foreground(YELLOW));
-                    asb.append("]", BOLD.underlineOff().foreground(RED));
-                    out.println(asb.toAnsi(term));
+                } catch (RuntimeException e) {
+                    handleExceptionWhileCommunicatingWithServer(out, e);
                 }
                 out.println();
             }
 
             out.flush();
         }
+    }
+
+    /**
+     * Handle an exception while communication with the server. Extracted
+     * into a method so that tests can bubble the failure. 
+     */
+    protected void handleExceptionWhileCommunicatingWithServer(PrintWriter out, RuntimeException e) {
+        AttributedStringBuilder asb = new AttributedStringBuilder();
+        asb.append("Communication error [", BOLD.foreground(RED));
+        asb.append(e.getMessage(), DEFAULT.boldOff().italic().foreground(YELLOW));
+        asb.append("]", BOLD.underlineOff().foreground(RED));
+        out.println(asb.toAnsi(term));
     }
 
     private static String logo() {

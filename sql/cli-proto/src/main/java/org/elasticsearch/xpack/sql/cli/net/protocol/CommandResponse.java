@@ -16,7 +16,7 @@ public class CommandResponse extends Response {
 
     public final long serverTimeQueryReceived, serverTimeResponseSent, timeSpent;
     public final String requestId;
-    public final Object data;
+    public final Object data; // NOCOMMIT should be a string? reading it is weird.
 
     public CommandResponse(long serverTimeQueryReceived, long serverTimeResponseSent, String requestId, Object data) {
         super(Action.COMMAND);

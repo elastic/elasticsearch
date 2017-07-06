@@ -12,6 +12,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -25,11 +26,8 @@ import org.relique.jdbc.csv.CsvConnection;
 import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
-import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -69,12 +67,8 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
     }
 
     @ClassRule
-    public static final AbstractJdbcConnectionSource ES = EMBED_SQL ? new EmbeddedJdbcServer() : new AbstractJdbcConnectionSource() {
-        @Override
-        public Connection get() throws SQLException {
-            return DriverManager.getConnection("jdbc:es://" + System.getProperty("tests.rest.cluster"));
-        }
-    };
+    public static final CheckedSupplier<Connection, SQLException> ES = EMBED_SQL ? new EmbeddedJdbcServer() : () ->
+            DriverManager.getConnection("jdbc:es://" + System.getProperty("tests.rest.cluster"));
 
     public Connection esJdbc() throws SQLException {
         return ES.get();

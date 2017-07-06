@@ -5,17 +5,19 @@
  */
 package org.elasticsearch.xpack.sql.cli.integration.net.protocol;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
 import org.elasticsearch.xpack.sql.cli.CliConfiguration;
-import org.elasticsearch.xpack.sql.cli.integration.server.CliHttpServer;
+import org.elasticsearch.xpack.sql.cli.CliHttpServer;
 import org.elasticsearch.xpack.sql.cli.net.client.CliHttpClient;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
+import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -29,6 +31,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
+@AwaitsFix(bugUrl = "being ported")
+@SuppressForbidden(reason = "being ported")
 public class ProtoTests extends ESTestCase {
     // NOCOMMIT port remaining demos
 

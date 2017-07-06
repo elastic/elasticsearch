@@ -6,9 +6,11 @@
 package org.elasticsearch.xpack.sql.jdbc.framework;
 
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.junit.rules.ExternalResource;
 
 import java.net.InetAddress;
 import java.security.AccessControlException;
@@ -23,7 +25,7 @@ import static org.junit.Assert.assertNotNull;
  * Embedded JDBC server that uses the transport client to power
  * the jdbc endpoints in the same JVM as the tests.
  */
-public class EmbeddedJdbcServer extends AbstractJdbcConnectionSource {
+public class EmbeddedJdbcServer extends ExternalResource implements CheckedSupplier<Connection, SQLException> {
 
     private Client client;
     private JdbcHttpServer server;

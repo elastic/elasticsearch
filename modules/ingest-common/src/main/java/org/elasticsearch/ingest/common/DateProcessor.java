@@ -28,12 +28,14 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.IllformedLocaleException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 public final class DateProcessor extends AbstractProcessor {
 
@@ -47,7 +49,8 @@ public final class DateProcessor extends AbstractProcessor {
     private final List<String> formats;
     private final List<Function<String, DateTime>> dateParsers;
 
-    DateProcessor(String tag, DateTimeZone timezone, Locale locale, String field, List<String> formats, String targetField) {
+    DateProcessor(Supplier<DateTime> currentTimeSupplier, String tag, DateTimeZone timezone, Locale locale,
+                  String field, List<String> formats, String targetField) {
         super(tag);
         this.timezone = timezone;
         this.locale = locale;
@@ -57,7 +60,7 @@ public final class DateProcessor extends AbstractProcessor {
         this.dateParsers = new ArrayList<>(this.formats.size());
         for (String format : formats) {
             DateFormat dateFormat = DateFormat.fromString(format);
-            dateParsers.add(dateFormat.getFunction(format, timezone, locale));
+            dateParsers.add(dateFormat.getFunction(currentTimeSupplier, format, timezone, locale));
         }
     }
 
@@ -127,7 +130,8 @@ public final class DateProcessor extends AbstractProcessor {
                 }
             }
             List<String> formats = ConfigurationUtils.readList(TYPE, processorTag, config, "formats");
-            return new DateProcessor(processorTag, timezone, locale, field, formats, targetField);
+            return new DateProcessor(() -> (new DateTime(DateTimeZone.UTC)), processorTag, timezone,
+                locale, field, formats, targetField);
         }
     }
 }

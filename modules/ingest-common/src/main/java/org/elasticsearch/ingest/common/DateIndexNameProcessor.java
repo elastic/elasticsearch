@@ -143,7 +143,7 @@ public final class DateIndexNameProcessor extends AbstractProcessor {
             List<Function<String, DateTime>> dateFormats = new ArrayList<>(dateFormatStrings.size());
             for (String format : dateFormatStrings) {
                 DateFormat dateFormat = DateFormat.fromString(format);
-                dateFormats.add(dateFormat.getFunction(format, timezone, locale));
+                dateFormats.add(dateFormat.getFunction(() -> new DateTime(DateTimeZone.UTC), format, timezone, locale));
             }
 
             String field = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");

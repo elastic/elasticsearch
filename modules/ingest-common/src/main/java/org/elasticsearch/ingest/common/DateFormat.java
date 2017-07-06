@@ -27,29 +27,34 @@ import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.Locale;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 enum DateFormat {
     Iso8601 {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
+        Function<String, DateTime> getFunction(Supplier<DateTime> currentTimeSupplier, String format,
+                                               DateTimeZone timezone, Locale locale) {
             return ISODateTimeFormat.dateTimeParser().withZone(timezone)::parseDateTime;
         }
     },
     Unix {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
+        Function<String, DateTime> getFunction(Supplier<DateTime> currentTimeSupplier, String format,
+                                               DateTimeZone timezone, Locale locale) {
             return (date) -> new DateTime((long)(Double.parseDouble(date) * 1000), timezone);
         }
     },
     UnixMs {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
+        Function<String, DateTime> getFunction(Supplier<DateTime> currentTimeSupplier, String format,
+                                               DateTimeZone timezone, Locale locale) {
             return (date) -> new DateTime(Long.parseLong(date), timezone);
         }
     },
     Tai64n {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
+        Function<String, DateTime> getFunction(Supplier<DateTime> currentTimeSupplier, String format,
+                                               DateTimeZone timezone, Locale locale) {
             return (date) -> new DateTime(parseMillis(date), timezone);
         }
 
@@ -65,13 +70,40 @@ enum DateFormat {
     },
     Joda {
         @Override
-        Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale) {
+        Function<String, DateTime> getFunction(Supplier<DateTime> currentTimeSupplier, String format,
+                                               DateTimeZone timezone, Locale locale) {
             DateTimeFormatter parser = DateTimeFormat.forPattern(format).withZone(timezone).withLocale(locale);
-            return text -> parser.withDefaultYear((new DateTime(DateTimeZone.UTC)).getYear()).parseDateTime(text);
+            boolean containsYear = format.contains("y") || format.contains("Y");
+            boolean containsTimeZone = format.contains("z") || format.contains("Z");
+            if (containsYear) {
+                return text -> parser.withDefaultYear(currentTimeSupplier.get().getYear()).parseDateTime(text);
+            } else {
+                return text -> {
+                    DateTime currentTime = currentTimeSupplier.get();
+                    int currentMonth = currentTime.getMonthOfYear();
+                    int eventYear = currentTime.getYear();
+                    DateTime dateTime;
+                    if (containsTimeZone) {
+                        dateTime = parser.parseDateTime(text);
+                    } else {
+                        dateTime = parser.parseLocalDateTime(text).toDateTime(timezone);
+                    }
+                    int eventMonth = dateTime.getMonthOfYear();
+                    if (eventMonth == 12 && currentMonth == 1) {
+                        // Now is January, event is December. Assume it's from last year.
+                        eventYear--;
+                    } else if (eventMonth == 1 && currentMonth == 12) {
+                        // Now is December, event is January. Assume it's from next year.
+                        eventYear++;
+                    }
+                    return dateTime.withYear(eventYear);
+                };
+            }
         }
     };
 
-    abstract Function<String, DateTime> getFunction(String format, DateTimeZone timezone, Locale locale);
+    abstract Function<String, DateTime> getFunction(Supplier<DateTime> currentTimeSupplier, String format,
+                                                    DateTimeZone timezone, Locale locale);
 
     static DateFormat fromString(String format) {
         switch (format) {

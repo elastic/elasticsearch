@@ -24,6 +24,7 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -31,15 +32,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class DateProcessorTests extends ESTestCase {
 
+    private Supplier<DateTime> currentTimeSupplier;
+
+    @Before
+    public void setupTime() {
+        currentTimeSupplier = () -> new DateTime(2019, 10, 23, 8, 40);
+    }
+
     public void testJodaPattern() {
-        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), DateTimeZone.forID("Europe/Amsterdam"), Locale.ENGLISH,
-                "date_as_string", Collections.singletonList("yyyy dd MM hh:mm:ss"), "date_as_date");
+        DateProcessor dateProcessor = new DateProcessor(currentTimeSupplier, randomAlphaOfLength(10),
+            DateTimeZone.forID("Europe/Amsterdam"), Locale.ENGLISH, "date_as_string",
+            Collections.singletonList("yyyy dd MM hh:mm:ss"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010 12 06 11:05:15");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -52,8 +62,8 @@ public class DateProcessorTests extends ESTestCase {
         matchFormats.add("yyyy dd MM");
         matchFormats.add("dd/MM/yyyy");
         matchFormats.add("dd-MM-yyyy");
-        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), DateTimeZone.forID("Europe/Amsterdam"), Locale.ENGLISH,
-                "date_as_string", matchFormats, "date_as_date");
+        DateProcessor dateProcessor = new DateProcessor(currentTimeSupplier, randomAlphaOfLength(10),
+            DateTimeZone.forID("Europe/Amsterdam"), Locale.ENGLISH, "date_as_string", matchFormats, "date_as_date");
 
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010 12 06");
@@ -86,7 +96,7 @@ public class DateProcessorTests extends ESTestCase {
 
     public void testInvalidJodaPattern() {
         try {
-            new DateProcessor(randomAlphaOfLength(10), DateTimeZone.UTC, randomLocale(random()),
+            new DateProcessor(currentTimeSupplier, randomAlphaOfLength(10), DateTimeZone.UTC, randomLocale(random()),
                 "date_as_string", Collections.singletonList("invalid pattern"), "date_as_date");
             fail("date processor initialization should have failed");
         } catch(IllegalArgumentException e) {
@@ -95,7 +105,8 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     public void testJodaPatternLocale() {
-        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), DateTimeZone.forID("Europe/Amsterdam"), Locale.ITALIAN,
+        DateProcessor dateProcessor = new DateProcessor(currentTimeSupplier, randomAlphaOfLength(10),
+            DateTimeZone.forID("Europe/Amsterdam"), Locale.ITALIAN,
                 "date_as_string", Collections.singletonList("yyyy dd MMM"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "2010 12 giugno");
@@ -105,19 +116,49 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     public void testJodaPatternDefaultYear() {
-        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), DateTimeZone.forID("Europe/Amsterdam"), Locale.ENGLISH,
-            "date_as_string", Collections.singletonList("dd/MM"), "date_as_date");
+        DateProcessor dateProcessor = new DateProcessor(currentTimeSupplier, randomAlphaOfLength(10),
+            DateTimeZone.forID("Europe/Amsterdam"), Locale.ENGLISH, "date_as_string",
+            Collections.singletonList("dd/MM"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "12/06");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         dateProcessor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue("date_as_date", String.class),
-            equalTo(DateTime.now().getYear() + "-06-12T00:00:00.000+02:00"));
+            equalTo(currentTimeSupplier.get().getYear() + "-06-12T00:00:00.000+02:00"));
+    }
+
+    public void testJodaPatternHeuristicIntoThePast() {
+        Supplier<DateTime> currentTimeSupplier = () -> new DateTime(2018, 1, 12, 8,
+            40, DateTimeZone.UTC);
+        DateProcessor dateProcessor = new DateProcessor(currentTimeSupplier, randomAlphaOfLength(10),
+            DateTimeZone.forID("Europe/Amsterdam"), Locale.ENGLISH, "date_as_string",
+            Collections.singletonList("dd/MM"), "date_as_date");
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "11/12");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class),
+            equalTo("2017-12-11T00:00:00.000+01:00"));
+    }
+
+    public void testJodaPatternHeuristicIntoTheFuture() {
+        Supplier<DateTime> currentTimeSupplier = () -> new DateTime(2018, 12, 12, 8,
+            40, DateTimeZone.UTC);
+        DateProcessor dateProcessor = new DateProcessor(currentTimeSupplier, randomAlphaOfLength(10),
+            DateTimeZone.forID("Europe/Amsterdam"), Locale.ENGLISH, "date_as_string",
+            Collections.singletonList("dd/MM"), "date_as_date");
+        Map<String, Object> document = new HashMap<>();
+        document.put("date_as_string", "11/1");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        dateProcessor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class),
+            equalTo("2019-01-11T00:00:00.000+01:00"));
     }
 
     public void testTAI64N() {
-        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), DateTimeZone.forOffsetHours(2), randomLocale(random()),
-                "date_as_string", Collections.singletonList("TAI64N"), "date_as_date");
+        DateProcessor dateProcessor = new DateProcessor(currentTimeSupplier, randomAlphaOfLength(10),
+            DateTimeZone.forOffsetHours(2), randomLocale(random()),"date_as_string",
+            Collections.singletonList("TAI64N"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         String dateAsString = (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024";
         document.put("date_as_string", dateAsString);
@@ -127,8 +168,9 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     public void testUnixMs() {
-        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), DateTimeZone.UTC, randomLocale(random()),
-                "date_as_string", Collections.singletonList("UNIX_MS"), "date_as_date");
+        DateProcessor dateProcessor = new DateProcessor(currentTimeSupplier, randomAlphaOfLength(10),
+            DateTimeZone.UTC, randomLocale(random()), "date_as_string",
+            Collections.singletonList("UNIX_MS"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "1000500");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -137,8 +179,9 @@ public class DateProcessorTests extends ESTestCase {
     }
 
     public void testUnix() {
-        DateProcessor dateProcessor = new DateProcessor(randomAlphaOfLength(10), DateTimeZone.UTC, randomLocale(random()),
-                "date_as_string", Collections.singletonList("UNIX"), "date_as_date");
+        DateProcessor dateProcessor = new DateProcessor(currentTimeSupplier, randomAlphaOfLength(10),
+            DateTimeZone.UTC, randomLocale(random()), "date_as_string",
+            Collections.singletonList("UNIX"), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "1000.5");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);

@@ -53,11 +53,13 @@ public class MlMetadata implements MetaData.Custom {
 
     public static final String TYPE = "ml";
     public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(), Collections.emptySortedMap());
-    public static final ObjectParser<Builder, Void> ML_METADATA_PARSER = new ObjectParser<>("ml_metadata", Builder::new);
+    // This parser follows the pattern that metadata is parsed leniently (to allow for enhancements)
+    public static final ObjectParser<Builder, Void> METADATA_PARSER = new ObjectParser<>("ml_metadata", true, Builder::new);
 
     static {
-        ML_METADATA_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.PARSER.apply(p, c).build(), JOBS_FIELD);
-        ML_METADATA_PARSER.declareObjectArray(Builder::putDatafeeds, (p, c) -> DatafeedConfig.PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
+        METADATA_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.METADATA_PARSER.apply(p, c).build(), JOBS_FIELD);
+        METADATA_PARSER.declareObjectArray(Builder::putDatafeeds,
+                (p, c) -> DatafeedConfig.METADATA_PARSER.apply(p, c).build(), DATAFEEDS_FIELD);
     }
 
     private final SortedMap<String, Job> jobs;

@@ -35,20 +35,20 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     @Override
     protected AnalysisLimits doParseInstance(XContentParser parser) {
-        return AnalysisLimits.PARSER.apply(parser, null);
+        return AnalysisLimits.CONFIG_PARSER.apply(parser, null);
     }
 
     public void testParseModelMemoryLimitGivenNegativeNumber() throws IOException {
         String json = "{\"model_memory_limit\": -1}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, json);
-        ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.PARSER.apply(parser, null));
+        ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.CONFIG_PARSER.apply(parser, null));
         assertThat(e.getRootCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = -1"));
     }
 
     public void testParseModelMemoryLimitGivenZero() throws IOException {
         String json = "{\"model_memory_limit\": 0}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, json);
-        ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.PARSER.apply(parser, null));
+        ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.CONFIG_PARSER.apply(parser, null));
         assertThat(e.getRootCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
     }
 
@@ -56,7 +56,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         String json = "{\"model_memory_limit\": 2048}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, json);
 
-        AnalysisLimits limits = AnalysisLimits.PARSER.apply(parser, null);
+        AnalysisLimits limits = AnalysisLimits.CONFIG_PARSER.apply(parser, null);
 
         assertThat(limits.getModelMemoryLimit(), equalTo(2048L));
     }
@@ -64,21 +64,21 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
     public void testParseModelMemoryLimitGivenNegativeString() throws IOException {
         String json = "{\"model_memory_limit\":\"-4MB\"}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, json);
-        ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.PARSER.apply(parser, null));
+        ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.CONFIG_PARSER.apply(parser, null));
         assertThat(e.getRootCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = -4"));
     }
 
     public void testParseModelMemoryLimitGivenZeroString() throws IOException {
         String json = "{\"model_memory_limit\":\"0MB\"}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, json);
-        ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.PARSER.apply(parser, null));
+        ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.CONFIG_PARSER.apply(parser, null));
         assertThat(e.getRootCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
     }
 
     public void testParseModelMemoryLimitGivenLessThanOneMBString() throws IOException {
         String json = "{\"model_memory_limit\":\"1000Kb\"}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, json);
-        ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.PARSER.apply(parser, null));
+        ParsingException e = expectThrows(ParsingException.class, () -> AnalysisLimits.CONFIG_PARSER.apply(parser, null));
         assertThat(e.getRootCause().getMessage(), containsString("model_memory_limit must be at least 1 MiB. Value = 0"));
     }
 
@@ -86,7 +86,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         String json = "{\"model_memory_limit\":\"4g\"}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, json);
 
-        AnalysisLimits limits = AnalysisLimits.PARSER.apply(parser, null);
+        AnalysisLimits limits = AnalysisLimits.CONFIG_PARSER.apply(parser, null);
 
         assertThat(limits.getModelMemoryLimit(), equalTo(4096L));
     }
@@ -95,7 +95,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
         String json = "{\"model_memory_limit\":\"1300kb\"}";
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, json);
 
-        AnalysisLimits limits = AnalysisLimits.PARSER.apply(parser, null);
+        AnalysisLimits limits = AnalysisLimits.CONFIG_PARSER.apply(parser, null);
 
         assertThat(limits.getModelMemoryLimit(), equalTo(1L));
     }

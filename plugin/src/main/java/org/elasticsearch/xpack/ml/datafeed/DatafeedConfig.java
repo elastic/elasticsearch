@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ml.MlParserType;
 import org.elasticsearch.xpack.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -37,7 +38,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -74,35 +77,42 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
     public static final ParseField SOURCE = new ParseField("_source");
     public static final ParseField CHUNKING_CONFIG = new ParseField("chunking_config");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("datafeed_config", Builder::new);
+    // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
+    public static final ObjectParser<Builder, Void> METADATA_PARSER = new ObjectParser<>("datafeed_config", true, Builder::new);
+    public static final ObjectParser<Builder, Void> CONFIG_PARSER = new ObjectParser<>("datafeed_config", false, Builder::new);
+    public static final Map<MlParserType, ObjectParser<Builder, Void>> PARSERS = new EnumMap<>(MlParserType.class);
 
     static {
-        PARSER.declareString(Builder::setId, ID);
-        PARSER.declareString(Builder::setJobId, Job.ID);
-        PARSER.declareStringArray(Builder::setIndices, INDEXES);
-        PARSER.declareStringArray(Builder::setIndices, INDICES);
-        PARSER.declareStringArray(Builder::setTypes, TYPES);
-        PARSER.declareString((builder, val) ->
-                builder.setQueryDelay(TimeValue.parseTimeValue(val, QUERY_DELAY.getPreferredName())), QUERY_DELAY);
-        PARSER.declareString((builder, val) ->
-                builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
-        PARSER.declareObject(Builder::setQuery,
-                (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY);
-        PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(p),
-                AGGREGATIONS);
-        PARSER.declareObject(Builder::setAggregations,(p, c) -> AggregatorFactories.parseAggregators(p), AGGS);
-        PARSER.declareObject(Builder::setScriptFields, (p, c) -> {
+        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
+        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
+        for (MlParserType parserType : MlParserType.values()) {
+            ObjectParser<Builder, Void> parser = PARSERS.get(parserType);
+            assert parser != null;
+            parser.declareString(Builder::setId, ID);
+            parser.declareString(Builder::setJobId, Job.ID);
+            parser.declareStringArray(Builder::setIndices, INDEXES);
+            parser.declareStringArray(Builder::setIndices, INDICES);
+            parser.declareStringArray(Builder::setTypes, TYPES);
+            parser.declareString((builder, val) ->
+                    builder.setQueryDelay(TimeValue.parseTimeValue(val, QUERY_DELAY.getPreferredName())), QUERY_DELAY);
+            parser.declareString((builder, val) ->
+                    builder.setFrequency(TimeValue.parseTimeValue(val, FREQUENCY.getPreferredName())), FREQUENCY);
+            parser.declareObject(Builder::setQuery, (p, c) -> AbstractQueryBuilder.parseInnerQueryBuilder(p), QUERY);
+            parser.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(p), AGGREGATIONS);
+            parser.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(p), AGGS);
+            parser.declareObject(Builder::setScriptFields, (p, c) -> {
                 List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
                 while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                     parsedScriptFields.add(new SearchSourceBuilder.ScriptField(p));
-            }
-            parsedScriptFields.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
-            return parsedScriptFields;
-        }, SCRIPT_FIELDS);
-        PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
-        // TODO this is to read former _source field. Remove in v7.0.0
-        PARSER.declareBoolean((builder, value) -> {}, SOURCE);
-        PARSER.declareObject(Builder::setChunkingConfig, ChunkingConfig.PARSER, CHUNKING_CONFIG);
+                }
+                parsedScriptFields.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
+                return parsedScriptFields;
+            }, SCRIPT_FIELDS);
+            parser.declareInt(Builder::setScrollSize, SCROLL_SIZE);
+            // TODO this is to read former _source field. Remove in v7.0.0
+            parser.declareBoolean((builder, value) -> {}, SOURCE);
+            parser.declareObject(Builder::setChunkingConfig, ChunkingConfig.PARSERS.get(parserType), CHUNKING_CONFIG);
+        }
     }
 
     private final String id;

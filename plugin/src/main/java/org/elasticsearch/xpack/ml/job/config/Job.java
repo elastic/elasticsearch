@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.ml.MlParserType;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -77,55 +79,65 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
     public static final String ALL = "_all";
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("job_details", Builder::new);
+    // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
+    public static final ObjectParser<Builder, Void> METADATA_PARSER = new ObjectParser<>("job_details", true, Builder::new);
+    public static final ObjectParser<Builder, Void> CONFIG_PARSER = new ObjectParser<>("job_details", false, Builder::new);
+    public static final Map<MlParserType, ObjectParser<Builder, Void>> PARSERS = new EnumMap<>(MlParserType.class);
 
     public static final int MAX_JOB_ID_LENGTH = 64;
     public static final TimeValue MIN_BACKGROUND_PERSIST_INTERVAL = TimeValue.timeValueHours(1);
 
     static {
-        PARSER.declareString(Builder::setId, ID);
-        PARSER.declareString(Builder::setJobType, JOB_TYPE);
-        PARSER.declareString(Builder::setJobVersion, JOB_VERSION);
-        PARSER.declareStringOrNull(Builder::setDescription, DESCRIPTION);
-        PARSER.declareField(Builder::setCreateTime, p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException("unexpected token [" + p.currentToken() + "] for [" + CREATE_TIME.getPreferredName() + "]");
-        }, CREATE_TIME, ValueType.VALUE);
-        PARSER.declareField(Builder::setFinishedTime, p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + FINISHED_TIME.getPreferredName() + "]");
-        }, FINISHED_TIME, ValueType.VALUE);
-        PARSER.declareField(Builder::setLastDataTime, p -> {
-            if (p.currentToken() == Token.VALUE_NUMBER) {
-                return new Date(p.longValue());
-            } else if (p.currentToken() == Token.VALUE_STRING) {
-                return new Date(TimeUtils.dateStringToEpoch(p.text()));
-            }
-            throw new IllegalArgumentException(
-                    "unexpected token [" + p.currentToken() + "] for [" + LAST_DATA_TIME.getPreferredName() + "]");
-        }, LAST_DATA_TIME, ValueType.VALUE);
-        PARSER.declareObject(Builder::setAnalysisConfig, AnalysisConfig.PARSER, ANALYSIS_CONFIG);
-        PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSER, ANALYSIS_LIMITS);
-        PARSER.declareObject(Builder::setDataDescription, DataDescription.PARSER, DATA_DESCRIPTION);
-        PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.PARSER, MODEL_PLOT_CONFIG);
-        PARSER.declareLong(Builder::setRenormalizationWindowDays, RENORMALIZATION_WINDOW_DAYS);
-        PARSER.declareString((builder, val) -> builder.setBackgroundPersistInterval(
-                TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
-        PARSER.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
-        PARSER.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
-        PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
-        PARSER.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
-        PARSER.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
-        PARSER.declareBoolean(Builder::setDeleted, DELETED);
+        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
+        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
+        for (MlParserType parserType : MlParserType.values()) {
+            ObjectParser<Builder, Void> parser = PARSERS.get(parserType);
+            assert parser != null;
+            parser.declareString(Builder::setId, ID);
+            parser.declareString(Builder::setJobType, JOB_TYPE);
+            parser.declareString(Builder::setJobVersion, JOB_VERSION);
+            parser.declareStringOrNull(Builder::setDescription, DESCRIPTION);
+            parser.declareField(Builder::setCreateTime, p -> {
+                if (p.currentToken() == Token.VALUE_NUMBER) {
+                    return new Date(p.longValue());
+                } else if (p.currentToken() == Token.VALUE_STRING) {
+                    return new Date(TimeUtils.dateStringToEpoch(p.text()));
+                }
+                throw new IllegalArgumentException("unexpected token [" + p.currentToken() +
+                        "] for [" + CREATE_TIME.getPreferredName() + "]");
+            }, CREATE_TIME, ValueType.VALUE);
+            parser.declareField(Builder::setFinishedTime, p -> {
+                if (p.currentToken() == Token.VALUE_NUMBER) {
+                    return new Date(p.longValue());
+                } else if (p.currentToken() == Token.VALUE_STRING) {
+                    return new Date(TimeUtils.dateStringToEpoch(p.text()));
+                }
+                throw new IllegalArgumentException(
+                        "unexpected token [" + p.currentToken() + "] for [" + FINISHED_TIME.getPreferredName() + "]");
+            }, FINISHED_TIME, ValueType.VALUE);
+            parser.declareField(Builder::setLastDataTime, p -> {
+                if (p.currentToken() == Token.VALUE_NUMBER) {
+                    return new Date(p.longValue());
+                } else if (p.currentToken() == Token.VALUE_STRING) {
+                    return new Date(TimeUtils.dateStringToEpoch(p.text()));
+                }
+                throw new IllegalArgumentException(
+                        "unexpected token [" + p.currentToken() + "] for [" + LAST_DATA_TIME.getPreferredName() + "]");
+            }, LAST_DATA_TIME, ValueType.VALUE);
+            parser.declareObject(Builder::setAnalysisConfig, AnalysisConfig.PARSERS.get(parserType), ANALYSIS_CONFIG);
+            parser.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSERS.get(parserType), ANALYSIS_LIMITS);
+            parser.declareObject(Builder::setDataDescription, DataDescription.PARSERS.get(parserType), DATA_DESCRIPTION);
+            parser.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.PARSERS.get(parserType), MODEL_PLOT_CONFIG);
+            parser.declareLong(Builder::setRenormalizationWindowDays, RENORMALIZATION_WINDOW_DAYS);
+            parser.declareString((builder, val) -> builder.setBackgroundPersistInterval(
+                    TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
+            parser.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
+            parser.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
+            parser.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
+            parser.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
+            parser.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
+            parser.declareBoolean(Builder::setDeleted, DELETED);
+        }
     }
 
     private final String jobId;

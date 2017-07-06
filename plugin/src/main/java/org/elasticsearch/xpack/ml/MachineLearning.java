@@ -233,7 +233,7 @@ public class MachineLearning implements ActionPlugin {
         return Arrays.asList(
                 // Custom metadata
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField("ml"),
-                        parser -> MlMetadata.ML_METADATA_PARSER.parse(parser, null).build()),
+                        parser -> MlMetadata.METADATA_PARSER.parse(parser, null).build()),
                 new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(PersistentTasksCustomMetaData.TYPE),
                         PersistentTasksCustomMetaData::fromXContent),
 

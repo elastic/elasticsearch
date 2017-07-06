@@ -47,7 +47,7 @@ public class RuleConditionTests extends AbstractSerializingTestCase<RuleConditio
 
     @Override
     protected RuleCondition doParseInstance(XContentParser parser) {
-        return RuleCondition.PARSER.apply(parser, null);
+        return RuleCondition.CONFIG_PARSER.apply(parser, null);
     }
 
     public void testConstructor() {

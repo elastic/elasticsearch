@@ -74,7 +74,7 @@ public class PutDatafeedAction extends Action<PutDatafeedAction.Request, PutData
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
 
         public static Request parseRequest(String datafeedId, XContentParser parser) {
-            DatafeedConfig.Builder datafeed = DatafeedConfig.PARSER.apply(parser, null);
+            DatafeedConfig.Builder datafeed = DatafeedConfig.CONFIG_PARSER.apply(parser, null);
             datafeed.setId(datafeedId);
             return new Request(datafeed.build());
         }

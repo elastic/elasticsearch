@@ -12,8 +12,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.MlParserType;
 
 import java.io.IOException;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Objects;
 
 public class ModelPlotConfig implements ToXContentObject, Writeable {
@@ -22,13 +25,25 @@ public class ModelPlotConfig implements ToXContentObject, Writeable {
     private static final ParseField ENABLED_FIELD = new ParseField("enabled");
     public static final ParseField TERMS_FIELD = new ParseField("terms");
 
-    public static final ConstructingObjectParser<ModelPlotConfig, Void> PARSER = 
-            new ConstructingObjectParser<>(TYPE_FIELD.getPreferredName(), 
+    // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
+    public static final ConstructingObjectParser<ModelPlotConfig, Void> METADATA_PARSER =
+            new ConstructingObjectParser<>(TYPE_FIELD.getPreferredName(), true,
                     a -> new ModelPlotConfig((boolean) a[0], (String) a[1]));
+    public static final ConstructingObjectParser<ModelPlotConfig, Void> CONFIG_PARSER =
+            new ConstructingObjectParser<>(TYPE_FIELD.getPreferredName(), false,
+                    a -> new ModelPlotConfig((boolean) a[0], (String) a[1]));
+    public static final Map<MlParserType, ConstructingObjectParser<ModelPlotConfig, Void>> PARSERS =
+            new EnumMap<>(MlParserType.class);
 
     static {
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TERMS_FIELD);
+        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
+        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
+        for (MlParserType parserType : MlParserType.values()) {
+            ConstructingObjectParser<ModelPlotConfig, Void> parser = PARSERS.get(parserType);
+            assert parser != null;
+            parser.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
+            parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TERMS_FIELD);
+        }
     }
 
     private final boolean enabled;

@@ -87,7 +87,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
     @Override
     protected AnalysisConfig doParseInstance(XContentParser parser) {
-        return AnalysisConfig.PARSER.apply(parser, null).build();
+        return AnalysisConfig.CONFIG_PARSER.apply(parser, null).build();
     }
 
     public void testFieldConfiguration_singleDetector_notPreSummarised() {

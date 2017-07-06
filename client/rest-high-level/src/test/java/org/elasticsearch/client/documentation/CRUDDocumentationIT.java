@@ -27,7 +27,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -45,6 +47,9 @@ import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -55,12 +60,14 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -853,6 +860,99 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             }
             // end::get-conflict
+        }
+    }
+
+    public void testBulkProcessor() throws InterruptedException, IOException {
+        Settings settings = Settings.builder().put("node.name", "my-application").build();
+        RestHighLevelClient client = highLevelClient();
+        {
+            // tag::bulk-processor-init
+            ThreadPool threadPool = new ThreadPool(settings); // <1>
+
+            BulkProcessor.Listener listener = new BulkProcessor.Listener() { // <2>
+                @Override
+                public void beforeBulk(long executionId, BulkRequest request) {
+                    // <3>
+                }
+
+                @Override
+                public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                    // <4>
+                }
+
+                @Override
+                public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                    // <5>
+                }
+            };
+
+            BulkProcessor bulkProcessor = new BulkProcessor.Builder(client::bulkAsync, listener, threadPool)
+                    .build(); // <6>
+            // end::bulk-processor-init
+            assertNotNull(bulkProcessor);
+
+            // tag::bulk-processor-add
+            IndexRequest one = new IndexRequest("posts", "doc", "1").
+                    source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?");
+            IndexRequest two = new IndexRequest("posts", "doc", "2")
+                    .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch");
+            IndexRequest three = new IndexRequest("posts", "doc", "3")
+                    .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch");
+
+            bulkProcessor.add(one);
+            bulkProcessor.add(two);
+            bulkProcessor.add(three);
+            // end::bulk-processor-add
+
+            // tag::bulk-processor-await
+            boolean terminated = bulkProcessor.awaitClose(30L, TimeUnit.SECONDS); // <1>
+            // end::bulk-processor-await
+            assertTrue(terminated);
+
+            // tag::bulk-processor-close
+            bulkProcessor.close();
+            // end::bulk-processor-close
+            terminate(threadPool);
+        }
+        {
+            // tag::bulk-processor-listener
+            BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+                @Override
+                public void beforeBulk(long executionId, BulkRequest request) {
+                    int numberOfActions = request.numberOfActions(); // <1>
+                    logger.debug("Executing bulk [{}] with {} requests", executionId, numberOfActions);
+                }
+
+                @Override
+                public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                    if (response.hasFailures()) { // <2>
+                        logger.warn("Bulk [{}] executed with failures", executionId);
+                    } else {
+                        logger.debug("Bulk [{}] completed in {} milliseconds", executionId, response.getTook().getMillis());
+                    }
+                }
+
+                @Override
+                public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
+                    logger.error("Failed to execute bulk", failure); // <3>
+                }
+            };
+            // end::bulk-processor-listener
+
+            ThreadPool threadPool = new ThreadPool(settings);
+            try {
+                // tag::bulk-processor-options
+                BulkProcessor.Builder builder = new BulkProcessor.Builder(client::bulkAsync, listener, threadPool);
+                builder.setBulkActions(500); // <1>
+                builder.setBulkSize(new ByteSizeValue(1L, ByteSizeUnit.MB)); // <2>
+                builder.setConcurrentRequests(0); // <3>
+                builder.setFlushInterval(TimeValue.timeValueSeconds(10L)); // <4>
+                builder.setBackoffPolicy(BackoffPolicy.constantBackoff(TimeValue.timeValueSeconds(1L), 3)); // <5>
+                // end::bulk-processor-options
+            } finally {
+                terminate(threadPool);
+            }
         }
     }
 }

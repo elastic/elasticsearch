@@ -1,6 +1,8 @@
 [[java-rest-high-document-bulk]]
 === Bulk API
 
+NOTE: The Java High Level REST Client provides the <<java-rest-high-document-bulk-processor>> to assist with bulk requests
+
 [[java-rest-high-document-bulk-request]]
 ==== Bulk Request
 
@@ -115,3 +117,95 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-errors]
 --------------------------------------------------
 <1> Indicate if a given operation failed
 <2> Retrieve the failure of the failed operation
+
+[[java-rest-high-document-bulk-processor]]
+==== Bulk Processor
+
+The `BulkProcessor` simplifies the usage of the Bulk API by providing
+a utility class that allows index/update/delete operations to be
+transparently executed as they are added to the processor.
+
+In order to execute the requests, the `BulkProcessor` requires 3 components:
+
+`RestHighLevelClient`:: This client is used to execute the `BulkRequest`
+and to retrieve the `BulkResponse`
+`BulkProcessor.Listener`:: This listener is called before and after
+every `BulkRequest` execution or when a `BulkRequest` failed
+`ThreadPool`:: The `BulkRequest` executions are done using threads from this
+pool, allowing the `BulkProcessor` to work in a non-blocking manner and to
+accept new index/update/delete requests while bulk requests are executing.
+
+Then the `BulkProcessor.Builder` class can be used to build a new `BulkProcessor`:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-init]
+--------------------------------------------------
+<1> Create the `ThreadPool` using the given `Settings`
+<2> Create the `BulkProcessor.Listener`
+<3> This method is called before each execution of a `BulkRequest`
+<4> This method is called after each execution of a `BulkRequest`
+<5> This method is called when a `BulkRequest` failed
+<6> Create the `BulkProcessor` by calling the `build()` method from
+the `BulkProcessor.Builder`. The `RestHighLevelClient.bulkAsync()`
+method will be used to execute the `BulkRequest` under the hood.
+
+The `BulkProcessor.Builder` provides methods to configure how the `BulkProcessor`
+should handle requests execution:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-options]
+--------------------------------------------------
+<1> Set when to flush a new bulk request based on the number of
+actions currently added (defaults to 1000, use -1 to disable it)
+<2> Set when to flush a new bulk request based on the size of
+actions currently added (defaults to 5Mb, use -1 to disable it)
+<3> Set the number of concurrent requests allowed to be executed
+(default to 1, use 0 to only allow the execution of a single request)
+<4> Set a flush interval flushing any `BulkRequest` pending if the
+interval passes (defaults to not set)
+<5> Set a constant back off policy that initially waits for 1 second
+and retries up to 3 times. See `BackoffPolicy.noBackoff()`,
+`BackoffPolicy.constantBackoff()` and `BackoffPolicy.exponentialBackoff()`
+for more options.
+
+Once the `BulkProcessor` is created requests can be added to it:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-add]
+--------------------------------------------------
+
+The requests will be executed by the `BulkProcessor`, which takes care of
+calling the `BulkProcessor.Listener` for every bulk request.
+
+The listener provides methods to access to the `BulkRequest` and the `BulkResponse`:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-listener]
+--------------------------------------------------
+<1> Called before each execution of a `BulkRequest`, this method allows
+to know the number of operations that are going to be executed within the `BulkRequest`
+<2> Called after each execution of a `BulkRequest`, this method allows
+to know if the `BulkResponse` contains errors
+<3> Called if the `BulkRequest` failed, this method allows to know
+the failure
+
+Once all requests have been added to the `BulkProcessor`, its instance needs to
+be closed closed using one of the two available closing methods.
+
+The `awaitClose()` method can be used to wait until all requests have been processed
+ or the specified waiting time elapses:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-await]
+--------------------------------------------------
+<1> The method returns `true` if all bulk requests completed and `false` if the
+waiting time elapsed before all the bulk requests completed
+
+The `close()` method can be used to immediately close the `BulkProcessor`:
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/CRUDDocumentationIT.java[bulk-processor-close]
+--------------------------------------------------
+
+Both methods flush the requests added to the processor before closing the processor
+and also forbid any new request to be added to it.

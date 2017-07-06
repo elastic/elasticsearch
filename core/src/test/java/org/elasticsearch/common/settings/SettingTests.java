@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -147,6 +148,48 @@ public class SettingTests extends ESTestCase {
                     cause,
                     hasToString(containsString("Failed to parse value [I am not a boolean] as only [true] or [false] are allowed.")));
         }
+    }
+
+    private static final Setting<String> FOO_BAR_SETTING = new Setting<>(
+            "foo.bar",
+            "foobar",
+            Function.identity(),
+            new FooBarValidator(),
+            Property.Dynamic,
+            Property.NodeScope);
+
+    private static final Setting<String> BAZ_QUX_SETTING = Setting.simpleString("baz.qux", Property.NodeScope);
+    private static final Setting<String> QUUX_QUUZ_SETTING = Setting.simpleString("quux.quuz", Property.NodeScope);
+
+    static class FooBarValidator implements Setting.Validator<String> {
+
+        public static boolean invoked;
+
+        @Override
+        public void validate(String value, Map<Setting<String>, String> settings) {
+            invoked = true;
+            assertThat(value, equalTo("foo.bar value"));
+            assertTrue(settings.keySet().contains(BAZ_QUX_SETTING));
+            assertThat(settings.get(BAZ_QUX_SETTING), equalTo("baz.qux value"));
+            assertTrue(settings.keySet().contains(QUUX_QUUZ_SETTING));
+            assertThat(settings.get(QUUX_QUUZ_SETTING), equalTo("quux.quuz value"));
+        }
+
+        @Override
+        public Iterator<Setting<String>> settings() {
+            return Arrays.asList(BAZ_QUX_SETTING, QUUX_QUUZ_SETTING).iterator();
+        }
+    }
+
+    // the purpose of this test is merely to ensure that a validator is invoked with the appropriate values
+    public void testValidator() {
+        final Settings settings = Settings.builder()
+                .put("foo.bar", "foo.bar value")
+                .put("baz.qux", "baz.qux value")
+                .put("quux.quuz", "quux.quuz value")
+                .build();
+        FOO_BAR_SETTING.get(settings);
+        assertTrue(FooBarValidator.invoked);
     }
 
     public void testUpdateNotDynamic() {

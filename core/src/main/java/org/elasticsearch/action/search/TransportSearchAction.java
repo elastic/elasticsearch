@@ -40,7 +40,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -75,7 +74,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final RemoteClusterService remoteClusterService;
     private final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
-    private final ResponseCollectorService responseCollectorService;
 
     @Inject
     public TransportSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService, SearchService searchService,
@@ -89,7 +87,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchTransportService.registerRequestHandler(transportService, searchService);
         this.clusterService = clusterService;
         this.searchService = searchService;
-        this.responseCollectorService = searchService.getResponseCollectorService();
     }
 
     private Map<String, AliasFilter> buildPerIndexAliasFilter(SearchRequest request, ClusterState clusterState,

@@ -7,10 +7,12 @@ package org.elasticsearch.xpack.sql.cli.net.client;
 
 import org.elasticsearch.xpack.sql.cli.CliConfiguration;
 import org.elasticsearch.xpack.sql.net.client.ClientException;
-import org.elasticsearch.xpack.sql.net.client.DataOutputConsumer;
-import org.elasticsearch.xpack.sql.net.client.jre.JreHttpUrlConnection;
+import org.elasticsearch.xpack.sql.net.client.JreHttpUrlConnection;
 import org.elasticsearch.xpack.sql.net.client.util.Bytes;
+import org.elasticsearch.xpack.sql.net.client.util.CheckedConsumer;
 
+import java.io.DataOutput;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.AccessController;
@@ -42,11 +44,11 @@ class HttpClient {
         }
     }
 
-    Bytes put(DataOutputConsumer os) {
+    Bytes put(CheckedConsumer<DataOutput, IOException> os) {
         return put("", os);
     }
 
-    Bytes put(String path, DataOutputConsumer os) {
+    Bytes put(String path, CheckedConsumer<DataOutput, IOException> os) {
         try {
             return AccessController.doPrivileged((PrivilegedAction<Bytes>) () -> {
                 return JreHttpUrlConnection.http(url(path), cfg, con -> {

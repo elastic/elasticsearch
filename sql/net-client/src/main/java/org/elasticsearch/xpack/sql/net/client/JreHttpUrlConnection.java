@@ -3,15 +3,14 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.net.client.jre;
+package org.elasticsearch.xpack.sql.net.client;
 
-import org.elasticsearch.xpack.sql.net.client.ClientException;
-import org.elasticsearch.xpack.sql.net.client.ConnectionConfiguration;
-import org.elasticsearch.xpack.sql.net.client.DataOutputConsumer;
 import org.elasticsearch.xpack.sql.net.client.util.Bytes;
+import org.elasticsearch.xpack.sql.net.client.util.CheckedConsumer;
 import org.elasticsearch.xpack.sql.net.client.util.IOUtils;
 
 import java.io.Closeable;
+import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,7 +56,7 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    public Bytes put(DataOutputConsumer doc) throws ClientException { // NOCOMMIT why is this called put when it is a post?
+    public Bytes put(CheckedConsumer<DataOutput, IOException> doc) throws ClientException { // NOCOMMIT why is this called put when it is a post?
         try {
             con.setRequestMethod("POST");
             con.setDoOutput(true);

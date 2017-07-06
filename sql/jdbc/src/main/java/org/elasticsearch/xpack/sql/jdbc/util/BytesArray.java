@@ -10,6 +10,7 @@ import org.elasticsearch.xpack.sql.net.client.util.StringUtils;
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 public class BytesArray {
 
@@ -140,7 +141,7 @@ public class BytesArray {
         if (string == null) {
             return;
         }
-        add(string.getBytes(StringUtils.UTF_8));
+        add(string.getBytes(StandardCharsets.UTF_8));
     }
 
     private void checkSize(int newcount) {

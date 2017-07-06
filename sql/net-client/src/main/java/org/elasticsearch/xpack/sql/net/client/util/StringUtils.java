@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.net.client.util;
 
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -15,8 +15,6 @@ import java.util.List;
 import java.util.StringTokenizer;
 
 public abstract class StringUtils {
-
-    public static final Charset UTF_8 = Charset.forName("UTF-8");
     public static final String EMPTY = "";
     public static final String SLASH = "/";
     public static final String PATH_TOP = "..";
@@ -175,11 +173,11 @@ public abstract class StringUtils {
     }
 
     public static String asUTFString(byte[] content, int offset, int length) {
-        return (content == null || length == 0 ? EMPTY : new String(content, offset, length, UTF_8));
+        return (content == null || length == 0 ? EMPTY : new String(content, offset, length, StandardCharsets.UTF_8));
     }
 
     public static byte[] toUTF(String string) {
-        return string.getBytes(UTF_8);
+        return string.getBytes(StandardCharsets.UTF_8);
     }
 
     // Based on "Algorithms on Strings, Trees and Sequences by Dan Gusfield".

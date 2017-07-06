@@ -9,9 +9,11 @@ import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.jdbc.jdbc.JdbcException;
 import org.elasticsearch.xpack.sql.jdbc.util.BytesArray;
 import org.elasticsearch.xpack.sql.net.client.ClientException;
-import org.elasticsearch.xpack.sql.net.client.DataOutputConsumer;
-import org.elasticsearch.xpack.sql.net.client.jre.JreHttpUrlConnection;
+import org.elasticsearch.xpack.sql.net.client.JreHttpUrlConnection;
+import org.elasticsearch.xpack.sql.net.client.util.CheckedConsumer;
 
+import java.io.DataOutput;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.AccessController;
@@ -56,11 +58,11 @@ class HttpClient {
         }
     }
 
-    BytesArray put(DataOutputConsumer os) throws SQLException {
+    BytesArray put(CheckedConsumer<DataOutput, IOException> os) throws SQLException {
         return put("_jdbc?error_trace=true", os); // NOCOMMIT Do something with the error trace. Useful for filing bugs and debugging.
     }
 
-    BytesArray put(String path, DataOutputConsumer os) throws SQLException { // NOCOMMIT remove path?
+    BytesArray put(String path, CheckedConsumer<DataOutput, IOException> os) throws SQLException { // NOCOMMIT remove path?
         try {
             return AccessController.doPrivileged((PrivilegedAction<BytesArray>) () -> {    
                 return JreHttpUrlConnection.http(url(path), cfg, con -> {

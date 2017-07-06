@@ -349,6 +349,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         verifyNoMoreInteractions(auditTrail);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1217")
     public void testElasticUserOnlyAuthorizedForChangePasswordRequestsInSetupMode() {
         final User user = new ElasticUser(true, true);
         final ChangePasswordRequest changePasswordrequest = new ChangePasswordRequestBuilder(mock(Client.class))

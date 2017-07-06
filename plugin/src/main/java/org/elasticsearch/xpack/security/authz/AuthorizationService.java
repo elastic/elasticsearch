@@ -149,11 +149,14 @@ public class AuthorizationService extends AbstractComponent {
             throw denial(authentication, action, request);
         }
 
+        // norelease
+        // TODO: This functionality is disabled as it is not yet compatible with the upgrade process
         // If the user is the elastic user in setup mode, then only change password requests can be authorized
-        if (ElasticUser.isElasticUserInSetupMode(authentication.getUser())
-                && ChangePasswordAction.NAME.equals(action) == false) {
-            throw denial(authentication, action, request);
-        }
+//        if (ElasticUser.isElasticUserInSetupMode(authentication.getUser())
+//                && ChangePasswordAction.NAME.equals(action) == false
+//                && ClusterHealthAction.NAME.equals(action) == false) {
+//            throw denial(authentication, action, request);
+//        }
 
         // get the roles of the authenticated user, which may be different than the effective
         Role permission = userRole;

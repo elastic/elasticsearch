@@ -50,6 +50,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static final SecureString EMPTY_PASSWORD_TEXT = new SecureString("".toCharArray());
     static final char[] EMPTY_PASSWORD_HASH = Hasher.BCRYPT.hash(EMPTY_PASSWORD_TEXT);
+    static final char[] OLD_DEFAULT_PASSWORD_HASH = Hasher.BCRYPT.hash(new SecureString("changeme".toCharArray()));
 
     private static final ReservedUserInfo DEFAULT_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, true, true);
     private static final ReservedUserInfo DISABLED_USER_INFO = new ReservedUserInfo(EMPTY_PASSWORD_HASH, false, true);
@@ -102,9 +103,20 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 Runnable action;
                 if (userInfo != null) {
                     try {
-                        if (userInfo.hasEmptyPassword && isSetupMode(token.principal(), acceptEmptyPassword) == false) {
-                            action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
-                                    token.principal()));
+                        if (userInfo.hasEmptyPassword) {
+                            // norelease
+                            // Accepting the OLD_DEFAULT_PASSWORD_HASH is a transition step. We do not want to support
+                            // this in a release.
+                            if (isSetupMode(token.principal(), acceptEmptyPassword) == false) {
+                                action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
+                                        token.principal()));
+                            } else if (verifyPassword(userInfo, token)
+                                    || Hasher.BCRYPT.verify(token.credentials(), OLD_DEFAULT_PASSWORD_HASH)) {
+                                action = () -> listener.onResponse(getUser(token.principal(), userInfo));
+                            } else {
+                                action = () -> listener.onFailure(Exceptions.authenticationError("failed to authenticate user [{}]",
+                                        token.principal()));
+                            }
                         } else if (verifyPassword(userInfo, token)) {
                             final User user = getUser(token.principal(), userInfo);
                             action = () -> listener.onResponse(user);
@@ -113,7 +125,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                                     token.principal()));
                         }
                     } finally {
-                        if (userInfo.passwordHash != EMPTY_PASSWORD_HASH) {
+                        if (userInfo.passwordHash != EMPTY_PASSWORD_HASH && userInfo.passwordHash != OLD_DEFAULT_PASSWORD_HASH) {
                             Arrays.fill(userInfo.passwordHash, (char) 0);
                         }
                     }

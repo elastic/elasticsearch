@@ -1,6 +1,6 @@
 {
   "xpack.security.authenticate": {
-    "documentation": "https://www.elastic.co/guide/en/x-pack/master/security-api-authenticate.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-authenticate.html",
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/security/_authenticate",

@@ -64,12 +64,8 @@ if (enabled) {
   File checkoutDir = file("${buildDir}/bwc/checkout-${bwcBranch}")
 
   task createClone(type: LoggedExec) {
-    if (checkoutDir.exists() == false) {
-      commandLine = ['git', 'clone', rootDir, checkoutDir]
-    } else {
-      commandLine = ['git', 'fetch', 'origin']
-      workingDir = checkoutDir
-    }
+    onlyIf { checkoutDir.exists() == false }
+    commandLine = ['git', 'clone', rootDir, checkoutDir]
   }
 
   // we use regular Exec here to ensure we always get output, regardless of logging level
@@ -105,19 +101,15 @@ if (enabled) {
     onlyIf { project.gradle.startParameter.isOffline() == false }
     dependsOn addUpstream
     workingDir = checkoutDir
-    commandLine = ['git', 'fetch', 'upstream']
+    commandLine = ['git', 'fetch']
   }
 
   // this is an Exec task so that the SHA that is checked out is logged
   task checkoutBwcBranch(type: Exec) {
-    def String branch = System.getProperty("tests.bwc.branch", "upstream/${bwcBranch}")
-    if (branch.startsWith('upstream')) {
-      dependsOn fetchLatest
-    } else {
-      dependsOn createClone
-    }
+    def String refspec = System.getProperty("tests.bwc.refspec", "upstream/${bwcBranch}")
+    dependsOn fetchLatest
     workingDir = checkoutDir
-    commandLine = ['git', 'checkout', branch]
+    commandLine = ['git', 'checkout', refspec]
   }
 
   File bwcDeb = file("${checkoutDir}/distribution/deb/build/distributions/elasticsearch-${bwcVersion}.deb")

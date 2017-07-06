@@ -926,7 +926,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final Engine.Delete delete = shard.prepareDeleteOnReplica("type", "id", 2, VersionType.EXTERNAL);
         shard.delete(delete);
         if (randomBoolean()) {
-            flushShard(shard);
+            flushShard(shard, true); // lucene won't flush due to just one pending delete
             translogOps = 0;
         }
         final Engine.IndexResult result = shard.index(index);

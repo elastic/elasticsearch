@@ -46,10 +46,6 @@
           "type" : "list",
           "description" : "A comma-separated list of fields to return as the docvalue representation of a field for each hit"
         },
-        "fielddata_fields": {
-          "type" : "list",
-          "description" : "A comma-separated list of fields to return as the docvalue representation of a field for each hit"
-        },
         "from": {
           "type" : "number",
           "description" : "Starting offset (default: 0)"

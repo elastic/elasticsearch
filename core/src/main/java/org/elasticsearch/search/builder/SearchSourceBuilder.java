@@ -85,9 +85,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField VERSION_FIELD = new ParseField("version");
     public static final ParseField EXPLAIN_FIELD = new ParseField("explain");
     public static final ParseField _SOURCE_FIELD = new ParseField("_source");
-    public static final ParseField FIELDS_FIELD = new ParseField("fields");
     public static final ParseField STORED_FIELDS_FIELD = new ParseField("stored_fields");
-    public static final ParseField DOCVALUE_FIELDS_FIELD = new ParseField("docvalue_fields", "fielddata_fields");
+    public static final ParseField DOCVALUE_FIELDS_FIELD = new ParseField("docvalue_fields");
     public static final ParseField SCRIPT_FIELDS_FIELD = new ParseField("script_fields");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure");
@@ -755,33 +754,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         return storedFieldsContext;
     }
 
-
-    /**
-     * Adds a field to load from the docvalue and return as part of the
-     * search request.
-     *
-     * @deprecated Use {@link SearchSourceBuilder#docValueField(String)} instead.
-     */
-    @Deprecated
-    public SearchSourceBuilder fieldDataField(String name) {
-        if (docValueFields == null) {
-            docValueFields = new ArrayList<>();
-        }
-        docValueFields.add(name);
-        return this;
-    }
-
-    /**
-     * Gets the docvalue fields.
-     *
-     * @deprecated Use {@link SearchSourceBuilder#docValueFields()} instead.
-     */
-    @Deprecated
-    public List<String> fieldDataFields() {
-        return docValueFields;
-    }
-
-
     /**
      * Gets the docvalue fields.
      */
@@ -1007,10 +979,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     sort(parser.text());
                 } else if (PROFILE_FIELD.match(currentFieldName)) {
                     profile = parser.booleanValue();
-                } else if (FIELDS_FIELD.match(currentFieldName)) {
-                    throw new ParsingException(parser.getTokenLocation(), "Deprecated field [" +
-                        SearchSourceBuilder.FIELDS_FIELD + "] used, expected [" +
-                        SearchSourceBuilder.STORED_FIELDS_FIELD + "] instead");
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1114,11 +1082,6 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     fetchSourceContext = FetchSourceContext.fromXContent(parser);
                 } else if (SEARCH_AFTER.match(currentFieldName)) {
                     searchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
-                } else if (FIELDS_FIELD.match(currentFieldName)) {
-                    throw new ParsingException(parser.getTokenLocation(), "The field [" +
-                        SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
-                        SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
-                        "if the field is not stored");
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1182,8 +1145,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
         if (docValueFields != null) {
             builder.startArray(DOCVALUE_FIELDS_FIELD.getPreferredName());
-            for (String fieldDataField : docValueFields) {
-                builder.value(fieldDataField);
+            for (String docValueField : docValueFields) {
+                builder.value(docValueField);
             }
             builder.endArray();
         }

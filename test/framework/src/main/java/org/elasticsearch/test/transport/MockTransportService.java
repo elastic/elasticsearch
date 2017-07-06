@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.transport;
 
+import com.carrotsearch.randomizedtesting.SysGlobals;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -56,6 +57,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportServiceAdapter;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.transport.local.LocalTransport;
 
 import java.io.IOException;
@@ -88,6 +90,7 @@ import java.util.function.Function;
 public final class MockTransportService extends TransportService {
 
     private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
+    private static final int JVM_ORDINAL = Integer.parseInt(System.getProperty(SysGlobals.CHILDVM_SYSPROP_JVM_ID, "0"));
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -109,7 +112,13 @@ public final class MockTransportService extends TransportService {
     }
 
     public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
-                                                        @Nullable ClusterSettings clusterSettings) {
+            @Nullable ClusterSettings clusterSettings) {
+        // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
+        // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
+        // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
+        // a different default port range per JVM unless the incoming settings override it
+        int basePort = 9300 + (JVM_ORDINAL * 100);
+        settings = Settings.builder().put(TransportSettings.PORT.getKey(), basePort + "-" + (basePort+100)).put(settings).build();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
                 new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version);

@@ -333,11 +333,15 @@ public class ScopedSettingsTests extends ESTestCase {
             assertThat(suppressed.getCause(), instanceOf(IllegalArgumentException.class));
             final IllegalArgumentException suppressedCause = (IllegalArgumentException) suppressed.getCause();
             assertThat(suppressedCause, hasToString(containsString("high [13] less than low [17]")));
+            assertThat(consumerLow.get(), equalTo(0));
+            assertThat(consumerHigh.get(), equalTo(0));
         }
 
         {
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.applySettings(newSettings));
             assertThat(e, hasToString(containsString("illegal value can't update [foo.bar.low] from [1] to [17]")));
+            assertThat(consumerLow.get(), equalTo(0));
+            assertThat(consumerHigh.get(), equalTo(0));
         }
     }
 

@@ -163,7 +163,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Creates a new {@code Setting} instance.
      *
      * @param key          the settings key for this setting
-     * @param defaultValue a dfeault value function that results a string representation of the default value
+     * @param defaultValue a default value function that results a string representation of the default value
      * @param parser       a parser that parses a string representation into the concrete type for this setting
      * @param validator    a {@link Validator} for validating this setting
      * @param properties   properties for this setting
@@ -184,6 +184,15 @@ public class Setting<T> extends ToXContentToBytes {
         this(key, s -> defaultValue, parser, properties);
     }
 
+    /**
+     * Creates a new {@code Setting} instance.
+     *
+     * @param key          the settings key for this setting
+     * @param defaultValue a default value function that results a string representation of the default value
+     * @param parser       a parser that parses a string representation into the concrete type for this setting
+     * @param validator    a {@link Validator} for validating this setting
+     * @param properties   properties for this setting
+     */
     public Setting(String key, String defaultValue, Function<String, T> parser, Validator<T> validator, Property... properties) {
         this(new SimpleKey(key), s -> defaultValue, parser, validator, properties);
     }
@@ -616,11 +625,28 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
+    /**
+     * Represents a validator for a setting. The {@link #validate(Object, Map)} method is invoked with the value of this setting and a map
+     * from the settings specified by {@link #settings()}} to their values. All these values come from the same {@link Settings} instance.
+     *
+     * @param <T> the type of the {@link Setting}
+     */
     @FunctionalInterface
     public interface Validator<T> {
 
+        /**
+         * The validation routine for this validator.
+         *
+         * @param value    the value of this setting
+         * @param settings a map from the settings specified by {@link #settings()}} to their values
+         */
         void validate(T value, Map<Setting<T>, T> settings);
 
+        /**
+         * The settings needed by this validator.
+         *
+         * @return the settings needed to validate; these can be used for cross-settings validation
+         */
         default Iterator<Setting<T>> settings() {
             return Collections.emptyIterator();
         }

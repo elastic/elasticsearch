@@ -29,10 +29,11 @@ file or updated dynamically on a live cluster with the
     the node.
 
 `cluster.routing.allocation.disk.watermark.floodstage`::
-
-    Controls the floodstage watermark. It defaults to 95%, meaning ES enforce a read-only
++
+--
+    Controls the floodstage watermark. It defaults to 95%, meaning ES enforces a read-only
     index block (`index.blocks.read_only_allow_delete`) on every index that has
-    one or more shards allocated on the node that has at least on disk exceeding the floodstage.
+    one or more shards allocated on the node that has at least one disk exceeding the floodstage.
     This is a last resort to prevent nodes from running out of disk space.
     The index block must be released manually once there is enough disk space available
     to allow indexing operations to continue.
@@ -48,13 +49,7 @@ PUT /twitter/_settings
 --------------------------------------------------
 // CONSOLE
 // TEST[setup:twitter]
-
-
-NOTE: Percentage values refer to used disk space, while byte values refer to
-free disk space. This can be confusing, since it flips the meaning of high and
-low. For example, it makes sense to set the low watermark to 10gb and the high
-watermark to 5gb, but not the other way around.
-
+--
 
 `cluster.info.update.interval`::
 
@@ -72,9 +67,16 @@ watermark to 5gb, but not the other way around.
     already used by the running relocation.
 
 
-An example of updating the low watermark to no more than 80% of the disk size, a
-high watermark of at least 50 gigabytes free, and updating the information about
-the cluster every minute:
+NOTE: Percentage values refer to used disk space, while byte values refer to
+free disk space. This can be confusing, since it flips the meaning of high and
+low. For example, it makes sense to set the low watermark to 10gb and the high
+watermark to 5gb, but not the other way around.
+
+
+An example of updating the low watermark to no more than 80% of the disk size,
+a high watermark of at least 50 gigabytes free, and a floodstage watermark of
+10 gigabytes free, and updating the information about the cluster every
+minute:
 
 [source,js]
 --------------------------------------------------
@@ -83,15 +85,10 @@ PUT _cluster/settings
   "transient": {
     "cluster.routing.allocation.disk.watermark.low": "80%",
     "cluster.routing.allocation.disk.watermark.high": "50gb",
+    "cluster.routing.allocation.disk.watermark.floodstage": "10gb",
     "cluster.info.update.interval": "1m"
   }
 }
 --------------------------------------------------
 // CONSOLE
 
-NOTE: Prior to 2.0.0, when using multiple data paths, the disk threshold
-decider only factored in the usage across all data paths (if you had two
-data paths, one with 50b out of 100b free (50% used) and another with
-40b out of 50b free (80% used) it would see the node's disk usage as 90b
-out of 150b). In 2.0.0, the minimum and maximum disk usages are tracked
-separately.

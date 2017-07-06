@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.range.geodistance;
+package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
@@ -31,10 +31,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder.Range;
+import org.elasticsearch.search.aggregations.bucket.range.GeoDistanceAggregationBuilder.Range;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -69,7 +66,8 @@ public class GeoDistanceRangeAggregatorFactory
     @Override
     protected Aggregator createUnmapped(Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
             throws IOException {
-        return new Unmapped<>(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators, metaData);
+        return new RangeAggregator.Unmapped<>(name, ranges, keyed, config.format(), context, parent, rangeFactory, pipelineAggregators,
+                metaData);
     }
 
     @Override

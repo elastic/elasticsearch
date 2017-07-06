@@ -36,13 +36,11 @@ final class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<Se
     private final SearchPhaseController searchPhaseController;
 
     SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
-                                    final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
-                                    final Map<String, AliasFilter> aliasFilter, final Map<String, Float> concreteIndexBoosts,
-                                    final SearchPhaseController searchPhaseController, final Executor executor,
-                                    final SearchRequest request, final ActionListener<SearchResponse> listener,
-                                    final GroupShardsIterator<SearchShardIterator> shardsIts,
-                                    final TransportSearchAction.SearchTimeProvider timeProvider,
-                                    long clusterStateVersion, SearchTask task) {
+            final BiFunction<String, String, Transport.Connection> nodeIdToConnection, final Map<String, AliasFilter> aliasFilter,
+            final Map<String, Float> concreteIndexBoosts, final SearchPhaseController searchPhaseController, final Executor executor,
+            final SearchRequest request, final ActionListener<SearchResponse> listener,
+            final GroupShardsIterator<SearchShardIterator> shardsIts, final TransportSearchAction.SearchTimeProvider timeProvider,
+            long clusterStateVersion, SearchTask task) {
         super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, executor, request, listener,
             shardsIts, timeProvider, clusterStateVersion, task, searchPhaseController.newSearchPhaseResults(request, shardsIts.size()));
         this.searchPhaseController = searchPhaseController;

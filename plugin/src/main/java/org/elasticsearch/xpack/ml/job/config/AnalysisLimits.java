@@ -126,7 +126,7 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (modelMemoryLimit != null) {
-            builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), modelMemoryLimit);
+            builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), modelMemoryLimit + "mb");
         }
         if (categorizationExamplesLimit != null) {
             builder.field(CATEGORIZATION_EXAMPLES_LIMIT.getPreferredName(), categorizationExamplesLimit);

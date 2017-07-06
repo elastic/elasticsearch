@@ -88,7 +88,7 @@
             }
           }
   - match: { job_id: "job-model-memory-limit-as-number" }
-  - match: { analysis_limits.model_memory_limit: 2048 }
+  - match: { analysis_limits.model_memory_limit: "2048mb" }
 
 ---
 "Test put job with model_memory_limit as string":
@@ -108,7 +108,7 @@
             }
           }
   - match: { job_id: "job-model-memory-limit-as-string" }
-  - match: { analysis_limits.model_memory_limit: 3072 }
+  - match: { analysis_limits.model_memory_limit: "3072mb" }
 
 ---
 "Test get job API with non existing job id":
@@ -302,7 +302,7 @@
   - match: { description: "Post update description" }
   - match: { model_plot_config.enabled: false }
   - match: { model_plot_config.terms: "foobar" }
-  - match: { analysis_limits.model_memory_limit: 20 }
+  - match: { analysis_limits.model_memory_limit: "20mb" }
   - match: { analysis_config.categorization_filters: ["cat3.*"] }
   - match: { analysis_config.detectors.0.detector_rules.0.target_field_name: "airline" }
   - match: { analysis_config.detectors.0.detector_index: 0 }

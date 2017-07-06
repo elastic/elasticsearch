@@ -38,8 +38,7 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
             builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
         }
         if (randomBoolean()) {
-            builder.setAnalysisLimits(new AnalysisLimits(randomNonNegativeLong(),
-                    randomNonNegativeLong()));
+            builder.setAnalysisLimits(AnalysisLimitsTests.createRandomized());
         }
         if (randomBoolean()) {
             DataDescription.Builder dataDescription = new DataDescription.Builder();

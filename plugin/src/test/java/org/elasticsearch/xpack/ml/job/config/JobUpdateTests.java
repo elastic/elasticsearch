@@ -51,7 +51,7 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
             update.setModelPlotConfig(new ModelPlotConfig(randomBoolean(), randomAlphaOfLength(10)));
         }
         if (randomBoolean()) {
-            update.setAnalysisLimits(new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong()));
+            update.setAnalysisLimits(AnalysisLimitsTests.createRandomized());
         }
         if (randomBoolean()) {
             update.setRenormalizationWindowDays(randomNonNegativeLong());

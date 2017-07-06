@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.job.config;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -24,6 +26,10 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     @Override
     protected AnalysisLimits createTestInstance() {
+        return createRandomized();
+    }
+
+    public static AnalysisLimits createRandomized() {
         return new AnalysisLimits(randomBoolean() ? (long) randomIntBetween(1, 1000000) : null,
                 randomBoolean() ? randomNonNegativeLong() : null);
     }

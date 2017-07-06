@@ -508,7 +508,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setLastDataTime(new Date(randomNonNegativeLong()));
         }
         builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
-        builder.setAnalysisLimits(new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong()));
+        builder.setAnalysisLimits(AnalysisLimitsTests.createRandomized());
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));

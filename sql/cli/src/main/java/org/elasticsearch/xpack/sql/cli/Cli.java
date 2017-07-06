@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.xpack.sql.cli.net.client.CliHttpClient;
+import org.elasticsearch.xpack.sql.net.client.SuppressForbidden;
 import org.elasticsearch.xpack.sql.net.client.util.IOUtils;
 import org.jline.keymap.BindingReader;
 import org.jline.reader.EndOfFileException;
@@ -37,10 +38,15 @@ public class Cli {
                 Cli console = new Cli(new CliConfiguration("localhost:9200/_cli", new Properties()), term);
                 console.run();
             } catch (FatalException e) {
-                new PrintWriter(term.output()).println(e.getMessage());
-                System.exit(1);
+                term.writer().println(e.getMessage());
+                
             }
         }
+    }
+
+    @SuppressForbidden(reason = "CLI application")
+    private static void terminateWithError() {
+        System.exit(1);
     }
 
     private final Terminal term;
@@ -134,7 +140,7 @@ public class Cli {
                         executeCommand(line, out);
                     }
                 } catch (RuntimeException ex) {
-                    ex.printStackTrace();
+                    // NOCOMMIT we should probably be able to throw these exceptions, if just for testing
                     AttributedStringBuilder asb = new AttributedStringBuilder();
                     asb.append("Communication error [", BOLD.foreground(RED));
                     asb.append(ex.getMessage(), DEFAULT.boldOff().italic().foreground(YELLOW));
@@ -194,11 +200,11 @@ public class Cli {
     }
 
     static class FatalException extends RuntimeException {
-        public FatalException(String message, Throwable cause) {
+        FatalException(String message, Throwable cause) {
             super(message, cause);
         }
 
-        public FatalException(String message) {
+        FatalException(String message) {
             super(message);
         }
     }

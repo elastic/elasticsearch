@@ -39,10 +39,12 @@ import org.junit.BeforeClass;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 import java.io.PrintWriter;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -134,9 +136,9 @@ public class CliIntegrationTestCase extends ESRestTestCase {
     @Before
     public void startCli() throws IOException {
         PipedInputStream terminalIn = new PipedInputStream();
-        out = new PrintWriter(new PipedOutputStream(terminalIn), true);
+        out = new PrintWriter(new OutputStreamWriter(new PipedOutputStream(terminalIn), StandardCharsets.UTF_8), true);
         PipedOutputStream terminalOut = new PipedOutputStream();
-        in = new BufferedReader(new InputStreamReader(new PipedInputStream(terminalOut)));
+        in = new BufferedReader(new InputStreamReader(new PipedInputStream(terminalOut), StandardCharsets.UTF_8));
         Terminal terminal = TerminalBuilder.builder()
                 .system(false)
                 .jansi(false)

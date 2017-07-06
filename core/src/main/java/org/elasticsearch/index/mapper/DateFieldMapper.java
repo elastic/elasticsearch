@@ -488,10 +488,6 @@ public class DateFieldMapper extends FieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         final DateFieldMapper other = (DateFieldMapper) mergeWith;
-        final List<String> conflits = new ArrayList<>();
-        fieldType().checkCompatibility(other.fieldType(), conflits, false);
-        if (!conflits.isEmpty())
-            throw new IllegalArgumentException("Merge conflits: " + conflits);
         super.doMerge(mergeWith, updateAllTypes);
         this.includeInAll = other.includeInAll;
         if (other.ignoreMalformed.explicit()) {

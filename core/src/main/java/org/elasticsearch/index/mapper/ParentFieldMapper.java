@@ -297,11 +297,6 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
-        List<String> conflicts = new ArrayList<>();
-        fieldType().checkCompatibility(fieldMergeWith.fieldType, conflicts, true);
-        if (conflicts.isEmpty() == false) {
-            throw new IllegalArgumentException("Merge conflicts: " + conflicts);
-        }
         ParentFieldType currentFieldType = (ParentFieldType) fieldType.clone();
         super.doMerge(mergeWith, updateAllTypes);
         if (fieldMergeWith.parentType != null && Objects.equals(parentType, fieldMergeWith.parentType) == false) {

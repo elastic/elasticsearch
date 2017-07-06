@@ -352,7 +352,8 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("release_date").field("type", "date").field("format", "yyyy/MM/dd").endObject()
             .endObject().endObject().endObject().string();
-        DocumentMapper initMapper = parser.parse("movie", new CompressedXContent(initMapping));
+        DocumentMapper initMapper = indexService.mapperService().merge("movie", new CompressedXContent(initMapping),
+            MapperService.MergeReason.MAPPING_UPDATE, randomBoolean());
 
         assertThat(initMapper.mappers().getMapper("release_date"), notNullValue());
         assertFalse(initMapper.mappers().getMapper("release_date").fieldType().stored());
@@ -361,9 +362,10 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("release_date").field("type", "date").field("format", "epoch_millis").endObject()
             .endObject().endObject().endObject().string();
-        DocumentMapper updateFormatMapper = parser.parse("movie", new CompressedXContent(updateFormatMapping));
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> initMapper.merge(updateFormatMapper.mapping(), false));
-        assertThat(e.getMessage(), containsString("Merge conflits: [mapper [release_date] has different [format] values]"));
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> indexService.mapperService().merge("movie", new CompressedXContent(updateFormatMapping),
+                MapperService.MergeReason.MAPPING_UPDATE, randomBoolean()));
+        assertThat(e.getMessage(), containsString("[mapper [release_date] has different [format] values]"));
     }
 }

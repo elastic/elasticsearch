@@ -93,6 +93,7 @@ public final class Messages {
             "Invalid detector rule: at least one rule_condition is required";
     public static final String JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION = "field_name cannot be used with function ''{0}''";
     public static final String JOB_CONFIG_FIELD_VALUE_TOO_LOW = "{0} cannot be less than {1,number}. Value = {2,number}";
+    public static final String JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW = "model_memory_limit must be at least 1 MiB. Value = {0,number}";
     public static final String JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED =
             "The ''{0}'' function cannot be used in jobs that will take pre-summarized input";
     public static final String JOB_CONFIG_FUNCTION_REQUIRES_BYFIELD = "by_field_name must be set when the ''{0}'' function is used";

@@ -71,6 +71,46 @@
   - is_false: ''
 
 ---
+"Test put job with model_memory_limit as number":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: job-model-memory-limit-as-number
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            },
+            "analysis_limits": {
+                "model_memory_limit": 2048
+            }
+          }
+  - match: { job_id: "job-model-memory-limit-as-number" }
+  - match: { analysis_limits.model_memory_limit: 2048 }
+
+---
+"Test put job with model_memory_limit as string":
+
+  - do:
+      xpack.ml.put_job:
+        job_id: job-model-memory-limit-as-string
+        body:  >
+          {
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            },
+            "analysis_limits": {
+                "model_memory_limit": "3g"
+            }
+          }
+  - match: { job_id: "job-model-memory-limit-as-string" }
+  - match: { analysis_limits.model_memory_limit: 3072 }
+
+---
 "Test get job API with non existing job id":
   - do:
       catch: missing

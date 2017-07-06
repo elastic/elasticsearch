@@ -39,15 +39,6 @@ public class AnalysisLimitsWriterTests extends ESTestCase {
         verify(writer).write("[memory]\n[results]\n");
     }
 
-    public void testWrite_GivenModelMemoryLimitIsZero() throws IOException {
-        AnalysisLimits limits = new AnalysisLimits(0L, null);
-        AnalysisLimitsWriter analysisLimitsWriter = new AnalysisLimitsWriter(limits, writer);
-
-        analysisLimitsWriter.write();
-
-        verify(writer).write("[memory]\n[results]\n");
-    }
-
     public void testWrite_GivenModelMemoryLimitWasSet() throws IOException {
         AnalysisLimits limits = new AnalysisLimits(10L, null);
         AnalysisLimitsWriter analysisLimitsWriter = new AnalysisLimitsWriter(limits, writer);
@@ -58,7 +49,7 @@ public class AnalysisLimitsWriterTests extends ESTestCase {
     }
 
     public void testWrite_GivenCategorizationExamplesLimitWasSet() throws IOException {
-        AnalysisLimits limits = new AnalysisLimits(0L, 5L);
+        AnalysisLimits limits = new AnalysisLimits(null, 5L);
         AnalysisLimitsWriter analysisLimitsWriter = new AnalysisLimitsWriter(limits, writer);
 
         analysisLimitsWriter.write();

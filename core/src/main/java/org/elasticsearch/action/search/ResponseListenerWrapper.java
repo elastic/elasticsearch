@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -31,9 +30,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
  * result to get the piggybacked queue size and service time EWMA, adding those
  * values to the coordinating nodes' {@code ResponseCollectorService}.
  */
-public class ResponseListenerWrapper extends SearchActionListener<SearchPhaseResult> {
-
-    private static final Logger logger = ESLoggerFactory.getLogger(ResponseListenerWrapper.class);
+public class ResponseListenerWrapper implements ActionListener<SearchPhaseResult> {
 
     private final SearchActionListener<SearchPhaseResult> listener;
     private final ResponseCollectorService collector;
@@ -41,14 +38,13 @@ public class ResponseListenerWrapper extends SearchActionListener<SearchPhaseRes
 
     public ResponseListenerWrapper(SearchActionListener<SearchPhaseResult> listener,
                                    ResponseCollectorService collector) {
-        super(listener.searchShardTarget, listener.requestIndex);
         this.listener = listener;
         this.collector = collector;
         this.startNanos = System.nanoTime();
     }
 
     @Override
-    protected void innerOnResponse(SearchPhaseResult response) {
+    public void onResponse(SearchPhaseResult response) {
         QuerySearchResult queryResult = response.queryResult();
         if (queryResult != null && collector != null) {
             final long ewma = queryResult.serviceTimeEWMA();
@@ -62,15 +58,9 @@ public class ResponseListenerWrapper extends SearchActionListener<SearchPhaseRes
                 if (ewma > 0) {
                     collector.setServiceTime(nodeId, ewma);
                 }
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] registering service time EWMA: {}, queue size: {}",
-                            nodeId, TimeValue.timeValueNanos(ewma), queueSize);
-                    logger.trace("queues sizes: [{}], service times: [{}], response times: [{}]",
-                            collector.getAvgQueueSize(), collector.getAvgServiceTime(), collector.getAvgResponseTime());
-                }
             }
         }
-        listener.innerOnResponse(response);
+        listener.onResponse(response);
     }
 
     @Override

@@ -140,7 +140,7 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
 
-        resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 1.8")).get();
+        resp = client().prepareSearch("test").setQuery(queryStringQuery("127.0.0.1 1.8").splitOnWhitespace(true)).get();
         assertHits(resp.getHits(), "1", "2");
         assertHitCount(resp, 2L);
     }
@@ -221,7 +221,7 @@ public class QueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 0L);
 
         resp = client().prepareSearch("test2").setQuery(
-                queryStringQuery("foo eggplant").defaultOperator(Operator.AND).useAllFields(true)).get();
+                queryStringQuery("foo eggplant").defaultOperator(Operator.AND).splitOnWhitespace(true).useAllFields(true)).get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
 

@@ -123,6 +123,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.autoGeneratePhraseQueries(randomBoolean());
+            if (queryStringQueryBuilder.autoGeneratePhraseQueries()) {
+                queryStringQueryBuilder.splitOnWhitespace(true);
+            }
         }
         if (randomBoolean()) {
             queryStringQueryBuilder.enablePositionIncrements(randomBoolean());
@@ -693,12 +696,9 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testToQueryWildcardNonExistingFields() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryStringQueryBuilder queryStringQueryBuilder =
-            new QueryStringQueryBuilder("foo bar").field("invalid*");
+                new QueryStringQueryBuilder("foo bar").field("invalid*");
         Query query = queryStringQueryBuilder.toQuery(createShardContext());
-        Query expectedQuery = new BooleanQuery.Builder()
-            .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
-            .add(new MatchNoDocsQuery("empty fields"), Occur.SHOULD)
-            .build();
+        Query expectedQuery = new MatchNoDocsQuery("empty fields");
         assertThat(expectedQuery, equalTo(query));
 
         queryStringQueryBuilder =

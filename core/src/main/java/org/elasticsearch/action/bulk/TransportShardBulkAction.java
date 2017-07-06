@@ -29,8 +29,8 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -391,7 +391,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         if (!TransportActions.isShardNotAvailableException(failure)) {
                             throw failure;
                         }
-                    } else {
+                    } else if (operationResult.getTranslogLocation() != null) { // out of order ops are not added to the translog
                         location = locationToSync(location, operationResult.getTranslogLocation());
                     }
                 } catch (Exception e) {

@@ -65,7 +65,7 @@ final class PSubShortcut extends AStoreable {
                 "Illegal set shortcut on field [" + value + "] for type [" + type + "]."));
         }
 
-        if (getter != null && setter != null && setter.arguments.get(0) != getter.rtn) {
+        if (getter != null && setter != null && setter.arguments.get(0).equals(getter.rtn) == false) {
             throw createError(new IllegalArgumentException("Shortcut argument types must match."));
         }
 

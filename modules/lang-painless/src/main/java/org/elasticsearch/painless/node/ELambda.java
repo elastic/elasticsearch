@@ -133,7 +133,7 @@ public final class ELambda extends AExpression implements ILambda {
                 throw new IllegalArgumentException("Incorrect number of parameters for [" + interfaceMethod.name +
                                                    "] in [" + expected.clazz + "]");
             // for method invocation, its allowed to ignore the return value
-            if (interfaceMethod.rtn == Definition.VOID_TYPE) {
+            if (interfaceMethod.rtn.equals(Definition.VOID_TYPE)) {
                 returnType = Definition.DEF_TYPE;
             } else {
                 returnType = interfaceMethod.rtn;

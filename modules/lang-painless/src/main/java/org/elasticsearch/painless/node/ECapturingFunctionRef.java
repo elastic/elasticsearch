@@ -86,7 +86,7 @@ public final class ECapturingFunctionRef extends AExpression implements ILambda 
                         AnalyzerCaster.getLegalCast(location, from, to, false, true);
                     }
 
-                    if (ref.interfaceMethod.rtn != VOID_TYPE) {
+                    if (ref.interfaceMethod.rtn.equals(VOID_TYPE) == false) {
                         AnalyzerCaster.getLegalCast(location, ref.delegateMethod.rtn, ref.interfaceMethod.rtn, false, true);
                     }
                 } catch (IllegalArgumentException e) {

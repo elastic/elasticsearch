@@ -160,7 +160,7 @@ class Era -> java.time.chrono.Era extends TemporalAccessor,TemporalAdjuster {
 
 #### Classes
 
-class AbstractChronology -> java.time.chrono.Chronology extends Chronology,Comparable,Object {
+class AbstractChronology -> java.time.chrono.AbstractChronology extends Chronology,Comparable,Object {
 }
 
 class HijrahChronology -> java.time.chrono.HijrahChronology extends AbstractChronology,Chronology,Comparable,Object {

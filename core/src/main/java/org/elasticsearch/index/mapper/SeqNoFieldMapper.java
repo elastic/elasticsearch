@@ -23,13 +23,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -210,20 +207,6 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
             return new DocValuesIndexFieldData.Builder().numericType(NumericType.LONG);
-        }
-
-        @Override
-        public FieldStats stats(IndexReader reader) throws IOException {
-            String fieldName = name();
-            long size = PointValues.size(reader, fieldName);
-            if (size == 0) {
-                return null;
-            }
-            int docCount = PointValues.getDocCount(reader, fieldName);
-            byte[] min = PointValues.getMinPackedValue(reader, fieldName);
-            byte[] max = PointValues.getMaxPackedValue(reader, fieldName);
-            return new FieldStats.Long(reader.maxDoc(),docCount, -1L, size, true, false,
-                    LongPoint.decodeDimension(min, 0), LongPoint.decodeDimension(max, 0));
         }
 
     }

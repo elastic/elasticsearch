@@ -20,16 +20,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
@@ -258,25 +256,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 query = new BoostQuery(query, boost());
             }
             return query;
-        }
-
-        @Override
-        public FieldStats<?> stats(IndexReader reader) throws IOException {
-            FieldStats.Long stats = (FieldStats.Long) NumberFieldMapper.NumberType.LONG.stats(
-                    reader, name(), isSearchable(), isAggregatable());
-            if (stats == null) {
-                return null;
-            }
-            if (stats.hasMinMax()) {
-                return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
-                    stats.getSumDocFreq(), stats.getSumTotalTermFreq(),
-                    stats.isSearchable(), stats.isAggregatable(),
-                    stats.getMinValue() / scalingFactor,
-                    stats.getMaxValue() / scalingFactor);
-            }
-            return new FieldStats.Double(stats.getMaxDoc(), stats.getDocCount(),
-                stats.getSumDocFreq(), stats.getSumTotalTermFreq(),
-                stats.isSearchable(), stats.isAggregatable());
         }
 
         @Override

@@ -22,8 +22,10 @@ package org.elasticsearch.common;
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** These are essentially flake ids (http://boundary.com/blog/2012/01/12/flake-a-decentralized-k-ordered-unique-id-generator-in-erlang) but
- *  we use 6 (not 8) bytes for timestamp, and use 3 (not 2) bytes for sequence number. */
+/**
+ * These are essentially flake ids (http://boundary.com/blog/2012/01/12/flake-a-decentralized-k-ordered-unique-id-generator-in-erlang) but
+ * we use 6 (not 8) bytes for timestamp, and use 3 (not 2) bytes for sequence number.
+ */
 
 class LegacyTimeBasedUUIDGenerator implements UUIDGenerator {
 

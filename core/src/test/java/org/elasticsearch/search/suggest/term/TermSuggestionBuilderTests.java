@@ -227,7 +227,7 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
     }
 
     @Override
-    protected void assertSuggester(TermSuggestionBuilder builder, SuggestionContext context) {
+    protected void assertSuggestionContext(TermSuggestionBuilder builder, SuggestionContext context) {
         assertThat(context, instanceOf(TermSuggestionContext.class));
         assertThat(context.getSuggester(), instanceOf(TermSuggester.class));
         TermSuggestionContext termSuggesterCtx = (TermSuggestionContext) context;

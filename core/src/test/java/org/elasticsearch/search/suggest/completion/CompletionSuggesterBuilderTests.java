@@ -29,16 +29,18 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContex
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping.InternalQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTestCase<CompletionSuggestionBuilder> {
 
@@ -54,7 +56,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     }
 
     public static CompletionSuggestionBuilder randomCompletionSuggestionBuilder() {
-        // lazy initialization of context names and mappings, cannot be done in init method because other test
+        // lazy initialization of context names and mappings, cannot be done in some init method because other test
         // also create random CompletionSuggestionBuilder instances
         if (categoryContextName == null) {
             categoryContextName = randomAlphaOfLength(10);
@@ -62,9 +64,9 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         if (geoQueryContextName == null) {
             geoQueryContextName = randomAlphaOfLength(10);
         }
-        if (contextMappings == null) {
-            contextMappings = Arrays.asList(new ContextMapping[] { ContextBuilder.category(categoryContextName).build(),
-                    ContextBuilder.geo(geoQueryContextName).build() });
+        if (contextMappings.isEmpty()) {
+            contextMappings.add(ContextBuilder.category(categoryContextName).build());
+            contextMappings.add(ContextBuilder.geo(geoQueryContextName).build());
         }
         // lazy initialization of context names and mappings, cannot be done in some init method because other test
         // also create random CompletionSuggestionBuilder instances
@@ -165,6 +167,20 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     }
 
     @Override
-    protected void assertSuggester(CompletionSuggestionBuilder builder, SuggestionContext context) {
+    protected void assertSuggestionContext(CompletionSuggestionBuilder builder, SuggestionContext context) throws IOException {
+        assertThat(context, instanceOf(CompletionSuggestionContext.class));
+        assertThat(context.getSuggester(), instanceOf(CompletionSuggester.class));
+        CompletionSuggestionContext completionSuggestionCtx = (CompletionSuggestionContext) context;
+        assertThat(completionSuggestionCtx.getFieldType(), instanceOf(CompletionFieldType.class) );
+        assertEquals(builder.fuzzyOptions, completionSuggestionCtx.getFuzzyOptions());
+        Map<String, List<InternalQueryContext>> parsedContextBytes;
+        parsedContextBytes = CompletionSuggestionBuilder.parseContextBytes(builder.contextBytes, xContentRegistry(),
+                new ContextMappings(contextMappings));
+        Map<String, List<InternalQueryContext>> queryContexts = completionSuggestionCtx.getQueryContexts();
+        assertEquals(parsedContextBytes.keySet(), queryContexts.keySet());
+        for (String contextName : queryContexts.keySet()) {
+            assertEquals(parsedContextBytes.get(contextName), queryContexts.get(contextName));
+        }
+        assertEquals(builder.regexOptions, completionSuggestionCtx.getRegexOptions());
     }
 }

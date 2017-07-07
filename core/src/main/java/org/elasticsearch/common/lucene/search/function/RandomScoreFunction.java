@@ -85,7 +85,7 @@ public class RandomScoreFunction extends ScoreFunction {
                 String field = fieldData == null ? null : fieldData.getFieldName();
                 return Explanation.match(
                         CombineFunction.toFloat(score(docId, subQueryScore.getValue())),
-                        "random score function (seed: " + originalSeed + ", field=" + field + ")");
+                        "random score function (seed: " + originalSeed + ", field: " + field + ")");
             }
         };
     }

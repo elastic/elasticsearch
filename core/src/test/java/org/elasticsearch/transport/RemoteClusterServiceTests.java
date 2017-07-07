@@ -21,13 +21,11 @@ package org.elasticsearch.transport;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -310,13 +308,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
         return ActionListener.wrap(x -> latch.countDown(), x -> fail());
     }
 
-
-
-    @TestLogging("org.elasticsearch.test.transport.MockTransportService.tracer:TRACE")
     public void testCollectNodes() throws InterruptedException, IOException {
-        final Settings settings = Settings.builder()
-            .put("transport.tracer.include", ClusterStateAction.NAME)
-            .build();
+        final Settings settings = Settings.EMPTY;
         final List<DiscoveryNode> knownNodes_c1 = new CopyOnWriteArrayList<>();
         final List<DiscoveryNode> knownNodes_c2 = new CopyOnWriteArrayList<>();
 

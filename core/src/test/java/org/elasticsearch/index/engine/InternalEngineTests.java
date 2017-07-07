@@ -4025,12 +4025,20 @@ public class InternalEngineTests extends ESTestCase {
                 if (rarely() && i < operations - 1) {
                     continue;
                 }
-                final String id = Integer.toString(i);
+                expectedCompletedSeqNos.add((long) i);
+            }
+
+            final ArrayList<Long> seqNos = new ArrayList<>(expectedCompletedSeqNos);
+            Randomness.shuffle(seqNos);
+            for (final long seqNo : seqNos) {
+                final String id = Long.toString(seqNo);
                 final ParsedDocument doc = testParsedDocument(id, null, testDocumentWithTextField(), SOURCE, null);
                 final Term uid = newUid(doc);
-                actualEngine.index(
-                        new Engine.Index(uid, doc, i, 1, 1, VersionType.EXTERNAL, REPLICA, System.nanoTime(), System.nanoTime(), false));
-                expectedCompletedSeqNos.add((long) i);
+                final long time = System.nanoTime();
+                actualEngine.index(new Engine.Index(uid, doc, seqNo, 1, 1, VersionType.EXTERNAL, REPLICA, time, time, false));
+                if (rarely()) {
+                    actualEngine.rollTranslogGeneration();
+                }
             }
             final long currentLocalCheckpoint = actualEngine.seqNoService().getLocalCheckpoint();
             final long resetLocalCheckpoint =

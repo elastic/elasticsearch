@@ -1446,8 +1446,8 @@ public abstract class Engine implements Closeable {
     public abstract void deactivateThrottling();
 
     /**
-     * Marks operations in the translog from the specified local checkpoint as completed. This is used to restore the state of the local
-     * checkpoint tracker on primary promotion.
+     * Marks operations in the translog as completed. This is used to restore the state of the local checkpoint tracker on primary
+     * promotion.
      *
      * @throws IOException if an I/O exception occurred reading the translog
      */

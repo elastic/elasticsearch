@@ -704,7 +704,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final int operations = 1024 - scaledRandomIntBetween(0, 1024);
         indexOnReplicaWithGaps(indexShard, operations, Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED));
 
-        final long maxSeqNo = indexShard.getMaxSeqNo();
+        final long maxSeqNo = indexShard.seqNoStats().getMaxSeqNo();
         final long globalCheckpointOnReplica = SequenceNumbersService.UNASSIGNED_SEQ_NO;
         randomIntBetween(
                 Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
@@ -748,7 +748,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 Collections.emptySet());
         resyncLatch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
-        assertThat(indexShard.getMaxSeqNo(), equalTo(maxSeqNo));
+        assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
 
         closeShards(indexShard);
     }

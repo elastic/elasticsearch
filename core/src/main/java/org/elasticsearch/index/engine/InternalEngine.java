@@ -234,9 +234,9 @@ public class InternalEngine extends Engine {
 
     @Override
     public void restoreLocalCheckpointFromTranslog() throws IOException {
-        final long localCheckpoint = seqNoService().getLocalCheckpoint();
         try (ReleasableLock ignored = writeLock.acquire()) {
             ensureOpen();
+            final long localCheckpoint = seqNoService().getLocalCheckpoint();
             try (Translog.View view = getTranslog().newView()) {
                 final Translog.Snapshot snapshot = view.snapshot(localCheckpoint + 1);
                 Translog.Operation operation;

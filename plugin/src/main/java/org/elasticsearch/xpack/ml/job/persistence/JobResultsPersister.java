@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.job.persistence;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -328,7 +329,7 @@ public class JobResultsPersister extends AbstractComponent {
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error writing [{}]", jobId, (id == null) ? "auto-generated ID" : id), e);
                 IndexResponse.Builder notCreatedResponse = new IndexResponse.Builder();
-                notCreatedResponse.setCreated(false);
+                notCreatedResponse.setResult(Result.NOOP);
                 listener.onResponse(notCreatedResponse.build());
             }
         }

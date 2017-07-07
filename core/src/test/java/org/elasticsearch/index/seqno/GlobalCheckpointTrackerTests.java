@@ -370,14 +370,14 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                 activeAllocationIds
                         .stream()
                         .filter(a -> a.equals(primaryId) == false)
-                        .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a).getLocalCheckPoint()
+                        .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a).getLocalCheckpoint()
                             == SequenceNumbersService.UNASSIGNED_SEQ_NO));
         assertTrue(initializingIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a).inSync));
         assertTrue(
                 initializingIds
                         .stream()
                         .filter(a -> a.equals(primaryId) == false)
-                        .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a).getLocalCheckPoint()
+                        .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a).getLocalCheckpoint()
                             == SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
         // now we will remove some allocation IDs from these and ensure that they propagate through
@@ -405,13 +405,13 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                 newActiveAllocationIds
                         .stream()
                         .filter(a -> a.equals(primaryId) == false)
-                        .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a).getLocalCheckPoint()
+                        .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a).getLocalCheckpoint()
                             == SequenceNumbersService.UNASSIGNED_SEQ_NO));
         assertTrue(newInitializingAllocationIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a).inSync));
         assertTrue(
                 newInitializingAllocationIds
                         .stream()
-                        .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a).getLocalCheckPoint()
+                        .allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a).getLocalCheckpoint()
                             == SequenceNumbersService.UNASSIGNED_SEQ_NO));
 
         // the tracking allocation IDs should play no role in determining the global checkpoint
@@ -425,12 +425,12 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
                 activeLocalCheckpoints
                         .entrySet()
                         .stream()
-                        .allMatch(e -> tracker.getTrackedLocalCheckpointForShard(e.getKey()).getLocalCheckPoint() == e.getValue()));
+                        .allMatch(e -> tracker.getTrackedLocalCheckpointForShard(e.getKey()).getLocalCheckpoint() == e.getValue()));
         assertTrue(
                 initializingLocalCheckpoints
                         .entrySet()
                         .stream()
-                        .allMatch(e -> tracker.getTrackedLocalCheckpointForShard(e.getKey()).getLocalCheckPoint() == e.getValue()));
+                        .allMatch(e -> tracker.getTrackedLocalCheckpointForShard(e.getKey()).getLocalCheckpoint() == e.getValue()));
         final long minimumActiveLocalCheckpoint = (long) activeLocalCheckpoints.values().stream().min(Integer::compareTo).get();
         assertThat(tracker.getGlobalCheckpoint(), equalTo(minimumActiveLocalCheckpoint));
         final long minimumInitailizingLocalCheckpoint = (long) initializingLocalCheckpoints.values().stream().min(Integer::compareTo).get();
@@ -569,7 +569,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
             }
         }
 
-        GlobalCheckpointTracker.PrimaryContext primaryContext = oldPrimary.startRelocationHandOff();
+        GlobalCheckpointTracker.PrimaryContext primaryContext = oldPrimary.startRelocationHandoff();
 
         if (randomBoolean()) {
             // cluster state update after primary context handoff
@@ -580,7 +580,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
             }
 
             // abort handoff, check that we can continue updates and retry handoff
-            oldPrimary.abortRelocationHandOff();
+            oldPrimary.abortRelocationHandoff();
 
             if (rarely()) {
                 clusterState = randomUpdateClusterState(clusterState);
@@ -595,7 +595,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
             }
 
             // do another handoff
-            primaryContext = oldPrimary.startRelocationHandOff();
+            primaryContext = oldPrimary.startRelocationHandoff();
         }
 
         // send primary context through the wire
@@ -646,7 +646,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         assertThat(newPrimary.localCheckpoints, equalTo(oldPrimary.localCheckpoints));
         assertThat(newPrimary.globalCheckpoint, equalTo(oldPrimary.globalCheckpoint));
 
-        oldPrimary.completeRelocationHandOff();
+        oldPrimary.completeRelocationHandoff();
         assertFalse(oldPrimary.primaryMode);
     }
 
@@ -697,7 +697,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
 
     private static void randomLocalCheckpointUpdate(GlobalCheckpointTracker gcp) {
         String allocationId = randomFrom(gcp.localCheckpoints.keySet());
-        long currentLocalCheckpoint = gcp.localCheckpoints.get(allocationId).getLocalCheckPoint();
+        long currentLocalCheckpoint = gcp.localCheckpoints.get(allocationId).getLocalCheckpoint();
         gcp.updateLocalCheckpoint(allocationId, currentLocalCheckpoint + randomInt(5));
     }
 

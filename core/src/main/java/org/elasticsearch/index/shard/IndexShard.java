@@ -551,17 +551,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                  * network operation. Doing this under the mutex can implicitly block the cluster state update thread on network operations.
                  */
                 verifyRelocatingState();
-                final GlobalCheckpointTracker.PrimaryContext primaryContext = getEngine().seqNoService().startRelocationHandOff();
+                final GlobalCheckpointTracker.PrimaryContext primaryContext = getEngine().seqNoService().startRelocationHandoff();
                 try {
                     consumer.accept(primaryContext);
                     synchronized (mutex) {
                         verifyRelocatingState();
                         changeState(IndexShardState.RELOCATED, reason);
                     }
-                    getEngine().seqNoService().completeRelocationHandOff();
+                    getEngine().seqNoService().completeRelocationHandoff();
                 } catch (final Exception e) {
                     try {
-                        getEngine().seqNoService().abortRelocationHandOff();
+                        getEngine().seqNoService().abortRelocationHandoff();
                     } catch (final Exception inner) {
                         e.addSuppressed(inner);
                     }
@@ -1724,7 +1724,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
         assert primaryContext.getLocalCheckpoints().containsKey(routingEntry().allocationId().getId()) &&
             getEngine().seqNoService().getLocalCheckpoint() ==
-                primaryContext.getLocalCheckpoints().get(routingEntry().allocationId().getId()).getLocalCheckPoint();
+                primaryContext.getLocalCheckpoints().get(routingEntry().allocationId().getId()).getLocalCheckpoint();
         getEngine().seqNoService().activateWithPrimaryContext(primaryContext);
     }
 

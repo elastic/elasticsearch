@@ -182,7 +182,7 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * Returns the local checkpoint information tracked for a specific shard. Used by tests.
      */
     public synchronized long getTrackedLocalCheckpointForShard(final String allocationId) {
-        return globalCheckpointTracker.getTrackedLocalCheckpointForShard(allocationId).getLocalCheckPoint();
+        return globalCheckpointTracker.getTrackedLocalCheckpointForShard(allocationId).getLocalCheckpoint();
     }
 
     /**
@@ -233,22 +233,22 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      *
      * @return the primary context
      */
-    public GlobalCheckpointTracker.PrimaryContext startRelocationHandOff() {
-        return globalCheckpointTracker.startRelocationHandOff();
+    public GlobalCheckpointTracker.PrimaryContext startRelocationHandoff() {
+        return globalCheckpointTracker.startRelocationHandoff();
     }
 
     /**
      * Marks a relocation handoff attempt as successful. Moves the tracker into replica mode.
      */
-    public void completeRelocationHandOff() {
-        globalCheckpointTracker.completeRelocationHandOff();
+    public void completeRelocationHandoff() {
+        globalCheckpointTracker.completeRelocationHandoff();
     }
 
     /**
      * Fails a relocation handoff attempt.
      */
-    public void abortRelocationHandOff() {
-        globalCheckpointTracker.abortRelocationHandOff();
+    public void abortRelocationHandoff() {
+        globalCheckpointTracker.abortRelocationHandoff();
     }
 
 }

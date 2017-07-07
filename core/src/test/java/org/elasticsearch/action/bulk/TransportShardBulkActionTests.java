@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.DocWriteResponse.Result;
 import org.elasticsearch.action.bulk.TransportShardBulkAction.ReplicaItemExecutionMode;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -94,7 +93,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         // Successful index request should be replicated
         DocWriteRequest writeRequest = new IndexRequest("index", "type", "id")
                 .source(Requests.INDEX_CONTENT_TYPE, "foo", "bar");
-        DocWriteResponse response = new IndexResponse(shardId, "type", "id", 1, 17, 1, randomFrom(Result.CREATED, Result.UPDATED));
+        DocWriteResponse response = new IndexResponse(shardId, "type", "id", 1, 17, 1, randomBoolean());
         BulkItemRequest request = new BulkItemRequest(0, writeRequest);
         request.setPrimaryResponse(new BulkItemResponse(0, DocWriteRequest.OpType.INDEX, response));
         assertThat(replicaItemExecutionMode(request, 0),
@@ -478,10 +477,9 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         BulkItemRequest replicaRequest = new BulkItemRequest(0, writeRequest);
 
         boolean created = randomBoolean();
-        Result result = created ? Result.CREATED : Result.UPDATED;
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult indexResult = new FakeResult(1, 1, created, resultLocation);
-        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, result );
+        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, created);
         BulkItemResultHolder goodResults =
                 new BulkItemResultHolder(indexResponse, indexResult, replicaRequest);
 
@@ -519,8 +517,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 equalTo(original));
 
         boolean created = randomBoolean();
-        Result result = created ? Result.CREATED : Result.UPDATED;
-        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, result);
+        DocWriteResponse indexResponse = new IndexResponse(shardId, "index", "id", 1, 17, 1, created);
         Translog.Location newLocation = new Translog.Location(1, 1, 1);
         final long version = randomNonNegativeLong();
         final long seqNo = randomNonNegativeLong();

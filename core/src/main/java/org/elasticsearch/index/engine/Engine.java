@@ -44,7 +44,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -406,10 +405,6 @@ public abstract class Engine implements Closeable {
         public boolean isCreated() {
             return created;
         }
-        
-        public DocWriteResponse.Result getResult() {
-            return created ? DocWriteResponse.Result.CREATED : DocWriteResponse.Result.UPDATED;
-        }
 
     }
 
@@ -431,9 +426,6 @@ public abstract class Engine implements Closeable {
             return found;
         }
 
-        public DocWriteResponse.Result getResult() {
-            return found ? DocWriteResponse.Result.DELETED : DocWriteResponse.Result.NOT_FOUND;
-        }
     }
 
     public static class NoOpResult extends Result {

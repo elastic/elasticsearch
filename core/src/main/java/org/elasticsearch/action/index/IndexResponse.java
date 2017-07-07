@@ -40,10 +40,8 @@ public class IndexResponse extends DocWriteResponse {
     public IndexResponse() {
     }
 
-    public IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, Result result) {
-        super(shardId, type, id, seqNo, primaryTerm, version, result);
-        assert (result == Result.CREATED || result == Result.UPDATED) : result + " result is not supported! Use " + Result.CREATED + " or "
-                + Result.UPDATED;
+    public IndexResponse(ShardId shardId, String type, String id, long seqNo, long primaryTerm, long version, boolean created) {
+        super(shardId, type, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED);
     }
 
     @Override
@@ -92,7 +90,8 @@ public class IndexResponse extends DocWriteResponse {
 
         @Override
         public IndexResponse build() {
-            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, primaryTerm, version, result);
+            IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, primaryTerm, version,
+                    result == Result.CREATED ? true : false);
             indexResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 indexResponse.setShardInfo(shardInfo);

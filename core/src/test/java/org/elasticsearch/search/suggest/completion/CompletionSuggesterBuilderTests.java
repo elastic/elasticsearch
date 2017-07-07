@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextBuilder;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -149,5 +150,9 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         CompletionFieldType completionFieldType = new CompletionFieldType();
         completionFieldType.setContextMappings(new ContextMappings(contextMappings));
         return completionFieldType;
+    }
+
+    @Override
+    protected void assertSuggester(CompletionSuggestionBuilder builder, SuggestionContext context) {
     }
 }

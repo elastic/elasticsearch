@@ -108,6 +108,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.common.settings.Setting.affixKeySetting;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 import static org.elasticsearch.common.settings.Setting.groupSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
@@ -133,8 +134,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     public static final Setting<Integer> PUBLISH_PORT =
         intSetting("transport.publish_port", -1, -1, Setting.Property.NodeScope);
     public static final String DEFAULT_PROFILE = "default";
-    public static final Setting<Settings> TRANSPORT_PROFILES_SETTING =
-        groupSetting("transport.profiles.", Setting.Property.Dynamic, Setting.Property.NodeScope);
     // the scheduled internal ping interval setting, defaults to disabled (-1)
     public static final Setting<TimeValue> PING_SCHEDULE =
         timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), Setting.Property.NodeScope);
@@ -164,6 +163,26 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             Setting.Property.NodeScope);
 
 
+    public static final Setting.AffixSetting<Boolean> TCP_NO_DELAY_PROFILE = affixKeySetting("transport.profiles.", "tcp_no_delay",
+        key -> boolSetting(key, TcpTransport.TCP_NO_DELAY, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<Boolean> TCP_KEEP_ALIVE_PROFILE = affixKeySetting("transport.profiles.", "tcp_keep_alive",
+        key -> boolSetting(key, TcpTransport.TCP_KEEP_ALIVE, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<Boolean> TCP_REUSE_ADDRESS_PROFILE = affixKeySetting("transport.profiles.", "reuse_address",
+        key -> boolSetting(key, TcpTransport.TCP_REUSE_ADDRESS, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<ByteSizeValue> TCP_SEND_BUFFER_SIZE_PROFILE = affixKeySetting("transport.profiles.",
+        "send_buffer_size", key -> Setting.byteSizeSetting(key, TcpTransport.TCP_SEND_BUFFER_SIZE, Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<ByteSizeValue> TCP_RECEIVE_BUFFER_SIZE_PROFILE = affixKeySetting("transport.profiles.",
+        "receive_buffer_size", key -> Setting.byteSizeSetting(key, TcpTransport.TCP_RECEIVE_BUFFER_SIZE, Setting.Property.NodeScope));
+
+    public static final Setting.AffixSetting<List<String>> BIND_HOST_PROFILE = affixKeySetting("transport.profiles.", "bind_host",
+        key -> listSetting(key, BIND_HOST, Function.identity(), Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<List<String>> PUBLISH_HOST_PROFILE = affixKeySetting("transport.profiles.", "publish_host",
+        key -> listSetting(key, PUBLISH_HOST, Function.identity(), Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<String> PORT_PROFILE = affixKeySetting("transport.profiles.", "port",
+        key -> new Setting(key, PORT, Function.identity(), Setting.Property.NodeScope));
+    public static final Setting.AffixSetting<Integer> PUBLISH_PORT_PROFILE = affixKeySetting("transport.profiles.", "publish_port",
+        key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
+
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final int PING_DATA_SIZE = -1;
     private final CircuitBreakerService circuitBreakerService;
@@ -173,6 +192,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final ThreadPool threadPool;
     private final BigArrays bigArrays;
     protected final NetworkService networkService;
+    protected final Set<ProfileSettings> profileSettings;
 
     protected volatile TransportServiceAdapter transportServiceAdapter;
     // node id to actual channel
@@ -204,6 +224,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                         NetworkService networkService) {
         super(settings);
+        this.profileSettings = getProfileSettings(settings);
         this.threadPool = threadPool;
         this.bigArrays = bigArrays;
         this.circuitBreakerService = circuitBreakerService;
@@ -664,43 +685,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         return unmodifiableMap(new HashMap<>(profileBoundAddresses));
     }
 
-    protected Map<String, Settings> buildProfileSettings() {
-        // extract default profile first and create standard bootstrap
-        Map<String, Settings> profiles = TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups(true);
-        if (!profiles.containsKey(DEFAULT_PROFILE)) {
-            profiles = new HashMap<>(profiles);
-            profiles.put(DEFAULT_PROFILE, Settings.EMPTY);
-        }
-        Settings defaultSettings = profiles.get(DEFAULT_PROFILE);
-        Map<String, Settings> result = new HashMap<>();
-        // loop through all profiles and start them up, special handling for default one
-        for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
-            Settings profileSettings = entry.getValue();
-            String name = entry.getKey();
-
-            if (!Strings.hasLength(name)) {
-                logger.info("transport profile configured without a name. skipping profile with settings [{}]",
-                    profileSettings.toDelimitedString(','));
-                continue;
-            } else if (DEFAULT_PROFILE.equals(name)) {
-                profileSettings = Settings.builder()
-                    .put(profileSettings)
-                    .put("port", profileSettings.get("port", PORT.get(this.settings)))
-                    .build();
-            } else if (profileSettings.get("port") == null) {
-                // if profile does not have a port, skip it
-                logger.info("No port configured for profile [{}], not binding", name);
-                continue;
-            }
-            Settings mergedSettings = Settings.builder()
-                .put(defaultSettings.getAsMap())
-                .put(profileSettings.getAsMap())
-                .build();
-            result.put(name, mergedSettings);
-        }
-        return result;
-    }
-
     @Override
     public List<String> getLocalAddresses() {
         List<String> local = new ArrayList<>();
@@ -712,15 +696,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         return local;
     }
 
-    protected void bindServer(final String name, final Settings profileSettings) {
+    protected void bindServer(ProfileSettings profileSettings) {
         // Bind and start to accept incoming connections.
         InetAddress hostAddresses[];
-        String bindHosts[] = profileSettings.getAsArray("bind_host",
-            NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY));
+        List<String> profileBindHosts = profileSettings.bindHosts;
         try {
-            hostAddresses = networkService.resolveBindHostAddresses(bindHosts);
+            hostAddresses = networkService.resolveBindHostAddresses(profileBindHosts.toArray(Strings.EMPTY_ARRAY));
         } catch (IOException e) {
-            throw new BindTransportException("Failed to resolve host " + Arrays.toString(bindHosts), e);
+            throw new BindTransportException("Failed to resolve host " + profileBindHosts, e);
         }
         if (logger.isDebugEnabled()) {
             String[] addresses = new String[hostAddresses.length];
@@ -734,15 +717,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
         List<InetSocketAddress> boundAddresses = new ArrayList<>();
         for (InetAddress hostAddress : hostAddresses) {
-            boundAddresses.add(bindToPort(name, hostAddress, profileSettings.get("port")));
+            boundAddresses.add(bindToPort(profileSettings.profileName, hostAddress, profileSettings.portOrRange));
         }
 
-        final BoundTransportAddress boundTransportAddress = createBoundTransportAddress(name, profileSettings, boundAddresses);
+        final BoundTransportAddress boundTransportAddress = createBoundTransportAddress(profileSettings, boundAddresses);
 
-        if (DEFAULT_PROFILE.equals(name)) {
+        if (profileSettings.isDefaultProfile) {
             this.boundAddress = boundTransportAddress;
         } else {
-            profileBoundAddresses.put(name, boundTransportAddress);
+            profileBoundAddresses.put(profileSettings.profileName, boundTransportAddress);
         }
     }
 
@@ -779,7 +762,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         return boundSocket.get();
     }
 
-    private BoundTransportAddress createBoundTransportAddress(String name, Settings profileSettings,
+    private BoundTransportAddress createBoundTransportAddress(ProfileSettings profileSettings,
                                                               List<InetSocketAddress> boundAddresses) {
         String[] boundAddressesHostStrings = new String[boundAddresses.size()];
         TransportAddress[] transportBoundAddresses = new TransportAddress[boundAddresses.size()];
@@ -789,37 +772,30 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             transportBoundAddresses[i] = new TransportAddress(boundAddress);
         }
 
-        String[] publishHosts;
-        if (DEFAULT_PROFILE.equals(name)) {
-            publishHosts = PUBLISH_HOST.get(settings).toArray(Strings.EMPTY_ARRAY);
-        } else {
-            publishHosts = profileSettings.getAsArray("publish_host", boundAddressesHostStrings);
+        List<String> publishHosts = profileSettings.publishHosts;
+        if (profileSettings.isDefaultProfile == false && publishHosts.isEmpty()) {
+            publishHosts = Arrays.asList(boundAddressesHostStrings);
         }
-        if (publishHosts == null || publishHosts.length == 0) {
-            publishHosts = NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+        if (publishHosts.isEmpty()) {
+            publishHosts = NetworkService.GLOBAL_NETWORK_PUBLISHHOST_SETTING.get(settings);
         }
 
         final InetAddress publishInetAddress;
         try {
-            publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts);
+            publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts.toArray(Strings.EMPTY_ARRAY));
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
 
-        final int publishPort = resolvePublishPort(name, settings, profileSettings, boundAddresses, publishInetAddress);
+        final int publishPort = resolvePublishPort(profileSettings, boundAddresses, publishInetAddress);
         final TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
         return new BoundTransportAddress(transportBoundAddresses, publishAddress);
     }
 
     // package private for tests
-    public static int resolvePublishPort(String profileName, Settings settings, Settings profileSettings,
-                                         List<InetSocketAddress> boundAddresses, InetAddress publishInetAddress) {
-        int publishPort;
-        if (DEFAULT_PROFILE.equals(profileName)) {
-            publishPort = PUBLISH_PORT.get(settings);
-        } else {
-            publishPort = profileSettings.getAsInt("publish_port", -1);
-        }
+    public static int resolvePublishPort(ProfileSettings profileSettings, List<InetSocketAddress> boundAddresses,
+                                         InetAddress publishInetAddress) {
+        int publishPort = profileSettings.publishPort;
 
         // if port not explicitly provided, search for port of address in boundAddresses that matches publishInetAddress
         if (publishPort < 0) {
@@ -844,7 +820,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
 
         if (publishPort < 0) {
-            String profileExplanation = DEFAULT_PROFILE.equals(profileName) ? "" : " for profile " + profileName;
+            String profileExplanation = profileSettings.isDefaultProfile ? "" : " for profile " + profileSettings.profileName;
             throw new BindTransportException("Failed to auto-resolve publish port" + profileExplanation + ", multiple bound addresses " +
                 boundAddresses + " with distinct ports and none of them matched the publish address (" + publishInetAddress + "). " +
                 "Please specify a unique port by setting " + PORT.getKey() + " or " +
@@ -1729,4 +1705,61 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             getNumOpenServerConnections(), readBytesMetric.count(), readBytesMetric.sum(), transmittedBytesMetric.count(),
             transmittedBytesMetric.sum());
     }
+
+    /**
+     * Returns all profile settings for the given settings object
+     */
+    public static Set<ProfileSettings> getProfileSettings(Settings settings) {
+        HashSet<ProfileSettings> profiles = new HashSet<>();
+        boolean isDefaultSet = false;
+        for (String profile : settings.getGroups("transport.profiles.", true).keySet()) {
+            profiles.add(new ProfileSettings(settings, profile));
+            if (DEFAULT_PROFILE.equals(profile)) {
+                isDefaultSet = true;
+            }
+        }
+        if (isDefaultSet == false) {
+            profiles.add(new ProfileSettings(settings, DEFAULT_PROFILE));
+        }
+        return Collections.unmodifiableSet(profiles);
+    }
+
+    /**
+     * Representation of a transport profile settings for a <tt>transport.profiles.$profilename.*</tt>
+     */
+    public static final class ProfileSettings {
+        public final String profileName;
+        public final boolean tcpNoDelay;
+        public final boolean tcpKeepAlive;
+        public final boolean reuseAddress;
+        public final ByteSizeValue sendBufferSize;
+        public final ByteSizeValue receiveBufferSize;
+        public final List<String> bindHosts;
+        public final List<String> publishHosts;
+        public final String portOrRange;
+        public final int publishPort;
+        public final boolean isDefaultProfile;
+
+        public ProfileSettings(Settings settings, String profileName) {
+            this.profileName = profileName;
+            isDefaultProfile = DEFAULT_PROFILE.equals(profileName);
+            tcpKeepAlive = TCP_KEEP_ALIVE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            tcpNoDelay = TCP_NO_DELAY_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            reuseAddress = TCP_REUSE_ADDRESS_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            sendBufferSize = TCP_SEND_BUFFER_SIZE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            receiveBufferSize = TCP_RECEIVE_BUFFER_SIZE_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            List<String> profileBindHosts = BIND_HOST_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            bindHosts = (profileBindHosts.isEmpty() ? NetworkService.GLOBAL_NETWORK_BINDHOST_SETTING.get(settings)
+                : profileBindHosts);
+            publishHosts = PUBLISH_HOST_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            Setting<String> concretePort = PORT_PROFILE.getConcreteSettingForNamespace(profileName);
+            if (concretePort.exists(settings) == false && isDefaultProfile == false) {
+                throw new IllegalStateException("profile [" + profileName + "] has no port configured");
+            }
+            portOrRange = PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+            publishPort = isDefaultProfile ? PUBLISH_PORT.get(settings) :
+                PUBLISH_PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
+        }
+    }
+
 }

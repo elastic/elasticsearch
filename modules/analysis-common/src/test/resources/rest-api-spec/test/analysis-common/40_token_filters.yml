@@ -568,3 +568,98 @@
             filter:    [my_truncate]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: foo }
+
+---
+"pattern_capture":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_pattern_capture:
+                    type: pattern_capture
+                    preserve_original: false
+                    patterns: ["([^@]+)"]
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foo@bar.baz
+            tokenizer: keyword
+            filter:    [my_pattern_capture]
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: foo }
+    - match:  { tokens.1.token: bar.baz }
+
+---
+"pattern_replace":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_pattern_replace:
+                    type: pattern_replace
+                    pattern: a
+                    replacement: b
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      a
+            tokenizer: keyword
+            filter:    [my_pattern_replace]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: b }
+
+---
+"limit_count":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_limit:
+                    type: limit
+                    max_token_count: 2
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      a b c
+            tokenizer: whitespace
+            filter:    [my_limit]
+    - length: { tokens: 2 }
+    - match:  { tokens.0.token: a }
+    - match:  { tokens.1.token: b }
+
+---
+"common_grams":
+    - do:
+        indices.create:
+          index: test
+          body:
+            settings:
+              analysis:
+                filter:
+                  my_limit:
+                    type: common_grams
+                    common_words: [a]
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      a b c
+            tokenizer: whitespace
+            filter:    [my_limit]
+    - length: { tokens: 4 }
+    - match:  { tokens.0.token: a }
+    - match:  { tokens.1.token: a_b }
+    - match:  { tokens.2.token: b }
+    - match:  { tokens.3.token: c }

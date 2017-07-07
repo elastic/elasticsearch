@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 
 import org.apache.lucene.analysis.TokenFilter;
@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.pattern.PatternCaptureGroupTokenFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
 import java.util.regex.Pattern;
 
@@ -34,7 +35,7 @@ public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFa
     private static final String PATTERNS_KEY = "patterns";
     private static final String PRESERVE_ORIG_KEY = "preserve_original";
 
-    public PatternCaptureGroupTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    PatternCaptureGroupTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         String[] regexes = settings.getAsArray(PATTERNS_KEY, null, false);
         if (regexes == null) {

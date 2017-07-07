@@ -292,6 +292,8 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             if (fromAsString != null) {
                 from = parser.parseDouble(fromAsString, false, context.getQueryShardContext()::nowInMillis);
             } else if (Double.isFinite(from)) {
+                // from/to provided as double should be converted to string and parsed regardless to support
+                // different formats like `epoch_millis` vs. `epoch_second` with numeric input
                 from = parser.parseDouble(Long.toString((long) from), false, context.getQueryShardContext()::nowInMillis);
             }
             if (toAsString != null) {

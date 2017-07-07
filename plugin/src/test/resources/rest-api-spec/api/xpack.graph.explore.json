@@ -1,6 +1,6 @@
 {
   "xpack.graph.explore": {
-    "documentation": "https://www.elastic.co/guide/en/x-pack/current/graph-api-explore.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/graph-explore-api.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/{index}/_xpack/graph/_explore",

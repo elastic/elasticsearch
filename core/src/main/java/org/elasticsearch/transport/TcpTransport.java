@@ -1754,7 +1754,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             publishHosts = PUBLISH_HOST_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             Setting<String> concretePort = PORT_PROFILE.getConcreteSettingForNamespace(profileName);
             if (concretePort.exists(settings) == false && isDefaultProfile == false) {
-                throw new IllegalStateException("profile [" + profileName + "] has not port configured");
+                throw new IllegalStateException("profile [" + profileName + "] has no port configured");
             }
             portOrRange = PORT_PROFILE.getConcreteSettingForNamespace(profileName).get(settings);
             publishPort = isDefaultProfile ? PUBLISH_PORT.get(settings) :

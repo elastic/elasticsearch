@@ -28,7 +28,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -123,26 +122,27 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
+        public Query termQuery(Object value, QueryShardContext context) {
             return termsQuery(Arrays.asList(value), context);
         }
 
         @Override
-        public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
+        public Query termsQuery(List<?> values, QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE) {
                 failIfNotIndexed();
                 BytesRef[] bytesRefs = new BytesRef[values.size()];
+                final boolean is5xIndex = context.indexVersionCreated().before(Version.V_6_0_0_alpha3);
                 for (int i = 0; i < bytesRefs.length; i++) {
                     BytesRef id;
-                    if (context.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha3)) {
+                    if (is5xIndex) {
+                        // 5.x index with index.mapping.single_type = true
+                        id = BytesRefs.toBytesRef(values.get(i));
+                    } else {
                         Object idObject = values.get(i);
                         if (idObject instanceof BytesRef) {
                             idObject = ((BytesRef) idObject).utf8ToString();
                         }
                         id = Uid.encodeId(idObject.toString());
-                    } else {
-                        // 5.x index with index.mapping.single_type = true
-                        id = BytesRefs.toBytesRef(values.get(i));
                     }
                     bytesRefs[i] = id;
                 }

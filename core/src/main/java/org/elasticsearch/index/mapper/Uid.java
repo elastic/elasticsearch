@@ -158,7 +158,8 @@ public final class Uid {
             }
             break;
         default:
-            throw new AssertionError();
+            // number & 0x03 is always in [0,3]
+            throw new AssertionError("Impossible case");
         }
         for (int i = 0; i < length; ++i) {
             final char c = id.charAt(i);

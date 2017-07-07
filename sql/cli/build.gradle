@@ -1,7 +1,8 @@
 import org.elasticsearch.gradle.test.RunTask
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'application'
+/* We don't use the 'application' plugin because it builds a zip and tgz which
+ * we don't want. */
 
 description = 'Command line interface to Elasticsearch that speaks SQL'
 
@@ -33,13 +34,17 @@ forbiddenApisMain {
   signaturesURLs = [this.class.getResource('/forbidden/jdk-signatures.txt')]
 }
 
-// TODO seems like we should use the jars....
 jar {
-  from(zipTree(project(':x-pack-elasticsearch:sql:net-client').jar.archivePath))
-  from(zipTree(project(':x-pack-elasticsearch:sql:cli-proto').jar.archivePath))
+  // Bundle all dependencies into the jar.
+  from {
+    configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    configurations.runtime.collect { it.isDirectory() ? it : zipTree(it) }
+  }
+  // Make the jar "executable" with `java -jar`
+  manifest {
+    attributes 'Main-Class': 'org.elasticsearch.xpack.sql.cli.Cli'
+  }
 }
-
-mainClassName = "org.elasticsearch.sql.console.SqlConsole"
 
 // Needed so we can launch graphviz if it is installed
 project.compactProfile = 'full'
@@ -93,15 +98,39 @@ integTestCluster {
 }
 
 task runServer(type: RunTask) {
-  distribution = 'zip' // NOCOMMIT make double sure we want all the modules
+  distribution = 'zip'
   plugin project(':x-pack-elasticsearch:plugin').path
+  // Daemonize Elasticsearch so we can run the cli application
+  daemonize = true
   /* Get a "clean" test without the other x-pack features here and check them
    * all together later on. */
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.monitoring.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.watcher.enabled', 'false'
-  run.dependsOn this
+}
+task run {
+  /* We can't use JavaExec or Exec because neither support
+   * ProcessBuilder.Redirect.INHERIT which is required to get full tty-support.
+   */
+  dependsOn jar, runServer
+  finalizedBy 'runServer#stop'
+  description = 'Run the CLI and an Elasticsearch instant for it to connect to'
+  doLast {
+    List command = [new File(project.javaHome, 'bin/java').absolutePath]
+    if ('true'.equals(System.getProperty('debug', 'false'))) {
+      command += '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
+    }
+    command += ['-jar', jar.archivePath.absolutePath]
+    logger.info("command: ${command}")
+
+    new ProcessBuilder(command)
+        .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+        .redirectInput(ProcessBuilder.Redirect.INHERIT)
+        .redirectError(ProcessBuilder.Redirect.INHERIT)
+        .start()
+        .waitFor()
+  }
 }
 
 // Allow for com.sun.net.httpserver.* usage for testing

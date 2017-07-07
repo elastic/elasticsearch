@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.io.PrintWriter;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.logging.LogManager;
 
 import static org.jline.utils.AttributedStyle.BOLD;
 import static org.jline.utils.AttributedStyle.BRIGHT;
@@ -33,6 +34,9 @@ import static org.jline.utils.AttributedStyle.YELLOW;
 
 public class Cli {
     public static void main(String... args) throws Exception {
+        /* Initialize the logger from the a properties file we bundle. This makes sure
+         * we get useful error messages. */
+        LogManager.getLogManager().readConfiguration(Cli.class.getResourceAsStream("/logging.properties"));
         try (Terminal term = TerminalBuilder.builder().build()) {
             try {
                 Cli console = new Cli(new CliConfiguration("localhost:9200/_cli", new Properties()), term);

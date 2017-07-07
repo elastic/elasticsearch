@@ -43,6 +43,8 @@ task generateGitHash {
 dependencies {
   compile project(':x-pack-elasticsearch:sql:net-client')
   compile project(':x-pack-elasticsearch:sql:jdbc-proto')
+  /* We want to limit these dependencies so do not add anything to this list
+   * without serious consideration, and probably shading. */
 
   testCompile project(path: ':client:transport', configuration: 'runtime')
   testCompile project(path: ':x-pack-elasticsearch:plugin', configuration: 'testArtifacts')
@@ -59,10 +61,12 @@ dependencyLicenses {
   ignoreSha 'net-client'
 }
 
-// TODO seems like we should use the jars....
 jar {
-  from(zipTree(project(':x-pack-elasticsearch:sql:net-client').jar.archivePath))
-  from(zipTree(project(':x-pack-elasticsearch:sql:jdbc-proto').jar.archivePath))
+  // Bundle all dependencies into the jar.
+  from {
+    configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    configurations.runtime.collect { it.isDirectory() ? it : zipTree(it) }
+  }
 }
 
 apply plugin: 'elasticsearch.rest-test'

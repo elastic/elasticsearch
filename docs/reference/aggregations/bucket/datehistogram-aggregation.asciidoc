@@ -397,3 +397,55 @@ By default the returned buckets are sorted by their `key` ascending, though the 
 the `order` setting. Supports the same `order` functionality as the <<search-aggregations-bucket-terms-aggregation-order,`Terms Aggregation`>>.
 
 deprecated[6.0.0, Use `_key` instead of `_time` to order buckets by their dates/keys]
+
+=== Use of a script to aggregate by day of the week
+
+There are some cases where date histogram can't help us, like for example, when we need
+to aggregate the results by day of the week.
+In this case to overcame the problem, we can use a script that returns the day of the week:
+
+
+[source,js]
+--------------------------------------------------
+POST /sales/_search?size=0
+{
+    "aggs": {
+        "dayOfWeek": {
+            "terms": {
+                "script": {
+                    "inline": "doc['date'].date.dayOfWeek",
+                    "lang": "painless"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+  ...
+  "aggregations": {
+    "dayOfWeek": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": "1",
+          "doc_count": 2
+        },
+        {
+          "key": "7",
+          "doc_count": 1
+        }
+      ]
+    }
+  }
+}
+--------------------------------------------------
+
+The response will contain all the buckets having as key the relative day of
+the week: 1 for Monday, 2 for Tuesday... 7 for Sunday.

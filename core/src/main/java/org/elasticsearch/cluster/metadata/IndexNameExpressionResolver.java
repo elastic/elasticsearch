@@ -598,8 +598,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
                 }
                 final boolean add;
                 if (expression.charAt(0) == '-' && wildcardSeen) {
-                    // if there is a negation without a wildcard being previously seen, add it verbatim,
-                    // otherwise return the expression
                     add = false;
                     expression = expression.substring(1);
                 } else {
@@ -741,7 +739,6 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             } else if (options.expandWildcardsClosed()) {
                 return Arrays.asList(metaData.getConcreteAllClosedIndices());
             } else {
-                assert true : "shouldn't end up here";
                 return Collections.emptyList();
             }
         }

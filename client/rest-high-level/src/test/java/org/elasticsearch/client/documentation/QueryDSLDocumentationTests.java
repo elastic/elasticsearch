@@ -177,7 +177,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
 
     public void testGeoPolygon() {
         // tag::geo_polygon
-        List<GeoPoint> points = new ArrayList<GeoPoint>();           // <1>
+        List<GeoPoint> points = new ArrayList<>();           // <1>
         points.add(new GeoPoint(40, -70));
         points.add(new GeoPoint(30, -80));
         points.add(new GeoPoint(20, -90));

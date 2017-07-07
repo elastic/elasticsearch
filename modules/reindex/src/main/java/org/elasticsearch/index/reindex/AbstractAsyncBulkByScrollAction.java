@@ -361,7 +361,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     void onBulkResponse(TimeValue thisBatchStartTime, BulkResponse response) {
         try {
-            List<Failure> failures = new ArrayList<Failure>();
+            List<Failure> failures = new ArrayList<>();
             Set<String> destinationIndicesThisBatch = new HashSet<>();
             for (BulkItemResponse item : response) {
                 if (item.isFailed()) {

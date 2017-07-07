@@ -180,43 +180,35 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * as a logical operator, many of the invariants are written under the form (!A || B), they should be read as (A implies B) however.
      */
     private boolean invariant() {
-        /**
-         * local checkpoints only set during primary mode
-         */
+        // local checkpoints only set during primary mode
         assert primaryMode || localCheckpoints.values().stream()
             .allMatch(lcps -> lcps.localCheckpoint == SequenceNumbersService.UNASSIGNED_SEQ_NO ||
                 lcps.localCheckpoint == SequenceNumbersService.PRE_60_NODE_LOCAL_CHECKPOINT);
-        /**
-         * relocation handoff can only occur in primary mode
-         */
+
+        // relocation handoff can only occur in primary mode
         assert !handoffInProgress || primaryMode;
-        /**
-         * there is at least one in-sync shard copy when the global checkpoint tracker operates in primary mode (i.e. the shard itself)
-         */
+
+        // there is at least one in-sync shard copy when the global checkpoint tracker operates in primary mode (i.e. the shard itself)
         assert !primaryMode || localCheckpoints.values().stream().anyMatch(lcps -> lcps.inSync);
-        /**
-         * during relocation handoff there are no entries blocking global checkpoint advancement
-         */
+
+        // during relocation handoff there are no entries blocking global checkpoint advancement
         assert !handoffInProgress || pendingInSync.isEmpty() :
             "entries blocking global checkpoint advancement during relocation handoff: " + pendingInSync;
-        /**
-         * entries blocking global checkpoint advancement can only exist in primary mode and when not having a relocation handoff
-         */
+
+        // entries blocking global checkpoint advancement can only exist in primary mode and when not having a relocation handoff
         assert pendingInSync.isEmpty() || (primaryMode && !handoffInProgress);
-        /**
-         * the computed global checkpoint is always up-to-date
-         */
+
+        // the computed global checkpoint is always up-to-date
         assert !primaryMode || globalCheckpoint == computeGlobalCheckpoint(pendingInSync, localCheckpoints.values(), globalCheckpoint) :
             "global checkpoint is not up-to-date, expected: " +
                 computeGlobalCheckpoint(pendingInSync, localCheckpoints.values(), globalCheckpoint) + " but was: " + globalCheckpoint;
 
         for (Map.Entry<String, LocalCheckpointState> entry : localCheckpoints.entrySet()) {
-            /**
-             * blocking global checkpoint advancement only happens for shards that are not in-sync
-             */
+            // blocking global checkpoint advancement only happens for shards that are not in-sync
             assert !pendingInSync.contains(entry.getKey()) || !entry.getValue().inSync :
                 "shard copy " + entry.getKey() + " blocks global checkpoint advancement but is in-sync";
         }
+
         return true;
     }
 

@@ -340,16 +340,13 @@ def wait_for_monitoring_index_to_fill(client, version):
   def wait_for_monitoring_to_index(doc_type, count):
     logging.info('Waiting for %s to have count(%s) = %s...' % (monitoring_name, doc_type, count))
     wait_for_search(count, lambda:
-        client.search(index=monitoring_name, doc_type=doc_type, body={"query": {"match_all": {}}}))
+        client.search(index=monitoring_name, body={"query": {"term": { "type": doc_type }}}))
 
-  wait_for_monitoring_to_index('cluster_info', 1)
-  if parse_version(version) >= parse_version('2.1.0'):
-    wait_for_monitoring_to_index('node', 1)
   wait_for_monitoring_to_index('index_stats', 10)
   wait_for_monitoring_to_index('shards', 10)
   wait_for_monitoring_to_index('indices_stats', 3)
   wait_for_monitoring_to_index('node_stats', 3)
-  wait_for_monitoring_to_index('cluster_state', 3)
+  wait_for_monitoring_to_index('cluster_stats', 3)
 
   wait_for_yellow(version, client, monitoring_name)
 

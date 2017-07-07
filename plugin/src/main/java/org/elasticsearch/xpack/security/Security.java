@@ -154,6 +154,7 @@ import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4HttpServe
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.ssl.SSLBootstrapCheck;
+import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -179,6 +180,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.common.settings.Setting.groupSetting;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 
 public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
@@ -463,6 +465,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         settingsList.add(TokenService.TOKEN_PASSPHRASE);
         settingsList.add(TokenService.DELETE_INTERVAL);
         settingsList.add(TokenService.DELETE_TIMEOUT);
+        settingsList.add(SecurityServerTransportInterceptor.TRANSPORT_TYPE_PROFILE_SETTING);
+        settingsList.addAll(SSLConfigurationSettings.getProfileSettings());
 
         // hide settings
         settingsList.add(Setting.listSetting(setting("hide_settings"), Collections.emptyList(), Function.identity(),

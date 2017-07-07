@@ -73,7 +73,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
     public void testThatProfileTakesDefaultSSLSetting() throws Exception {
         SecurityNetty4Transport transport = createTransport();
         Netty4MockUtil.setOpenChannelsHandlerToMock(transport);
-        ChannelHandler handler = transport.getServerChannelInitializer("default", Settings.EMPTY);
+        ChannelHandler handler = transport.getServerChannelInitializer("default");
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine(), notNullValue());
     }
@@ -81,7 +81,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
     public void testDefaultClientAuth() throws Exception {
         SecurityNetty4Transport transport = createTransport();
         Netty4MockUtil.setOpenChannelsHandlerToMock(transport);
-        ChannelHandler handler = transport.getServerChannelInitializer("default", Settings.EMPTY);
+        ChannelHandler handler = transport.getServerChannelInitializer("default");
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(true));
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(false));
@@ -96,7 +96,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
         Netty4MockUtil.setOpenChannelsHandlerToMock(transport);
-        ChannelHandler handler = transport.getServerChannelInitializer("default", Settings.EMPTY);
+        ChannelHandler handler = transport.getServerChannelInitializer("default");
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(true));
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(false));
@@ -111,7 +111,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
         Netty4MockUtil.setOpenChannelsHandlerToMock(transport);
-        ChannelHandler handler = transport.getServerChannelInitializer("default", Settings.EMPTY);
+        ChannelHandler handler = transport.getServerChannelInitializer("default");
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(false));
@@ -126,7 +126,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
         Netty4MockUtil.setOpenChannelsHandlerToMock(transport);
-        ChannelHandler handler = transport.getServerChannelInitializer("default", Settings.EMPTY);
+        ChannelHandler handler = transport.getServerChannelInitializer("default");
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(true));
@@ -136,13 +136,13 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         String value = randomFrom(SSLClientAuth.REQUIRED.name(), SSLClientAuth.REQUIRED.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
                 .put(env.settings())
+                .put("transport.profiles.client.port", "8000-9000")
                 .put("transport.profiles.client.xpack.security.ssl.client_authentication", value)
                 .build();
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
         Netty4MockUtil.setOpenChannelsHandlerToMock(transport);
-        ChannelHandler handler = transport.getServerChannelInitializer("client",
-                Settings.builder().put("xpack.security.ssl.client_authentication", value).build());
+        ChannelHandler handler = transport.getServerChannelInitializer("client");
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(true));
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(false));
@@ -152,13 +152,13 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         String value = randomFrom(SSLClientAuth.NONE.name(), SSLClientAuth.NONE.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
                 .put(env.settings())
+                .put("transport.profiles.client.port", "8000-9000")
                 .put("transport.profiles.client.xpack.security.ssl.client_authentication", value)
                 .build();
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
         Netty4MockUtil.setOpenChannelsHandlerToMock(transport);
-        ChannelHandler handler = transport.getServerChannelInitializer("client",
-                Settings.builder().put("xpack.security.ssl.client_authentication", value).build());
+        ChannelHandler handler = transport.getServerChannelInitializer("client");
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(false));
@@ -168,13 +168,13 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         String value = randomFrom(SSLClientAuth.OPTIONAL.name(), SSLClientAuth.OPTIONAL.name().toLowerCase(Locale.ROOT));
         Settings settings = Settings.builder()
                 .put(env.settings())
+                .put("transport.profiles.client.port", "8000-9000")
                 .put("transport.profiles.client.xpack.security.ssl.client_authentication", value)
                 .build();
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
         Netty4MockUtil.setOpenChannelsHandlerToMock(transport);
-        final ChannelHandler handler = transport.getServerChannelInitializer("client",
-                Settings.builder().put("xpack.security.ssl.client_authentication", value).build());
+        final ChannelHandler handler = transport.getServerChannelInitializer("client");
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
         assertThat(ch.pipeline().get(SslHandler.class).engine().getWantClientAuth(), is(true));
@@ -197,7 +197,7 @@ public class SecurityNetty4TransportTests extends ESTestCase {
         sslService = new SSLService(settings, env);
         SecurityNetty4Transport transport = createTransport(settings);
         Netty4MockUtil.setOpenChannelsHandlerToMock(transport);
-        final ChannelHandler handler = transport.getServerChannelInitializer("default", Settings.EMPTY);
+        final ChannelHandler handler = transport.getServerChannelInitializer("default");
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         final SSLEngine engine = ch.pipeline().get(SslHandler.class).engine();
         assertFalse(engine.getNeedClientAuth());

@@ -82,12 +82,12 @@ public class SecurityNetty4Transport extends Netty4Transport {
     }
 
     @Override
-    protected ChannelHandler getServerChannelInitializer(String name, Settings settings) {
+    protected ChannelHandler getServerChannelInitializer(String name) {
         SSLConfiguration configuration = profileConfiguration.get(name);
         if (configuration == null) {
             throw new IllegalStateException("unknown profile: " + name);
         }
-        return new SecurityServerChannelInitializer(settings, name, configuration);
+        return new SecurityServerChannelInitializer(name, configuration);
     }
 
     @Override
@@ -130,8 +130,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
     class SecurityServerChannelInitializer extends ServerChannelInitializer {
         private final SSLConfiguration configuration;
 
-        SecurityServerChannelInitializer(Settings settings, String name, SSLConfiguration configuration) {
-            super(name, settings);
+        SecurityServerChannelInitializer(String name, SSLConfiguration configuration) {
+            super(name);
             this.configuration = configuration;
 
         }

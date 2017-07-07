@@ -23,12 +23,13 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.xpack.security.Security.setting;
@@ -57,6 +58,13 @@ public class IPFilter {
 
     public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.listSetting(setting("transport.filter.deny"),
             Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+
+    public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_DENY_SETTING = Setting.affixKeySetting("transport.profiles.",
+            "xpack.security.filter.deny", key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),
+            Property.Dynamic, Property.NodeScope));
+    public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_ALLOW_SETTING = Setting.affixKeySetting("transport.profiles.",
+            "xpack.security.filter.allow", key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),
+            Property.Dynamic, Property.NodeScope));
 
     private static final Setting<List<String>> HTTP_FILTER_ALLOW_FALLBACK =
             Setting.listSetting("transport.profiles.default.xpack.security.filter.allow", TRANSPORT_FILTER_ALLOW_SETTING, s -> s,
@@ -96,7 +104,7 @@ public class IPFilter {
     private volatile Map<String, SecurityIpFilterRule[]> rules = Collections.emptyMap();
     private volatile boolean isIpFilterEnabled;
     private volatile boolean isHttpFilterEnabled;
-    private volatile Map<String, Settings> transportGroups;
+    private final Set<String> profiles;
     private volatile List<String> transportAllowFilter;
     private volatile List<String> transportDenyFilter;
     private volatile List<String> httpAllowFilter;
@@ -104,6 +112,8 @@ public class IPFilter {
     private final SetOnce<BoundTransportAddress> boundTransportAddress = new SetOnce<>();
     private final SetOnce<BoundTransportAddress> boundHttpTransportAddress = new SetOnce<>();
     private final SetOnce<Map<String, BoundTransportAddress>> profileBoundAddress = new SetOnce<>();
+    private final Map<String, List<String>> profileAllowRules = Collections.synchronizedMap(new HashMap<>());
+    private final Map<String, List<String>> profileDenyRules = Collections.synchronizedMap(new HashMap<>());
 
     public IPFilter(final Settings settings, AuditTrailService auditTrail, ClusterSettings clusterSettings,
                     XPackLicenseState licenseState) {
@@ -118,15 +128,22 @@ public class IPFilter {
         isHttpFilterEnabled = IP_FILTER_ENABLED_HTTP_SETTING.get(settings);
         isIpFilterEnabled = IP_FILTER_ENABLED_SETTING.get(settings);
 
-        this.transportGroups = TcpTransport.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups(); // this is pretty crazy that we
-        // allow this to be updateable!!! - we have to fix this very soon
+        this.profiles = settings.getGroups("transport.profiles.",true).keySet().stream().filter(k -> TcpTransport
+                .DEFAULT_PROFILE.equals(k) == false).collect(Collectors.toSet()); // exclude default profile -- it's handled differently
+        for (String profile : profiles) {
+            Setting<List<String>> allowSetting = PROFILE_FILTER_ALLOW_SETTING.getConcreteSettingForNamespace(profile);
+            profileAllowRules.put(profile, allowSetting.get(settings));
+            Setting<List<String>> denySetting = PROFILE_FILTER_DENY_SETTING.getConcreteSettingForNamespace(profile);
+            profileDenyRules.put(profile, denySetting.get(settings));
+        }
         clusterSettings.addSettingsUpdateConsumer(IP_FILTER_ENABLED_HTTP_SETTING, this::setHttpFiltering);
         clusterSettings.addSettingsUpdateConsumer(IP_FILTER_ENABLED_SETTING, this::setTransportFiltering);
         clusterSettings.addSettingsUpdateConsumer(TRANSPORT_FILTER_ALLOW_SETTING, this::setTransportAllowFilter);
         clusterSettings.addSettingsUpdateConsumer(TRANSPORT_FILTER_DENY_SETTING, this::setTransportDenyFilter);
         clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_ALLOW_SETTING, this::setHttpAllowFilter);
         clusterSettings.addSettingsUpdateConsumer(HTTP_FILTER_DENY_SETTING, this::setHttpDenyFilter);
-        clusterSettings.addSettingsUpdateConsumer(TcpTransport.TRANSPORT_PROFILES_SETTING, this::setTransportProfiles);
+        clusterSettings.addAffixUpdateConsumer(PROFILE_FILTER_ALLOW_SETTING, this::setProfileAllowRules, (a,b) -> {});
+        clusterSettings.addAffixUpdateConsumer(PROFILE_FILTER_DENY_SETTING, this::setProfileDenyRules, (a,b) -> {});
         updateRules();
     }
 
@@ -140,8 +157,13 @@ public class IPFilter {
         return map;
     }
 
-    private void setTransportProfiles(Settings settings) {
-        transportGroups = settings.getAsGroups();
+    private void setProfileAllowRules(String profile, List<String> rules) {
+        profileAllowRules.put(profile, rules);
+        updateRules();
+    }
+
+    private void setProfileDenyRules(String profile, List<String> rules) {
+        profileDenyRules.put(profile, rules);
         updateRules();
     }
 
@@ -215,18 +237,17 @@ public class IPFilter {
 
             if (isIpFilterEnabled && boundTransportAddress.get() != null) {
                 TransportAddress[] localAddresses = boundTransportAddress.get().boundAddresses();
-                profileRules.put("default", createRules(transportAllowFilter, transportDenyFilter, localAddresses));
-                for (Map.Entry<String, Settings> entry : transportGroups.entrySet()) {
-                    String profile = entry.getKey();
+                profileRules.put(TcpTransport.DEFAULT_PROFILE, createRules(transportAllowFilter, transportDenyFilter, localAddresses));
+                for (String profile : profiles) {
                     BoundTransportAddress profileBoundTransportAddress = profileBoundAddress.get().get(profile);
                     if (profileBoundTransportAddress == null) {
                         // this could happen if a user updates the settings dynamically with a new profile
                         logger.warn("skipping ip filter rules for profile [{}] since the profile is not bound to any addresses", profile);
                         continue;
                     }
-                    Settings profileSettings = entry.getValue().getByPrefix(setting("filter."));
-                    profileRules.put(profile, createRules(Arrays.asList(profileSettings.getAsArray("allow")),
-                            Arrays.asList(profileSettings.getAsArray("deny")), profileBoundTransportAddress.boundAddresses()));
+                    final List<String> allowRules = this.profileAllowRules.getOrDefault(profile, Collections.emptyList());
+                    final List<String> denyRules = this.profileDenyRules.getOrDefault(profile, Collections.emptyList());
+                    profileRules.put(profile, createRules(allowRules, denyRules, profileBoundTransportAddress.boundAddresses()));
                 }
             }
 
@@ -277,5 +298,7 @@ public class IPFilter {
         settings.add(HTTP_FILTER_DENY_SETTING);
         settings.add(TRANSPORT_FILTER_ALLOW_SETTING);
         settings.add(TRANSPORT_FILTER_DENY_SETTING);
+        settings.add(PROFILE_FILTER_ALLOW_SETTING);
+        settings.add(PROFILE_FILTER_DENY_SETTING);
     }
 }

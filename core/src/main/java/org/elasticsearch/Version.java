@@ -130,8 +130,10 @@ public class Version {
     public static final Version V_5_4_2 = new Version(V_5_4_2_ID, org.apache.lucene.util.Version.LUCENE_6_5_1);
     public static final int V_5_4_3_ID = 5040399;
     public static final Version V_5_4_3 = new Version(V_5_4_3_ID, org.apache.lucene.util.Version.LUCENE_6_5_1);
-    public static final int V_5_5_0_ID_UNRELEASED = 5050099;
-    public static final Version V_5_5_0_UNRELEASED = new Version(V_5_5_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_5_0_ID = 5050099;
+    public static final Version V_5_5_0 = new Version(V_5_5_0_ID, org.apache.lucene.util.Version.LUCENE_6_6_0);
+    public static final int V_5_5_1_ID_UNRELEASED = 5050199;
+    public static final Version V_5_5_1_UNRELEASED = new Version(V_5_5_1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_0);
     public static final int V_5_6_0_ID_UNRELEASED = 5060099;
     public static final Version V_5_6_0_UNRELEASED = new Version(V_5_6_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_6_0);
     public static final Version CURRENT = V_5_6_0_UNRELEASED;
@@ -151,8 +153,10 @@ public class Version {
         switch (id) {
             case V_5_6_0_ID_UNRELEASED:
                 return V_5_6_0_UNRELEASED;
-            case V_5_5_0_ID_UNRELEASED:
-                return V_5_5_0_UNRELEASED;
+            case V_5_5_1_ID_UNRELEASED:
+                return V_5_5_1_UNRELEASED;
+            case V_5_5_0_ID:
+                return V_5_5_0;
             case V_5_4_3_ID:
                 return V_5_4_3;
             case V_5_4_2_ID:

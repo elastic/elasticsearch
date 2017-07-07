@@ -37,14 +37,14 @@ setup:
 ---
 "Upgrade info - all":
   - do:
-      xpack.upgrade.info: { index: _all }
+      xpack.migration.get_assistance: { index: _all }
 
   - length: { indices: 0 }
 
 ---
 "Upgrade info - all, but treat test2 as kibana":
   - do:
-      xpack.upgrade.info: { index: _all, kibana_indices: test2 }
+      xpack.migration.get_assistance: { index: _all, kibana_indices: test2 }
 
   - length: { indices: 1 }
   - match: { indices.test2.action_required: "upgrade" }
@@ -53,7 +53,7 @@ setup:
 "Upgrade test2 as kibana index":
 
   - do:
-      xpack.upgrade: { index: test2, kibana_indices: test2 }
+      xpack.migration.upgrade: { index: test2, kibana_indices: test2 }
 
   - match: { total: 1 }
   - match: { created: 1 }

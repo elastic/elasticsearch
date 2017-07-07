@@ -38,8 +38,7 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
             builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
         }
         if (randomBoolean()) {
-            builder.setAnalysisLimits(new AnalysisLimits(randomNonNegativeLong(),
-                    randomNonNegativeLong()));
+            builder.setAnalysisLimits(AnalysisLimitsTests.createRandomized());
         }
         if (randomBoolean()) {
             DataDescription.Builder dataDescription = new DataDescription.Builder();
@@ -82,6 +81,6 @@ public class JobBuilderTests extends AbstractSerializingTestCase<Job.Builder> {
 
     @Override
     protected Job.Builder doParseInstance(XContentParser parser) {
-        return Job.PARSER.apply(parser, null);
+        return Job.CONFIG_PARSER.apply(parser, null);
     }
 }

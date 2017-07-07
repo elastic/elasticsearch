@@ -12,7 +12,9 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -117,7 +119,29 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
 
     @Override
     protected DatafeedConfig doParseInstance(XContentParser parser) {
-        return DatafeedConfig.PARSER.apply(parser, null).build();
+        return DatafeedConfig.CONFIG_PARSER.apply(parser, null).build();
+    }
+
+    private static final String FUTURE_DATAFEED = "{\n" +
+            "    \"datafeed_id\": \"farequote-datafeed\",\n" +
+            "    \"job_id\": \"farequote\",\n" +
+            "    \"frequency\": \"1h\",\n" +
+            "    \"indices\": [\"farequote1\", \"farequote2\"],\n" +
+            "    \"tomorrows_technology_today\": \"amazing\",\n" +
+            "    \"scroll_size\": 1234\n" +
+            "}";
+
+    public void testFutureConfigParse() throws IOException {
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, FUTURE_DATAFEED);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> DatafeedConfig.CONFIG_PARSER.apply(parser, null).build());
+        assertEquals("[datafeed_config] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
+    }
+
+    public void testFutureMetadataParse() throws IOException {
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, FUTURE_DATAFEED);
+        // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
+        assertNotNull(DatafeedConfig.METADATA_PARSER.apply(parser, null).build());
     }
 
     public void testCopyConstructor() {

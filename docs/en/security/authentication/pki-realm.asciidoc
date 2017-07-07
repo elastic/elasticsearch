@@ -65,11 +65,40 @@ xpack:
           username_pattern: "EMAILADDRESS=(.*?)(?:,|$)"
 ------------------------------------------------------------
 +
-You can also specify which truststore to use for authentication. This is useful
-when the SSL/TLS layer trusts clients with certificates that are signed by a
-different CA than the one that signs your users' certificates. To specify the
-location of the truststore, specify the `truststore.path` option:
-+
+. Restart Elasticsearch.
+
+[[pki-ssl-config]]
+==== PKI and SSL Settings
+
+The PKI realm relies on the SSL settings of the node's network interface
+(transport or http). The realm can be configured to be more restrictive than
+the underlying network connection - that is, it is possible to configure the
+node such that some connections are accepted by the network interface but then
+fail to be authenticated by the PKI realm. However the reverse is not possible
+- the PKI realm cannot authenticate a connection that has been refused by the
+network interface.
+
+In particular this means:
+
+* The transport or http interface must request client certificates by setting
+  `client_authentication` to `optional` or `required`.
+* The interface must _trust_ the certificate that is presented by the client
+  by configuring either the `truststore` or `certificate_authorities` paths,
+  or by setting `verification_mode` to `none`.
+* The _protocols_ supported by the interface must be compatible with those
+  used by the client.
+
+
+The relevant network interface (transport or http) must be configured to trust
+any certificate that is to be used within the PKI realm. However it possible to
+configure the PKI realm to trust only a _subset_ of the certificates accepted
+by the network interface.
+This is useful when the SSL/TLS layer trusts clients with certificates that are
+signed by a different CA than the one that signs your users' certificates.
+
+To configure the PKI realm with its own truststore, specify the
+`truststore.path` option as below:
+
 [source, yaml]
 ------------------------------------------------------------
 xpack:
@@ -83,35 +112,41 @@ xpack:
             password: "x-pack-test-password"
 ------------------------------------------------------------
 
-. Restart Elasticsearch.
+The `certificate_authorities` option may be used as an alternative to the
+`truststore.path` setting.
+
 
 [[pki-settings]]
 ===== PKI Realm Settings
 
 [cols="4,^3,10"]
 |=======================
-| Setting                 | Required  | Description
-| `type`                  | yes       | Indicates the realm type. Must be set to `pki`.
-| `order`                 | no        | Indicates the priority of this realm within the realm
-                                        chain. Realms with a lower order are consulted first.
-                                        Although not required, we recommend explicitly
-                                        setting this value when you configure multiple realms.
-                                        Defaults to `Integer.MAX_VALUE`.
-| `enabled`               | no        | Indicates whether this realm is enabled or disabled.
-                                        Enables you to disable a realm without removing its
-                                        configuration. Defaults to `true`.
-| `username_pattern`      | no        | Specifies the regular expression pattern used to extract
-                                        the username from the certificate DN. The first match
-                                        group is used as the username. Defaults to `CN=(.*?)(?:,\|$)`.
-| `truststore.path`       | no        | The path to the truststore. Defaults to the path
-                                        defined by  {ref}/security-settings.html#ssl-tls-settings[SSL/TLS settings].
-| `truststore.password`   | no/yes    | Specifies the password for the truststore. Must be
-                                        provided if `truststore.path` is set.
-| `truststore.algorithm`  | no        | Specifies the algorithm used for the truststore.
-                                        Defaults to `SunX509`.
-| `files.role_mapping`    | no        | Specifies the <<security-files-location,location>>
-                                        for the <<pki-role-mapping, YAML role mapping configuration file>>.
-                                        Defaults to `CONFIG_DIR/x-pack/role_mapping.yml`.
+| Setting                   | Required  | Description
+| `type`                    | yes       | Indicates the realm type. Must be set to `pki`.
+| `order`                   | no        | Indicates the priority of this realm within the realm
+                                          chain. Realms with a lower order are consulted first.
+                                          Although not required, we recommend explicitly
+                                          setting this value when you configure multiple realms.
+                                          Defaults to `Integer.MAX_VALUE`.
+| `enabled`                 | no        | Indicates whether this realm is enabled or disabled.
+                                          Enables you to disable a realm without removing its
+                                          configuration. Defaults to `true`.
+| `username_pattern`        | no        | Specifies the regular expression pattern used to extract
+                                          the username from the certificate DN. The first match
+                                          group is used as the username. Defaults to `CN=(.*?)(?:,\|$)`.
+| `certificate_authorities` | no        | List of paths to the PEM encoded certificate files
+                                          that should be trusted.
+                                          This setting may not be used with `truststore.path`.
+| `truststore.path`         | no        | The path to the truststore. Defaults to the path
+                                          defined by  {ref}/security-settings.html#ssl-tls-settings[SSL/TLS settings].
+                                          This setting may not be used with `certificate_authorities`.
+| `truststore.password`     | no/yes    | Specifies the password for the truststore. Must be
+                                          provided if `truststore.path` is set.
+| `truststore.algorithm`    | no        | Specifies the algorithm used for the truststore.
+                                          Defaults to `SunX509`.
+| `files.role_mapping`      | no        | Specifies the <<security-files-location,location>>
+                                          for the <<pki-role-mapping, YAML role mapping configuration file>>.
+                                          Defaults to `CONFIG_DIR/x-pack/role_mapping.yml`.
 |=======================
 
 [[assigning-roles-pki]]
@@ -150,5 +185,17 @@ user: <1>
 ------------------------------------------------------------
 <1> The name of a role.
 <2> The distinguished name (DN) of a PKI user.
+
+The disinguished name for a PKI user follows X.500 naming conventions which
+place the most specific fields (like `cn` or `uid`) at the beginning of the
+name, and the most general fields (like `o` or `dc`) at the end of the name.
+Some tools, such as _openssl_, may print out the subject name in a different
+ format.
+
+One way that you can determine the correct DN for a certificate is to use the
+{ref}/security-api-authenticate.html[authenticate API] (use the relevant PKI
+certificate as the means of authentication) and inspect the metadata field in
+the result. The user's distinguished name will be populated under the `pki_dn`
+key. You can also use the authenticate API to validate your role mapping.
 
 For more information, see <<mapping-roles, Mapping Users and Groups to Roles>>.

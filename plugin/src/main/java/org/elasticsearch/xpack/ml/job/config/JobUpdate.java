@@ -27,14 +27,14 @@ public class JobUpdate implements Writeable, ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
 
     public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
-            "job_update", args ->  new Builder((String) args[0]));
+            "job_update", args -> new Builder((String) args[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Job.ID);
         PARSER.declareStringOrNull(Builder::setDescription, Job.DESCRIPTION);
         PARSER.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
-        PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.PARSER, Job.MODEL_PLOT_CONFIG);
-        PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSER, Job.ANALYSIS_LIMITS);
+        PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.CONFIG_PARSER, Job.MODEL_PLOT_CONFIG);
+        PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.CONFIG_PARSER, Job.ANALYSIS_LIMITS);
         PARSER.declareString((builder, val) -> builder.setBackgroundPersistInterval(
                 TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())), Job.BACKGROUND_PERSIST_INTERVAL);
         PARSER.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
@@ -326,7 +326,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Detector.DETECTOR_INDEX);
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), Job.DESCRIPTION);
             PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
-                    (parser, parseFieldMatcher) -> DetectionRule.PARSER.apply(parser, parseFieldMatcher).build(), RULES);
+                    (parser, parseFieldMatcher) -> DetectionRule.CONFIG_PARSER.apply(parser, parseFieldMatcher).build(), RULES);
         }
 
         private int detectorIndex;

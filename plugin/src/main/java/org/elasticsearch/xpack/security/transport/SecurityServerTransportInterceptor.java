@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -44,12 +45,24 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.Security.setting;
 
 public class SecurityServerTransportInterceptor extends AbstractComponent implements TransportInterceptor {
 
-    private static final String SETTING_NAME = "xpack.security.type";
+    private static final Function<String, Setting<String>> TRANSPORT_TYPE_SETTING_TEMPLATE = (key) -> new Setting<>(key,
+            "node", v
+            -> {
+            if (v.equals("node") || v.equals("client")) {
+                return v;
+            }
+            throw new IllegalArgumentException("type must be one of [client, node]");
+    }, Setting.Property.NodeScope);
+    private static final String TRANSPORT_TYPE_SETTING_KEY = "xpack.security.type";
+
+    public static final Setting<String> TRANSPORT_TYPE_PROFILE_SETTING = Setting.affixKeySetting("transport.profiles.",
+            TRANSPORT_TYPE_SETTING_KEY, TRANSPORT_TYPE_SETTING_TEMPLATE);
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;
@@ -154,17 +167,20 @@ public class SecurityServerTransportInterceptor extends AbstractComponent implem
             Settings profileSettings = entry.getValue();
             final Settings profileSslSettings = SecurityNetty4Transport.profileSslSettings(profileSettings);
             final boolean extractClientCert = sslService.isSSLClientAuthEnabled(profileSslSettings, transportSSLSettings);
-            String type = entry.getValue().get(SETTING_NAME, "node");
+            String type = TRANSPORT_TYPE_SETTING_TEMPLATE.apply(TRANSPORT_TYPE_SETTING_KEY).get(entry.getValue());
             switch (type) {
                 case "client":
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService,
                             threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
                             securityContext));
                     break;
-                default:
+                case "node":
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService,
                             threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
                             securityContext));
+                    break;
+                default:
+                   throw new IllegalStateException("unknown profile type: " + type);
             }
         }
 

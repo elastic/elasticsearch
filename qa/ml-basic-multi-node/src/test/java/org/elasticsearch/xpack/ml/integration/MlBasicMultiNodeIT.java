@@ -22,6 +22,8 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentType.JSON;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class MlBasicMultiNodeIT extends ESRestTestCase {
 
@@ -77,7 +79,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
         response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush");
         assertEquals(200, response.getStatusLine().getStatusCode());
-        assertEquals(Collections.singletonMap("flushed", true), responseEntityToMap(response));
+        assertFlushResponse(response, true, 1403481600000L);
 
         response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close",
                 Collections.singletonMap("timeout", "20s"));
@@ -204,7 +206,7 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
 
         response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_flush");
         assertEquals(200, response.getStatusLine().getStatusCode());
-        assertEquals(Collections.singletonMap("flushed", true), responseEntityToMap(response));
+        assertFlushResponse(response, true, 1403481600000L);
 
         response = client().performRequest("post", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId + "/_close",
                 Collections.singletonMap("timeout", "20s"));
@@ -315,4 +317,11 @@ public class MlBasicMultiNodeIT extends ESRestTestCase {
         return XContentHelper.convertToMap(JSON.xContent(), response.getEntity().getContent(), false);
     }
 
+    private static void assertFlushResponse(Response response, boolean expectedFlushed, long expectedLastFinalizedBucketEnd)
+            throws IOException {
+        Map<String, Object> asMap = responseEntityToMap(response);
+        assertThat(asMap.size(), equalTo(2));
+        assertThat(asMap.get("flushed"), is(true));
+        assertThat(asMap.get("last_finalized_bucket_end"), equalTo(expectedLastFinalizedBucketEnd));
+    }
 }

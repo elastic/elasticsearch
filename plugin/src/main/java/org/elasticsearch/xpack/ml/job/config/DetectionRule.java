@@ -15,13 +15,16 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.ml.MlParserType;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -35,25 +38,36 @@ public class DetectionRule implements ToXContentObject, Writeable {
     public static final ParseField CONDITIONS_CONNECTIVE_FIELD = new ParseField("conditions_connective");
     public static final ParseField RULE_CONDITIONS_FIELD = new ParseField("rule_conditions");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(DETECTION_RULE_FIELD.getPreferredName(), Builder::new);
+    // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
+    public static final ObjectParser<Builder, Void> METADATA_PARSER =
+            new ObjectParser<>(DETECTION_RULE_FIELD.getPreferredName(), true, Builder::new);
+    public static final ObjectParser<Builder, Void> CONFIG_PARSER =
+            new ObjectParser<>(DETECTION_RULE_FIELD.getPreferredName(), false, Builder::new);
+    public static final Map<MlParserType, ObjectParser<Builder, Void>> PARSERS = new EnumMap<>(MlParserType.class);
 
     static {
-        PARSER.declareField(Builder::setRuleAction, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return RuleAction.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, RULE_ACTION_FIELD, ValueType.STRING);
-        PARSER.declareString(Builder::setTargetFieldName, TARGET_FIELD_NAME_FIELD);
-        PARSER.declareString(Builder::setTargetFieldValue, TARGET_FIELD_VALUE_FIELD);
-        PARSER.declareField(Builder::setConditionsConnective, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Connective.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, CONDITIONS_CONNECTIVE_FIELD, ValueType.STRING);
-        PARSER.declareObjectArray(Builder::setRuleConditions,
-                (parser, parseFieldMatcher) -> RuleCondition.PARSER.apply(parser, parseFieldMatcher), RULE_CONDITIONS_FIELD);
+        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
+        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
+        for (MlParserType parserType : MlParserType.values()) {
+            ObjectParser<Builder, Void> parser = PARSERS.get(parserType);
+            assert parser != null;
+            parser.declareField(Builder::setRuleAction, p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return RuleAction.fromString(p.text());
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            }, RULE_ACTION_FIELD, ValueType.STRING);
+            parser.declareString(Builder::setTargetFieldName, TARGET_FIELD_NAME_FIELD);
+            parser.declareString(Builder::setTargetFieldValue, TARGET_FIELD_VALUE_FIELD);
+            parser.declareField(Builder::setConditionsConnective, p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return Connective.fromString(p.text());
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            }, CONDITIONS_CONNECTIVE_FIELD, ValueType.STRING);
+            parser.declareObjectArray(Builder::setRuleConditions, (p, c) ->
+                    RuleCondition.PARSERS.get(parserType).apply(p, c), RULE_CONDITIONS_FIELD);
+        }
     }
 
     private final RuleAction ruleAction;

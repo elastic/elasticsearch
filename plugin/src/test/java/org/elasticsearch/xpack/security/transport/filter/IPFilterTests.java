@@ -18,7 +18,6 @@ import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -62,7 +61,8 @@ public class IPFilterTests extends ESTestCase {
                 IPFilter.IP_FILTER_ENABLED_SETTING,
                 IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
                 IPFilter.TRANSPORT_FILTER_DENY_SETTING,
-                TcpTransport.TRANSPORT_PROFILES_SETTING)));
+                IPFilter.PROFILE_FILTER_ALLOW_SETTING,
+                IPFilter.PROFILE_FILTER_DENY_SETTING)));
 
         httpTransport = mock(HttpServerTransport.class);
         TransportAddress httpAddress = new TransportAddress(InetAddress.getLoopbackAddress(), 9200);
@@ -143,6 +143,27 @@ public class IPFilterTests extends ESTestCase {
         assertAddressIsDenied("192.168.0.1");
         assertAddressIsAllowedForProfile("client", "192.168.0.1");
         assertAddressIsDeniedForProfile("client", "192.168.0.2");
+    }
+
+    public void testThatProfilesAreUpdateable() throws Exception {
+        Settings settings = Settings.builder()
+                .put("xpack.security.transport.filter.allow", "localhost")
+                .put("xpack.security.transport.filter.deny", "_all")
+                .put("transport.profiles.client.xpack.security.filter.allow", "192.168.0.1")
+                .put("transport.profiles.client.xpack.security.filter.deny", "_all")
+                .build();
+        ipFilter = new IPFilter(settings, auditTrail, clusterSettings, licenseState);
+        ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());
+        Settings newSettings = Settings.builder().putArray("transport.profiles.client.xpack.security.filter.allow", "192.168.0.1",
+                "192.168.0.2")
+                .put("transport.profiles.client.xpack.security.filter.deny", "192.168.0.3").build();
+        Settings.Builder updatedSettingsBuilder = Settings.builder();
+        clusterSettings.updateDynamicSettings(newSettings, updatedSettingsBuilder, Settings.builder(), "test");
+        clusterSettings.applySettings(updatedSettingsBuilder.build());
+        assertAddressIsAllowed("127.0.0.1");
+        assertAddressIsDenied("192.168.0.1");
+        assertAddressIsAllowedForProfile("client", "192.168.0.1", "192.168.0.2");
+        assertAddressIsDeniedForProfile("client", "192.168.0.3");
     }
 
     public void testThatAllowWinsOverDeny() throws Exception {

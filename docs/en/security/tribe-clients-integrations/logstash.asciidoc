@@ -73,22 +73,27 @@ plugins in your Logstash `.conf` file. For example:
 +
 [source,js]
 --------------------------------------------------
-input { 
+input {
+  elasticsearch {
     ...
     user => logstash_internal 
     password => x-pack-test-password
   }
+}
 filter { 
+  elasticsearch {
     ...
     user => logstash_internal 
     password => x-pack-test-password
   }
+}
 output {
   elasticsearch {
     ...
     user => logstash_internal 
     password => x-pack-test-password
   }
+}
 --------------------------------------------------
 
 [float]

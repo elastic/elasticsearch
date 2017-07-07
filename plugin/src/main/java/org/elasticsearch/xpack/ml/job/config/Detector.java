@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.ml.MlParserType;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.RecordWriter;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
@@ -25,9 +26,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -83,25 +86,34 @@ public class Detector implements ToXContentObject, Writeable {
     public static final ParseField DETECTOR_RULES_FIELD = new ParseField("detector_rules");
     public static final ParseField DETECTOR_INDEX = new ParseField("detector_index");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("detector", Builder::new);
+    // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
+    public static final ObjectParser<Builder, Void> METADATA_PARSER = new ObjectParser<>("detector", true, Builder::new);
+    public static final ObjectParser<Builder, Void> CONFIG_PARSER = new ObjectParser<>("detector", false, Builder::new);
+    public static final Map<MlParserType, ObjectParser<Builder, Void>> PARSERS = new EnumMap<>(MlParserType.class);
 
     static {
-        PARSER.declareString(Builder::setDetectorDescription, DETECTOR_DESCRIPTION_FIELD);
-        PARSER.declareString(Builder::setFunction, FUNCTION_FIELD);
-        PARSER.declareString(Builder::setFieldName, FIELD_NAME_FIELD);
-        PARSER.declareString(Builder::setByFieldName, BY_FIELD_NAME_FIELD);
-        PARSER.declareString(Builder::setOverFieldName, OVER_FIELD_NAME_FIELD);
-        PARSER.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
-        PARSER.declareBoolean(Builder::setUseNull, USE_NULL_FIELD);
-        PARSER.declareField(Builder::setExcludeFrequent, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return ExcludeFrequent.forString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
-        PARSER.declareObjectArray(Builder::setDetectorRules,
-                (parser, parseFieldMatcher) -> DetectionRule.PARSER.apply(parser, parseFieldMatcher).build(), DETECTOR_RULES_FIELD);
-        PARSER.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
+        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
+        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
+        for (MlParserType parserType : MlParserType.values()) {
+            ObjectParser<Builder, Void> parser = PARSERS.get(parserType);
+            assert parser != null;
+            parser.declareString(Builder::setDetectorDescription, DETECTOR_DESCRIPTION_FIELD);
+            parser.declareString(Builder::setFunction, FUNCTION_FIELD);
+            parser.declareString(Builder::setFieldName, FIELD_NAME_FIELD);
+            parser.declareString(Builder::setByFieldName, BY_FIELD_NAME_FIELD);
+            parser.declareString(Builder::setOverFieldName, OVER_FIELD_NAME_FIELD);
+            parser.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
+            parser.declareBoolean(Builder::setUseNull, USE_NULL_FIELD);
+            parser.declareField(Builder::setExcludeFrequent, p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return ExcludeFrequent.forString(p.text());
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            }, EXCLUDE_FREQUENT_FIELD, ObjectParser.ValueType.STRING);
+            parser.declareObjectArray(Builder::setDetectorRules, (p, c) ->
+                    DetectionRule.PARSERS.get(parserType).apply(p, c).build(), DETECTOR_RULES_FIELD);
+            parser.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
+        }
     }
 
     public static final String COUNT = "count";

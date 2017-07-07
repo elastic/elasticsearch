@@ -9,6 +9,7 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,6 +35,21 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class JobTests extends AbstractSerializingTestCase<Job> {
 
+    private static final String FUTURE_JOB = "{\n" +
+            "    \"job_id\": \"farequote\",\n" +
+            "    \"create_time\": 1234567890000,\n" +
+            "    \"tomorrows_technology_today\": \"wow\",\n" +
+            "    \"analysis_config\": {\n" +
+            "        \"bucket_span\": \"1h\",\n" +
+            "        \"something_new\": \"gasp\",\n" +
+            "        \"detectors\": [{\"function\": \"metric\", \"field_name\": \"responsetime\", \"by_field_name\": \"airline\"}]\n" +
+            "    },\n" +
+            "    \"data_description\": {\n" +
+            "        \"time_field\": \"time\",\n" +
+            "        \"the_future\": 123\n" +
+            "    }\n" +
+            "}";
+
     @Override
     protected Job createTestInstance() {
         return createRandomizedJob();
@@ -46,7 +62,20 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     @Override
     protected Job doParseInstance(XContentParser parser) {
-        return Job.PARSER.apply(parser, null).build();
+        return Job.CONFIG_PARSER.apply(parser, null).build();
+    }
+
+    public void testFutureConfigParse() throws IOException {
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, FUTURE_JOB);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> Job.CONFIG_PARSER.apply(parser, null).build());
+        assertEquals("[job_details] unknown field [tomorrows_technology_today], parser not found", e.getMessage());
+    }
+
+    public void testFutureMetadataParse() throws IOException {
+        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, FUTURE_JOB);
+        // Unlike the config version of this test, the metadata parser should tolerate the unknown future field
+        assertNotNull(Job.METADATA_PARSER.apply(parser, null).build());
     }
 
     public void testConstructor_GivenEmptyJobConfiguration() {
@@ -479,7 +508,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setLastDataTime(new Date(randomNonNegativeLong()));
         }
         builder.setAnalysisConfig(AnalysisConfigTests.createRandomized());
-        builder.setAnalysisLimits(new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong()));
+        builder.setAnalysisLimits(AnalysisLimitsTests.createRandomized());
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));

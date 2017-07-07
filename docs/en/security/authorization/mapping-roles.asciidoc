@@ -258,6 +258,12 @@ are values. The mappings can have a many-to-many relationship. When you map role
 to groups, the roles of a user in that group are the combination of the roles
 assigned to that group and the roles assigned to that user.
 
+By default, {security} checks role mapping files for changes every 5 seconds.
+You can change this default behavior by changing the
+`resource.reload.interval.high` setting in the `elasticsearch.yml` file
+(as this is a common setting in Elasticsearch, changing its value may effect
+other schedules in the system).
+
 ==== Realm Specific Details
 [float]
 [[ldap-role-mapping]]

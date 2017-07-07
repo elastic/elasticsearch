@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.MlParserType;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
@@ -21,8 +22,10 @@ import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -70,27 +73,42 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
     public static final long DEFAULT_RESULT_FINALIZATION_WINDOW = 2L;
 
+    // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> PARSER =
-            new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(), a -> new AnalysisConfig.Builder((List<Detector>) a[0]));
+    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> METADATA_PARSER =
+            new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(), true,
+                    a -> new AnalysisConfig.Builder((List<Detector>) a[0]));
+    @SuppressWarnings("unchecked")
+    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> CONFIG_PARSER =
+            new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(), false,
+                    a -> new AnalysisConfig.Builder((List<Detector>) a[0]));
+    public static final Map<MlParserType, ConstructingObjectParser<Builder, Void>> PARSERS =
+            new EnumMap<>(MlParserType.class);
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Detector.PARSER.apply(p, c).build(), DETECTORS);
-        PARSER.declareString((builder, val) ->
-                builder.setBucketSpan(TimeValue.parseTimeValue(val, BUCKET_SPAN.getPreferredName())), BUCKET_SPAN);
-        PARSER.declareString(Builder::setCategorizationFieldName, CATEGORIZATION_FIELD_NAME);
-        PARSER.declareStringArray(Builder::setCategorizationFilters, CATEGORIZATION_FILTERS);
-        PARSER.declareString((builder, val) ->
-                builder.setLatency(TimeValue.parseTimeValue(val, LATENCY.getPreferredName())), LATENCY);
-        PARSER.declareString(Builder::setSummaryCountFieldName, SUMMARY_COUNT_FIELD_NAME);
-        PARSER.declareStringArray(Builder::setInfluencers, INFLUENCERS);
-        PARSER.declareBoolean(Builder::setOverlappingBuckets, OVERLAPPING_BUCKETS);
-        PARSER.declareLong(Builder::setResultFinalizationWindow, RESULT_FINALIZATION_WINDOW);
-        PARSER.declareBoolean(Builder::setMultivariateByFields, MULTIVARIATE_BY_FIELDS);
-        PARSER.declareStringArray((builder, values) -> builder.setMultipleBucketSpans(
-                values.stream().map(v -> TimeValue.parseTimeValue(v, MULTIPLE_BUCKET_SPANS.getPreferredName()))
-                        .collect(Collectors.toList())), MULTIPLE_BUCKET_SPANS);
-        PARSER.declareBoolean(Builder::setUsePerPartitionNormalization, USER_PER_PARTITION_NORMALIZATION);
+        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
+        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
+        for (MlParserType parserType : MlParserType.values()) {
+            ConstructingObjectParser<AnalysisConfig.Builder, Void> parser = PARSERS.get(parserType);
+            assert parser != null;
+            parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
+                    (p, c) -> Detector.PARSERS.get(parserType).apply(p, c).build(), DETECTORS);
+            parser.declareString((builder, val) ->
+                    builder.setBucketSpan(TimeValue.parseTimeValue(val, BUCKET_SPAN.getPreferredName())), BUCKET_SPAN);
+            parser.declareString(Builder::setCategorizationFieldName, CATEGORIZATION_FIELD_NAME);
+            parser.declareStringArray(Builder::setCategorizationFilters, CATEGORIZATION_FILTERS);
+            parser.declareString((builder, val) ->
+                    builder.setLatency(TimeValue.parseTimeValue(val, LATENCY.getPreferredName())), LATENCY);
+            parser.declareString(Builder::setSummaryCountFieldName, SUMMARY_COUNT_FIELD_NAME);
+            parser.declareStringArray(Builder::setInfluencers, INFLUENCERS);
+            parser.declareBoolean(Builder::setOverlappingBuckets, OVERLAPPING_BUCKETS);
+            parser.declareLong(Builder::setResultFinalizationWindow, RESULT_FINALIZATION_WINDOW);
+            parser.declareBoolean(Builder::setMultivariateByFields, MULTIVARIATE_BY_FIELDS);
+            parser.declareStringArray((builder, values) -> builder.setMultipleBucketSpans(
+                    values.stream().map(v -> TimeValue.parseTimeValue(v, MULTIPLE_BUCKET_SPANS.getPreferredName()))
+                            .collect(Collectors.toList())), MULTIPLE_BUCKET_SPANS);
+            parser.declareBoolean(Builder::setUsePerPartitionNormalization, USER_PER_PARTITION_NORMALIZATION);
+        }
     }
 
     /**

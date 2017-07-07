@@ -16,10 +16,13 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.ml.MlParserType;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -30,22 +33,33 @@ public class ChunkingConfig implements ToXContentObject, Writeable {
     public static final ParseField MODE_FIELD = new ParseField("mode");
     public static final ParseField TIME_SPAN_FIELD = new ParseField("time_span");
 
-    public static final ConstructingObjectParser<ChunkingConfig, Void> PARSER = new ConstructingObjectParser<>(
-            "chunking_config", a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1]));
+    // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
+    public static final ConstructingObjectParser<ChunkingConfig, Void> METADATA_PARSER = new ConstructingObjectParser<>(
+            "chunking_config", true, a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1]));
+    public static final ConstructingObjectParser<ChunkingConfig, Void> CONFIG_PARSER = new ConstructingObjectParser<>(
+            "chunking_config", false, a -> new ChunkingConfig((Mode) a[0], (TimeValue) a[1]));
+    public static final Map<MlParserType, ConstructingObjectParser<ChunkingConfig, Void>> PARSERS =
+            new EnumMap<>(MlParserType.class);
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return Mode.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, MODE_FIELD, ValueType.STRING);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return TimeValue.parseTimeValue(p.text(), TIME_SPAN_FIELD.getPreferredName());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, TIME_SPAN_FIELD, ValueType.STRING);
+        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
+        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
+        for (MlParserType parserType : MlParserType.values()) {
+            ConstructingObjectParser<ChunkingConfig, Void> parser = PARSERS.get(parserType);
+            assert parser != null;
+            parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return Mode.fromString(p.text());
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            }, MODE_FIELD, ValueType.STRING);
+            parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return TimeValue.parseTimeValue(p.text(), TIME_SPAN_FIELD.getPreferredName());
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            }, TIME_SPAN_FIELD, ValueType.STRING);
+        }
     }
 
     private final Mode mode;

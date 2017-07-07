@@ -10,13 +10,19 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.ml.MlParserType;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.EnumMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -31,17 +37,36 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
     public static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
     public static final ParseField CATEGORIZATION_EXAMPLES_LIMIT = new ParseField("categorization_examples_limit");
 
-    public static final ConstructingObjectParser<AnalysisLimits, Void> PARSER = new ConstructingObjectParser<>(
-            "analysis_limits", a -> new AnalysisLimits((Long) a[0], (Long) a[1]));
+    // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
+    public static final ConstructingObjectParser<AnalysisLimits, Void> METADATA_PARSER = new ConstructingObjectParser<>(
+            "analysis_limits", true, a -> new AnalysisLimits((Long) a[0], (Long) a[1]));
+    public static final ConstructingObjectParser<AnalysisLimits, Void> CONFIG_PARSER = new ConstructingObjectParser<>(
+            "analysis_limits", false, a -> new AnalysisLimits((Long) a[0], (Long) a[1]));
+    public static final Map<MlParserType, ConstructingObjectParser<AnalysisLimits, Void>> PARSERS =
+            new EnumMap<>(MlParserType.class);
 
     static {
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), MODEL_MEMORY_LIMIT);
-        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), CATEGORIZATION_EXAMPLES_LIMIT);
+        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
+        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
+        for (MlParserType parserType : MlParserType.values()) {
+            ConstructingObjectParser<AnalysisLimits, Void> parser = PARSERS.get(parserType);
+            assert parser != null;
+            parser.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()).getMb();
+                } else if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                    return p.longValue();
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            }, MODEL_MEMORY_LIMIT, ObjectParser.ValueType.VALUE);
+            parser.declareLong(ConstructingObjectParser.optionalConstructorArg(), CATEGORIZATION_EXAMPLES_LIMIT);
+        }
     }
 
     /**
+     * The model memory limit in MiBs.
      * It is initialised to <code>null</code>.
-     * A value of <code>null</code> or <code>0</code> will result to the default being used.
+     * A value of <code>null</code> will result to the default being used.
      */
     private final Long modelMemoryLimit;
 
@@ -52,12 +77,16 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
     private final Long categorizationExamplesLimit;
 
     public AnalysisLimits(Long modelMemoryLimit, Long categorizationExamplesLimit) {
-        this.modelMemoryLimit = modelMemoryLimit;
+        if (modelMemoryLimit != null && modelMemoryLimit < 1) {
+            String msg = Messages.getMessage(Messages.JOB_CONFIG_MODEL_MEMORY_LIMIT_TOO_LOW, modelMemoryLimit);
+            throw ExceptionsHelper.badRequestException(msg);
+        }
         if (categorizationExamplesLimit != null && categorizationExamplesLimit < 0) {
             String msg = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, CATEGORIZATION_EXAMPLES_LIMIT, 0,
                     categorizationExamplesLimit);
             throw ExceptionsHelper.badRequestException(msg);
         }
+        this.modelMemoryLimit = modelMemoryLimit;
         this.categorizationExamplesLimit = categorizationExamplesLimit;
     }
 
@@ -97,7 +126,7 @@ public class AnalysisLimits implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (modelMemoryLimit != null) {
-            builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), modelMemoryLimit);
+            builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), modelMemoryLimit + "mb");
         }
         if (categorizationExamplesLimit != null) {
             builder.field(CATEGORIZATION_EXAMPLES_LIMIT.getPreferredName(), categorizationExamplesLimit);

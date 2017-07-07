@@ -92,7 +92,7 @@ POST _xpack/ml/anomaly_detectors/it_ops_new_logs/_update
     "enabled": true
   },
   "analysis_limits": {
-    "model_memory_limit": 1024
+    "model_memory_limit": "1024mb"
   },
   "renormalization_window_days": 30,
   "background_persist_interval": "2h",
@@ -135,7 +135,7 @@ information, including the updated property values. For example:
     "influencers": []
   },
   "analysis_limits": {
-    "model_memory_limit": 1024
+    "model_memory_limit": "1024mb"
   },
   "data_description": {
     "time_field": "time",

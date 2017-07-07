@@ -29,7 +29,7 @@ public class ChunkingConfigTests extends AbstractSerializingTestCase<ChunkingCon
 
     @Override
     protected ChunkingConfig doParseInstance(XContentParser parser) {
-        return ChunkingConfig.PARSER.apply(parser, null);
+        return ChunkingConfig.CONFIG_PARSER.apply(parser, null);
     }
 
     public void testConstructorGivenAutoAndTimeSpan() {

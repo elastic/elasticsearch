@@ -1,5 +1,5 @@
 {
-  "xpack.upgrade.info": {
+  "xpack.migration.get_assistance": {
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/migration/assistance",

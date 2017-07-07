@@ -494,10 +494,12 @@ Defaults to `CN=(.*?)(?:,\|$)`
 `certificate_authorities`::
 List of PEM certificate files that should be used to authenticate a
 user's certificate as trusted. Defaults to the trusted certificates configured for SSL.
+See the {xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings] section of the PKI realm documentation for more information.
 This setting may not be used with `truststore.path`.
 
 `truststore.path`::
 The path of a truststore to use. Defaults to the trusted certificates configured for SSL.
+See the {xpack-ref}/pki-realm.html#pki-ssl-config[SSL settings] section of the PKI realm documentation for more information.
 This setting may not be used with `certificate_authorities`.
 
 `truststore.password`::

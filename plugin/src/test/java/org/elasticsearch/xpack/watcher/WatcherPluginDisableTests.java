@@ -70,7 +70,7 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
 
     public void testRestEndpoints() throws Exception {
         try {
-            getRestClient().performRequest("GET", "/_xpack/watcher");
+            getRestClient().performRequest("GET", "/_xpack/watcher/watch/my-watch");
             fail("request should have failed");
         } catch(ResponseException e) {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), is(HttpStatus.SC_BAD_REQUEST));

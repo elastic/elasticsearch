@@ -15,11 +15,14 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.ml.MlParserType;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Objects;
 
 public class RuleCondition implements ToXContentObject, Writeable {
@@ -29,21 +32,33 @@ public class RuleCondition implements ToXContentObject, Writeable {
     public static final ParseField FIELD_VALUE_FIELD = new ParseField("field_value");
     public static final ParseField VALUE_FILTER_FIELD = new ParseField("value_filter");
 
-    public static final ConstructingObjectParser<RuleCondition, Void> PARSER =
-            new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(),
+    // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
+    public static final ConstructingObjectParser<RuleCondition, Void> METADATA_PARSER =
+            new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(), true,
                     a -> new RuleCondition((RuleConditionType) a[0], (String) a[1], (String) a[2], (Condition) a[3], (String) a[4]));
+    public static final ConstructingObjectParser<RuleCondition, Void> CONFIG_PARSER =
+            new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(), false,
+                    a -> new RuleCondition((RuleConditionType) a[0], (String) a[1], (String) a[2], (Condition) a[3], (String) a[4]));
+    public static final Map<MlParserType, ConstructingObjectParser<RuleCondition, Void>> PARSERS =
+            new EnumMap<>(MlParserType.class);
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return RuleConditionType.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, CONDITION_TYPE_FIELD, ValueType.STRING);
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_NAME_FIELD);
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_VALUE_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), Condition.PARSER, Condition.CONDITION_FIELD);
-        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), VALUE_FILTER_FIELD);
+        PARSERS.put(MlParserType.METADATA, METADATA_PARSER);
+        PARSERS.put(MlParserType.CONFIG, CONFIG_PARSER);
+        for (MlParserType parserType : MlParserType.values()) {
+            ConstructingObjectParser<RuleCondition, Void> parser = PARSERS.get(parserType);
+            assert parser != null;
+            parser.declareField(ConstructingObjectParser.constructorArg(), p -> {
+                if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
+                    return RuleConditionType.fromString(p.text());
+                }
+                throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
+            }, CONDITION_TYPE_FIELD, ValueType.STRING);
+            parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_NAME_FIELD);
+            parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), FIELD_VALUE_FIELD);
+            parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), Condition.PARSER, Condition.CONDITION_FIELD);
+            parser.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), VALUE_FILTER_FIELD);
+        }
     }
 
     private final RuleConditionType conditionType;

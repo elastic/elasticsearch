@@ -1,6 +1,6 @@
 {
   "xpack.security.clear_cached_realms": {
-    "documentation": "https://www.elastic.co/guide/en/x-pack/current/security-api-clear-cache.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-cache.html",
     "methods": [ "POST" ],
     "url": {
       "path": "/_xpack/security/realm/{realms}/_clear_cache",

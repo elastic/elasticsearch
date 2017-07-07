@@ -5,6 +5,10 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -17,7 +21,14 @@ import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.Security;
@@ -29,10 +40,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.concurrent.CountDownLatch;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.SecuritySettingsSource.addSSLSettingsForStore;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 
 public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase {
@@ -65,7 +79,6 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         settingsBuilder.put(super.nodeSettings(nodeOrdinal))
                        .put("transport.profiles.client.xpack.security.ssl.truststore.path", store) // settings for client truststore
                        .put("xpack.ssl.client_authentication", SSLClientAuth.REQUIRED)
-                       .put("transport.profiles.default.type", "node")
                        .put("transport.profiles.client.xpack.security.type", "client")
                        .put("transport.profiles.client.port", randomClientPortRange)
                        // make sure this is "localhost", no matter if ipv4 or ipv6, but be consistent
@@ -73,6 +86,9 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
                        .put("xpack.security.audit.enabled", false)
                        .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                        .put(TestZenDiscovery.USE_MOCK_PINGS.getKey(), false);
+        if (randomBoolean()) {
+            settingsBuilder.put("transport.profiles.default.xpack.security.type", "node"); // this is default lets set it randomly
+        }
 
         SecuritySettingsSource.addSecureSettings(settingsBuilder, secureSettings ->
             secureSettings.setString("transport.profiles.client.xpack.security.ssl.truststore.secure_password", "testnode"));
@@ -111,7 +127,7 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         }
     }
 
-    public void testThatConnectionToClientTypeConnectionIsRejected() throws IOException, NodeValidationException {
+    public void testThatConnectionToClientTypeConnectionIsRejected() throws IOException, NodeValidationException, InterruptedException {
         Path home = createTempDir();
         Path xpackConf = home.resolve("config").resolve(XPackPlugin.NAME);
         Files.createDirectories(xpackConf);
@@ -144,23 +160,49 @@ public class ServerTransportFilterIntegrationTests extends SecurityIntegTestCase
         addSSLSettingsForStore(nodeSettings, "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks", "testnode");
         try (Node node = new MockNode(nodeSettings.build(), Arrays.asList(XPackPlugin.class, TestZenDiscovery.TestPlugin.class))) {
             node.start();
+            TransportService instance = node.injector().getInstance(TransportService.class);
+            try (Transport.Connection connection = instance.openConnection(new DiscoveryNode("theNode", transportAddress, Version.CURRENT),
+                    ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null))) {
+                // handshake should be ok
+                final DiscoveryNode handshake = instance.handshake(connection, 10000);
+                assertEquals(transport.boundAddress().publishAddress(), handshake.getAddress());
+                CountDownLatch latch = new CountDownLatch(1);
+                instance.sendRequest(connection, NodeMappingRefreshAction.ACTION_NAME,
+                        new NodeMappingRefreshAction.NodeMappingRefreshRequest("foo", "bar", "baz"),
+                        TransportRequestOptions.EMPTY,
+                        new TransportResponseHandler<TransportResponse>() {
+                    @Override
+                    public TransportResponse newInstance() {
+                        fail("never get that far");
+                        return null;
+                    }
 
-            // assert that node is not connected by waiting for the timeout
-            try {
-                // updating cluster settings requires a master. since the node should not be able to
-                // connect to the cluster, there should be no master, and therefore this
-                // operation should fail. we can't use cluster health/stats here to and
-                // wait for a timeout, because as long as the node is not connected to the cluster
-                // the license is disabled and therefore blocking health & stats calls.
-                node.client().admin().cluster().prepareUpdateSettings()
-                        .setTransientSettings(singletonMap("logger.org.elasticsearch.xpack.security", "DEBUG"))
-                        .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
-                        .get();
-                fail("Expected to fail update settings as the node should not be able to connect to the cluster, cause there should be " +
-                        "no master");
-            } catch (MasterNotDiscoveredException e) {
-                // expected
-                logger.error("expected exception", e);
+                    @Override
+                    public void handleResponse(TransportResponse response) {
+                        try {
+                            fail("never get that far");
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        try {
+                            assertThat(exp.getCause(), instanceOf(ElasticsearchSecurityException.class));
+                            assertThat(exp.getCause().getMessage(),
+                                    equalTo("executing internal/shard actions is considered malicious and forbidden"));
+                        } finally {
+                            latch.countDown();
+                        }
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+                });
+                latch.await();
             }
         }
     }

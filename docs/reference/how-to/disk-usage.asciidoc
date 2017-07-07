@@ -138,7 +138,9 @@ PUT index
 [float]
 === Watch your shard size
 
-Larger shards are going to be more efficient at storing data. While it is not possible to give a precise recommendation for how large shards should be, and very large shards come with drawbacks (for example, longer recovery times), it is generally possible to have shard sizes in the 20-30 GB range.
+Larger shards are going to be more efficient at storing data. To increase the size of your shards, you can decrease the number of primary shards in an index by <<indices-create-index,creating indices>> with less primary shards, creating less indices (e.g. by leveraging the <<indices-rollover-index,Rollover API>>), or modifying an existing index using the <<indices-shrink-index,Shrink API>>.
+
+Keep in mind that very large shard sizes come with drawbacks, such as longer recovery times.
 
 [float]
 === Disable `_all`

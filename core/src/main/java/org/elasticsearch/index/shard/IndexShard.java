@@ -1715,8 +1715,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
      * @param globalCheckpoint the global checkpoint
+     * @param reason           the reason the global checkpoint was updated
      */
-    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint) {
+    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
         verifyReplicationTarget();
         final SequenceNumbersService seqNoService = getEngine().seqNoService();
         final long localCheckpoint = seqNoService.getLocalCheckpoint();
@@ -1733,7 +1734,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              */
             return;
         }
-        seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint);
+        seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
     }
 
     /**
@@ -2099,7 +2100,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             assert operationPrimaryTerm > primaryTerm :
                                 "shard term already update.  op term [" + operationPrimaryTerm + "], shardTerm [" + primaryTerm + "]";
                             primaryTerm = operationPrimaryTerm;
-                            updateGlobalCheckpointOnReplica(globalCheckpoint);
+                            updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                             final long currentGlobalCheckpoint = getGlobalCheckpoint();
                             final long localCheckpoint;
                             if (currentGlobalCheckpoint == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
@@ -2146,7 +2147,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         } else {
                             if (globalCheckpointUpdated == false) {
                                 try {
-                                    updateGlobalCheckpointOnReplica(globalCheckpoint);
+                                    updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
                                 } catch (Exception e) {
                                     releasable.close();
                                     onPermitAcquired.onFailure(e);

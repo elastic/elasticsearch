@@ -709,7 +709,7 @@ public class IndexShardTests extends IndexShardTestCase {
         randomIntBetween(
                 Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
                 Math.toIntExact(indexShard.getLocalCheckpoint()));
-        indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica);
+        indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
 
         final int globalCheckpoint =
                 randomIntBetween(
@@ -764,7 +764,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 randomIntBetween(
                         Math.toIntExact(SequenceNumbersService.UNASSIGNED_SEQ_NO),
                         Math.toIntExact(indexShard.getLocalCheckpoint()));
-        indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica);
+        indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
 
         final int globalCheckpoint =
                 randomIntBetween(

@@ -339,7 +339,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         parameters.put("param1", 5);
         scriptQuery(new Script(
                 ScriptType.STORED,                                   // <1>
-                "painless",                                          // <2>
+                null,                                          // <2>
                 "myscript",                                          // <3>
                 singletonMap("param1", 5)));                         // <4>
         // end::script_file

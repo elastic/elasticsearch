@@ -66,8 +66,7 @@ import java.util.Objects;
  * <li> {@link ScriptType#STORED}
  * <ul>
  * <li> {@link Script#lang}     - the language will be specified when storing the script, so this should
- *                                be {@code null}; however, this can be specified to look up a stored
- *                                script as part of the deprecated API
+ *                                be {@code null}
  * <li> {@link Script#idOrCode} - specifies the id of the stored script to be looked up, must not be {@code null}
  * <li> {@link Script#options}  - compiler options will be specified when a stored script is stored,
  *                                so they have no meaning here and must be {@code null}
@@ -242,19 +241,14 @@ public final class Script implements ToXContentObject, Writeable {
                     throw new IllegalArgumentException("illegal compiler options [" + options + "] specified");
                 }
             } else if (type == ScriptType.STORED) {
-                // Only issue this deprecation warning if we aren't using a template.  Templates during
-                // this deprecation phase must always specify the default template language or they would
-                // possibly pick up a script in a different language as defined by the user under the new
-                // namespace unintentionally.
-                if (lang != null && lang.equals(DEFAULT_TEMPLATE_LANG) == false) {
-                    DEPRECATION_LOGGER.deprecated("specifying the field [" + LANG_PARSE_FIELD.getPreferredName() + "] " +
-                        "for executing " + ScriptType.STORED + " scripts is deprecated; use only the field " +
-                        "[" + ScriptType.STORED.getParseField().getPreferredName() + "] to specify an <id>");
+                if (lang != null) {
+                    throw new IllegalArgumentException(
+                        "illegally specified <lang> for a [" + ScriptType.STORED.getParseField().getPreferredName() + " script");
                 }
 
                 if (idOrCode == null) {
                     throw new IllegalArgumentException(
-                        "must specify <code> for an [" + ScriptType.STORED.getParseField().getPreferredName() + "] script");
+                        "must specify <code> for a [" + ScriptType.STORED.getParseField().getPreferredName() + "] script");
                 }
 
                 if (options.isEmpty()) {
@@ -423,11 +417,16 @@ public final class Script implements ToXContentObject, Writeable {
             this.lang = Objects.requireNonNull(lang);
             this.options = Collections.unmodifiableMap(Objects.requireNonNull(options));
         } else if (type == ScriptType.STORED) {
-            this.lang = lang;
+            if (lang != null) {
+                throw new IllegalArgumentException(
+                    "lang cannot be specified for [" + ScriptType.STORED.getParseField().getPreferredName() + "] scripts");
+            }
+
+            this.lang = null;
 
             if (options != null) {
                 throw new IllegalStateException(
-                    "options must be null for [" + ScriptType.STORED.getParseField().getPreferredName() + "] scripts");
+                    "options cannot be specified for [" + ScriptType.STORED.getParseField().getPreferredName() + "] scripts");
             }
 
             this.options = null;
@@ -455,7 +454,8 @@ public final class Script implements ToXContentObject, Writeable {
         // same order as the constructor.
         } else if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             this.type = ScriptType.readFrom(in);
-            this.lang = in.readString();
+            String lang = in.readString();
+            this.lang = this.type == ScriptType.STORED ? null : lang;
 
             this.idOrCode = in.readString();
             @SuppressWarnings("unchecked")
@@ -482,7 +482,7 @@ public final class Script implements ToXContentObject, Writeable {
             String lang = in.readOptionalString();
 
             if (lang == null) {
-                this.lang = DEFAULT_SCRIPT_LANG;
+                this.lang = this.type == ScriptType.STORED ? null : DEFAULT_SCRIPT_LANG;
             } else {
                 this.lang = lang;
             }

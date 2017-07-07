@@ -1449,10 +1449,9 @@ public abstract class Engine implements Closeable {
      * Marks operations in the translog from the specified local checkpoint as completed. This is used to restore the state of the local
      * checkpoint tracker on primary promotion.
      *
-     * @param localCheckpoint the local checkpoint
      * @throws IOException if an I/O exception occurred reading the translog
      */
-    public abstract void restoreLocalCheckpointTracker(long localCheckpoint) throws IOException;
+    public abstract void restoreLocalCheckpointFromTranslog() throws IOException;
 
     /**
      * Fills up the local checkpoints history with no-ops until the local checkpoint

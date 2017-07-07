@@ -3987,7 +3987,7 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    public void testRestoreLocalCheckpointTracker() throws IOException {
+    public void testRestoreLocalCheckpointFromTranslog() throws IOException {
         engine.close();
         InternalEngine actualEngine = null;
         try {
@@ -4029,7 +4029,7 @@ public class InternalEngineTests extends ESTestCase {
                     randomIntBetween(Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED), Math.toIntExact(currentLocalCheckpoint));
             actualEngine.seqNoService().resetLocalCheckpoint(resetLocalCheckpoint);
             completedSeqNos.clear();
-            actualEngine.restoreLocalCheckpointTracker(actualEngine.seqNoService().getLocalCheckpoint());
+            actualEngine.restoreLocalCheckpointFromTranslog();
             final Set<Long> intersection = new HashSet<>(expectedCompletedSeqNos);
             intersection.retainAll(LongStream.range(resetLocalCheckpoint + 1, operations).boxed().collect(Collectors.toSet()));
             assertThat(completedSeqNos, equalTo(intersection));

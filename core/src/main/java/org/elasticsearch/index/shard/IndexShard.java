@@ -467,7 +467,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 () -> {
                     latch.await();
                     try {
-                        getEngine().restoreLocalCheckpointTracker(getLocalCheckpoint());
+                        getEngine().restoreLocalCheckpointFromTranslog();
                         getEngine().fillSeqNoGaps(newPrimaryTerm);
                         primaryReplicaSyncer.accept(IndexShard.this, new ActionListener<ResyncTask>() {
                             @Override

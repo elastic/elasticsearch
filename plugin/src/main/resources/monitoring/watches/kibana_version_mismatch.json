@@ -120,6 +120,37 @@
               }
             }
           }
+        },
+        {
+          "kibana_settings": {
+            "search": {
+              "request": {
+                "search_type": "query_then_fetch",
+                "indices": [
+                  ".monitoring-kibana-6-*"
+                ],
+                "body": {
+                  "size": 1,
+                  "query": {
+                    "bool": {
+                      "filter": {
+                        "term": {
+                          "type": "kibana_settings"
+                        }
+                      }
+                    }
+                  },
+                  "sort": [
+                    {
+                      "timestamp": {
+                        "order": "desc"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
         }
       ]
     }
@@ -131,7 +162,7 @@
   },
   "transform": {
     "script": {
-      "source": "def versionMessage = null;if (ctx.vars.fails_check) {versionMessage = 'Versions: [' + String.join(', ', ctx.vars.versions) + '].';}if (ctx.vars.not_resolved) {ctx.payload = ctx.payload.alert.hits.hits[0]._source;if (ctx.vars.fails_check) {ctx.payload.message = versionMessage;} else {ctx.payload.resolved_timestamp = ctx.execution_time;}} else {ctx.payload = [ 'timestamp': ctx.execution_time, 'prefix': 'This cluster is running with multiple versions of Kibana.', 'message': versionMessage, 'metadata': ctx.metadata.xpack ];}ctx.payload.update_timestamp = ctx.execution_time;return ctx.payload;"
+      "source": "ctx.vars.email_recipient = (ctx.payload.kibana_settings.hits.total > 0) ? ctx.payload.kibana_settings.hits.hits[0]._source.kibana_settings.xpack.defaultAdminEmail : null;ctx.vars.is_new = ctx.vars.fails_check && !ctx.vars.not_resolved;ctx.vars.is_resolved = !ctx.vars.fails_check && ctx.vars.not_resolved;def versionMessage = null;if (ctx.vars.fails_check) {versionMessage = 'Versions: [' + String.join(', ', ctx.vars.versions) + '].';}if (ctx.vars.not_resolved) {ctx.payload = ctx.payload.alert.hits.hits[0]._source;if (ctx.vars.fails_check) {ctx.payload.message = versionMessage;} else {ctx.payload.resolved_timestamp = ctx.execution_time;}} else {ctx.payload = [ 'timestamp': ctx.execution_time, 'prefix': 'This cluster is running with multiple versions of Kibana.', 'message': versionMessage, 'metadata': ctx.metadata.xpack ];}ctx.payload.update_timestamp = ctx.execution_time;return ctx.payload;"
     }
   },
   "actions": {
@@ -140,6 +171,19 @@
         "index": ".monitoring-alerts-6",
         "doc_type": "doc",
         "doc_id": "${monitoring.watch.unique_id}"
+      }
+    },
+    "send_email_to_admin": {
+      "condition": {
+        "script": "return ctx.vars.email_recipient != null && (ctx.vars.is_new || ctx.vars.is_resolved)"
+      },
+      "email": {
+        "to": "X-Pack Admin <{{ctx.vars.email_recipient}}>",
+        "from": "X-Pack Admin <{{ctx.vars.email_recipient}}>",
+        "subject": "[{{#ctx.vars.is_new}}NEW{{/ctx.vars.is_new}}{{#ctx.vars.is_resolved}}RESOLVED{{/ctx.vars.is_resolved}}] {{ctx.metadata.name}}",
+        "body": {
+          "text": "{{#ctx.vars.is_resolved}}This cluster alert has been resolved: {{/ctx.vars.is_resolved}}{{ctx.payload.prefix}} {{ctx.payload.message}}"
+        }
       }
     }
   }

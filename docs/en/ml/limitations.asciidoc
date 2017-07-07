@@ -101,10 +101,20 @@ analyzed.
 
 [float]
 === Time-based index patterns are not supported
+//See x-pack-elasticsearch/#1910
 
 It is not possible to create an {xpackml} analysis job that uses time-based
-index patterns, for example `[logstash-]YYYY.MM.DD`. 
+index patterns, for example `[logstash-]YYYY.MM.DD`.
 This applies to the single metric or multi metric job creation wizards in {kib}.
+
+
+[float]
+=== Fields named "by", "count", or "over" cannot be used to split data
+//See x-pack-elasticsearch/#858
+
+You cannot use the following field names in the `by_field_name` or
+`over_field_name` properties in a job: `by`; `count`; `over`. This limitation
+also applies to those properties when you create advanced jobs in {kib}.
 
 
 [float]

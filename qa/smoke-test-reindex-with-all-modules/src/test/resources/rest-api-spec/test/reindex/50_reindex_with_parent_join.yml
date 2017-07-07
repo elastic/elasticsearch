@@ -91,9 +91,6 @@ setup:
 
 ---
 "Reindex from remote with parent join field":
-  - skip:
-      reason: Temporarily broken. See https://github.com/elastic/elasticsearch/issues/25363
-      version: all
   # Fetch the http host. We use the host of the master because we know there will always be a master.
   - do:
       cluster.state: {}

@@ -301,7 +301,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     private static ParsedDocument testParsedDocument(String id, String routing, Document document, BytesReference source, Mapping mappingUpdate) {
-        Field uidField = new Field("_id", id, IdFieldMapper.Defaults.FIELD_TYPE);
+        Field uidField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceIDFields seqID = SeqNoFieldMapper.SequenceIDFields.emptySeqID();
         document.add(uidField);
@@ -2020,12 +2020,9 @@ public class InternalEngineTests extends ESTestCase {
 
         try {
             initialEngine = engine;
-            initialEngine
-                .seqNoService()
-                .updateAllocationIdsFromMaster(
-                        randomNonNegativeLong(),
-                        new HashSet<>(Arrays.asList("primary", "replica")),
-                        Collections.emptySet());
+            initialEngine.seqNoService().updateAllocationIdsFromMaster(1L, new HashSet<>(Arrays.asList("primary", "replica")),
+                Collections.emptySet(), Collections.emptySet());
+            initialEngine.seqNoService().activatePrimaryMode("primary", primarySeqNo);
             for (int op = 0; op < opCount; op++) {
                 final String id;
                 // mostly index, sometimes delete
@@ -2354,11 +2351,11 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     protected Term newUid(String id) {
-        return new Term("_id", id);
+        return new Term("_id", Uid.encodeId(id));
     }
 
     protected Term newUid(ParsedDocument doc) {
-        return new Term("_id", doc.id());
+        return newUid(doc.id());
     }
 
     protected Engine.Get newGet(boolean realtime, ParsedDocument doc) {
@@ -2819,6 +2816,7 @@ public class InternalEngineTests extends ESTestCase {
                     final Translog.Index index = (Translog.Index) operation;
                     final String indexName = mapperService.index().getName();
                     final Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()),
+                            mapperService.getIndexSettings().getIndexVersionCreated(),
                         source(indexName, index.type(), index.id(), index.source(), XContentFactory.xContentType(index.source()))
                             .routing(index.routing()).parent(index.parent()), index.seqNo(), index.primaryTerm(),
                         index.version(), index.versionType().versionTypeForReplicationAndRecovery(), origin,
@@ -3994,6 +3992,67 @@ public class InternalEngineTests extends ESTestCase {
             return new Tuple<>(seqNo, primaryTerm);
         } catch (Exception e) {
             throw new EngineException(shardId, "unable to retrieve sequence id", e);
+        }
+    }
+
+    public void testRestoreLocalCheckpointFromTranslog() throws IOException {
+        engine.close();
+        InternalEngine actualEngine = null;
+        try {
+            final Set<Long> completedSeqNos = new HashSet<>();
+            final SequenceNumbersService seqNoService =
+                    new SequenceNumbersService(
+                            shardId,
+                            defaultSettings,
+                            SequenceNumbersService.NO_OPS_PERFORMED,
+                            SequenceNumbersService.NO_OPS_PERFORMED,
+                            SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                @Override
+                public void markSeqNoAsCompleted(long seqNo) {
+                    super.markSeqNoAsCompleted(seqNo);
+                    completedSeqNos.add(seqNo);
+                }
+            };
+            actualEngine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)) {
+                @Override
+                public SequenceNumbersService seqNoService() {
+                    return seqNoService;
+                }
+            };
+            final int operations = randomIntBetween(0, 1024);
+            final Set<Long> expectedCompletedSeqNos = new HashSet<>();
+            for (int i = 0; i < operations; i++) {
+                if (rarely() && i < operations - 1) {
+                    continue;
+                }
+                expectedCompletedSeqNos.add((long) i);
+            }
+
+            final ArrayList<Long> seqNos = new ArrayList<>(expectedCompletedSeqNos);
+            Randomness.shuffle(seqNos);
+            for (final long seqNo : seqNos) {
+                final String id = Long.toString(seqNo);
+                final ParsedDocument doc = testParsedDocument(id, null, testDocumentWithTextField(), SOURCE, null);
+                final Term uid = newUid(doc);
+                final long time = System.nanoTime();
+                actualEngine.index(new Engine.Index(uid, doc, seqNo, 1, 1, VersionType.EXTERNAL, REPLICA, time, time, false));
+                if (rarely()) {
+                    actualEngine.rollTranslogGeneration();
+                }
+            }
+            final long currentLocalCheckpoint = actualEngine.seqNoService().getLocalCheckpoint();
+            final long resetLocalCheckpoint =
+                    randomIntBetween(Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED), Math.toIntExact(currentLocalCheckpoint));
+            actualEngine.seqNoService().resetLocalCheckpoint(resetLocalCheckpoint);
+            completedSeqNos.clear();
+            actualEngine.restoreLocalCheckpointFromTranslog();
+            final Set<Long> intersection = new HashSet<>(expectedCompletedSeqNos);
+            intersection.retainAll(LongStream.range(resetLocalCheckpoint + 1, operations).boxed().collect(Collectors.toSet()));
+            assertThat(completedSeqNos, equalTo(intersection));
+            assertThat(actualEngine.seqNoService().getLocalCheckpoint(), equalTo(currentLocalCheckpoint));
+            assertThat(actualEngine.seqNoService().generateSeqNo(), equalTo((long) operations));
+        } finally {
+            IOUtils.close(actualEngine);
         }
     }
 

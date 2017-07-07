@@ -17,13 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.elasticsearch.analysis.common;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -32,7 +34,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
     public void testPatternCaptureTokenFilter() throws Exception {
-        String json = "/org/elasticsearch/index/analysis/pattern_capture.json";
+        String json = "/org/elasticsearch/analysis/common/pattern_capture.json";
         Settings settings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .loadFromStream(json, getClass().getResourceAsStream(json))
@@ -40,7 +42,7 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
                 .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        IndexAnalyzers indexAnalyzers = createTestAnalysis(idxSettings, settings).indexAnalyzers;
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
         NamedAnalyzer analyzer1 = indexAnalyzers.get("single");
 
         assertTokenStreamContents(analyzer1.tokenStream("test", "foobarbaz"), new String[]{"foobarbaz","foobar","foo"});
@@ -56,7 +58,8 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
 
     public void testNoPatterns() {
         try {
-            new PatternCaptureGroupTokenFilterFactory(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), null, "pattern_capture", Settings.builder().put("pattern", "foobar").build());
+            new PatternCaptureGroupTokenFilterFactory(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), null,
+                    "pattern_capture", Settings.builder().put("pattern", "foobar").build());
             fail ("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("required setting 'patterns' is missing"));

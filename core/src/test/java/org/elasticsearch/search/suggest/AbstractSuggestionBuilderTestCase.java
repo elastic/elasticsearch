@@ -38,10 +38,10 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.test.ESTestCase;
@@ -152,33 +152,34 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     public void testBuild() throws IOException {
-        Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
-                indexSettings);
-        MapperService mapperService = mock(MapperService.class);
-        ScriptService scriptService = mock(ScriptService.class);
-        MappedFieldType fieldType = mockFieldType();
-        boolean fieldTypeSearchAnalyzerSet = randomBoolean();
-        if (fieldTypeSearchAnalyzerSet) {
-            NamedAnalyzer searchAnalyzer = new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer());
-            if (Mockito.mockingDetails(fieldType).isMock()) {
-                when(fieldType.searchAnalyzer()).thenReturn(searchAnalyzer);
-            } else {
-                fieldType.setSearchAnalyzer(searchAnalyzer);
-            }
-        } else {
-            when(mapperService.searchAnalyzer())
-                .thenReturn(new NamedAnalyzer("mapperServiceSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()));
-        }
-        when(mapperService.fullName(any(String.class))).thenReturn(fieldType);
-        when(mapperService.getNamedAnalyzer(any(String.class))).then(
-                invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
-        when(scriptService.compile(any(Script.class), any())).thenReturn(mock(TemplateScript.Factory.class));
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, mapperService, null, scriptService,
-                xContentRegistry(), null, null, System::currentTimeMillis);
-
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB suggestionBuilder = randomTestBuilder();
+            Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
+                    indexSettings);
+            MapperService mapperService = mock(MapperService.class);
+            ScriptService scriptService = mock(ScriptService.class);
+            MappedFieldType fieldType = mockFieldType();
+            boolean fieldTypeSearchAnalyzerSet = randomBoolean();
+            if (fieldTypeSearchAnalyzerSet) {
+                NamedAnalyzer searchAnalyzer = new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer());
+                if (Mockito.mockingDetails(fieldType).isMock()) {
+                    when(fieldType.searchAnalyzer()).thenReturn(searchAnalyzer);
+                } else {
+                    fieldType.setSearchAnalyzer(searchAnalyzer);
+                }
+            } else {
+                when(mapperService.searchAnalyzer())
+                        .thenReturn(new NamedAnalyzer("mapperServiceSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()));
+            }
+            when(mapperService.fullName(any(String.class))).thenReturn(fieldType);
+            when(mapperService.getNamedAnalyzer(any(String.class))).then(
+                    invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
+            when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
+                    ((Script) invocation.getArguments()[0]).getIdOrCode()));
+            QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, mapperService, null, scriptService,
+                    xContentRegistry(), null, null, System::currentTimeMillis);
+
             SuggestionContext suggestionContext = suggestionBuilder.build(mockShardContext);
             assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getText());
             if (suggestionBuilder.text() != null && suggestionBuilder.prefix() == null) {
@@ -195,13 +196,19 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             assertSame(mockShardContext, suggestionContext.getShardContext());
             if (suggestionBuilder.analyzer() != null) {
                 assertEquals(suggestionBuilder.analyzer(), ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
-            } else if (fieldTypeSearchAnalyzerSet){
+            } else if (fieldTypeSearchAnalyzerSet) {
                 assertEquals("fieldSearchAnalyzer", ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
             } else {
                 assertEquals("mapperServiceSearchAnalyzer", ((NamedAnalyzer) suggestionContext.getAnalyzer()).name());
             }
+            assertSuggestionContext(suggestionBuilder, suggestionContext);
         }
     }
+
+    /**
+     * put implementation dependent assertions in the sub-type test
+     */
+    protected abstract void assertSuggestionContext(SB builder, SuggestionContext context) throws IOException;
 
     protected MappedFieldType mockFieldType() {
         return mock(MappedFieldType.class);

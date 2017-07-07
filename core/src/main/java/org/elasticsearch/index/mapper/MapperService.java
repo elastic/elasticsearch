@@ -805,7 +805,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (hasMapping(type) == false) {
             return null;
         }
-        if (indexSettings.isSingleType()) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha3)) {
+            assert indexSettings.isSingleType();
+            return new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+        } else if (indexSettings.isSingleType()) {
             return new Term(IdFieldMapper.NAME, id);
         } else {
             return new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(type, id));

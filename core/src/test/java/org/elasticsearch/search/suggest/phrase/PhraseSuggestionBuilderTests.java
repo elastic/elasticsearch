@@ -21,10 +21,13 @@ package org.elasticsearch.search.suggest.phrase;
 
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
+import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestCase<PhraseSuggestionBuilder> {
     @Override
@@ -184,4 +187,43 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         assertEquals("Pre and post tag must both be null or both not be null.", e.getMessage());
     }
 
+    @Override
+    protected void assertSuggestionContext(PhraseSuggestionBuilder builder, SuggestionContext context) {
+        assertThat(context, instanceOf(PhraseSuggestionContext.class));
+        assertThat(context.getSuggester(), instanceOf(PhraseSuggester.class));
+        PhraseSuggestionContext phraseSuggesterCtx = (PhraseSuggestionContext) context;
+        assertOptionalEquals(builder.confidence(), phraseSuggesterCtx.confidence(), PhraseSuggestionContext.DEFAULT_CONFIDENCE);
+        assertOptionalEquals(builder.collatePrune(), phraseSuggesterCtx.collatePrune(), PhraseSuggestionContext.DEFAULT_COLLATE_PRUNE);
+        assertEquals(builder.separator(), phraseSuggesterCtx.separator().utf8ToString());
+        assertOptionalEquals(builder.realWordErrorLikelihood(), phraseSuggesterCtx.realworldErrorLikelyhood(),
+                PhraseSuggestionContext.DEFAULT_RWE_ERRORLIKELIHOOD);
+        assertOptionalEquals(builder.maxErrors(), phraseSuggesterCtx.maxErrors(), PhraseSuggestionContext.DEFAULT_MAX_ERRORS);
+        assertOptionalEquals(builder.forceUnigrams(), phraseSuggesterCtx.getRequireUnigram(),
+                PhraseSuggestionContext.DEFAULT_REQUIRE_UNIGRAM);
+        assertOptionalEquals(builder.tokenLimit(), phraseSuggesterCtx.getTokenLimit(), NoisyChannelSpellChecker.DEFAULT_TOKEN_LIMIT);
+        assertEquals(builder.preTag(), phraseSuggesterCtx.getPreTag() != null ? phraseSuggesterCtx.getPreTag().utf8ToString() : null);
+        assertEquals(builder.postTag(), phraseSuggesterCtx.getPostTag() != null ? phraseSuggesterCtx.getPostTag().utf8ToString() : null);
+        assertOptionalEquals(builder.gramSize(), phraseSuggesterCtx.gramSize(), PhraseSuggestionContext.DEFAULT_GRAM_SIZE);
+        if (builder.collateQuery() != null) {
+            assertEquals(builder.collateQuery().getIdOrCode(), phraseSuggesterCtx.getCollateQueryScript().newInstance(null).execute());
+        }
+        if (builder.collateParams() != null) {
+            assertEquals(builder.collateParams(), phraseSuggesterCtx.getCollateScriptParams());
+        }
+        if (builder.smoothingModel() != null) {
+            assertEquals(builder.smoothingModel().buildWordScorerFactory().getClass(), phraseSuggesterCtx.model().getClass());
+        }
+        if (builder.getCandidateGenerators().isEmpty() == false) {
+            // currently, "direct_generator" is the only one available. Only compare size of the lists
+            assertEquals(builder.getCandidateGenerators().get("direct_generator").size(), phraseSuggesterCtx.generators().size());
+        }
+    }
+
+    private static <T> void assertOptionalEquals(T optional, T actual, T defaultValue) {
+        if (optional != null) {
+            assertEquals(optional, actual);
+        } else {
+            assertEquals(defaultValue, actual);
+        }
+    }
 }

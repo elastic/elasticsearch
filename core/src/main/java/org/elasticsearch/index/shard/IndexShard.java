@@ -460,6 +460,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         () -> {
                             latch.await();
                             try {
+                                /*
+                                 * If this shard was serving as a replica shard when another shard was promoted to primary then the state of
+                                 * its local checkpoint tracker was reset during the primary term transition. In particular, the local
+                                 * checkpoint on this shard was thrown back to the global checkpoint and the state of the local checkpoint
+                                 * tracker above the local checkpoint was destroyed. If the other shard that was promoted to primary
+                                 * subsequently fails before the primary/replica re-sync completes successfully and we are now being
+                                 * promoted, the local checkpoint tracker here could be left in a state where it would re-issue sequence
+                                 * numbers. To ensure that this is not the case, we restore the state of the local checkpoint tracker by
+                                 * replaying the translog and marking any operations there are completed.
+                                 */
+                                getEngine().restoreLocalCheckpointFromTranslog();
                                 getEngine().fillSeqNoGaps(newPrimaryTerm);
                                 updateLocalCheckpointForShard(currentRouting.allocationId().getId(),
                                     getEngine().seqNoService().getLocalCheckpoint());

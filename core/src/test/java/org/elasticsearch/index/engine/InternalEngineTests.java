@@ -3995,6 +3995,67 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
+    public void testRestoreLocalCheckpointFromTranslog() throws IOException {
+        engine.close();
+        InternalEngine actualEngine = null;
+        try {
+            final Set<Long> completedSeqNos = new HashSet<>();
+            final SequenceNumbersService seqNoService =
+                    new SequenceNumbersService(
+                            shardId,
+                            defaultSettings,
+                            SequenceNumbersService.NO_OPS_PERFORMED,
+                            SequenceNumbersService.NO_OPS_PERFORMED,
+                            SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                @Override
+                public void markSeqNoAsCompleted(long seqNo) {
+                    super.markSeqNoAsCompleted(seqNo);
+                    completedSeqNos.add(seqNo);
+                }
+            };
+            actualEngine = new InternalEngine(copy(engine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG)) {
+                @Override
+                public SequenceNumbersService seqNoService() {
+                    return seqNoService;
+                }
+            };
+            final int operations = randomIntBetween(0, 1024);
+            final Set<Long> expectedCompletedSeqNos = new HashSet<>();
+            for (int i = 0; i < operations; i++) {
+                if (rarely() && i < operations - 1) {
+                    continue;
+                }
+                expectedCompletedSeqNos.add((long) i);
+            }
+
+            final ArrayList<Long> seqNos = new ArrayList<>(expectedCompletedSeqNos);
+            Randomness.shuffle(seqNos);
+            for (final long seqNo : seqNos) {
+                final String id = Long.toString(seqNo);
+                final ParsedDocument doc = testParsedDocument(id, null, testDocumentWithTextField(), SOURCE, null);
+                final Term uid = newUid(doc);
+                final long time = System.nanoTime();
+                actualEngine.index(new Engine.Index(uid, doc, seqNo, 1, 1, VersionType.EXTERNAL, REPLICA, time, time, false));
+                if (rarely()) {
+                    actualEngine.rollTranslogGeneration();
+                }
+            }
+            final long currentLocalCheckpoint = actualEngine.seqNoService().getLocalCheckpoint();
+            final long resetLocalCheckpoint =
+                    randomIntBetween(Math.toIntExact(SequenceNumbersService.NO_OPS_PERFORMED), Math.toIntExact(currentLocalCheckpoint));
+            actualEngine.seqNoService().resetLocalCheckpoint(resetLocalCheckpoint);
+            completedSeqNos.clear();
+            actualEngine.restoreLocalCheckpointFromTranslog();
+            final Set<Long> intersection = new HashSet<>(expectedCompletedSeqNos);
+            intersection.retainAll(LongStream.range(resetLocalCheckpoint + 1, operations).boxed().collect(Collectors.toSet()));
+            assertThat(completedSeqNos, equalTo(intersection));
+            assertThat(actualEngine.seqNoService().getLocalCheckpoint(), equalTo(currentLocalCheckpoint));
+            assertThat(actualEngine.seqNoService().generateSeqNo(), equalTo((long) operations));
+        } finally {
+            IOUtils.close(actualEngine);
+        }
+    }
+
     public void testFillUpSequenceIdGapsOnRecovery() throws IOException {
         final int docs = randomIntBetween(1, 32);
         int numDocsOnReplica = 0;

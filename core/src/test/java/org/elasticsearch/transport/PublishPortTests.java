@@ -42,34 +42,39 @@ public class PublishPortTests extends ESTestCase {
 
         boolean useProfile = randomBoolean();
         final String profile;
-        final Settings settings;
-        final Settings profileSettings;
+        Settings baseSettings;
+        Settings settings;
         if (useProfile) {
-            profile = "some_profile";
+            baseSettings = Settings.builder().put("transport.profiles.some_profile.port", 0).build();
             settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put(TcpTransport.PUBLISH_PORT.getKey(), 9081).build();
-            profileSettings = Settings.builder().put("publish_port", 9080).build();
+            settings = Settings.builder().put(settings).put(baseSettings).put("transport.profiles.some_profile.publish_port", 9080).build();
+            profile = "some_profile";
+
         } else {
-            profile = TcpTransport.DEFAULT_PROFILE;
+            baseSettings = Settings.EMPTY;
             settings = Settings.builder().put(TcpTransport.PUBLISH_PORT.getKey(), 9081).build();
-            profileSettings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("publish_port", 9080).build();;
+            settings = randomBoolean() ? settings  :
+                Settings.builder().put(settings).put("transport.profiles.default.publish_port", 9080).build();
+            profile = "default";
+
         }
 
-        int publishPort = resolvePublishPort(profile, settings, profileSettings,
+        int publishPort = resolvePublishPort(new TcpTransport.ProfileSettings(settings, profile),
             randomAddresses(), getByName("127.0.0.2"));
         assertThat("Publish port should be explicitly set", publishPort, equalTo(useProfile ? 9080 : 9081));
 
-        publishPort = resolvePublishPort(profile, Settings.EMPTY, Settings.EMPTY,
+        publishPort = resolvePublishPort(new TcpTransport.ProfileSettings(baseSettings, profile),
             asList(address("127.0.0.1", boundPort), address("127.0.0.2", otherBoundPort)),
             getByName("127.0.0.1"));
         assertThat("Publish port should be derived from matched address", publishPort, equalTo(boundPort));
 
-        publishPort = resolvePublishPort(profile, Settings.EMPTY, Settings.EMPTY,
+        publishPort = resolvePublishPort(new TcpTransport.ProfileSettings(baseSettings, profile),
             asList(address("127.0.0.1", boundPort), address("127.0.0.2", boundPort)),
             getByName("127.0.0.3"));
         assertThat("Publish port should be derived from unique port of bound addresses", publishPort, equalTo(boundPort));
 
         try {
-            resolvePublishPort(profile, Settings.EMPTY, Settings.EMPTY,
+            resolvePublishPort(new TcpTransport.ProfileSettings(baseSettings, profile),
                 asList(address("127.0.0.1", boundPort), address("127.0.0.2", otherBoundPort)),
                 getByName("127.0.0.3"));
             fail("Expected BindTransportException as publish_port not specified and non-unique port of bound addresses");
@@ -77,13 +82,13 @@ public class PublishPortTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("Failed to auto-resolve publish port"));
         }
 
-        publishPort = resolvePublishPort(profile, Settings.EMPTY, Settings.EMPTY,
+        publishPort = resolvePublishPort(new TcpTransport.ProfileSettings(baseSettings, profile),
             asList(address("0.0.0.0", boundPort), address("127.0.0.2", otherBoundPort)),
             getByName("127.0.0.1"));
         assertThat("Publish port should be derived from matching wildcard address", publishPort, equalTo(boundPort));
 
         if (NetworkUtils.SUPPORTS_V6) {
-            publishPort = resolvePublishPort(profile, Settings.EMPTY, Settings.EMPTY,
+            publishPort = resolvePublishPort(new TcpTransport.ProfileSettings(baseSettings, profile),
                 asList(address("0.0.0.0", boundPort), address("127.0.0.2", otherBoundPort)),
                 getByName("::1"));
             assertThat("Publish port should be derived from matching wildcard address", publishPort, equalTo(boundPort));

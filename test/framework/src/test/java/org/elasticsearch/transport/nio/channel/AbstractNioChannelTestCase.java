@@ -23,6 +23,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.TcpReadHandler;
 import org.junit.After;
 import org.junit.Before;
@@ -39,7 +40,8 @@ import static org.mockito.Mockito.mock;
 
 public abstract class AbstractNioChannelTestCase extends ESTestCase {
 
-    ChannelFactory channelFactory = new ChannelFactory(Settings.EMPTY, mock(TcpReadHandler.class));
+    ChannelFactory channelFactory = new ChannelFactory(new TcpTransport.ProfileSettings(Settings.EMPTY, "default"),
+        mock(TcpReadHandler.class));
     MockServerSocket mockServerSocket;
     private Thread serverThread;
 

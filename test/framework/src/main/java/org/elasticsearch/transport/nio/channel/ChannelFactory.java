@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport.nio.channel;
 
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.TcpReadHandler;
@@ -31,9 +29,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 
 public class ChannelFactory {
 
@@ -44,12 +39,12 @@ public class ChannelFactory {
     private final int tcpReceiveBufferSize;
     private final TcpReadHandler handler;
 
-    public ChannelFactory(Settings settings, TcpReadHandler handler) {
-        tcpNoDelay = TcpTransport.TCP_NO_DELAY.get(settings);
-        tcpKeepAlive = TcpTransport.TCP_KEEP_ALIVE.get(settings);
-        tcpReusedAddress = TcpTransport.TCP_REUSE_ADDRESS.get(settings);
-        tcpSendBufferSize = Math.toIntExact(TcpTransport.TCP_SEND_BUFFER_SIZE.get(settings).getBytes());
-        tcpReceiveBufferSize = Math.toIntExact(TcpTransport.TCP_RECEIVE_BUFFER_SIZE.get(settings).getBytes());
+    public ChannelFactory(TcpTransport.ProfileSettings profileSettings, TcpReadHandler handler) {
+        tcpNoDelay = profileSettings.tcpNoDelay;
+        tcpKeepAlive = profileSettings.tcpKeepAlive;
+        tcpReusedAddress = profileSettings.reuseAddress;
+        tcpSendBufferSize = Math.toIntExact(profileSettings.sendBufferSize.getBytes());
+        tcpReceiveBufferSize = Math.toIntExact(profileSettings.receiveBufferSize.getBytes());
         this.handler = handler;
     }
 
@@ -92,14 +87,6 @@ public class ChannelFactory {
         }
         if (tcpReceiveBufferSize > 0) {
             socket.setSendBufferSize(tcpReceiveBufferSize);
-        }
-    }
-
-    private static <T> T getSocketChannel(CheckedSupplier<T, IOException> supplier) throws IOException {
-        try {
-            return AccessController.doPrivileged((PrivilegedExceptionAction<T>) supplier::get);
-        } catch (PrivilegedActionException e) {
-            throw (IOException) e.getCause();
         }
     }
 }

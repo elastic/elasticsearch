@@ -126,7 +126,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      */
     public InnerHitBuilder(StreamInput in) throws IOException {
         name = in.readOptionalString();
-        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_5_0)) {
             in.readOptionalString();
             in.readOptionalString();
         }
@@ -156,7 +156,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             }
         }
         highlightBuilder = in.readOptionalWriteable(HighlightBuilder::new);
-        if (in.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().before(Version.V_5_5_0)) {
             /**
              * this is needed for BWC with nodes pre 5.5
              */
@@ -168,8 +168,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
-            throw new IOException("Invalid output version, must >= " + Version.V_5_5_0_UNRELEASED.toString());
+        if (out.getVersion().before(Version.V_5_5_0)) {
+            throw new IOException("Invalid output version, must >= " + Version.V_5_5_0.toString());
         }
         out.writeOptionalString(name);
         out.writeBoolean(ignoreUnmapped);
@@ -207,8 +207,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      * Should only be used to send nested inner hits to nodes pre 5.5.
      */
     protected void writeToNestedBWC(StreamOutput out, QueryBuilder query, String nestedPath) throws IOException {
-        assert out.getVersion().before(Version.V_5_5_0_UNRELEASED) :
-            "invalid output version, must be < " + Version.V_5_5_0_UNRELEASED.toString();
+        assert out.getVersion().before(Version.V_5_5_0) :
+            "invalid output version, must be < " + Version.V_5_5_0.toString();
         writeToBWC(out, query, nestedPath, null);
     }
 
@@ -217,8 +217,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      * Should only be used to send collapsing inner hits to nodes pre 5.5.
      */
     public void writeToCollapseBWC(StreamOutput out) throws IOException {
-        assert out.getVersion().before(Version.V_5_5_0_UNRELEASED) :
-            "invalid output version, must be < " + Version.V_5_5_0_UNRELEASED.toString();
+        assert out.getVersion().before(Version.V_5_5_0) :
+            "invalid output version, must be < " + Version.V_5_5_0.toString();
         writeToBWC(out, new MatchAllQueryBuilder(), null, null);
     }
 
@@ -227,8 +227,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      * Should only be used to send hasParent or hasChild inner hits to nodes pre 5.5.
      */
     public void writeToParentChildBWC(StreamOutput out, QueryBuilder query, String parentChildPath) throws IOException {
-        assert(out.getVersion().before(Version.V_5_5_0_UNRELEASED)) :
-            "invalid output version, must be < " + Version.V_5_5_0_UNRELEASED.toString();
+        assert(out.getVersion().before(Version.V_5_5_0)) :
+            "invalid output version, must be < " + Version.V_5_5_0.toString();
         writeToBWC(out, query, null, parentChildPath);
     }
 

@@ -127,7 +127,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         out.writeInt(maxChildren);
         out.writeVInt(scoreMode.ordinal());
         out.writeNamedWriteable(query);
-        if (out.getVersion().before(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_5_0)) {
             final boolean hasInnerHit = innerHitBuilder != null;
             out.writeBoolean(hasInnerHit);
             if (hasInnerHit) {

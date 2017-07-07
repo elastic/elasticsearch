@@ -141,7 +141,7 @@ public class ClusterBlock implements Streamable, ToXContent {
         retryable = in.readBoolean();
         disableStatePersistence = in.readBoolean();
         status = RestStatus.readFrom(in);
-        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
             allowReleaseResources = in.readBoolean();
         } else {
             allowReleaseResources = false;
@@ -159,7 +159,7 @@ public class ClusterBlock implements Streamable, ToXContent {
         out.writeBoolean(retryable);
         out.writeBoolean(disableStatePersistence);
         RestStatus.writeTo(out, status);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
             out.writeBoolean(allowReleaseResources);
         }
     }

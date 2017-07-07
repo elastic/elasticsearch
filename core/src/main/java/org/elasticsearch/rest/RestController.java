@@ -249,14 +249,14 @@ public class RestController extends AbstractComponent implements HttpServerTrans
             // Get the map of matching handlers for a request, for the full set of HTTP methods.
             final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(request);
             if (validMethodSet.size() > 0
-                && !validMethodSet.contains(request.method())
+                && validMethodSet.contains(request.method()) == false
                 && request.method() != RestRequest.Method.OPTIONS) {
                 // If an alternative handler for an explicit path is registered to a
                 // different HTTP method than the one supplied - return a 405 Method
                 // Not Allowed error.
                 handleUnsupportedHttpMethod(request, channel, validMethodSet);
                 requestHandled = true;
-            } else if (!validMethodSet.contains(request.method())
+            } else if (validMethodSet.contains(request.method() == false)
                 && request.method() == RestRequest.Method.OPTIONS) {
                 handleOptionsRequest(request, channel, validMethodSet);
                 requestHandled = true;

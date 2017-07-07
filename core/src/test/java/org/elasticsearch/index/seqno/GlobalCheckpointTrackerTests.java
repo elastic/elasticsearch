@@ -554,7 +554,8 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
 
         activatePrimary(clusterState, oldPrimary);
 
-        for (int i = 0; i < randomInt(10); i++) {
+        final int numUpdates = randomInt(10);
+        for (int i = 0; i < numUpdates; i++) {
             if (rarely()) {
                 clusterState = randomUpdateClusterState(clusterState);
                 clusterState.apply(oldPrimary);

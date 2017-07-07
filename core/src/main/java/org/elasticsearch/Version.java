@@ -308,8 +308,8 @@ public class Version implements Comparable<Version> {
         final int bwcMajor;
         final int bwcMinor;
         if (major == 6) { // we only specialize for current major here
-            bwcMajor = Version.V_5_4_0.major;
-            bwcMinor = Version.V_5_4_0.minor;
+            bwcMajor = Version.V_5_5_0.major;
+            bwcMinor = Version.V_5_5_0.minor;
         } else if (major > 6) { // all the future versions are compatible with first minor...
             bwcMajor = major -1;
             bwcMinor = 0;

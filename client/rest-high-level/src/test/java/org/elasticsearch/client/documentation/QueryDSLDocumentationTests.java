@@ -143,7 +143,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         FilterFunctionBuilder[] functions = {
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder(
                         matchQuery("name", "kimchy"),                // <1>
-                        randomFunction("ABCDEF")),                   // <2>
+                        randomFunction()),                           // <2>
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder(
                         exponentialDecayFunction("age", 0L, 1L))     // <3>
         };

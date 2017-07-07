@@ -318,7 +318,7 @@ public class QueryShardContext extends QueryRewriteContext {
         }
     }
 
-    public final Index index() {
+    public Index index() {
         return indexSettings.getIndex();
     }
 

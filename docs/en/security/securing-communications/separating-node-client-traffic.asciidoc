@@ -13,7 +13,7 @@ to `elasticsearch.yml`:
 --------------------------------------------------
 transport.profiles.client: <1>
   port: 9500-9600 <2>
-  shield:
+  xpack.security:
     type: client <3>
 --------------------------------------------------
 <1> `client` is the name of this example profile

@@ -256,8 +256,8 @@ public class RestController extends AbstractComponent implements HttpServerTrans
                 // Not Allowed error.
                 handleUnsupportedHttpMethod(request, channel, validMethodSet);
                 requestHandled = true;
-            } else if (validMethodSet.contains(request.method() == false)
-                && request.method() == RestRequest.Method.OPTIONS) {
+            } else if (validMethodSet.contains(request.method()) == false
+                && (request.method() == RestRequest.Method.OPTIONS)) {
                 handleOptionsRequest(request, channel, validMethodSet);
                 requestHandled = true;
             } else {

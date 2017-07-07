@@ -38,11 +38,11 @@ file or updated dynamically on a live cluster with the
     once there is enough disk space available to allow indexing operations to
     continue.
 
-NOTE: You can not mix the usage of percentage values and byte values within these
-settings. Either all are set to percentage values, or all are set to byte
-values. This is so that we can we validate that the settings do not violate each
-other (for example, we can validate that the low threshold is not more than the
-high threshold, and that the high threshold is not more than the flood stage
+NOTE: You can not mix the usage of percentage values and byte values within
+these settings. Either all are set to percentage values, or all are set to byte
+values. This is so that we can we validate that the settings are internally
+consistent (that is, the low disk threshold is not more than the high disk
+threshold, and the high disk threshold is not more than the flood stage
 threshold).
 
 An example of resetting the read-only index block on the `twitter` index:

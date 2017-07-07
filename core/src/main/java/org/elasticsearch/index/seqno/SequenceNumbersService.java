@@ -21,7 +21,6 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Set;
@@ -40,6 +39,11 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * Represents no operations have been performed on the shard.
      */
     public static final long NO_OPS_PERFORMED = -1L;
+
+    /**
+     * Represents a local checkpoint coming from a pre-6.0 node
+     */
+    public static final long PRE_60_NODE_LOCAL_CHECKPOINT = -3L;
 
     private final LocalCheckpointTracker localCheckpointTracker;
     private final GlobalCheckpointTracker globalCheckpointTracker;
@@ -136,6 +140,16 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Called when the recovery process for a shard is ready to open the engine on the target shard.
+     * See {@link GlobalCheckpointTracker#initiateTracking(String)} for details.
+     *
+     * @param allocationId  the allocation ID of the shard for which recovery was initiated
+     */
+    public void initiateTracking(final String allocationId) {
+        globalCheckpointTracker.initiateTracking(allocationId);
+    }
+
+    /**
      * Marks the shard with the provided allocation ID as in-sync with the primary shard. See
      * {@link GlobalCheckpointTracker#markAllocationIdAsInSync(String, long)} for additional details.
      *
@@ -174,25 +188,44 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
-     * Notifies the service of the current allocation IDs in the cluster state. See
-     * {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(long, Set, Set)} for details.
-     *
-     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
-     * @param activeAllocationIds         the allocation IDs of the currently active shard copies
-     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
+     * Returns the local checkpoint information tracked for a specific shard. Used by tests.
      */
-    public void updateAllocationIdsFromMaster(
-            final long applyingClusterStateVersion, final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
-        globalCheckpointTracker.updateAllocationIdsFromMaster(applyingClusterStateVersion, activeAllocationIds, initializingAllocationIds);
+    public synchronized long getTrackedLocalCheckpointForShard(final String allocationId) {
+        return globalCheckpointTracker.getTrackedLocalCheckpointForShard(allocationId).getLocalCheckpoint();
     }
 
     /**
-     * Updates the known allocation IDs and the local checkpoints for the corresponding allocations from a primary relocation source.
-     *
-     * @param primaryContext the sequence number context
+     * Activates the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
+     * Called on primary activation or promotion.
      */
-    public void updateAllocationIdsFromPrimaryContext(final PrimaryContext primaryContext) {
-        globalCheckpointTracker.updateAllocationIdsFromPrimaryContext(primaryContext);
+    public void activatePrimaryMode(final String allocationId, final long localCheckpoint) {
+        globalCheckpointTracker.activatePrimaryMode(allocationId, localCheckpoint);
+    }
+
+    /**
+     * Notifies the service of the current allocation IDs in the cluster state. See
+     * {@link GlobalCheckpointTracker#updateFromMaster(long, Set, Set, Set)} for details.
+     *
+     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
+     * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
+     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
+     * @param pre60AllocationIds          the allocation IDs of shards that are allocated to pre-6.0 nodes
+     */
+    public void updateAllocationIdsFromMaster(
+            final long applyingClusterStateVersion, final Set<String> inSyncAllocationIds, final Set<String> initializingAllocationIds,
+            final Set<String> pre60AllocationIds) {
+        globalCheckpointTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds,
+            pre60AllocationIds);
+    }
+
+    /**
+     * Activates the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
+     * Called on primary relocation target during primary relocation handoff.
+     *
+     * @param primaryContext the primary context used to initialize the state
+     */
+    public void activateWithPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
+        globalCheckpointTracker.activateWithPrimaryContext(primaryContext);
     }
 
     /**
@@ -209,15 +242,22 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      *
      * @return the primary context
      */
-    public PrimaryContext primaryContext() {
-        return globalCheckpointTracker.primaryContext();
+    public GlobalCheckpointTracker.PrimaryContext startRelocationHandoff() {
+        return globalCheckpointTracker.startRelocationHandoff();
     }
 
     /**
-     * Releases a previously acquired primary context.
+     * Marks a relocation handoff attempt as successful. Moves the tracker into replica mode.
      */
-    public void releasePrimaryContext() {
-        globalCheckpointTracker.releasePrimaryContext();
+    public void completeRelocationHandoff() {
+        globalCheckpointTracker.completeRelocationHandoff();
+    }
+
+    /**
+     * Fails a relocation handoff attempt.
+     */
+    public void abortRelocationHandoff() {
+        globalCheckpointTracker.abortRelocationHandoff();
     }
 
 }

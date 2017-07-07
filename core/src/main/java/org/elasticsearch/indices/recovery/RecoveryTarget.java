@@ -380,7 +380,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     @Override
     public void handoffPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
-        indexShard.initializeWithPrimaryContext(primaryContext);
+        indexShard.activateWithPrimaryContext(primaryContext);
     }
 
     @Override

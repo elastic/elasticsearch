@@ -381,9 +381,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     + currentRouting + ", new " + newRouting);
             }
 
-            final Engine engine = getEngineOrNull();
-            if (engine != null) {
-                engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds, pre60AllocationIds);
+            if (newRouting.primary()) {
+                final Engine engine = getEngineOrNull();
+                if (engine != null) {
+                    engine.seqNoService().updateAllocationIdsFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds, pre60AllocationIds);
+                }
             }
 
             if (state == IndexShardState.POST_RECOVERY && newRouting.active()) {
@@ -399,7 +401,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     final DiscoveryNode recoverySourceNode = recoveryState.getSourceNode();
                     if (currentRouting.isRelocationTarget() == false || recoverySourceNode.getVersion().before(Version.V_6_0_0_alpha1)) {
                         // there was no primary context hand-off in < 6.0.0, need to manually activate the shard
-                        getEngine().seqNoService().initializeAsPrimary(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
+                        getEngine().seqNoService().activatePrimaryMode(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
                     }
                 }
 
@@ -418,8 +420,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             persistMetadata(path, indexSettings, newRouting, currentRouting, logger);
 
             if (shardRouting.primary()) {
-                assert Thread.holdsLock(mutex);
-                assert shardRouting.primary() : "primary term can only be explicitly updated on a primary shard";
                 if (newPrimaryTerm != primaryTerm) {
                     assert currentRouting.primary() == false : "term is only increased as part of primary promotion";
                     /* Note that due to cluster state batching an initializing primary shard term can failed and re-assigned
@@ -487,7 +487,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             }
                         },
                         e -> failShard("exception during primary term transition", e));
-                    getEngine().seqNoService().initializeAsPrimary(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
+                    getEngine().seqNoService().activatePrimaryMode(currentRouting.allocationId().getId(), getEngine().seqNoService().getLocalCheckpoint());
                     primaryTerm = newPrimaryTerm;
                     latch.countDown();
                 }
@@ -1719,13 +1719,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      *
      * @param primaryContext the sequence number context
      */
-    public void initializeWithPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
+    public void activateWithPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
         verifyPrimary();
         assert shardRouting.isRelocationTarget() : "only relocation target can update allocation IDs from primary context: " + shardRouting;
         assert primaryContext.getLocalCheckpoints().containsKey(routingEntry().allocationId().getId()) &&
             getEngine().seqNoService().getLocalCheckpoint() ==
                 primaryContext.getLocalCheckpoints().get(routingEntry().allocationId().getId()).getLocalCheckPoint();
-        getEngine().seqNoService().initializeWithPrimaryContext(primaryContext);
+        getEngine().seqNoService().activateWithPrimaryContext(primaryContext);
     }
 
     /**

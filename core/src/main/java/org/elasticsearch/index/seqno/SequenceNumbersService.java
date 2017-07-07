@@ -186,11 +186,11 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
-     * Initializes the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
+     * Activates the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
      * Called on primary activation or promotion.
      */
-    public void initializeAsPrimary(final String allocationId, final long localCheckpoint) {
-        globalCheckpointTracker.initializeAsPrimary(allocationId, localCheckpoint);
+    public void activatePrimaryMode(final String allocationId, final long localCheckpoint) {
+        globalCheckpointTracker.activatePrimaryMode(allocationId, localCheckpoint);
     }
 
     /**
@@ -210,13 +210,13 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
-     * Initializes the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
+     * Activates the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
      * Called on primary relocation target during primary relocation handoff.
      *
      * @param primaryContext the primary context used to initialize the state
      */
-    public void initializeWithPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
-        globalCheckpointTracker.initializeWithPrimaryContext(primaryContext);
+    public void activateWithPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
+        globalCheckpointTracker.activateWithPrimaryContext(primaryContext);
     }
 
     /**

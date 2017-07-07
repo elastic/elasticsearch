@@ -46,7 +46,7 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
     private static final Map<String, List<? extends ToXContent>> contextMap = new HashMap<>();
     private static String categoryContextName;
     private static String geoQueryContextName;
-    private static List<ContextMapping> contextMappings;
+    private static List<ContextMapping> contextMappings = new ArrayList<>();
 
     @Override
     protected CompletionSuggestionBuilder randomSuggestionBuilder() {
@@ -65,6 +65,18 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         if (contextMappings == null) {
             contextMappings = Arrays.asList(new ContextMapping[] { ContextBuilder.category(categoryContextName).build(),
                     ContextBuilder.geo(geoQueryContextName).build() });
+        }
+        // lazy initialization of context names and mappings, cannot be done in some init method because other test
+        // also create random CompletionSuggestionBuilder instances
+        if (categoryContextName == null) {
+            categoryContextName = randomAlphaOfLength(10);
+        }
+        if (geoQueryContextName == null) {
+            geoQueryContextName = randomAlphaOfLength(10);
+        }
+        if (contextMappings.isEmpty()) {
+            contextMappings.add(ContextBuilder.category(categoryContextName).build());
+            contextMappings.add(ContextBuilder.geo(geoQueryContextName).build());
         }
         CompletionSuggestionBuilder testBuilder = new CompletionSuggestionBuilder(randomAlphaOfLengthBetween(2, 20));
         setCommonPropertiesOnRandomBuilder(testBuilder);

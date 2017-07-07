@@ -38,10 +38,10 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.test.ESTestCase;
@@ -175,7 +175,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             when(mapperService.fullName(any(String.class))).thenReturn(fieldType);
             when(mapperService.getNamedAnalyzer(any(String.class))).then(
                     invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
-            when(scriptService.compile(any(Script.class), any())).thenReturn(mock(TemplateScript.Factory.class));
+            when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
+                    ((Script) invocation.getArguments()[0]).getIdOrCode()));
             QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, mapperService, null, scriptService,
                     xContentRegistry(), null, null, System::currentTimeMillis);
 

@@ -312,6 +312,13 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     }
 
     /**
+     * get the candidate generators.
+     */
+    Map<String, List<CandidateGenerator>> getCandidateGenerators() {
+        return this.generators;
+    }
+
+    /**
      * If set to <code>true</code> the phrase suggester will fail if the analyzer only
      * produces ngrams. the default it <code>true</code>.
      */
@@ -607,7 +614,6 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         suggestionContext.setRealWordErrorLikelihood(this.realWordErrorLikelihood);
         suggestionContext.setConfidence(this.confidence);
         suggestionContext.setMaxErrors(this.maxErrors);
-        suggestionContext.setSeparator(BytesRefs.toBytesRef(this.separator));
         suggestionContext.setRequireUnigram(this.forceUnigrams);
         suggestionContext.setTokenLimit(this.tokenLimit);
         suggestionContext.setPreTag(BytesRefs.toBytesRef(this.preTag));

@@ -101,7 +101,7 @@ if (enabled) {
     onlyIf { project.gradle.startParameter.isOffline() == false }
     dependsOn addUpstream
     workingDir = checkoutDir
-    commandLine = ['git', 'fetch']
+    commandLine = ['git', 'fetch', '--all']
   }
 
   // this is an Exec task so that the SHA that is checked out is logged

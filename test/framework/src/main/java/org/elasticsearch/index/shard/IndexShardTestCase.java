@@ -76,6 +76,7 @@ import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -84,6 +85,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
@@ -110,11 +112,13 @@ public abstract class IndexShardTestCase extends ESTestCase {
     };
 
     protected ThreadPool threadPool;
+    private long primaryTerm;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool(getClass().getName());
+        primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
     }
 
     @Override
@@ -164,7 +168,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             .build();
         IndexMetaData.Builder metaData = IndexMetaData.builder(shardRouting.getIndexName())
             .settings(settings)
-            .primaryTerm(0, randomIntBetween(1, 100));
+            .primaryTerm(0, primaryTerm);
         return newShard(shardRouting, metaData.build(), listeners);
     }
 
@@ -360,8 +364,15 @@ public abstract class IndexShardTestCase extends ESTestCase {
         updateRoutingEntry(primary, ShardRoutingHelper.moveToStarted(primary.routingEntry()));
     }
 
+    protected static AtomicLong currentClusterStateVersion = new AtomicLong();
+
     public static void updateRoutingEntry(IndexShard shard, ShardRouting shardRouting) throws IOException {
-        shard.updateShardState(shardRouting, shard.getPrimaryTerm(), null, 0L, Collections.emptySet(), Collections.emptySet());
+        Set<String> inSyncIds =
+            shardRouting.active() ? Collections.singleton(shardRouting.allocationId().getId()) : Collections.emptySet();
+        Set<String> initializingIds =
+            shardRouting.initializing() ? Collections.singleton(shardRouting.allocationId().getId()) : Collections.emptySet();
+        shard.updateShardState(shardRouting, shard.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
+            inSyncIds, initializingIds, Collections.emptySet());
     }
 
     protected void recoveryEmptyReplica(IndexShard replica) throws IOException {
@@ -387,6 +398,16 @@ public abstract class IndexShardTestCase extends ESTestCase {
             true);
     }
 
+    /** recovers a replica from the given primary **/
+    protected void recoverReplica(final IndexShard replica,
+                                  final IndexShard primary,
+                                  final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
+                                  final boolean markAsRecovering) throws IOException {
+        recoverReplica(replica, primary, targetSupplier, markAsRecovering,
+            Collections.singleton(primary.routingEntry().allocationId().getId()),
+            Collections.singleton(replica.routingEntry().allocationId().getId()));
+    }
+
     /**
      * Recovers a replica from the give primary, allow the user to supply a custom recovery target. A typical usage of a custom recovery
      * target is to assert things in the various stages of recovery.
@@ -398,7 +419,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected final void recoverReplica(final IndexShard replica,
                                         final IndexShard primary,
                                         final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
-                                        final boolean markAsRecovering) throws IOException {
+                                        final boolean markAsRecovering,
+                                        final Set<String> inSyncIds,
+                                        final Set<String> initializingIds) throws IOException {
         final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
         if (markAsRecovering) {
@@ -419,7 +442,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
 
         final StartRecoveryRequest request = new StartRecoveryRequest(replica.shardId(), targetAllocationId,
-            pNode, rNode, snapshot, false, 0, startingSeqNo);
+            pNode, rNode, snapshot, replica.routingEntry().primary(), 0, startingSeqNo);
         final RecoverySourceHandler recovery = new RecoverySourceHandler(
             primary,
             recoveryTarget,
@@ -428,9 +451,19 @@ public abstract class IndexShardTestCase extends ESTestCase {
             e -> () -> {},
             (int) ByteSizeUnit.MB.toBytes(1),
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), pNode.getName()).build());
+        primary.updateShardState(primary.routingEntry(), primary.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
+            inSyncIds, initializingIds, Collections.emptySet());
         recovery.recoverToTarget();
         recoveryTarget.markAsDone();
-        updateRoutingEntry(replica, ShardRoutingHelper.moveToStarted(replica.routingEntry()));
+        Set<String> initializingIdsWithoutReplica = new HashSet<>(initializingIds);
+        initializingIdsWithoutReplica.remove(replica.routingEntry().allocationId().getId());
+        Set<String> inSyncIdsWithReplica = new HashSet<>(inSyncIds);
+        inSyncIdsWithReplica.add(replica.routingEntry().allocationId().getId());
+        // update both primary and replica shard state
+        primary.updateShardState(primary.routingEntry(), primary.getPrimaryTerm(), null, currentClusterStateVersion.incrementAndGet(),
+            inSyncIdsWithReplica, initializingIdsWithoutReplica, Collections.emptySet());
+        replica.updateShardState(replica.routingEntry().moveToStarted(), replica.getPrimaryTerm(), null,
+            currentClusterStateVersion.get(), inSyncIdsWithReplica, initializingIdsWithoutReplica, Collections.emptySet());
     }
 
     private Store.MetadataSnapshot getMetadataSnapshotOrEmpty(IndexShard replica) throws IOException {
@@ -528,5 +561,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
 
     protected void flushShard(IndexShard shard, boolean force) {
         shard.flush(new FlushRequest(shard.shardId().getIndexName()).force(force));
+    }
+
+    /**
+     * Helper method to access (package-protected) engine from tests
+     */
+    public static Engine getEngine(IndexShard indexShard) {
+        return indexShard.getEngine();
     }
 }

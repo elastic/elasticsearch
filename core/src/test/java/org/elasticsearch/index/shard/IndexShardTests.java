@@ -347,7 +347,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         ShardRoutingState.STARTED,
                         replicaRouting.allocationId());
         indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-            0L, Collections.emptySet(), Collections.emptySet());
+            0L, Collections.singleton(primaryRouting.allocationId().getId()), Collections.emptySet(), Collections.emptySet());
 
         final int delayedOperations = scaledRandomIntBetween(1, 64);
         final CyclicBarrier delayedOperationsBarrier = new CyclicBarrier(1 + delayedOperations);
@@ -422,7 +422,7 @@ public class IndexShardTests extends IndexShardTestCase {
                         ShardRoutingState.STARTED,
                         replicaRouting.allocationId());
         indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-            0L, Collections.emptySet(), Collections.emptySet());
+            0L, Collections.singleton(primaryRouting.allocationId().getId()), Collections.emptySet(), Collections.emptySet());
 
         /*
          * This operation completing means that the delay operation executed as part of increasing the primary term has completed and the
@@ -463,8 +463,8 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRouting replicaRouting = indexShard.routingEntry();
             ShardRouting primaryRouting = TestShardRouting.newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
                 true, ShardRoutingState.STARTED, replicaRouting.allocationId());
-            indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {},
-                0L, Collections.emptySet(), Collections.emptySet());
+            indexShard.updateShardState(primaryRouting, indexShard.getPrimaryTerm() + 1, (shard, listener) -> {}, 0L,
+                Collections.singleton(indexShard.routingEntry().allocationId().getId()), Collections.emptySet(), Collections.emptySet());
         } else {
             indexShard = newStartedShard(true);
         }
@@ -598,11 +598,11 @@ public class IndexShardTests extends IndexShardTestCase {
             final long newPrimaryTerm = primaryTerm + 1 + randomInt(20);
             if (engineClosed == false) {
                 assertThat(indexShard.getLocalCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-                assertThat(indexShard.getGlobalCheckpoint(), equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO));
+                assertThat(indexShard.getGlobalCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
             }
             final long newGlobalCheckPoint;
             if (engineClosed || randomBoolean()) {
-                newGlobalCheckPoint = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+                newGlobalCheckPoint = SequenceNumbersService.NO_OPS_PERFORMED;
             } else {
                 long localCheckPoint = indexShard.getGlobalCheckpoint() + randomInt(100);
                 // advance local checkpoint
@@ -1267,7 +1267,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/25419")
     public void testRelocatedShardCanNotBeRevivedConcurrently() throws IOException, InterruptedException, BrokenBarrierException {
         final IndexShard shard = newStartedShard(true);
         final ShardRouting originalRouting = shard.routingEntry();
@@ -1321,8 +1320,11 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRecoverFromStore() throws IOException {
         final IndexShard shard = newStartedShard(true);
-        int translogOps = 1;
-        indexDoc(shard, "test", "0");
+        int totalOps = randomInt(10);
+        int translogOps = totalOps;
+        for (int i = 0; i < totalOps; i++) {
+            indexDoc(shard, "test", Integer.toString(i));
+        }
         if (randomBoolean()) {
             flushShard(shard);
             translogOps = 0;
@@ -1336,8 +1338,31 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
         assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
         IndexShardTestCase.updateRoutingEntry(newShard, newShard.routingEntry().moveToStarted());
-        assertDocCount(newShard, 1);
+        // check that local checkpoint of new primary is properly tracked after recovery
+        assertThat(newShard.getLocalCheckpoint(), equalTo(totalOps - 1L));
+        assertThat(IndexShardTestCase.getEngine(newShard).seqNoService()
+            .getTrackedLocalCheckpointForShard(newShard.routingEntry().allocationId().getId()), equalTo(totalOps - 1L));
+        assertDocCount(newShard, totalOps);
         closeShards(newShard);
+    }
+
+    public void testPrimaryHandOffUpdatesLocalCheckpoint() throws IOException {
+        final IndexShard primarySource = newStartedShard(true);
+        int totalOps = randomInt(10);
+        for (int i = 0; i < totalOps; i++) {
+            indexDoc(primarySource, "test", Integer.toString(i));
+        }
+        IndexShardTestCase.updateRoutingEntry(primarySource, primarySource.routingEntry().relocate("n2", -1));
+        final IndexShard primaryTarget = newShard(primarySource.routingEntry().getTargetRelocatingShard());
+        updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetaData());
+        recoverReplica(primaryTarget, primarySource);
+
+        // check that local checkpoint of new primary is properly tracked after primary relocation
+        assertThat(primaryTarget.getLocalCheckpoint(), equalTo(totalOps - 1L));
+        assertThat(IndexShardTestCase.getEngine(primaryTarget).seqNoService()
+            .getTrackedLocalCheckpointForShard(primaryTarget.routingEntry().allocationId().getId()), equalTo(totalOps - 1L));
+        assertDocCount(primaryTarget, totalOps);
+        closeShards(primarySource, primaryTarget);
     }
 
     /* This test just verifies that we fill up local checkpoint up to max seen seqID on primary recovery */
@@ -1888,6 +1913,10 @@ public class IndexShardTests extends IndexShardTestCase {
                 }
             }
             IndexShardTestCase.updateRoutingEntry(targetShard, ShardRoutingHelper.moveToStarted(targetShard.routingEntry()));
+            // check that local checkpoint of new primary is properly tracked after recovery
+            assertThat(targetShard.getLocalCheckpoint(), equalTo(1L));
+            assertThat(IndexShardTestCase.getEngine(targetShard).seqNoService()
+                .getTrackedLocalCheckpointForShard(targetShard.routingEntry().allocationId().getId()), equalTo(1L));
             assertDocCount(targetShard, 2);
         }
         // now check that it's persistent ie. that the added shards are committed

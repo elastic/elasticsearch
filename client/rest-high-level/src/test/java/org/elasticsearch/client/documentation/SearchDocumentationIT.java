@@ -36,10 +36,11 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -78,31 +79,37 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             assertFalse(bulkResponse.hasFailures());
         }
         {
-            // tag::search-scroll-example
-            final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L)); // <1>
+            int size = 1;
+            // tag::search-scroll-init
+            SearchRequest searchRequest = new SearchRequest("posts");
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.query(matchQuery("title", "Elasticsearch"));
+            searchSourceBuilder.size(size); // <1>
+            searchRequest.source(searchSourceBuilder);
+            searchRequest.scroll(TimeValue.timeValueMinutes(1L)); // <2>
+            SearchResponse searchResponse = client.search(searchRequest);
+            String scrollId = searchResponse.getScrollId(); // <3>
+            SearchHits hits = searchResponse.getHits();  // <4>
+            // end::search-scroll-init
+            assertEquals(3, hits.getTotalHits());
+            assertEquals(1, hits.getHits().length);
+            assertNotNull(scrollId);
 
-            SearchRequest searchRequest = new SearchRequest("posts"); // <2>
-            searchRequest.source(new SearchSourceBuilder().query(matchQuery("title", "Elasticsearch")));
-            searchRequest.scroll(scroll); // <3>
+            // tag::search-scroll2
+            SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId); // <1>
+            scrollRequest.scroll(TimeValue.timeValueSeconds(30));
+            SearchResponse searchScrollResponse = client.searchScroll(scrollRequest);
+            scrollId = searchScrollResponse.getScrollId();  // <2>
+            hits = searchScrollResponse.getHits(); // <3>
+            assertEquals(3, hits.getTotalHits());
+            assertEquals(1, hits.getHits().length);
+            assertNotNull(scrollId);
+            // end::search-scroll2
 
-            SearchResponse searchResponse = client.search(searchRequest); // <4>
-            String scrollId = searchResponse.getScrollId(); // <5>
-
-            SearchHit[] searchHits = searchResponse.getHits().getHits(); // <6>
-            while (searchHits != null && searchHits.length > 0) { // <7>
-                SearchScrollRequest scrollRequest = new SearchScrollRequest() // <8>
-                        .scroll(scroll) // <9>
-                        .scrollId(scrollId);  // <10>
-
-                searchResponse = client.searchScroll(scrollRequest); // <11>
-                scrollId = searchResponse.getScrollId();  // <12>
-                searchHits = searchResponse.getHits().getHits(); // <13>
-            }
-
-            ClearScrollRequest clearScrollRequest = new ClearScrollRequest(); // <14>
+            ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
             clearScrollRequest.addScrollId(scrollId);
-            client.clearScroll(clearScrollRequest);
-            // end::search-scroll-example
+            ClearScrollResponse clearScrollResponse = client.clearScroll(clearScrollRequest);
+            assertTrue(clearScrollResponse.isSucceeded());
         }
         {
             SearchRequest searchRequest = new SearchRequest();
@@ -114,10 +121,10 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             SearchScrollRequest scrollRequest = new SearchScrollRequest();
             scrollRequest.scrollId(scrollId);
 
-            // tag::scroll-request-scroll
+            // tag::scroll-request-arguments
             scrollRequest.scroll(TimeValue.timeValueSeconds(60L)); // <1>
             scrollRequest.scroll("60s"); // <2>
-            // end::scroll-request-scroll
+            // end::scroll-request-arguments
 
             // tag::search-scroll-execute-sync
             SearchResponse searchResponse = client.searchScroll(scrollRequest);
@@ -149,7 +156,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             request.addScrollId(scrollId);
             // end::clear-scroll-add-scroll-id
 
-            List<String> scrollIds = Arrays.asList(scrollId);
+            List<String> scrollIds = Collections.singletonList(scrollId);
 
             // tag::clear-scroll-add-scroll-ids
             request.setScrollIds(scrollIds);
@@ -179,6 +186,35 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 }
             });
             // end::clear-scroll-execute-async
+        }
+        {
+            // tag::search-scroll-example
+            final Scroll scroll = new Scroll(TimeValue.timeValueMinutes(1L));
+            SearchRequest searchRequest = new SearchRequest("posts");
+            searchRequest.scroll(scroll);
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.query(matchQuery("title", "Elasticsearch"));
+            searchRequest.source(searchSourceBuilder);
+
+            SearchResponse searchResponse = client.search(searchRequest); // <1>
+            String scrollId = searchResponse.getScrollId();
+            SearchHit[] searchHits = searchResponse.getHits().getHits();
+
+            while (searchHits != null && searchHits.length > 0) { // <2>
+                SearchScrollRequest scrollRequest = new SearchScrollRequest(scrollId); // <3>
+                scrollRequest.scroll(scroll);
+                searchResponse = client.searchScroll(scrollRequest);
+                scrollId = searchResponse.getScrollId();
+                searchHits = searchResponse.getHits().getHits();
+                // <4>
+            }
+
+            ClearScrollRequest clearScrollRequest = new ClearScrollRequest(); // <5>
+            clearScrollRequest.addScrollId(scrollId);
+            ClearScrollResponse clearScrollResponse = client.clearScroll(clearScrollRequest);
+            boolean succeeded = clearScrollResponse.isSucceeded();
+            // end::search-scroll-example
+            assertTrue(succeeded);
         }
     }
 }

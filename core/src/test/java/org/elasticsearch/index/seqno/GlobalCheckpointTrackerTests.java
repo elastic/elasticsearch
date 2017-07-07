@@ -664,7 +664,7 @@ public class GlobalCheckpointTrackerTests extends ESTestCase {
         final Set<String> inSyncIds;
         final Set<String> initializingIds;
 
-        public FakeClusterState(long version, Set<String> inSyncIds, Set<String> initializingIds) {
+        private FakeClusterState(long version, Set<String> inSyncIds, Set<String> initializingIds) {
             this.version = version;
             this.inSyncIds = Collections.unmodifiableSet(inSyncIds);
             this.initializingIds = Collections.unmodifiableSet(initializingIds);

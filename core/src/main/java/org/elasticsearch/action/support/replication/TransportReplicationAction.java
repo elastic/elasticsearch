@@ -295,10 +295,15 @@ public abstract class TransportReplicationAction<
                     assert primary.relocating() : "indexShard is marked as relocated but routing isn't" + primary;
                     DiscoveryNode relocatingNode = clusterService.state().nodes().get(primary.relocatingNodeId());
                     if (relocatingNode != null && relocatingNode.getVersion().major > Version.CURRENT.major) {
-                        // ES 6.x requires a primary context hand-off during primary relocation which is not implemented on ES 5.x.
-                        // As a fallback, ES 6.x detects that the primary is relocating from a 5.x node, and initializes the primary
-                        // context by itself on activation of the relocation target. This means, however, that requests cannot be handled
-                        // as long as the relocation target shard has not been activated.
+                        // ES 6.x requires a primary context hand-off during primary relocation which is not implemented on ES 5.x,
+                        // otherwise it might not be aware of a replica that finished recovery and became activated on the master before
+                        // the new primary became in charge of replicating operations, as the cluster state with that in-sync information
+                        // might not be applied yet on the primary relocation target before it would be in charge of replicating operations.
+                        // This would mean that the new primary could advance the global checkpoint too quickly, not taking into account
+                        // the newly in-sync replica.
+                        // ES 6.x detects that the primary is relocating from a 5.x node, and activates the primary mode of the global
+                        // checkpoint tracker only after activation of the relocation target, which means, however, that requests cannot
+                        // be handled as long as the relocation target shard has not been activated.
                         throw new ReplicationOperation.RetryOnPrimaryException(request.shardId(),
                             "waiting for 6.x primary to be activated");
                     }

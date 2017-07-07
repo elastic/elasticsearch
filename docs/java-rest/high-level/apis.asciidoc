@@ -12,6 +12,6 @@ The Java High Level REST Client supports the following APIs:
 * <<java-rest-high-document-bulk>>
 
 .Search APIs
-* Search API
-* Search Scroll API
-* Clear Scroll API
+* <<java-rest-high-search>>
+* <<java-rest-high-search-scroll>>
+* <<java-rest-high-clear-scroll>>

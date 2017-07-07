@@ -50,8 +50,8 @@
   - match: { items.0.index.status: 400 }
   - match: { items.0.index.error.type: illegal_argument_exception }
   - match: { items.0.index.error.reason: if _id is specified it must not be empty }
-  - match: { items.1.index.created: true }
-  - match: { items.2.index.created: true }
+  - match: { items.1.index.result: created }
+  - match: { items.2.index.result: created }
 
   - do:
       count:

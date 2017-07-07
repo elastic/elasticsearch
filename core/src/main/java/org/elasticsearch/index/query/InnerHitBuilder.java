@@ -64,12 +64,6 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         PARSER.declareBoolean(InnerHitBuilder::setVersion, SearchSourceBuilder.VERSION_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setTrackScores, SearchSourceBuilder.TRACK_SCORES_FIELD);
         PARSER.declareStringArray(InnerHitBuilder::setStoredFieldNames, SearchSourceBuilder.STORED_FIELDS_FIELD);
-        PARSER.declareField((p, i, c) -> {
-            throw new ParsingException(p.getTokenLocation(), "The field [" +
-                SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
-                SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
-                "if the field is not stored");
-        }, SearchSourceBuilder.FIELDS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareStringArray(InnerHitBuilder::setDocValueFields, SearchSourceBuilder.DOCVALUE_FIELDS_FIELD);
         PARSER.declareField((p, i, c) -> {
             try {
@@ -394,41 +388,6 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
 
     /**
      * Gets the docvalue fields.
-     *
-     * @deprecated Use {@link InnerHitBuilder#getDocValueFields()} instead.
-     */
-    @Deprecated
-    public List<String> getFieldDataFields() {
-        return docValueFields;
-    }
-
-    /**
-     * Sets the stored fields to load from the docvalue and return.
-     *
-     * @deprecated Use {@link InnerHitBuilder#setDocValueFields(List)} instead.
-     */
-    @Deprecated
-    public InnerHitBuilder setFieldDataFields(List<String> fieldDataFields) {
-        this.docValueFields = fieldDataFields;
-        return this;
-    }
-
-    /**
-     * Adds a field to load from the docvalue and return.
-     *
-     * @deprecated Use {@link InnerHitBuilder#addDocValueField(String)} instead.
-     */
-    @Deprecated
-    public InnerHitBuilder addFieldDataField(String field) {
-        if (docValueFields == null) {
-            docValueFields = new ArrayList<>();
-        }
-        docValueFields.add(field);
-        return this;
-    }
-
-    /**
-     * Gets the docvalue fields.
      */
     public List<String> getDocValueFields() {
         return docValueFields;
@@ -529,8 +488,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
         if (docValueFields != null) {
             builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
-            for (String fieldDataField : docValueFields) {
-                builder.value(fieldDataField);
+            for (String docValueField : docValueFields) {
+                builder.value(docValueField);
             }
             builder.endArray();
         }

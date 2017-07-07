@@ -386,7 +386,6 @@ And the response:
     "successful" : 1,
     "failed" : 0
   },
-  "created" : true,
   "_seq_no" : 0,
   "_primary_term" : 1
 }

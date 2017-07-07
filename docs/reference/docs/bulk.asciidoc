@@ -102,7 +102,6 @@ The result of this bulk operation is:
                "successful": 1,
                "failed": 0
             },
-            "created": true,
             "status": 201,
             "_seq_no" : 0,
             "_primary_term": 1
@@ -110,7 +109,6 @@ The result of this bulk operation is:
       },
       {
          "delete": {
-            "found": false,
             "_index": "test",
             "_type": "type1",
             "_id": "2",
@@ -138,7 +136,6 @@ The result of this bulk operation is:
                "successful": 1,
                "failed": 0
             },
-            "created": true,
             "status": 201,
             "_seq_no" : 2,
             "_primary_term" : 3

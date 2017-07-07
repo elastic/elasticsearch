@@ -23,7 +23,6 @@ The result of the above delete operation is:
         "failed" : 0,
         "successful" : 2
     },
-    "found" : true,
     "_index" : "twitter",
     "_type" : "tweet",
     "_id" : "1",

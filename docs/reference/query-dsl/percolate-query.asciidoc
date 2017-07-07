@@ -172,7 +172,6 @@ Index response:
     "successful": 1,
     "failed": 0
   },
-  "created": true,
   "result": "created",
   "_seq_no" : 0,
   "_primary_term" : 1

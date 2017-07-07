@@ -19,7 +19,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.shard.PrimaryContext;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -55,7 +55,7 @@ public interface RecoveryTargetHandler {
      *
      * @param primaryContext the primary context from the relocation source
      */
-    void handoffPrimaryContext(PrimaryContext primaryContext);
+    void handoffPrimaryContext(GlobalCheckpointTracker.PrimaryContext primaryContext);
 
     /**
      * Index a set of translog operations on the target

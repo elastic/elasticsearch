@@ -31,7 +31,6 @@ import org.elasticsearch.index.analysis.CJKBigramFilterFactory;
 import org.elasticsearch.index.analysis.CJKWidthFilterFactory;
 import org.elasticsearch.index.analysis.ClassicFilterFactory;
 import org.elasticsearch.index.analysis.ClassicTokenizerFactory;
-import org.elasticsearch.index.analysis.CommonGramsTokenFilterFactory;
 import org.elasticsearch.index.analysis.CzechStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.DecimalDigitFilterFactory;
 import org.elasticsearch.index.analysis.DelimitedPayloadTokenFilterFactory;
@@ -45,14 +44,11 @@ import org.elasticsearch.index.analysis.KeepTypesFilterFactory;
 import org.elasticsearch.index.analysis.KeepWordFilterFactory;
 import org.elasticsearch.index.analysis.KeywordTokenizerFactory;
 import org.elasticsearch.index.analysis.LetterTokenizerFactory;
-import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.index.analysis.LowerCaseTokenizerFactory;
 import org.elasticsearch.index.analysis.MinHashTokenFilterFactory;
 import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.NGramTokenizerFactory;
 import org.elasticsearch.index.analysis.PathHierarchyTokenizerFactory;
-import org.elasticsearch.index.analysis.PatternCaptureGroupTokenFilterFactory;
-import org.elasticsearch.index.analysis.PatternReplaceTokenFilterFactory;
 import org.elasticsearch.index.analysis.PatternTokenizerFactory;
 import org.elasticsearch.index.analysis.PersianNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
@@ -143,8 +139,8 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("cjkbigram",                 CJKBigramFilterFactory.class)
         .put("cjkwidth",                  CJKWidthFilterFactory.class)
         .put("classic",                   ClassicFilterFactory.class)
-        .put("commongrams",               CommonGramsTokenFilterFactory.class)
-        .put("commongramsquery",          CommonGramsTokenFilterFactory.class)
+        .put("commongrams",               MovedToAnalysisCommon.class)
+        .put("commongramsquery",          MovedToAnalysisCommon.class)
         .put("czechstem",                 CzechStemTokenFilterFactory.class)
         .put("decimaldigit",              DecimalDigitFilterFactory.class)
         .put("delimitedpayload",          DelimitedPayloadTokenFilterFactory.class)
@@ -178,13 +174,13 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         .put("kstem",                     MovedToAnalysisCommon.class)
         .put("latvianstem",               MovedToAnalysisCommon.class)
         .put("length",                    MovedToAnalysisCommon.class)
-        .put("limittokencount",           LimitTokenCountFilterFactory.class)
+        .put("limittokencount",           MovedToAnalysisCommon.class)
         .put("lowercase",                 MovedToAnalysisCommon.class)
         .put("ngram",                     MovedToAnalysisCommon.class)
         .put("norwegianlightstem",        MovedToAnalysisCommon.class)
         .put("norwegianminimalstem",      MovedToAnalysisCommon.class)
-        .put("patterncapturegroup",       PatternCaptureGroupTokenFilterFactory.class)
-        .put("patternreplace",            PatternReplaceTokenFilterFactory.class)
+        .put("patterncapturegroup",       MovedToAnalysisCommon.class)
+        .put("patternreplace",            MovedToAnalysisCommon.class)
         .put("persiannormalization",      PersianNormalizationFilterFactory.class)
         .put("porterstem",                MovedToAnalysisCommon.class)
         .put("portuguesestem",            MovedToAnalysisCommon.class)

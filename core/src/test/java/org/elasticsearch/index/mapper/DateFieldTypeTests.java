@@ -58,13 +58,13 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     @Before
     public void setupProperties() {
         setDummyNullValue(10);
-        addModifier(new Modifier("format", true) {
+        addModifier(new Modifier("format", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("basic_week_date", Locale.ROOT));
             }
         });
-        addModifier(new Modifier("locale", true) {
+        addModifier(new Modifier("locale", false) {
             @Override
             public void modify(MappedFieldType ft) {
                 ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));

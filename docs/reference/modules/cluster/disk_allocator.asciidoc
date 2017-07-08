@@ -29,7 +29,8 @@ file or updated dynamically on a live cluster with the
     the node.
 
 `cluster.routing.allocation.disk.watermark.floodstage`::
-
++
+--
     Controls the flood stage watermark. It defaults to 95%, meaning ES enforces
     a read-only index block (`index.blocks.read_only_allow_delete`) on every
     index that has one or more shards allocated on the node that has at least

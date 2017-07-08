@@ -88,7 +88,7 @@ public class BulkItemRequest implements Streamable {
             primaryResponse = BulkItemResponse.readBulkItem(in);
             // This is a bwc layer for 6.0 which no longer mutates the requests with these
             // Since 5.x still requires it we do it here. Note that these are harmless
-            // as both operations are idempotent. This is something we rely for and assert on
+            // as both operations are idempotent. This is something we rely on and assert on
             // in InternalEngine.planIndexingAsNonPrimary()
             request.version(primaryResponse.getVersion());
             request.versionType(request.versionType().versionTypeForReplicationAndRecovery());

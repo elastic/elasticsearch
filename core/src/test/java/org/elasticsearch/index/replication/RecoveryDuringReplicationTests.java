@@ -221,14 +221,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 shards.flush();
                 committedDocs = totalDocs;
             }
-            // we need some indexing to happen to transfer local checkpoint information to the primary
-            // so it can update the global checkpoint and communicate to replicas
-            boolean expectSeqNoRecovery = totalDocs > 0;
-
 
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard newPrimary = shards.getReplicas().get(0);
             final IndexShard replica = shards.getReplicas().get(1);
+            boolean expectSeqNoRecovery = true;
             if (randomBoolean()) {
                 // simulate docs that were inflight when primary failed, these will be rolled back
                 final int rollbackDocs = randomIntBetween(1, 5);

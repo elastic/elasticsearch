@@ -257,7 +257,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          * replica shards). In these cases, the local knowledge of the global checkpoint could be higher than sync from the lagging primary.
          */
         if (this.globalCheckpoint <= globalCheckpoint) {
-            logger.trace("global checkpoint updated from [{}] to [{}] due to [{}]", this.globalCheckpoint, globalCheckpoint, reason);
+            logger.trace("updating global checkpoint from [{}] to [{}] due to [{}]", this.globalCheckpoint, globalCheckpoint, reason);
             this.globalCheckpoint = globalCheckpoint;
         }
         assert invariant();

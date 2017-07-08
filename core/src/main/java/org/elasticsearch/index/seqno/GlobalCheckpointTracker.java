@@ -258,7 +258,7 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          */
         if (this.globalCheckpoint <= globalCheckpoint) {
             this.globalCheckpoint = globalCheckpoint;
-            logger.trace("global checkpoint updated from primary to [{}] from [{}]", globalCheckpoint, reason);
+            logger.trace("global checkpoint updated from [{}] to [{}]", globalCheckpoint, reason);
         }
         assert invariant();
     }

@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.plugin.cli.server;
+package org.elasticsearch.xpack.sql.server.cli;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.SearchHitRowSetCursor;
 import org.elasticsearch.xpack.sql.jdbc.net.protocol.QueryPageRequest;
-import org.elasticsearch.xpack.sql.plugin.cli.http.CliServerProtoUtils;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import java.util.TimeZone;
@@ -71,7 +70,7 @@ public class CliServer {
                         requestId = StringUtils.nullAsEmpty(((SearchHitRowSetCursor) c).scrollId());
                     }
 
-                    listener.onResponse(new CommandResponse(start, stop, requestId, c));
+                    listener.onResponse(new CommandResponse(start, stop, requestId, CliUtils.toString(c)));
                 }, 
                 ex -> listener.onResponse(CliServerProtoUtils.exception(ex, req.action))));
     }

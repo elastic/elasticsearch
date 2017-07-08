@@ -17,9 +17,9 @@ public class CommandResponse extends Response {
 
     public final long serverTimeQueryReceived, serverTimeResponseSent;
     public final String requestId;
-    public final Object data; // NOCOMMIT should be a string? serialization is weird too.
+    public final String data;
 
-    public CommandResponse(long serverTimeQueryReceived, long serverTimeResponseSent, String requestId, Object data) {
+    public CommandResponse(long serverTimeQueryReceived, long serverTimeResponseSent, String requestId, String data) {
         super(Action.COMMAND);
 
         this.serverTimeQueryReceived = serverTimeQueryReceived;
@@ -34,15 +34,16 @@ public class CommandResponse extends Response {
         serverTimeQueryReceived = in.readLong();
         serverTimeResponseSent = in.readLong();
         requestId = in.readUTF();
-        data = null;
+        data = in.readUTF();
     }
 
     public void encode(DataOutput out) throws IOException {
-        out.writeInt(Status.toSuccess(action)); // NOCOMMIT no symetric!
+        out.writeInt(Status.toSuccess(action)); // NOCOMMIT not symetric!
 
         out.writeLong(serverTimeQueryReceived);
         out.writeLong(serverTimeResponseSent);
         out.writeUTF(requestId);
+        out.writeUTF(data);
     }
 
     @Override

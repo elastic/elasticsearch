@@ -19,15 +19,9 @@ public class CommandResponseTests extends ESTestCase {
     }
 
     public void testRoundTrip() throws IOException {
-        assertRoundTrip(randomCommandResponse(), (response, out) -> {
-                // NOCOMMIT make this simpler
-                response.encode(out);
-                out.writeUTF(response.data.toString());
-            }, in -> {
-                // NOCOMMIT make this simpler
-                CommandResponse response = (CommandResponse) ProtoUtils.readResponse(in, in.readInt());
-                return new CommandResponse(response.serverTimeQueryReceived, response.serverTimeResponseSent,
-                        response.requestId, in.readUTF());
+        assertRoundTrip(randomCommandResponse(), CommandResponse::encode, in -> {
+                // NOCOMMIT make symmetric
+                return (CommandResponse) ProtoUtils.readResponse(in, in.readInt());
             });
     }
 }

@@ -3,20 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.plugin.cli.http;
+package org.elasticsearch.xpack.sql.server.cli;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.xpack.sql.SqlException;
-import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ProtoUtils;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
-import org.elasticsearch.xpack.sql.session.RowSetCursor;
 
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -29,18 +27,8 @@ public abstract class CliServerProtoUtils {
 
     public static BytesReference write(Response response) throws IOException {
         try (BytesStreamOutput array = new BytesStreamOutput();
-             DataOutputStream out = new DataOutputStream(array)) {
+                DataOutputStream out = new DataOutputStream(array)) {
             ProtoUtils.write(out, response);
-
-            // serialize payload (if present)
-            if (response instanceof CommandResponse) {
-                RowSetCursor cursor = (RowSetCursor) ((CommandResponse) response).data;
-
-                if (cursor != null) {
-                    out.writeUTF(CliUtils.toString(cursor));
-                }
-            }
-
             out.flush();
             return array.bytes();
         }

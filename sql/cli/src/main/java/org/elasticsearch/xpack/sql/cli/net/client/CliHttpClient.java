@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.cli.net.client;
 import org.elasticsearch.xpack.sql.cli.CliConfiguration;
 import org.elasticsearch.xpack.sql.cli.CliException;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandRequest;
-import org.elasticsearch.xpack.sql.cli.net.protocol.CommandResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ProtoUtils;
@@ -37,17 +36,7 @@ public class CliHttpClient implements AutoCloseable {
 
     public Response command(String command, String requestId) {
         Bytes ba = http.put(out -> ProtoUtils.write(out, new CommandRequest(command)));
-        return doIO(ba, in -> {
-            Response response = readResponse(in, Action.COMMAND);
-            // read data
-            if (response instanceof CommandResponse) {
-                // NOCOMMIT embed data in response
-                String result = in.readUTF();
-                CommandResponse cr = (CommandResponse) response;
-                return new CommandResponse(cr.serverTimeQueryReceived, cr.serverTimeResponseSent, cr.requestId, result);
-            }
-            return response;
-        });
+        return doIO(ba, in -> readResponse(in, Action.COMMAND));
     }
 
     private static <T> T doIO(Bytes ba, DataInputFunction<T> action) {

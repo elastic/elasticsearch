@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.sql.plugin.cli.http;
+package org.elasticsearch.xpack.sql.server.cli;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -17,9 +17,6 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ProtoUtils;
-import org.elasticsearch.xpack.sql.plugin.cli.action.CliAction;
-import org.elasticsearch.xpack.sql.plugin.cli.action.CliRequest;
-import org.elasticsearch.xpack.sql.plugin.cli.action.CliResponse;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
 import static org.elasticsearch.action.ActionListener.wrap;

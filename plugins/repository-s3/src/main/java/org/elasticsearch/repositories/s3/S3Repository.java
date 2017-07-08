@@ -19,8 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import java.io.IOException;
-
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
@@ -36,6 +34,8 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+
+import java.io.IOException;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -53,10 +53,14 @@ class S3Repository extends BlobStoreRepository {
 
     static final String TYPE = "s3";
 
-    /** The access key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    /**
+     * The access key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state
+     */
     static final Setting<SecureString> ACCESS_KEY_SETTING = SecureSetting.insecureString("access_key");
 
-    /** The secret key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state */
+    /**
+     * The secret key to authenticate with s3. This setting is insecure because cluster settings are stored in cluster state
+     */
     static final Setting<SecureString> SECRET_KEY_SETTING = SecureSetting.insecureString("secret_key");
 
     /**
@@ -75,10 +79,16 @@ class S3Repository extends BlobStoreRepository {
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
 
     /**
-     * When set to true files are encrypted on server side using AES256 algorithm.
+     * When set to true files are encrypted on server side using AES256/aws:kms algorithm.
      * Defaults to false.
      */
     static final Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false);
+
+    /**
+     * When aws_kms_key is set, files are encrypted on server side using kms key provided or AE256 algorithm is used.
+     * Defaults to AES256 algorithm.
+     */
+    static final Setting<String> AWS_KMS_KEY = Setting.simpleString("aws_kms_key");
 
     /**
      * Minimum threshold below which the chunk is uploaded using a single request. Beyond this threshold,
@@ -87,13 +97,13 @@ class S3Repository extends BlobStoreRepository {
      * use of the Multipart API and may result in upload errors. Defaults to the minimum between 100MB and 5% of the heap size.
      */
     static final Setting<ByteSizeValue> BUFFER_SIZE_SETTING = Setting.byteSizeSetting("buffer_size", DEFAULT_BUFFER_SIZE,
-            new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
+        new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
 
     /**
      * Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.
      */
     static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", new ByteSizeValue(1, ByteSizeUnit.GB),
-            new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
+        new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
 
     /**
      * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
@@ -130,7 +140,7 @@ class S3Repository extends BlobStoreRepository {
      * Constructs an s3 backed repository
      */
     S3Repository(RepositoryMetaData metadata, Settings settings,
-                        NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) throws IOException {
+                 NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) throws IOException {
         super(metadata, settings, namedXContentRegistry);
 
         String bucket = BUCKET_SETTING.get(metadata.settings());
@@ -139,6 +149,11 @@ class S3Repository extends BlobStoreRepository {
         }
 
         boolean serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
+        String serverSideEncryptionKey = AWS_KMS_KEY.get(metadata.settings());
+        if (serverSideEncryptionKey == null) {
+            serverSideEncryptionKey = "";
+        }
+
         ByteSizeValue bufferSize = BUFFER_SIZE_SETTING.get(metadata.settings());
         this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
         this.compress = COMPRESS_SETTING.get(metadata.settings());
@@ -153,12 +168,13 @@ class S3Repository extends BlobStoreRepository {
         String storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         String cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
 
-        logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}], " +
-            "buffer_size [{}], cannedACL [{}], storageClass [{}]",
-            bucket, chunkSize, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        logger.debug("using bucket [{}], chunk_size [{}], server_side_encryption [{}]," +
+                "server_side_encryption_key [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
+            bucket, chunkSize, serverSideEncryption, serverSideEncryptionKey, bufferSize, cannedACL, storageClass);
 
         AmazonS3 client = s3Service.client(metadata.settings());
-        blobStore = new S3BlobStore(settings, client, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass);
+        blobStore = new S3BlobStore(settings, client, bucket, serverSideEncryption,
+            serverSideEncryptionKey, bufferSize, cannedACL, storageClass);
 
         String basePath = BASE_PATH_SETTING.get(metadata.settings());
         if (Strings.hasLength(basePath)) {

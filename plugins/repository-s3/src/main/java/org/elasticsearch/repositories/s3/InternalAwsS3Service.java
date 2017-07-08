@@ -105,6 +105,11 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
         clientConfiguration.setUseThrottleRetries(clientSettings.throttleRetries);
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
 
+        /**  A pre-requisite to use AWS Key Management Service (SSE-KMS) is that
+         * you must be using Signature Version 4
+         */
+        clientConfiguration.withSignerOverride("AWSS3V4SignerType");
+
         return clientConfiguration;
     }
 

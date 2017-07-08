@@ -28,6 +28,7 @@ import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.PutObjectResult;
+import com.amazonaws.services.s3.model.SSEAwsKeyManagementParams;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
 import com.amazonaws.util.Base64;
@@ -72,9 +73,12 @@ class DefaultS3OutputStream extends S3OutputStream {
     private int multipartChunks;
     private List<PartETag> multiparts;
 
-    DefaultS3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int bufferSizeInBytes, boolean serverSideEncryption) {
-        super(blobStore, bucketName, blobName, bufferSizeInBytes, serverSideEncryption);
+    DefaultS3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int
+            bufferSizeInBytes, boolean serverSideEncryption, String serverSideEncryptionKey) {
+        super(blobStore, bucketName, blobName, bufferSizeInBytes, serverSideEncryption, serverSideEncryptionKey);
+
     }
+
 
     @Override
     public void flush(byte[] bytes, int off, int len, boolean closing) throws IOException {
@@ -124,16 +128,21 @@ class DefaultS3OutputStream extends S3OutputStream {
     protected void doUpload(S3BlobStore blobStore, String bucketName, String blobName, InputStream is, int length,
             boolean serverSideEncryption) throws AmazonS3Exception {
         ObjectMetadata md = new ObjectMetadata();
-        if (serverSideEncryption) {
-            md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
-        }
         md.setContentLength(length);
-
         PutObjectRequest putRequest = new PutObjectRequest(bucketName, blobName, is, md)
                 .withStorageClass(blobStore.getStorageClass())
                 .withCannedAcl(blobStore.getCannedACL());
-        blobStore.client().putObject(putRequest);
 
+        if (serverSideEncryption) {
+            if (blobStore.serverSideEncryptionKey().isEmpty()) {
+                md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            } else {
+                putRequest.setSSEAwsKeyManagementParams(new
+                    SSEAwsKeyManagementParams(blobStore.serverSideEncryptionKey()));
+            }
+        }
+
+        blobStore.client().putObject(putRequest);
     }
 
     private void initializeMultipart() {
@@ -153,7 +162,11 @@ class DefaultS3OutputStream extends S3OutputStream {
 
         if (serverSideEncryption) {
             ObjectMetadata md = new ObjectMetadata();
-            md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            if (blobStore.serverSideEncryptionKey().isEmpty()) {
+                md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            } else {
+                request.setSSEAwsKeyManagementParams(new SSEAwsKeyManagementParams(blobStore.serverSideEncryptionKey()));
+            }
             request.setObjectMetadata(md);
         }
 

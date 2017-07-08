@@ -27,6 +27,7 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.SSEAlgorithm;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -112,7 +113,7 @@ class S3BlobContainer extends AbstractBlobContainer {
     private OutputStream createOutput(final String blobName) throws IOException {
         // UploadS3OutputStream does buffering & retry logic internally
         return new DefaultS3OutputStream(blobStore, blobStore.bucket(), buildKey(blobName),
-            blobStore.bufferSizeInBytes(), blobStore.serverSideEncryption());
+        blobStore.bufferSizeInBytes(), blobStore.serverSideEncryption(), blobStore.serverSideEncryptionKey());
     }
 
     @Override
@@ -156,7 +157,12 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             if (blobStore.serverSideEncryption()) {
                 ObjectMetadata objectMetadata = new ObjectMetadata();
-                objectMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+                if (blobStore.serverSideEncryptionKey().isEmpty()) {
+                    objectMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+                }else {
+                    objectMetadata.setSSEAlgorithm(SSEAlgorithm.KMS.getAlgorithm());
+                    request.withSSEAwsKeyManagementParams(blobStore.getSSEAwsKey());
+                }
                 request.setNewObjectMetadata(objectMetadata);
             }
 

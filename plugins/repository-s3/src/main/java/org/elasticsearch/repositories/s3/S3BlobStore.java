@@ -25,6 +25,7 @@ import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.SSEAwsKeyManagementParams;
 import com.amazonaws.services.s3.model.StorageClass;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -49,16 +50,20 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final boolean serverSideEncryption;
 
+    private final String serverSideEncryptionKey;
+
     private final CannedAccessControlList cannedACL;
 
     private final StorageClass storageClass;
 
-    S3BlobStore(Settings settings, AmazonS3 client, String bucket, boolean serverSideEncryption,
+    S3BlobStore(Settings settings, AmazonS3 client, String bucket,
+                boolean serverSideEncryption, String serverSideEncryptionKey,
                 ByteSizeValue bufferSize, String cannedACL, String storageClass) {
         super(settings);
         this.client = client;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
+        this.serverSideEncryptionKey = serverSideEncryptionKey;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
@@ -71,7 +76,7 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         SocketAccess.doPrivilegedVoid(() -> {
             if (client.doesBucketExist(bucket) == false) {
                 throw new IllegalArgumentException("The bucket [" + bucket + "] does not exist. Please create it before " +
-                                                   " creating an s3 snapshot repository backed by it.");
+                    " creating an s3 snapshot repository backed by it.");
             }
         });
     }
@@ -95,6 +100,14 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
 
     public int bufferSizeInBytes() {
         return bufferSize.bytesAsInt();
+    }
+
+    public String serverSideEncryptionKey() {
+        return serverSideEncryptionKey;
+    }
+
+    public SSEAwsKeyManagementParams getSSEAwsKey() {
+        return new SSEAwsKeyManagementParams(serverSideEncryptionKey);
     }
 
     @Override
@@ -151,7 +164,9 @@ class S3BlobStore extends AbstractComponent implements BlobStore {
         return cannedACL;
     }
 
-    public StorageClass getStorageClass() { return storageClass; }
+    public StorageClass getStorageClass() {
+        return storageClass;
+    }
 
     public static StorageClass initStorageClass(String storageClass) {
         if (storageClass == null || storageClass.equals("")) {

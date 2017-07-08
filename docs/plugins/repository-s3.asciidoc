@@ -199,6 +199,10 @@ The following settings are supported:
     When set to `true` files are encrypted on server side using AES256
     algorithm. Defaults to `false`.
 
+`aws_kms_key`::
+
+    When a aws kms key is provided it encrypts the file with key on server side using aws:kms algorithm.
+
 `buffer_size`::
 
     Minimum threshold below which the chunk is uploaded using a single

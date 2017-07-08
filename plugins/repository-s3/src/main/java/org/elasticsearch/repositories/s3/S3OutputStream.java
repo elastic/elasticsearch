@@ -40,6 +40,7 @@ abstract class S3OutputStream extends OutputStream {
     private String bucketName;
     private String blobName;
     private boolean serverSideEncryption;
+    private String serverSideEncryptionKey;
 
     private byte[] buffer;
     private int count;
@@ -47,11 +48,13 @@ abstract class S3OutputStream extends OutputStream {
 
     private int flushCount = 0;
 
-    S3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int bufferSizeInBytes, boolean serverSideEncryption) {
+    S3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int
+        bufferSizeInBytes, boolean serverSideEncryption,  String serverSideEncryptionKey) {
         this.blobStore = blobStore;
         this.bucketName = bucketName;
         this.blobName = blobName;
         this.serverSideEncryption = serverSideEncryption;
+        this.serverSideEncryptionKey = serverSideEncryptionKey;
 
         if (bufferSizeInBytes < MULTIPART_MIN_SIZE.getBytes()) {
             throw new IllegalArgumentException("Buffer size can't be smaller than " + MULTIPART_MIN_SIZE);
@@ -116,4 +119,9 @@ abstract class S3OutputStream extends OutputStream {
     public int getFlushCount() {
         return flushCount;
     }
+
+    public String getServerSideEncryptionKey() {
+                return serverSideEncryptionKey;
+    }
+
 }

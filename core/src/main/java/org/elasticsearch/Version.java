@@ -153,8 +153,6 @@ public class Version {
                 return V_5_5_1_UNRELEASED;
             case V_5_5_0_ID:
                 return V_5_5_0;
-            case V_5_4_4_ID_UNRELEASED:
-                return V_5_4_4_UNRELEASED;
             case V_5_4_3_ID:
                 return V_5_4_3;
             case V_5_4_2_ID:

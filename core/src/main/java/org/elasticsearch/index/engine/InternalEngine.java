@@ -215,7 +215,7 @@ public class InternalEngine extends Engine {
             assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
             // don't allow commits until we are done with recovering
             pendingTranslogRecovery.set(openMode == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG);
-            for (ReferenceManager.RefreshListener listener: engineConfig.getRefreshListeners()) {
+            for (ReferenceManager.RefreshListener listener : engineConfig.getRefreshListeners()) {
                 searcherManager.addListener(listener);
             }
             success = true;
@@ -257,13 +257,13 @@ public class InternalEngine extends Engine {
             final long maxSeqNo = seqNoService().getMaxSeqNo();
             int numNoOpsAdded = 0;
             for (
-                    long seqNo = localCheckpoint + 1;
-                    seqNo <= maxSeqNo;
-                    seqNo = seqNoService().getLocalCheckpoint() + 1 /* the local checkpoint might have advanced so we leap-frog */) {
+                long seqNo = localCheckpoint + 1;
+                seqNo <= maxSeqNo;
+                seqNo = seqNoService().getLocalCheckpoint() + 1 /* the local checkpoint might have advanced so we leap-frog */) {
                 innerNoOp(new NoOp(seqNo, primaryTerm, Operation.Origin.PRIMARY, System.nanoTime(), "filling gaps"));
                 numNoOpsAdded++;
                 assert seqNo <= seqNoService().getLocalCheckpoint()
-                        : "local checkpoint did not advance; was [" + seqNo + "], now [" + seqNoService().getLocalCheckpoint() + "]";
+                    : "local checkpoint did not advance; was [" + seqNo + "], now [" + seqNoService().getLocalCheckpoint() + "]";
 
             }
             return numNoOpsAdded;
@@ -455,9 +455,9 @@ public class InternalEngine extends Engine {
      * operation
      */
     enum OpVsLuceneDocStatus {
-        /** the op is more recent than the one that last modified the doc found in lucene*/
+        /** the op is more recent than the one that last modified the doc found in lucene */
         OP_NEWER,
-        /** the op is older or the same as the one that last modified the doc found in lucene*/
+        /** the op is older or the same as the one that last modified the doc found in lucene */
         OP_STALE_OR_EQUAL,
         /** no doc was found in lucene */
         LUCENE_DOC_NOT_FOUND
@@ -469,7 +469,7 @@ public class InternalEngine extends Engine {
         final VersionValue versionValue = versionMap.getUnderLock(op.uid());
         assert incrementVersionLookup();
         if (versionValue != null) {
-            if  (op.seqNo() > versionValue.seqNo ||
+            if (op.seqNo() > versionValue.seqNo ||
                 (op.seqNo() == versionValue.seqNo && op.primaryTerm() > versionValue.term))
                 status = OpVsLuceneDocStatus.OP_NEWER;
             else {
@@ -511,7 +511,7 @@ public class InternalEngine extends Engine {
                 versionValue = new VersionValue(currentVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0L);
             }
         } else if (engineConfig.isEnableGcDeletes() && versionValue.isDelete() &&
-            (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue)versionValue).time) > getGcDeletesInMillis()) {
+            (engineConfig.getThreadPool().relativeTimeInMillis() - ((DeleteVersionValue) versionValue).time) > getGcDeletesInMillis()) {
             versionValue = null;
         }
         return versionValue;
@@ -556,14 +556,14 @@ public class InternalEngine extends Engine {
 
     private boolean assertVersionType(final Engine.Operation operation) {
         if (operation.origin() == Operation.Origin.REPLICA ||
-                operation.origin() == Operation.Origin.PEER_RECOVERY ||
-                operation.origin() == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
+            operation.origin() == Operation.Origin.PEER_RECOVERY ||
+            operation.origin() == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             // ensure that replica operation has expected version type for replication
             // ensure that versionTypeForReplicationAndRecovery is idempotent
             assert operation.versionType() == operation.versionType().versionTypeForReplicationAndRecovery()
-                    : "unexpected version type in request from [" + operation.origin().name() + "] " +
-                    "found [" + operation.versionType().name() + "] " +
-                    "expected [" + operation.versionType().versionTypeForReplicationAndRecovery().name() + "]";
+                : "unexpected version type in request from [" + operation.origin().name() + "] " +
+                "found [" + operation.versionType().name() + "] " +
+                "expected [" + operation.versionType().versionTypeForReplicationAndRecovery().name() + "]";
         }
         return true;
     }
@@ -602,7 +602,8 @@ public class InternalEngine extends Engine {
             assert assertIncomingSequenceNumber(index.origin(), index.seqNo());
             assert assertVersionType(index);
             try (Releasable ignored = acquireLock(index.uid());
-                Releasable indexThrottle = doThrottle ? () -> {} : throttle.acquireThrottle()) {
+                 Releasable indexThrottle = doThrottle ? () -> {
+                 } : throttle.acquireThrottle()) {
                 lastWriteNanos = index.startTime();
                 /* A NOTE ABOUT APPEND ONLY OPTIMIZATIONS:
                  * if we have an autoGeneratedID that comes into the engine we can potentially optimize
@@ -646,7 +647,7 @@ public class InternalEngine extends Engine {
                     indexResult = indexIntoLucene(index, plan);
                 } else {
                     indexResult = new IndexResult(
-                            plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
+                        plan.versionForIndexing, plan.seqNoForIndexing, plan.currentNotFoundOrDeleted);
                 }
                 if (index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                     final Translog.Location location;
@@ -739,7 +740,7 @@ public class InternalEngine extends Engine {
             if (index.versionType().isVersionConflictForWrites(
                 currentVersion, index.version(), currentNotFoundOrDeleted)) {
                 final VersionConflictEngineException e =
-                        new VersionConflictEngineException(shardId, index, currentVersion, currentNotFoundOrDeleted);
+                    new VersionConflictEngineException(shardId, index, currentVersion, currentNotFoundOrDeleted);
                 plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion);
             } else {
                 plan = IndexingStrategy.processNormally(currentNotFoundOrDeleted,
@@ -799,7 +800,6 @@ public class InternalEngine extends Engine {
      * returns true if the indexing operation may have already be processed by this engine.
      * Note that it is OK to rarely return true even if this is not the case. However a `false`
      * return value must always be correct.
-     *
      */
     private boolean mayHaveBeenIndexedBefore(Index index) {
         assert canOptimizeAddDocument(index);
@@ -862,10 +862,10 @@ public class InternalEngine extends Engine {
         }
 
         static IndexingStrategy skipDueToVersionConflict(
-                VersionConflictEngineException e, boolean currentNotFoundOrDeleted, long currentVersion) {
+            VersionConflictEngineException e, boolean currentNotFoundOrDeleted, long currentVersion) {
             final IndexResult result = new IndexResult(e, currentVersion);
             return new IndexingStrategy(
-                    currentNotFoundOrDeleted, false, false, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.NOT_FOUND, result);
+                currentNotFoundOrDeleted, false, false, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.NOT_FOUND, result);
         }
 
         static IndexingStrategy processNormally(boolean currentNotFoundOrDeleted,
@@ -937,7 +937,7 @@ public class InternalEngine extends Engine {
                 deleteResult = deleteInLucene(delete, plan);
             } else {
                 deleteResult = new DeleteResult(
-                        plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
+                    plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
             }
             if (delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                 final Translog.Location location;
@@ -945,7 +945,7 @@ public class InternalEngine extends Engine {
                     location = translog.add(new Translog.Delete(delete, deleteResult));
                 } else if (deleteResult.getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                     location = translog.add(new Translog.NoOp(deleteResult.getSeqNo(),
-                            delete.primaryTerm(), deleteResult.getFailure().getMessage()));
+                        delete.primaryTerm(), deleteResult.getFailure().getMessage()));
                 } else {
                     location = null;
                 }
@@ -1042,7 +1042,7 @@ public class InternalEngine extends Engine {
             if (indexWriter.getTragicException() == null) {
                 // there is no tragic event and such it must be a document level failure
                 return new DeleteResult(
-                        ex, plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
+                    ex, plan.versionOfDeletion, plan.seqNoOfDeletion, plan.currentlyDeleted == false);
             } else {
                 throw ex;
             }
@@ -1073,7 +1073,7 @@ public class InternalEngine extends Engine {
         }
 
         static DeletionStrategy skipDueToVersionConflict(
-                VersionConflictEngineException e, long currentVersion, boolean currentlyDeleted) {
+            VersionConflictEngineException e, long currentVersion, boolean currentlyDeleted) {
             final long unassignedSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
             final DeleteResult deleteResult = new DeleteResult(e, currentVersion, unassignedSeqNo, currentlyDeleted == false);
             return new DeletionStrategy(false, currentlyDeleted, unassignedSeqNo, Versions.NOT_FOUND, deleteResult);
@@ -1171,12 +1171,12 @@ public class InternalEngine extends Engine {
             if (useRefresh) {
                 // The version map is using > 25% of the indexing buffer, so we do a refresh so the version map also clears
                 logger.debug("use refresh to write indexing buffer (heap size=[{}]), to also clear version map (heap size=[{}])",
-                        new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
+                    new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
                 refresh("write indexing buffer");
             } else {
                 // Most of our heap is used by the indexing buffer, so we do a cheaper (just writes segments, doesn't open a new searcher) IW.flush:
                 logger.debug("use IndexWriter.flush to write indexing buffer (heap size=[{}]) since version map is small (heap size=[{}])",
-                        new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
+                    new ByteSizeValue(indexingBufferBytes), new ByteSizeValue(versionMapBytes));
                 indexWriter.flush();
             }
         } catch (AlreadyClosedException e) {
@@ -1350,6 +1350,24 @@ public class InternalEngine extends Engine {
                 e.addSuppressed(inner);
             }
             throw new EngineException(shardId, "failed to roll translog", e);
+        }
+    }
+
+    @Override
+    public void trimTranslog() throws EngineException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            translog.trimUnreferencedReaders();
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("translog trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new EngineException(shardId, "failed to trim translog", e);
         }
     }
 

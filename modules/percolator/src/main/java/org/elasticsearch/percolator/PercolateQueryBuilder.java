@@ -200,7 +200,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     PercolateQueryBuilder(StreamInput in) throws IOException {
         super(in);
         field = in.readString();
-        if (in.getVersion().before(Version.V_6_0_0_alpha3)) {
+        if (in.getVersion().before(Version.V_6_0_0_beta1)) {
             documentType = in.readString();
         } else {
             documentType = in.readOptionalString();
@@ -230,7 +230,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(field);
-        if (out.getVersion().before(Version.V_6_0_0_alpha3)) {
+        if (out.getVersion().before(Version.V_6_0_0_beta1)) {
             out.writeString(documentType);
         } else {
             out.writeOptionalString(documentType);

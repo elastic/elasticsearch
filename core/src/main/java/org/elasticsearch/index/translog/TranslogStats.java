@@ -100,7 +100,7 @@ public class TranslogStats extends ToXContentToBytes implements Streamable {
     public void readFrom(StreamInput in) throws IOException {
         numberOfOperations = in.readVInt();
         translogSizeInBytes = in.readVLong();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             uncommittedOperations = in.readVInt();
             uncommittedSizeInBytes = in.readVLong();
         } else {
@@ -113,7 +113,7 @@ public class TranslogStats extends ToXContentToBytes implements Streamable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(numberOfOperations);
         out.writeVLong(translogSizeInBytes);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             out.writeVInt(uncommittedOperations);
             out.writeVLong(uncommittedSizeInBytes);
         }

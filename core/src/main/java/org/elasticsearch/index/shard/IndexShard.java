@@ -679,7 +679,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
         Term uid;
-        if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_beta1)) {
             uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
         } else if (docMapper.getDocumentMapper().idFieldMapper().fieldType().indexOptions() != IndexOptions.NONE) {
             uid = new Term(IdFieldMapper.NAME, doc.id());
@@ -776,7 +776,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Term extractUidForDelete(String type, String id) {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
             assert indexSettings.isSingleType();
             // This is only correct because we create types dynamically on delete operations
             // otherwise this could match the same _id from a different type

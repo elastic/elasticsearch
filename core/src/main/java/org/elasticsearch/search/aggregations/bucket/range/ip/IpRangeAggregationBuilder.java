@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -61,7 +60,7 @@ public final class IpRangeAggregationBuilder
     public static final String NAME = "ip_range";
     private static final ParseField MASK_FIELD = new ParseField("mask");
 
-    private static final ObjectParser<IpRangeAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<IpRangeAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(IpRangeAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareBytesFields(PARSER, false, false);
@@ -70,14 +69,14 @@ public final class IpRangeAggregationBuilder
 
         PARSER.declareObjectArray((agg, ranges) -> {
             for (Range range : ranges) agg.addRange(range);
-        }, IpRangeAggregationBuilder::parseRange, RangeAggregator.RANGES_FIELD);
+        }, (p, c) -> IpRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
     }
 
-    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new IpRangeAggregationBuilder(aggregationName), context);
+    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new IpRangeAggregationBuilder(aggregationName), null);
     }
 
-    private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
+    private static Range parseRange(XContentParser parser) throws IOException {
         String key = null;
         String from = null;
         String to = null;

@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
@@ -312,7 +313,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertThat(booleanTermsQuery.clauses().get(0).getQuery(), instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) booleanTermsQuery.clauses().get(0).getQuery();
         assertThat(termQuery.getTerm().field(), equalTo(IdFieldMapper.NAME));
-        assertThat(termQuery.getTerm().bytes().utf8ToString(), equalTo(id));
+        assertThat(termQuery.getTerm().bytes(), equalTo(Uid.encodeId(id)));
         //check the type filter
         assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
         assertEquals(new TermQuery(new Term("join_field", type)), booleanQuery.clauses().get(1).getQuery());

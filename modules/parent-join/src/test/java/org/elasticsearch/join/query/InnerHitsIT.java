@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -40,7 +39,6 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -49,6 +47,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -550,7 +549,8 @@ public class InnerHitsIT extends ParentChildTestCase {
         if (legacy()) {
             assertThat(hit.getInnerHits().get("child_type").getAt(0).field("_parent").getValue(), equalTo("1"));
         } else {
-            assertThat(hit.getInnerHits().get("child_type").getAt(0).field("join_field#parent_type").getValue(), equalTo("1"));
+            String parentId = (String) extractValue("join_field.parent", hit.getInnerHits().get("child_type").getAt(0).getSourceAsMap());
+            assertThat(parentId, equalTo("1"));
         }
         assertThat(hit.getInnerHits().get("child_type").getAt(0).getInnerHits().get("nested_type").getAt(0).field("_parent"), nullValue());
     }

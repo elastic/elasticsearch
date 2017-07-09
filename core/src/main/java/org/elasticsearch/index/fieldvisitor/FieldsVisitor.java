@@ -105,6 +105,8 @@ public class FieldsVisitor extends StoredFieldVisitor {
     public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
         if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
             source = new BytesArray(value);
+        } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
+            id = Uid.decodeId(value);
         } else {
             addValue(fieldInfo.name, new BytesRef(value));
         }
@@ -114,10 +116,14 @@ public class FieldsVisitor extends StoredFieldVisitor {
     public void stringField(FieldInfo fieldInfo, byte[] bytes) throws IOException {
         final String value = new String(bytes, StandardCharsets.UTF_8);
         if (UidFieldMapper.NAME.equals(fieldInfo.name)) {
+            // 5.x-only
+            // TODO: Remove when we are on 7.x
             Uid uid = Uid.createUid(value);
             type = uid.type();
             id = uid.id();
         } else if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
+            // only applies to 5.x indices that have single_type = true
+            // TODO: Remove when we are on 7.x
             id = value;
         } else {
             addValue(fieldInfo.name, value);

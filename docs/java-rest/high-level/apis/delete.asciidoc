@@ -1,8 +1,8 @@
 [[java-rest-high-document-delete]]
-==== Delete API
+=== Delete API
 
 [[java-rest-high-document-delete-request]]
-===== Delete Request
+==== Delete Request
 
 A `DeleteRequest` requires the following arguments:
 
@@ -14,7 +14,7 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-request]
 <2> Type
 <3> Document id
 
-===== Optional arguments
+==== Optional arguments
 The following arguments can optionally be provided:
 
 ["source","java",subs="attributes,callouts,macros"]
@@ -56,7 +56,7 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-request-version-type
 <1> Version type
 
 [[java-rest-high-document-delete-sync]]
-===== Synchronous Execution
+==== Synchronous Execution
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -64,18 +64,18 @@ include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-execute]
 --------------------------------------------------
 
 [[java-rest-high-document-delete-async]]
-===== Asynchronous Execution
+==== Asynchronous Execution
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-execute-async]
 --------------------------------------------------
 <1> Called when the execution is successfully completed. The response is
-provided as an argument.
-<2> Called in case of failure. The raised exception is provided as an argument.
+provided as an argument
+<2> Called in case of failure. The raised exception is provided as an argument
 
 [[java-rest-high-document-delete-response]]
-===== Delete Response
+==== Delete Response
 
 The returned `DeleteResponse` allows to retrieve information about the executed
  operation as follows:
@@ -104,5 +104,5 @@ be thrown:
 --------------------------------------------------
 include-tagged::{doc-tests}/CRUDDocumentationIT.java[delete-conflict]
 --------------------------------------------------
-<1> The raised exception indicates that a version conflict error was returned.
+<1> The raised exception indicates that a version conflict error was returned
 

@@ -33,8 +33,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -110,7 +108,7 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
 
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContentRegistry, source)) {
             SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
-            builder.parseXContent(new QueryParseContext(parser));
+            builder.parseXContent(parser);
             builder.explain(searchTemplateRequest.isExplain());
             builder.profile(searchTemplateRequest.isProfile());
             searchRequest.source(builder);

@@ -17,6 +17,19 @@
 
  - match: { hits.total: 5 } # just check we recovered fine
 
+
+ - do:
+    search:
+      index: multi_type_index
+
+ - match: { hits.total: 2 } # just check we recovered fine
+
+ - do:
+    indices.get_settings:
+      index: multi_type_index
+
+ - match: { multi_type_index.settings.index.mapping.single_type: "false"}
+
  - do:
      bulk:
         refresh: true

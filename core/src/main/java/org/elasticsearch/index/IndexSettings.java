@@ -169,6 +169,20 @@ public final class IndexSettings {
     public static final Setting<Integer> MAX_SLICES_PER_SCROLL = Setting.intSetting("index.max_slices_per_scroll",
         1024, 1, Property.Dynamic, Property.IndexScope);
 
+    public static final String INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY = "index.mapping.single_type";
+    private static final Setting<Boolean> INDEX_MAPPING_SINGLE_TYPE_SETTING; // private - should not be registered
+    static {
+        Function<Settings, String> defValue = settings -> {
+            boolean singleType = true;
+            if (settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null) != null) {
+                singleType = Version.indexCreated(settings).onOrAfter(Version.V_6_0_0_alpha1);
+            }
+            return Boolean.valueOf(singleType).toString();
+        };
+        INDEX_MAPPING_SINGLE_TYPE_SETTING = Setting.boolSetting(INDEX_MAPPING_SINGLE_TYPE_SETTING_KEY, defValue, Property.IndexScope,
+            Property.Final);
+    }
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -300,7 +314,11 @@ public final class IndexSettings {
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
         this.indexSortConfig = new IndexSortConfig(this);
-        singleType = scopedSettings.get(MapperService.INDEX_MAPPING_SINGLE_TYPE_SETTING);
+        singleType = INDEX_MAPPING_SINGLE_TYPE_SETTING.get(indexMetaData.getSettings()); // get this from metadata - it's not registered
+        if ((singleType || version.before(Version.V_6_0_0_alpha1)) == false) {
+            throw new AssertionError(index.toString()  + "multiple types are only allowed on pre 6.x indices but version is: ["
+                + version + "]");
+        }
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING, mergePolicyConfig::setExpungeDeletesAllowed);

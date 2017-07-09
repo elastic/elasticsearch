@@ -1,8 +1,11 @@
 [[java-rest-high-usage]]
-=== Getting started
+== Getting started
+
+This section describes how to get started with the high-level REST client from
+getting the artifact to using it in an application.
 
 [[java-rest-high-usage-maven]]
-==== Maven Repository
+=== Maven Repository
 
 The high-level Java REST client is hosted on
 http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.elasticsearch.client%22[Maven
@@ -12,7 +15,7 @@ The High Level REST Client is subject to the same release cycle as
 Elasticsearch. Replace the version with the desired client version.
 
 [[java-rest-high-usage-maven-maven]]
-===== Maven configuration
+==== Maven configuration
 
 Here is how you can configure the dependency using maven as a dependency manager.
 Add the following to your `pom.xml` file:
@@ -27,7 +30,7 @@ Add the following to your `pom.xml` file:
 --------------------------------------------------
 
 [[java-rest-high-usage-maven-gradle]]
-===== Gradle configuration
+==== Gradle configuration
 
 Here is how you can configure the dependency using gradle as a dependency manager.
 Add the following to your `build.gradle` file:
@@ -40,7 +43,7 @@ dependencies {
 --------------------------------------------------
 
 [[java-rest-high-usage-dependencies]]
-==== Dependencies
+=== Dependencies
 
 The High Level Java REST Client depends on the following artifacts and their
 transitive dependencies:
@@ -50,7 +53,7 @@ transitive dependencies:
 
 
 [[java-rest-high-usage-initialization]]
-==== Initialization
+=== Initialization
 
 A `RestHighLevelClient` instance needs a <<java-rest-low-usage-initialization,REST low-level client>>
 to be built as follows:

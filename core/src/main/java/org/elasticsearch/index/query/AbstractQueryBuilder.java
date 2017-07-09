@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjec
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -312,7 +311,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         }
         QueryBuilder result;
         try {
-            // TODO what can we pass in here
             result = parser.namedObject(QueryBuilder.class, queryName, null);
         } catch (UnknownNamedObjectException e) {
             // Preserve the error message from 5.0 until we have a compellingly better message so we don't break BWC.

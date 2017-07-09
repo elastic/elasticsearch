@@ -477,21 +477,28 @@ public class FullClusterRestartIT extends ESRestTestCase {
             // Upgrade segments:
             r = client().performRequest("POST", "/" + index + "/_upgrade");
             assertEquals(200, r.getStatusLine().getStatusCode());
+            rsp = toMap(r);
+            logger.info("upgrade api response: {}", rsp);
+            Map<?, ?>  versions = (Map<?, ?>) XContentMapValues.extractValue("upgraded_indices." + index, rsp);
+            assertNotNull(versions);
+            Version upgradeVersion = Version.fromString((String) versions.get("upgrade_version"));
+            assertEquals(Version.CURRENT, upgradeVersion);
+            org.apache.lucene.util.Version luceneVersion =
+                org.apache.lucene.util.Version.parse((String) versions.get("oldest_lucene_segment_version"));
+            assertEquals(Version.CURRENT.luceneVersion, luceneVersion);
 
             r = client().performRequest("POST", "/" + index + "/_refresh");
             assertEquals(200, r.getStatusLine().getStatusCode());
 
             // Post upgrade checks:
-            assertBusy(() -> {
-                Map<String, Object> rsp2 = toMap(client().performRequest("GET", "/_upgrade"));
-                logger.info("upgrade status response: {}", rsp2);
-                Map<?, ?> indexUpgradeStatus2 = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp2);
-                assertNotNull(indexUpgradeStatus2);
-                int totalBytes2 = (Integer) indexUpgradeStatus2.get("size_in_bytes");
-                assertThat(totalBytes2, greaterThan(0));
-                int toUpgradeBytes2 = (Integer) indexUpgradeStatus2.get("size_to_upgrade_in_bytes");
-                assertEquals(0, toUpgradeBytes2);
-            });
+            rsp = toMap(client().performRequest("GET", "/_upgrade"));
+            logger.info("upgrade status api response: {}", rsp);
+            indexUpgradeStatus = (Map<?, ?>) XContentMapValues.extractValue("indices." + index, rsp);
+            assertNotNull(indexUpgradeStatus);
+            totalBytes = (Integer) indexUpgradeStatus.get("size_in_bytes");
+            assertThat(totalBytes, greaterThan(0));
+            toUpgradeBytes = (Integer) indexUpgradeStatus.get("size_to_upgrade_in_bytes");
+            assertEquals(0, toUpgradeBytes);
 
             rsp = toMap(client().performRequest("GET", "/" + index + "/_segments"));
             Map<?, ?> shards = (Map<?, ?>) XContentMapValues.extractValue("indices." + index + ".shards", rsp);
@@ -502,8 +509,7 @@ public class FullClusterRestartIT extends ESRestTestCase {
                     Map<?, ?> segments = (Map<?, ?>) shardSegmentRsp.get("segments");
                     for (Object segment : segments.values()) {
                         Map<?, ?> segmentRsp = (Map<?, ?>) segment;
-                        org.apache.lucene.util.Version luceneVersion =
-                            org.apache.lucene.util.Version.parse((String) segmentRsp.get("version"));
+                        luceneVersion = org.apache.lucene.util.Version.parse((String) segmentRsp.get("version"));
                         assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.major, luceneVersion.major);
                         assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.minor, luceneVersion.minor);
                         assertEquals("Un-upgraded segment " + segment, Version.CURRENT.luceneVersion.bugfix, luceneVersion.bugfix);

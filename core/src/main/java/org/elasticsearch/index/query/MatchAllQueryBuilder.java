@@ -58,7 +58,7 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
         builder.endObject();
     }
 
-    private static final ObjectParser<MatchAllQueryBuilder, QueryParseContext> PARSER = new ObjectParser<>(NAME, MatchAllQueryBuilder::new);
+    private static final ObjectParser<MatchAllQueryBuilder, Void> PARSER = new ObjectParser<>(NAME, MatchAllQueryBuilder::new);
 
     static {
         declareStandardFields(PARSER);

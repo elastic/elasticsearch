@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -54,7 +53,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     static final ParseField UNIT_FIELD = new ParseField("unit");
     static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
 
-    private static final ObjectParser<GeoDistanceAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<GeoDistanceAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(GeoDistanceAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareGeoFields(PARSER, true, false);
@@ -65,7 +64,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             for (Range range : ranges) {
                 agg.addRange(range);
             }
-        }, GeoDistanceAggregationBuilder::parseRange, RangeAggregator.RANGES_FIELD);
+        }, (p, c) -> GeoDistanceAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
 
         PARSER.declareField(GeoDistanceAggregationBuilder::unit, p -> DistanceUnit.fromString(p.text()),
                 UNIT_FIELD, ObjectParser.ValueType.STRING);
@@ -77,8 +76,8 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                 ORIGIN_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
     }
 
-    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        GeoDistanceAggregationBuilder builder = PARSER.parse(context.parser(), new GeoDistanceAggregationBuilder(aggregationName), context);
+    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        GeoDistanceAggregationBuilder builder = PARSER.parse(parser, new GeoDistanceAggregationBuilder(aggregationName), null);
         if (builder.origin() == null) {
             throw new IllegalArgumentException("Aggregation [" + aggregationName + "] must define an [origin].");
         }
@@ -116,7 +115,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         }
     }
 
-    private static GeoPoint parseGeoPoint(XContentParser parser, QueryParseContext context) throws IOException {
+    private static GeoPoint parseGeoPoint(XContentParser parser) throws IOException {
         Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             GeoPoint point = new GeoPoint();
@@ -164,7 +163,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         throw new IllegalArgumentException("Unexpected token [" + token + "] while parsing geo point");
     }
 
-    private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
+    private static Range parseRange(XContentParser parser) throws IOException {
         String fromAsStr = null;
         String toAsStr = null;
         double from = 0.0;

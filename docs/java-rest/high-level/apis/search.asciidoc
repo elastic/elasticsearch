@@ -1,0 +1,4 @@
+[[java-rest-high-search]]
+=== Search API
+
+To be documented.

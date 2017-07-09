@@ -54,7 +54,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, processors);
             builder.put("processors", processors);
         } else {
-            maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, Runtime.getRuntime().availableProcessors());
+            maxBasedOnNumberOfProcessors = expectedSize(threadPoolName, Math.min(32, Runtime.getRuntime().availableProcessors()));
         }
 
         final int expectedMax;

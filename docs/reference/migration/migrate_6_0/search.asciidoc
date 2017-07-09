@@ -112,3 +112,7 @@ It is still possible to force the highlighter to `fvh` or `plain` types.
 The `postings` highlighter has been removed from Lucene and Elasticsearch.
 The `unified` highlighter outputs the same highlighting when `index_options` is set
  to `offsets`.
+
+==== `fielddata_fields`
+
+The deprecated `fielddata_fields` have now been removed. `docvalue_fields` should be used instead.

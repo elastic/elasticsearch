@@ -1192,7 +1192,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (format >= FORMAT_SINGLE_TYPE) {
                 type = in.readString();
                 id = in.readString();
-                uid = new Term(in.readString(), in.readString());
+                if (format >= FORMAT_SEQ_NO) {
+                    uid = new Term(in.readString(), in.readBytesRef());
+                } else {
+                    uid = new Term(in.readString(), in.readString());
+                }
             } else {
                 uid = new Term(in.readString(), in.readString());
                 // the uid was constructed from the type and id so we can
@@ -1283,7 +1287,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.writeString(type);
             out.writeString(id);
             out.writeString(uid.field());
-            out.writeString(uid.text());
+            out.writeBytesRef(uid.bytes());
             out.writeLong(version);
             out.writeByte(versionType.getValue());
             out.writeLong(seqNo);

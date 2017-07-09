@@ -101,6 +101,11 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("reversestring", ReverseTokenFilterFactory.class);
         filters.put("elision", ElisionTokenFilterFactory.class);
         filters.put("truncate", TruncateTokenFilterFactory.class);
+        filters.put("limittokencount", LimitTokenCountFilterFactory.class);
+        filters.put("commongrams", CommonGramsTokenFilterFactory.class);
+        filters.put("commongramsquery", CommonGramsTokenFilterFactory.class);
+        filters.put("patternreplace", PatternReplaceTokenFilterFactory.class);
+        filters.put("patterncapturegroup", PatternCaptureGroupTokenFilterFactory.class);
         return filters;
     }
 

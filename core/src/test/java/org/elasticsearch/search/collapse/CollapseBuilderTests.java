@@ -39,7 +39,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitBuilderTests;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchContextException;
 import org.elasticsearch.search.SearchModule;
@@ -201,12 +200,13 @@ public class CollapseBuilderTests extends AbstractSerializingTestCase<CollapseBu
 
     @Override
     protected CollapseBuilder doParseInstance(XContentParser parser) throws IOException {
-        return CollapseBuilder.fromXContent(new QueryParseContext(parser));
+        return CollapseBuilder.fromXContent(parser);
     }
 
     /**
      * Rewrite this test to disable xcontent shuffling on the highlight builder
      */
+    @Override
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             CollapseBuilder testInstance = createTestInstance();

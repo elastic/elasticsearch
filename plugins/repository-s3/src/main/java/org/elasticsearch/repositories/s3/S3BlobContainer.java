@@ -92,7 +92,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
         }
         try (OutputStream stream = createOutput(blobName)) {
-            SocketAccess.doPrivilegedIOException(() -> Streams.copy(inputStream, stream));
+            Streams.copy(inputStream, stream);
         }
     }
 

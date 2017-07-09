@@ -19,9 +19,8 @@
 
 package org.elasticsearch.transport.nio.channel;
 
+
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.mocksocket.PrivilegedSocketAccess;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.nio.AcceptingSelector;
@@ -34,9 +33,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.function.Consumer;
 
 public class ChannelFactory {
@@ -44,8 +40,8 @@ public class ChannelFactory {
     private final TcpReadHandler handler;
     private final RawChannelFactory rawChannelFactory;
 
-    public ChannelFactory(Settings settings, TcpReadHandler handler) {
-        this(new RawChannelFactory(settings), handler);
+    public ChannelFactory(TcpTransport.ProfileSettings profileSettings, TcpReadHandler handler) {
+        this(new RawChannelFactory(profileSettings), handler);
     }
 
     ChannelFactory(RawChannelFactory rawChannelFactory, TcpReadHandler handler) {
@@ -107,12 +103,12 @@ public class ChannelFactory {
         private final int tcpSendBufferSize;
         private final int tcpReceiveBufferSize;
 
-        RawChannelFactory(Settings settings) {
-            tcpNoDelay = TcpTransport.TCP_NO_DELAY.get(settings);
-            tcpKeepAlive = TcpTransport.TCP_KEEP_ALIVE.get(settings);
-            tcpReusedAddress = TcpTransport.TCP_REUSE_ADDRESS.get(settings);
-            tcpSendBufferSize = Math.toIntExact(TcpTransport.TCP_SEND_BUFFER_SIZE.get(settings).getBytes());
-            tcpReceiveBufferSize = Math.toIntExact(TcpTransport.TCP_RECEIVE_BUFFER_SIZE.get(settings).getBytes());
+        RawChannelFactory(TcpTransport.ProfileSettings profileSettings) {
+            tcpNoDelay = profileSettings.tcpNoDelay;
+            tcpKeepAlive = profileSettings.tcpKeepAlive;
+            tcpReusedAddress = profileSettings.reuseAddress;
+            tcpSendBufferSize = Math.toIntExact(profileSettings.sendBufferSize.getBytes());
+            tcpReceiveBufferSize = Math.toIntExact(profileSettings.receiveBufferSize.getBytes());
         }
 
         SocketChannel openNioChannel(InetSocketAddress remoteAddress) throws IOException {
@@ -149,14 +145,6 @@ public class ChannelFactory {
             }
             if (tcpReceiveBufferSize > 0) {
                 socket.setSendBufferSize(tcpReceiveBufferSize);
-            }
-        }
-
-        private static <T> T getSocketChannel(CheckedSupplier<T, IOException> supplier) throws IOException {
-            try {
-                return AccessController.doPrivileged((PrivilegedExceptionAction<T>) supplier::get);
-            } catch (PrivilegedActionException e) {
-                throw (IOException) e.getCause();
             }
         }
     }

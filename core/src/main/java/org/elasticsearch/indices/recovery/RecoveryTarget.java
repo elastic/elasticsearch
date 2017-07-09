@@ -41,10 +41,10 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotRecoveringException;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.PrimaryContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -368,7 +368,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     @Override
     public void finalizeRecovery(final long globalCheckpoint) {
-        indexShard().updateGlobalCheckpointOnReplica(globalCheckpoint);
+        indexShard().updateGlobalCheckpointOnReplica(globalCheckpoint, "finalizing recovery");
         final IndexShard indexShard = indexShard();
         indexShard.finalizeRecovery();
     }
@@ -379,8 +379,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void handoffPrimaryContext(final PrimaryContext primaryContext) {
-        indexShard.updateAllocationIdsFromPrimaryContext(primaryContext);
+    public void handoffPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
+        indexShard.activateWithPrimaryContext(primaryContext);
     }
 
     @Override

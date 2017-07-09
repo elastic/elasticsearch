@@ -49,11 +49,7 @@ can be customised when a mapping type is created.
     All fields in the document which contain non-null values.
 
 [float]
-=== Routing meta-fields
-
-<<mapping-parent-field,`_parent`>>::
-
-    Used to create a parent-child relationship between two mapping types.
+=== Routing meta-field
 
 <<mapping-routing-field,`_routing`>>::
 
@@ -67,7 +63,6 @@ can be customised when a mapping type is created.
     Application specific metadata.
 
 
-
 include::fields/all-field.asciidoc[]
 
 include::fields/field-names-field.asciidoc[]
@@ -77,8 +72,6 @@ include::fields/id-field.asciidoc[]
 include::fields/index-field.asciidoc[]
 
 include::fields/meta-field.asciidoc[]
-
-include::fields/parent-field.asciidoc[]
 
 include::fields/routing-field.asciidoc[]
 

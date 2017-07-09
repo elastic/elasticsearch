@@ -44,7 +44,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -93,7 +92,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         }
     }
 
-    public static IncludeExclude parseInclude(XContentParser parser, QueryParseContext context) throws IOException {
+    public static IncludeExclude parseInclude(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             return new IncludeExclude(parser.text(), null);
@@ -128,7 +127,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         }
     }
 
-    public static IncludeExclude parseExclude(XContentParser parser, QueryParseContext context) throws IOException {
+    public static IncludeExclude parseExclude(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             return new IncludeExclude(null, parser.text());
@@ -170,6 +169,7 @@ public class IncludeExclude implements Writeable, ToXContent {
             }
         }
 
+        @Override
         public boolean accept(long value) {
             return ((valids == null) || (valids.contains(value))) && ((invalids == null) || (!invalids.contains(value)));
         }

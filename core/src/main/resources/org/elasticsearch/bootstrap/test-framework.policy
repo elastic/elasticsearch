@@ -42,7 +42,7 @@ grant codeBase "${codebase.lucene-test-framework-7.0.0-snapshot-ad2cb77.jar}" {
   permission java.lang.RuntimePermission "accessDeclaredMembers";
 };
 
-grant codeBase "${codebase.randomizedtesting-runner-2.5.0.jar}" {
+grant codeBase "${codebase.randomizedtesting-runner-2.5.2.jar}" {
   // optionally needed for access to private test methods (e.g. beforeClass)
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed to fail tests on uncaught exceptions from other threads

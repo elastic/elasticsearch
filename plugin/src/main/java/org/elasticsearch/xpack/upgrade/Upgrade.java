@@ -148,7 +148,7 @@ public class Upgrade implements ActionPlugin {
                                 clusterService,
                                 new String[]{"watch"},
                                 new Script(ScriptType.INLINE, "painless", "ctx._type = \"doc\";\n" +
-                                        "if (ctx._source.containsKey(\"_status\") && !ctx._source.containsKey(\"status\")  ) {}\n" +
+                                        "if (ctx._source.containsKey(\"_status\") && !ctx._source.containsKey(\"status\")  ) {\n" +
                                         "  ctx._source.status = ctx._source.remove(\"_status\");\n" +
                                         "}",
                                         new HashMap<>()),
@@ -179,7 +179,7 @@ public class Upgrade implements ActionPlugin {
     }
 
     private static void postWatcherUpgrade(Client client, Boolean shouldStartWatcher, ActionListener<TransportResponse.Empty> listener) {
-        client.admin().indices().prepareDelete("triggered-watches").execute(ActionListener.wrap(deleteIndexResponse -> {
+        client.admin().indices().prepareDelete(".triggered_watches").execute(ActionListener.wrap(deleteIndexResponse -> {
                     startWatcherIfNeeded(shouldStartWatcher, client, listener);
                 }, e -> {
                     if (e instanceof IndexNotFoundException) {

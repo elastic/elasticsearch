@@ -228,6 +228,9 @@ setup:
 
 ---
 "Date range":
+  - skip:
+      version: " - 5.99.99"
+      reason: before 6.0, numeric date_range to/from parameters were always parsed as if they are epoch_millis (#17920)
   - do:
       index:
         index: test

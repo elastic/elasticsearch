@@ -123,8 +123,10 @@ public class SearchTransportService extends AbstractComponent {
         // this used to be the QUERY_AND_FETCH which doesn't exist anymore.
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
+        ActionListener handler =
+            responseCollectorService == null ? listener : new ResponseListenerWrapper(listener, responseCollectorService);
         transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
-            new ActionListenerResponseHandler<>(new ResponseListenerWrapper(listener, responseCollectorService), supplier));
+            new ActionListenerResponseHandler<>(handler, supplier));
     }
 
     public void sendExecuteQuery(Transport.Connection connection, final QuerySearchRequest request, SearchTask task,

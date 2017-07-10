@@ -159,7 +159,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.responseCollectorService = Objects.requireNonNull(responseCollectorService, "response collector cannot be null");
+        this.responseCollectorService = responseCollectorService;
         this.bigArrays = bigArrays;
         this.queryPhase = new QueryPhase(settings);
         this.fetchPhase = fetchPhase;

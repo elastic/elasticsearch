@@ -162,7 +162,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
             if (NetworkService.NETWORK_SERVER.get(settings)) {
                 int workerCount = NioTransport.NIO_WORKER_COUNT.get(settings);
                 for (int i = 0; i < workerCount; ++i) {
-                    SocketSelector selector = new SocketSelector(new SocketEventHandler(logger, this::exceptionCaught));
+                    SocketSelector selector = new SocketSelector(getSocketEventHandler());
                     socketSelectors.add(selector);
                 }
 
@@ -215,6 +215,10 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
         profileToChannelFactory.clear();
         socketSelectors.clear();
+    }
+
+    protected SocketEventHandler getSocketEventHandler() {
+        return new SocketEventHandler(logger, this::exceptionCaught);
     }
 
     final void exceptionCaught(NioSocketChannel channel, Throwable cause) {

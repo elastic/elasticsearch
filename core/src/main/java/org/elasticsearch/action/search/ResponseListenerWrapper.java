@@ -53,8 +53,8 @@ public class ResponseListenerWrapper implements ActionListener<SearchPhaseResult
             final int queueSize = queryResult.nodeQueueSize();
             final long responseDuration = System.nanoTime() - startNanos;
             final String nodeId = listener.searchShardTarget.getNodeId();
-            // EWMA may be -1 if the query node doesn't support capturing it
-            if (nodeId != null && serviceTimeEWMA > 0) {
+            // EWMA/queue size may be -1 if the query node doesn't support capturing it
+            if (nodeId != null && serviceTimeEWMA > 0 && queueSize > 0) {
                 collector.addNodeStatistics(nodeId, queueSize, responseDuration, serviceTimeEWMA);
             }
         }

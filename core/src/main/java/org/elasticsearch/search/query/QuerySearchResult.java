@@ -60,7 +60,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
     private long totalHits;
     private float maxScore;
     private long serviceTimeEWMA = -1;
-    private int nodeQueueSize = 0;
+    private int nodeQueueSize = -1;
 
     public QuerySearchResult() {
     }
@@ -301,10 +301,10 @@ public final class QuerySearchResult extends SearchPhaseResult {
         hasProfileResults = profileShardResults != null;
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
             serviceTimeEWMA = in.readZLong();
-            nodeQueueSize = in.readVInt();
+            nodeQueueSize = in.readInt();
         } else {
             serviceTimeEWMA = -1;
-            nodeQueueSize = 0;
+            nodeQueueSize = -1;
         }
     }
 
@@ -345,7 +345,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
             out.writeZLong(serviceTimeEWMA);
-            out.writeVInt(nodeQueueSize);
+            out.writeInt(nodeQueueSize);
         }
     }
 

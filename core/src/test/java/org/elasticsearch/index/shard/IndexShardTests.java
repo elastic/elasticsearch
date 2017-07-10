@@ -919,15 +919,17 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testRecoverFromStoreWithOutOfOrderDelete() throws IOException {
         final IndexShard shard = newStartedShard(false);
-        int translogOps = 1;
         final Engine.Index index = shard.prepareIndexOnReplica(
             SourceToParse.source(SourceToParse.Origin.REPLICA, shard.shardId().getIndexName(), "type", "id", new BytesArray("{}"),
                 XContentType.JSON), 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
         final Engine.Delete delete = shard.prepareDeleteOnReplica("type", "id", 2, VersionType.EXTERNAL);
         shard.delete(delete);
+        final int translogOps;
         if (randomBoolean()) {
             flushShard(shard, true); // lucene won't flush due to just one pending delete
             translogOps = 0;
+        } else {
+            translogOps = 1;
         }
         final Engine.IndexResult result = shard.index(index);
         assertThat(result.getTranslogLocation(), nullValue());

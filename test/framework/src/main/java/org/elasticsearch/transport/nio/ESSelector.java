@@ -79,7 +79,13 @@ public abstract class ESSelector implements Closeable {
                 try {
                     cleanupAndCloseChannels();
                 } finally {
-                    runLock.unlock();
+                    try {
+                        selector.close();
+                    } catch (IOException e) {
+                        eventHandler.closeSelectorException(e);
+                    } finally {
+                        runLock.unlock();
+                    }
                 }
             }
         } else {

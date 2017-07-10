@@ -64,12 +64,14 @@ public class DfsQueryPhaseTests extends ESTestCase {
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0,
+                        null));
                     queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
                     queryResult.size(2); // the size of the result set
                     listener.onResponse(queryResult);
                 } else if (request.id() == 2) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node2", new Index("test", "na"), 0, null));
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node2", new Index("test", "na"), 0,
+                        null));
                     queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(84, 2.0F)}, 2.0F), new DocValueFormat[0]);
                     queryResult.size(2); // the size of the result set
                     listener.onResponse(queryResult);
@@ -119,7 +121,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0,
+                        null));
                     queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
                     queryResult.size(2); // the size of the result set
                     listener.onResponse(queryResult);
@@ -174,7 +177,8 @@ public class DfsQueryPhaseTests extends ESTestCase {
             public void sendExecuteQuery(Transport.Connection connection, QuerySearchRequest request, SearchTask task,
                                          SearchActionListener<QuerySearchResult> listener) {
                 if (request.id() == 1) {
-                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0, null));
+                    QuerySearchResult queryResult = new QuerySearchResult(123, new SearchShardTarget("node1", new Index("test", "na"), 0,
+                        null));
                     queryResult.topDocs(new TopDocs(1, new ScoreDoc[] {new ScoreDoc(42, 1.0F)}, 2.0F), new DocValueFormat[0]);
                     queryResult.size(2); // the size of the result set
                     listener.onResponse(queryResult);

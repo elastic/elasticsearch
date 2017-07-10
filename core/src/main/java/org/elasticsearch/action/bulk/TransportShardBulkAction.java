@@ -392,7 +392,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         if (!TransportActions.isShardNotAvailableException(failure)) {
                             throw failure;
                         }
-                    } else {
+                    } else if (operationResult.getTranslogLocation() != null) { // out of order ops are not added to the translog
                         location = locationToSync(location, operationResult.getTranslogLocation());
                     }
                 } catch (Exception e) {

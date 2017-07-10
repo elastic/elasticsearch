@@ -502,9 +502,11 @@ public class InternalEngine extends Engine {
                 } else if (plan.indexIntoLucene) {
                     indexResult = indexIntoLucene(index, plan);
                 } else {
+                    assert index.origin() != Operation.Origin.PRIMARY;
                     indexResult = new IndexResult(plan.versionForIndexing, plan.currentNotFoundOrDeleted);
                 }
                 if (indexResult.hasFailure() == false &&
+                    plan.indexIntoLucene && // if we didn't store it in lucene, there is no need to store it in the translog
                     index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                     Translog.Location location =
                         translog.add(new Translog.Index(index, indexResult));
@@ -541,7 +543,7 @@ public class InternalEngine extends Engine {
             // a delete state and return false for the created flag in favor of code simplicity
             final OpVsLuceneDocStatus opVsLucene = compareOpToLuceneDocBasedOnVersions(index);
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
-                plan = IndexingStrategy.processButSkipLucene(false, index.version());
+                plan = IndexingStrategy.skipAsStale(false, index.version());
             } else {
                 plan = IndexingStrategy.processNormally(
                     opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version()
@@ -704,7 +706,7 @@ public class InternalEngine extends Engine {
             return new IndexingStrategy(true, true, true, versionForIndexing, null);
         }
 
-        static IndexingStrategy processButSkipLucene(boolean currentNotFoundOrDeleted, long versionForIndexing) {
+        static IndexingStrategy skipAsStale(boolean currentNotFoundOrDeleted, long versionForIndexing) {
             return new IndexingStrategy(currentNotFoundOrDeleted, false, false, versionForIndexing, null);
         }
     }
@@ -758,9 +760,11 @@ public class InternalEngine extends Engine {
             } else if (plan.deleteFromLucene) {
                 deleteResult = deleteInLucene(delete, plan);
             } else {
+                assert delete.origin() != Operation.Origin.PRIMARY;
                 deleteResult = new DeleteResult(plan.versionOfDeletion, plan.currentlyDeleted == false);
             }
             if (!deleteResult.hasFailure() &&
+                plan.deleteFromLucene && // if it wasn't applied to lucene, we don't store it in the translog
                 delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
                 Translog.Location location =
                     translog.add(new Translog.Delete(delete, deleteResult));

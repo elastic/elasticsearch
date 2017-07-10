@@ -470,17 +470,17 @@ Using `_index` in scripts has been replaced with writing `ScriptEngine` backends
 === Painless Syntax
 
 See the
-{painless-ref}/painless-language-spec.html[Painless Language Specification]
-in the guide to the {painless-ref}/index.html[Painless Scripting Language].
+{painless}/painless-specification.html[Painless Language Specification]
+in the guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude",id="modules-scripting-painless-debugging"]
 === Painless Debugging
 
-See {painless-ref}/painless-debugging.html[Painless Debugging] in the
-guide to the {painless-ref}/index.html[Painless Scripting Language].
+See {painless}/painless-debugging.html[Painless Debugging] in the
+guide to the {painless}/index.html[Painless Scripting Language].
 
 [role="exclude",id="painless-api-reference"]
 === Painless API Reference
 
-See the {painless-ref}/painless-api-reference.html[Painless API Reference] in
-the guide to the {painless-ref}/index.html[Painless Scripting Language].
+See the {painless}/painless-api-reference.html[Painless API Reference] in
+the guide to the {painless}/index.html[Painless Scripting Language].

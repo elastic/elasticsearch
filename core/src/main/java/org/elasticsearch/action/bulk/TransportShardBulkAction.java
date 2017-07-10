@@ -186,8 +186,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (operationResult == null) { // in case of noop update operation
                 assert response.getResult() == DocWriteResponse.Result.NOOP
                         : "only noop update can have null operation";
-                replicaRequest.setIgnoreOnReplica();
                 replicaRequest.setPrimaryResponse(new BulkItemResponse(replicaRequest.id(), opType, response));
+                assert replicaRequest.isIgnoreOnReplica();
             } else if (operationResult.hasFailure() == false) {
                 location = locationToSync(location, operationResult.getTranslogLocation());
                 BulkItemResponse primaryResponse = new BulkItemResponse(replicaRequest.id(), opType, response);
@@ -195,6 +195,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 // set an empty ShardInfo to indicate no shards participated in the request execution
                 // so we can safely send it to the replicas. We won't use it in the real response though.
                 primaryResponse.getResponse().setShardInfo(new ShardInfo());
+                assert replicaRequest.isIgnoreOnReplica() == false;
             } else {
                 DocWriteRequest docWriteRequest = replicaRequest.request();
                 Exception failure = operationResult.getFailure();
@@ -209,9 +210,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 // again, due to primary relocation and only processing up to N bulk items when the shard gets closed)
                 // then just use the response we got from the successful execution
                 if (replicaRequest.getPrimaryResponse() == null || isConflictException(failure) == false) {
-                    replicaRequest.setIgnoreOnReplica();
                     replicaRequest.setPrimaryResponse(new BulkItemResponse(replicaRequest.id(), docWriteRequest.opType(),
                             new BulkItemResponse.Failure(request.index(), docWriteRequest.type(), docWriteRequest.id(), failure)));
+                    assert replicaRequest.isIgnoreOnReplica();
                 }
             }
             assert replicaRequest.getPrimaryResponse() != null;

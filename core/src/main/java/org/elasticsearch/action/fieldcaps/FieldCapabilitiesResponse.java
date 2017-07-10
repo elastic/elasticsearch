@@ -86,7 +86,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         super.readFrom(in);
         this.responseMap =
             in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
-        if (in.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_5_5_0)) {
             indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
         } else {
             indexResponses = Collections.emptyList();
@@ -101,7 +101,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
-        if (out.getVersion().onOrAfter(Version.V_5_5_0_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_5_5_0)) {
             out.writeList(indexResponses);
         }
 

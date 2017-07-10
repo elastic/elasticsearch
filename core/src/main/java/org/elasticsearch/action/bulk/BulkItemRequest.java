@@ -19,11 +19,10 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -38,7 +37,6 @@ public class BulkItemRequest implements Streamable {
     private int id;
     private DocWriteRequest request;
     private volatile BulkItemResponse primaryResponse;
-    private volatile boolean ignoreOnReplica;
 
     BulkItemRequest() {
 
@@ -71,15 +69,9 @@ public class BulkItemRequest implements Streamable {
         this.primaryResponse = primaryResponse;
     }
 
-    /**
-     * Marks this request to be ignored and *not* execute on a replica.
-     */
-    void setIgnoreOnReplica() {
-        this.ignoreOnReplica = true;
-    }
-
     boolean isIgnoreOnReplica() {
-        return ignoreOnReplica;
+        return primaryResponse != null &&
+            (primaryResponse.isFailed() || primaryResponse.getResponse().getResult() == DocWriteResponse.Result.NOOP);
     }
 
     public static BulkItemRequest readBulkItem(StreamInput in) throws IOException {
@@ -94,8 +86,18 @@ public class BulkItemRequest implements Streamable {
         request = DocWriteRequest.readDocumentRequest(in);
         if (in.readBoolean()) {
             primaryResponse = BulkItemResponse.readBulkItem(in);
+            // This is a bwc layer for 6.0 which no longer mutates the requests with these
+            // Since 5.x still requires it we do it here. Note that these are harmless
+            // as both operations are idempotent. This is something we rely on and assert on
+            // in InternalEngine.planIndexingAsNonPrimary()
+            request.version(primaryResponse.getVersion());
+            request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
         }
-        ignoreOnReplica = in.readBoolean();
+        if (in.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+            boolean ignoreOnReplica = in.readBoolean();
+            assert ignoreOnReplica == isIgnoreOnReplica() :
+                "ignoreOnReplica mismatch. wire [" + ignoreOnReplica + "], ours [" + isIgnoreOnReplica() + "]";
+        }
     }
 
     @Override
@@ -103,6 +105,8 @@ public class BulkItemRequest implements Streamable {
         out.writeVInt(id);
         DocWriteRequest.writeDocumentRequest(out, request);
         out.writeOptionalStreamable(primaryResponse);
-        out.writeBoolean(ignoreOnReplica);
+        if (out.getVersion().before(Version.V_5_6_0_UNRELEASED)) {
+            out.writeBoolean(isIgnoreOnReplica());
+        }
     }
 }

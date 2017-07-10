@@ -55,9 +55,13 @@ public class ResponseCollectorService extends AbstractComponent implements Clust
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
-                nodeIdToStats.remove(removedNode.getId());
+                removeNode(removedNode.getId());
             }
         }
+    }
+
+    void removeNode(String nodeId) {
+        nodeIdToStats.remove(nodeId);
     }
 
     public void addNodeStatistics(String nodeId, int queueSize, long responseTimeNanos, long avgServiceTimeNanos) {

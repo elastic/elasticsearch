@@ -5,11 +5,52 @@
  */
 package org.elasticsearch.xpack.sql.cli.net.protocol;
 
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.ResponseType;
 
-public abstract class Response extends Message {
+import java.io.DataOutput;
+import java.io.IOException;
 
-    public Response(Action action) {
-        super(action);
+public abstract class Response {
+    @Override
+    public final String toString() {
+        return getClass().getSimpleName() + "<" + toStringBody() + ">";
     }
+
+    /**
+     * Write this response to the {@link DataOutput}.
+     * @param clientVersion The version of the client that requested
+     *      the message. This should be used to send a response compatible
+     *      with the client.
+     */
+    abstract void write(int clientVersion, DataOutput out) throws IOException;
+
+    /**
+     * Body to go into the {@link #toString()} result.
+     */
+    protected abstract String toStringBody();
+
+    /**
+     * Type of the request for which this is the response.
+     */
+    abstract RequestType requestType();
+
+    /**
+     * Type of this response.
+     */
+    abstract ResponseType responseType();
+
+    /*
+     * Must properly implement {@linkplain #equals(Object)} for
+     * round trip testing.
+     */
+    @Override
+    public abstract boolean equals(Object obj);
+
+    /*
+     * Must properly implement {@linkplain #hashCode()} for
+     * round trip testing.
+     */
+    @Override
+    public abstract int hashCode();
 }

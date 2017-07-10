@@ -9,7 +9,7 @@ import com.sun.net.httpserver.HttpExchange;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.xpack.sql.TestUtils;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ProtoUtils;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Request;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
 import org.elasticsearch.xpack.sql.server.cli.CliServer;
@@ -26,13 +26,13 @@ class CliProtoHandler extends ProtoHandler<Response> {
     private final CliServer server;
     
     CliProtoHandler(Client client) {
-        super(client, ProtoUtils::readHeader, CliServerProtoUtils::write);
+        super(client, in -> null, CliServerProtoUtils::write);
         this.server = new CliServer(TestUtils.planExecutor(client), clusterName, () -> info.getNode().getName(), info.getVersion(), info.getBuild());
     }
 
     @Override
     protected void handle(HttpExchange http, DataInput in) throws IOException {
-        Request req = ProtoUtils.readRequest(in);
+        Request req = Proto.readRequest(in);
         server.handle(req, wrap(resp -> sendHttpResponse(http, resp), ex -> fail(http, ex)));
     }
 }

@@ -5,29 +5,50 @@
  */
 package org.elasticsearch.xpack.sql.cli.net.protocol;
 
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
+import java.util.Objects;
 
 public class CommandRequest extends Request {
-
     public final String command;
 
     public CommandRequest(String command) {
-        super(Action.COMMAND);
         this.command = command;
     }
 
+    CommandRequest(int clientVersion, DataInput in) throws IOException {
+        command = in.readUTF();
+    }
+
     @Override
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(action.value());
+    public void write(DataOutput out) throws IOException {
         out.writeUTF(command);
     }
 
-    public static CommandRequest decode(DataInput in) throws IOException {
-        String result = in.readUTF();
-        return new CommandRequest(result);
+    @Override
+    protected String toStringBody() {
+        return command;
+    }
+
+    @Override
+    public RequestType requestType() {
+        return RequestType.COMMAND;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        CommandRequest other = (CommandRequest) obj;
+        return Objects.equals(command, other.command);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(command);
     }
 }

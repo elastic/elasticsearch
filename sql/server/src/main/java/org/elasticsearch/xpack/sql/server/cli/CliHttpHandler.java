@@ -5,10 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.server.cli;
 
-import java.io.DataInputStream;
-import java.io.IOException;
-
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -16,13 +14,14 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ProtoUtils;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
 import org.elasticsearch.xpack.sql.util.StringUtils;
 
-import static org.elasticsearch.action.ActionListener.wrap;
+import java.io.DataInputStream;
+import java.io.IOException;
+
 import static org.elasticsearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.INTERNAL_SERVER_ERROR;
 import static org.elasticsearch.rest.RestStatus.OK;
 
@@ -36,29 +35,16 @@ public class CliHttpHandler extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         if (!request.hasContent()) {
-            return badProto(StringUtils.EMPTY);
+            throw new IllegalArgumentException("expected a request body");
         }
 
         try (DataInputStream in = new DataInputStream(request.content().streamInput())) {
-            String msg = ProtoUtils.readHeader(in);
-            if (msg != null) {
-                return badProto(msg);
-            }
-
-            try {
-                return c -> client.executeLocally(CliAction.INSTANCE, new CliRequest(ProtoUtils.readRequest(in)),
-                                                    wrap(response -> cliResponse(c, response), ex -> error(c, ex)));
-
-            } catch (Exception ex) {
-                return badProto("Unknown message");
-            }
+            CliRequest cliRequest = new CliRequest(Proto.readRequest(in));
+            return c -> client.executeLocally(CliAction.INSTANCE, cliRequest,
+                                                ActionListener.wrap(response -> cliResponse(c, response), ex -> error(c, ex)));
         }
     }
     
-    private static RestChannelConsumer badProto(String message) {
-        return c -> c.sendResponse(new BytesRestResponse(BAD_REQUEST, TEXT_CONTENT_TYPE, message));
-    }
-
     private static void cliResponse(RestChannel channel, CliResponse response) {
         BytesRestResponse restResponse = null;
         
@@ -71,8 +57,7 @@ public class CliHttpHandler extends BaseRestHandler {
         channel.sendResponse(restResponse);
     }
 
-    private void error(RestChannel channel, Exception ex) {
-        logger.debug("failed to parse sql request", ex);
+    private static void error(RestChannel channel, Exception ex) {
         BytesRestResponse response = null;
         try {
             response = new BytesRestResponse(channel, ex);

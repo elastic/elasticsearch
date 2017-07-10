@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.xpack.sql.SqlException;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ErrorResponse;
 import org.elasticsearch.xpack.sql.cli.net.protocol.ExceptionResponse;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ProtoUtils;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
 
 import java.io.DataOutputStream;
@@ -28,13 +28,13 @@ public abstract class CliServerProtoUtils {
     public static BytesReference write(Response response) throws IOException {
         try (BytesStreamOutput array = new BytesStreamOutput();
                 DataOutputStream out = new DataOutputStream(array)) {
-            ProtoUtils.write(out, response);
+            Proto.writeResponse(response, Proto.CURRENT_VERSION, out);
             out.flush();
             return array.bytes();
         }
     }
 
-    public static Response exception(Throwable cause, Action action) {
+    public static Response exception(Throwable cause, RequestType requestType) {
         String message = EMPTY;
         String cs = EMPTY;
         if (cause != null) {
@@ -45,13 +45,12 @@ public abstract class CliServerProtoUtils {
         }
 
         if (expectedException(cause)) {
-            return new ExceptionResponse(action, message, cs);
+            return new ExceptionResponse(requestType, message, cs);
         }
         else {
-            // TODO: might want to 'massage' this
             StringWriter sw = new StringWriter();
             cause.printStackTrace(new PrintWriter(sw));
-            return new ErrorResponse(action, message, cs, sw.toString());
+            return new ErrorResponse(requestType, message, cs, sw.toString());
         }
     }
 

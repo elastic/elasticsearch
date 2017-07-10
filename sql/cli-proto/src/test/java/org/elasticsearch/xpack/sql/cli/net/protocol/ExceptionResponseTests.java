@@ -6,18 +6,18 @@
 package org.elasticsearch.xpack.sql.cli.net.protocol;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.sql.cli.net.protocol.CliRoundTripTestUtils.assertRoundTripCurrentVersion;
-public class CommandResponseTests extends ESTestCase {
-    static CommandResponse randomCommandResponse() {
-        long start = randomNonNegativeLong();
-        long end = randomValueOtherThanMany(l -> l >= start, ESTestCase::randomNonNegativeLong);
-        return new CommandResponse(start, end, randomAlphaOfLength(5), randomAlphaOfLength(5));
+
+public class ExceptionResponseTests extends ESTestCase {
+    static ExceptionResponse randomExceptionResponse() {
+        return new ExceptionResponse(randomFrom(RequestType.values()), randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 
     public void testRoundTrip() throws IOException {
-        assertRoundTripCurrentVersion(randomCommandResponse());
+        assertRoundTripCurrentVersion(randomExceptionResponse());
     }
 }

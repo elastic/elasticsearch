@@ -5,21 +5,21 @@
  */
 package org.elasticsearch.xpack.sql.cli.net.protocol;
 
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.ResponseType;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Status;
+import java.util.Objects;
 
 public class InfoResponse extends Response {
 
     public final String node, cluster, versionString, versionHash, versionDate;
     public final int majorVersion, minorVersion;
 
-    public InfoResponse(String nodeName, String clusterName, byte versionMajor, byte versionMinor, String version, String versionHash, String versionDate) {
-        super(Action.INFO);
-
+    public InfoResponse(String nodeName, String clusterName, byte versionMajor, byte versionMinor, String version,
+            String versionHash, String versionDate) {
         this.node = nodeName;
         this.cluster = clusterName;
         this.versionString = version;
@@ -30,8 +30,18 @@ public class InfoResponse extends Response {
         this.minorVersion = versionMinor;
     }
 
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(Status.toSuccess(action));
+    InfoResponse(DataInput in) throws IOException {
+        node = in.readUTF();
+        cluster = in.readUTF();
+        majorVersion = in.readByte();
+        minorVersion = in.readByte();
+        versionString = in.readUTF();
+        versionHash = in.readUTF();
+        versionDate = in.readUTF();
+    }
+
+    @Override
+    void write(int clientVersion, DataOutput out) throws IOException {
         out.writeUTF(node);
         out.writeUTF(cluster);
         out.writeByte(majorVersion);
@@ -41,15 +51,44 @@ public class InfoResponse extends Response {
         out.writeUTF(versionDate);
     }
 
-    public static InfoResponse decode(DataInput in) throws IOException {
-        String node = in.readUTF();
-        String cluster = in.readUTF();
-        byte versionMajor = in.readByte();
-        byte versionMinor = in.readByte();
-        String version = in.readUTF();
-        String versionHash = in.readUTF();
-        String versionBuild = in.readUTF();
+    @Override
+    protected String toStringBody() {
+        return "node=[" + node
+                + "] cluster=[" + cluster
+                + "] version=[" + versionString
+                + "]/[major=[" + majorVersion
+                + "] minor=[" + minorVersion
+                + "] hash=[" + versionHash
+                + "] date=[" + versionDate + "]";
+    }
 
-        return new InfoResponse(node, cluster, versionMajor, versionMinor, version, versionHash, versionBuild);
+    @Override
+    RequestType requestType() {
+        return RequestType.INFO;
+    }
+
+    @Override
+    ResponseType responseType() {
+        return ResponseType.INFO;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null || obj.getClass() != getClass()) {
+            return false;
+        }
+        InfoResponse other = (InfoResponse) obj;
+        return Objects.equals(node, other.node)
+                && Objects.equals(cluster, other.cluster)
+                && Objects.equals(majorVersion, other.majorVersion)
+                && Objects.equals(minorVersion, other.minorVersion)
+                && Objects.equals(versionString, other.versionString)
+                && Objects.equals(versionHash, other.versionHash)
+                && Objects.equals(versionDate, other.versionDate);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(node, cluster, majorVersion, minorVersion, versionString, versionHash, versionDate);
     }
 }

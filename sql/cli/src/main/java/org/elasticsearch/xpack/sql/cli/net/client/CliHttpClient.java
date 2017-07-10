@@ -9,8 +9,8 @@ import org.elasticsearch.xpack.sql.cli.CliConfiguration;
 import org.elasticsearch.xpack.sql.cli.CliException;
 import org.elasticsearch.xpack.sql.cli.net.protocol.CommandRequest;
 import org.elasticsearch.xpack.sql.cli.net.protocol.InfoRequest;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.cli.net.protocol.ProtoUtils;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 import org.elasticsearch.xpack.sql.cli.net.protocol.Response;
 import org.elasticsearch.xpack.sql.net.client.util.Bytes;
 
@@ -20,23 +20,20 @@ import java.io.DataInputStream;
 import java.io.IOException;
 
 public class CliHttpClient implements AutoCloseable {
-
     private final HttpClient http;
-    private final CliConfiguration cfg;
 
     public CliHttpClient(CliConfiguration cfg) {
         http = new HttpClient(cfg);
-        this.cfg = cfg;
     }
 
     public Response serverInfo() {
-        Bytes ba = http.put(out -> ProtoUtils.write(out, new InfoRequest()));
-        return doIO(ba, in -> readResponse(in, Action.INFO));
+        Bytes ba = http.put(out -> Proto.writeRequest(new InfoRequest(), out));
+        return doIO(ba, in -> Proto.readResponse(RequestType.INFO, in));
     }
 
     public Response command(String command, String requestId) {
-        Bytes ba = http.put(out -> ProtoUtils.write(out, new CommandRequest(command)));
-        return doIO(ba, in -> readResponse(in, Action.COMMAND));
+        Bytes ba = http.put(out -> Proto.writeRequest(new CommandRequest(command), out));
+        return doIO(ba, in -> Proto.readResponse(RequestType.COMMAND, in));
     }
 
     private static <T> T doIO(Bytes ba, DataInputFunction<T> action) {
@@ -45,23 +42,6 @@ public class CliHttpClient implements AutoCloseable {
         } catch (IOException ex) {
             throw new CliException(ex, "Cannot read response");
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static <R extends Response> R readResponse(DataInput in, Action expected) throws IOException {
-        String errorMessage = ProtoUtils.readHeader(in);
-        if (errorMessage != null) {
-            throw new CliException(errorMessage);
-        }
-
-        int header = in.readInt();
-
-        Action action = Action.from(header);
-        if (expected != action) {
-            throw new CliException("Expected response for %s, found %s", expected, action);
-        }
-
-        return (R) ProtoUtils.readResponse(in, header);
     }
 
     public void close() {}

@@ -5,23 +5,20 @@
  */
 package org.elasticsearch.xpack.sql.cli.net.protocol;
 
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.ResponseType;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Objects;
 
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Status;
-
 public class CommandResponse extends Response {
-
     public final long serverTimeQueryReceived, serverTimeResponseSent;
     public final String requestId;
     public final String data;
 
     public CommandResponse(long serverTimeQueryReceived, long serverTimeResponseSent, String requestId, String data) {
-        super(Action.COMMAND);
-
         this.serverTimeQueryReceived = serverTimeQueryReceived;
         this.serverTimeResponseSent = serverTimeResponseSent;
         this.requestId = requestId;
@@ -29,17 +26,15 @@ public class CommandResponse extends Response {
         this.data = data;
     }
 
-    public CommandResponse(DataInput in) throws IOException {
-        super(Action.COMMAND);
+    CommandResponse(DataInput in) throws IOException {
         serverTimeQueryReceived = in.readLong();
         serverTimeResponseSent = in.readLong();
         requestId = in.readUTF();
         data = in.readUTF();
     }
 
-    public void encode(DataOutput out) throws IOException {
-        out.writeInt(Status.toSuccess(action)); // NOCOMMIT not symetric!
-
+    @Override
+    void write(int clientVersion, DataOutput out) throws IOException {
         out.writeLong(serverTimeQueryReceived);
         out.writeLong(serverTimeResponseSent);
         out.writeUTF(requestId);
@@ -47,11 +42,21 @@ public class CommandResponse extends Response {
     }
 
     @Override
-    public String toString() {
-        return "CommandResponse<received=[" + serverTimeQueryReceived 
+    protected String toStringBody() {
+        return "received=[" + serverTimeQueryReceived 
                 + "] sent=[" + serverTimeResponseSent
                 + "] requestId=[" + requestId
-                + "] data=[" + data + "]>";
+                + "] data=[" + data + "]";
+    }
+
+    @Override
+    RequestType requestType() {
+        return RequestType.COMMAND;
+    }
+
+    @Override
+    ResponseType responseType() {
+        return ResponseType.COMMAND;
     }
 
     @Override

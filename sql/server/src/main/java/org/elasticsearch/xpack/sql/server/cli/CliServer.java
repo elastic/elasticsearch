@@ -47,10 +47,10 @@ public class CliServer {
                 command((CommandRequest) req, listener);
             }
             else {
-                listener.onResponse(new ExceptionResponse(req.action, "Invalid requested", null));
+                listener.onResponse(new ExceptionResponse(req.requestType(), "Invalid requested", null));
             }
         } catch (Exception ex) {
-            listener.onResponse(CliServerProtoUtils.exception(ex, req.action));
+            listener.onResponse(CliServerProtoUtils.exception(ex, req.requestType()));
         }
     }
 
@@ -72,7 +72,7 @@ public class CliServer {
 
                     listener.onResponse(new CommandResponse(start, stop, requestId, CliUtils.toString(c)));
                 }, 
-                ex -> listener.onResponse(CliServerProtoUtils.exception(ex, req.action))));
+                ex -> listener.onResponse(CliServerProtoUtils.exception(ex, req.requestType()))));
     }
 
     public void queryPage(QueryPageRequest req, ActionListener<Response> listener) {

@@ -5,11 +5,45 @@
  */
 package org.elasticsearch.xpack.sql.cli.net.protocol;
 
-import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.Action;
+import org.elasticsearch.xpack.sql.cli.net.protocol.Proto.RequestType;
 
-public abstract class Request extends Message {
+import java.io.DataOutput;
+import java.io.IOException;
 
-    public Request(Action action) {
-        super(action);
+public abstract class Request {
+    @Override
+    public final String toString() {
+        return getClass().getSimpleName() + "<" + toStringBody() + ">";
     }
+
+    /**
+     * Write this request to the {@link DataOutput}. Implementers should
+     * be kind and stick this right under the ctor that reads the response.
+     */
+    abstract void write(DataOutput out) throws IOException;
+
+    /**
+     * Body to go into the {@link #toString()} result.
+     */
+    protected abstract String toStringBody();
+
+    /**
+     * Type of this request.
+     */
+    public abstract RequestType requestType();
+
+    /*
+     * Must properly implement {@linkplain #equals(Object)} for
+     * round trip testing.
+     */
+    @Override
+    public abstract boolean equals(Object obj);
+
+    /*
+     * Must properly implement {@linkplain #hashCode()} for
+     * round trip testing.
+     */
+    @Override
+    public abstract int hashCode();
+
 }

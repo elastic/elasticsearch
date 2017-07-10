@@ -10,14 +10,14 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.sql.cli.net.protocol.CliRoundTripTestUtils.assertRoundTripCurrentVersion;
-public class CommandResponseTests extends ESTestCase {
-    static CommandResponse randomCommandResponse() {
-        long start = randomNonNegativeLong();
-        long end = randomValueOtherThanMany(l -> l >= start, ESTestCase::randomNonNegativeLong);
-        return new CommandResponse(start, end, randomAlphaOfLength(5), randomAlphaOfLength(5));
+
+public class InfoResponseTests extends ESTestCase {
+    static InfoResponse randomInfoResponse() {
+        return new InfoResponse(randomAlphaOfLength(5), randomAlphaOfLength(5), randomByte(), randomByte(),
+                randomAlphaOfLength(5), randomAlphaOfLength(5), randomAlphaOfLength(5));
     }
 
     public void testRoundTrip() throws IOException {
-        assertRoundTripCurrentVersion(randomCommandResponse());
+        assertRoundTripCurrentVersion(randomInfoResponse());
     }
 }

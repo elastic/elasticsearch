@@ -50,6 +50,7 @@ import java.nio.file.FileSystemException;
 import java.nio.file.FileSystemLoopException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.NotDirectoryException;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -619,6 +620,13 @@ public abstract class StreamOutput extends OutputStream {
         writers.put(GeoPoint.class, (o, v) -> {
             o.writeByte((byte) 22);
             o.writeGeoPoint((GeoPoint) v);
+        });
+        writers.put(ZonedDateTime.class, (o, v) -> {
+            o.writeByte((byte) 23);
+            final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
+            zonedDateTime.getZone().getId();
+            o.writeString(zonedDateTime.getZone().getId());
+            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
         WRITERS = Collections.unmodifiableMap(writers);
     }

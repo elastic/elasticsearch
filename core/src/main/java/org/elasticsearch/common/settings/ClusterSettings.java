@@ -411,7 +411,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING,
                     ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING,
                     FastVectorHighlighter.SETTING_TV_HIGHLIGHT_MULTI_VALUE,
-                    Node.BREAKER_TYPE_KEY,
-                    IngestService.NEW_INGEST_DATE_FORMAT
+                    Node.BREAKER_TYPE_KEY
             )));
 }

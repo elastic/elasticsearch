@@ -21,6 +21,11 @@ import java.util.function.Function;
 import java.util.zip.GZIPInputStream;
 
 public class JreHttpUrlConnection implements Closeable {
+    public static <R> R http(URL url, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
+        try (JreHttpUrlConnection con = new JreHttpUrlConnection(url, cfg)) {
+            return handler.apply(con);
+        }
+    }
 
     private boolean closed = false;
     final HttpURLConnection con;
@@ -56,7 +61,7 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    public Bytes put(CheckedConsumer<DataOutput, IOException> doc) throws ClientException { // NOCOMMIT why is this called put when it is a post?
+    public Bytes post(CheckedConsumer<DataOutput, IOException> doc) throws ClientException {
         try {
             con.setRequestMethod("POST");
             con.setDoOutput(true);
@@ -65,10 +70,12 @@ public class JreHttpUrlConnection implements Closeable {
                 doc.accept(new DataOutputStream(out));
             }
             if (con.getResponseCode() >= 500) {
-                throw new ClientException("Server error: %s(%d;%s)", con.getResponseMessage(), con.getResponseCode(), IOUtils.asBytes(getStream(con, con.getErrorStream())).toString());
+                throw new ClientException("Server error: %s(%d;%s)", con.getResponseMessage(), con.getResponseCode(),
+                        IOUtils.asBytes(getStream(con, con.getErrorStream())).toString());
             }
             if (con.getResponseCode() >= 400) {
-                throw new ClientException("Client error: %s(%d;%s)", con.getResponseMessage(), con.getResponseCode(), IOUtils.asBytes(getStream(con, con.getErrorStream())).toString());
+                throw new ClientException("Client error: %s(%d;%s)", con.getResponseMessage(), con.getResponseCode(),
+                        IOUtils.asBytes(getStream(con, con.getErrorStream())).toString());
             }
             return IOUtils.asBytes(getStream(con, con.getInputStream()));
         } catch (IOException ex) {
@@ -126,16 +133,6 @@ public class JreHttpUrlConnection implements Closeable {
             } catch (IOException ex) {
                 // keep on ignoring
             }
-        }
-    }
-
-    //
-    // main call class
-    //
-
-    public static <R> R http(URL url, ConnectionConfiguration cfg, Function<JreHttpUrlConnection, R> handler) {
-        try (JreHttpUrlConnection con = new JreHttpUrlConnection(url, cfg)) {
-            return handler.apply(con);
         }
     }
 }

@@ -9,7 +9,9 @@
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]parser[/\\]SqlBase(Base(Listener|Visitor)|Lexer|Listener|Parser|Visitor).java" checks="." />
 
   <!-- NOCOMMIT Temporary-->
-  <suppress files="sql[/\\].*.java" checks="LineLength" />
+  <suppress files="sql[/\\]jdbc[/\\].*.java" checks="LineLength" />
+  <suppress files="sql[/\\]jdbc-proto[/\\].*.java" checks="LineLength" />
+  <suppress files="sql[/\\]server[/\\].*.java" checks="LineLength" />
   <suppress files="sql[/\\]server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]sql[/\\]expression[/\\].*.java" checks="EqualsHashCode" />
 
   <suppress files="plugin[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]xpack[/\\]common[/\\]action[/\\]XPackDeleteByQueryAction.java" checks="LineLength" />

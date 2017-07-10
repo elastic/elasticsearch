@@ -52,7 +52,7 @@ class HttpClient {
         try {
             return AccessController.doPrivileged((PrivilegedAction<Bytes>) () -> {
                 return JreHttpUrlConnection.http(url(path), cfg, con -> {
-                    return con.put(os);
+                    return con.post(os);
                 });
             });
         } catch (ClientException ex) {

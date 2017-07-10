@@ -66,7 +66,7 @@ class HttpClient {
         try {
             return AccessController.doPrivileged((PrivilegedAction<BytesArray>) () -> {    
                 return JreHttpUrlConnection.http(url(path), cfg, con -> {
-                    return new BytesArray(con.put(os));
+                    return new BytesArray(con.post(os));
                 });
             });
         } catch (ClientException ex) {

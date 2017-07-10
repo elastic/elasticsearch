@@ -105,11 +105,13 @@ public class ProtoTests extends ESTestCase {
                 "SELECT salary s, EXP(LOG(salary)) m FROM emp.emp LIMIT 5",
                 "SELECT salary s, ROUND(EXP(LOG(salary))) m FROM emp.emp LIMIT 5",
                 "SELECT salary s, ROUND(EXP(LOG(salary))) m FROM emp.emp ORDER BY ROUND(LOG(emp_no)) LIMIT 5",
-                "SELECT year(birth_date) year, last_name l, first_name f FROM emp.emp WHERE year(birth_date) <=1960 AND tenure < 25 ORDER BY year LIMIT 5",
+                "SELECT year(birth_date) year, last_name l, first_name f "
+                        + "FROM emp.emp WHERE year(birth_date) <=1960 AND tenure < 25 ORDER BY year LIMIT 5",
                 "SELECT COUNT(*) FROM emp.emp",
                 "SELECT COUNT(*) FROM emp.emp WHERE emp_no >= 10010",
                 "SELECT tenure, COUNT(*) count, MIN(salary) min, AVG(salary) avg, MAX(salary) max FROM emp.emp GROUP BY tenure",
-                "SELECT YEAR(birth_date) born, COUNT(*) count, MIN(salary) min, AVG(salary) avg, MAX(salary) max FROM emp.emp GROUP BY born",
+                "SELECT YEAR(birth_date) born, COUNT(*) count, MIN(salary) min, AVG(salary) avg, MAX(salary) max "
+                        + "FROM emp.emp GROUP BY born",
                 "SELECT tenure, gender, COUNT(tenure) count, AVG(salary) avg FROM emp.emp GROUP BY tenure, gender HAVING avg > 50000",
                 "SELECT gender, tenure, AVG(salary) avg FROM emp.emp GROUP BY gender, tenure HAVING avg > 50000 ORDER BY tenure DESC",
                 // nested docs
@@ -117,7 +119,8 @@ public class ProtoTests extends ESTestCase {
                 "SELECT dep FROM emp.emp",
                 "SELECT dep.dept_name, first_name, last_name FROM emp.emp WHERE emp_no = 10020",
                 "SELECT first_name f, last_name l, dep.from_date FROM emp.emp WHERE dep.dept_name = 'Production' ORDER BY dep.from_date",
-                "SELECT first_name f, last_name l, YEAR(dep.from_date) start FROM emp.emp WHERE dep.dept_name = 'Production' AND tenure > 30 ORDER BY start"
+                "SELECT first_name f, last_name l, YEAR(dep.from_date) start "
+                        + "FROM emp.emp WHERE dep.dept_name = 'Production' AND tenure > 30 ORDER BY start"
                 );
         
         for (String c : commands) {

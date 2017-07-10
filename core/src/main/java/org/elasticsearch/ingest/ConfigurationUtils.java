@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import com.fasterxml.jackson.core.JsonFactory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -26,6 +27,10 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,6 +43,7 @@ import static org.elasticsearch.script.Script.DEFAULT_TEMPLATE_LANG;
 public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";
+    private static final JsonFactory JSON_FACTORY = new JsonFactory();
 
     private ConfigurationUtils() {
     }
@@ -339,5 +345,27 @@ public final class ConfigurationUtils {
             }
         }
         throw newConfigurationException(type, tag, null, "No processor type exists with name [" + type + "]");
+    }
+
+    @SuppressWarnings("unchecked")
+    static Script readOptionalScript(String processorType, String processorTag, Map<String, Object> configuration,
+                                            String propertyName) {
+        try {
+            XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent);
+            Object scriptObject = configuration.remove(propertyName);
+            if (scriptObject == null) {
+                return null;
+            }
+            if (scriptObject instanceof String) {
+                builder.value(scriptObject);
+            } else {
+                builder.map((Map<String, Object>) scriptObject);
+            }
+            JsonXContentParser parser = new JsonXContentParser(NamedXContentRegistry.EMPTY,
+                JSON_FACTORY.createParser(builder.bytes().streamInput()));
+            return Script.parse(parser);
+        } catch (Exception e) {
+            throw newConfigurationException(processorType, processorTag, propertyName, e);
+        }
     }
 }

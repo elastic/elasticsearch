@@ -38,6 +38,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,6 +53,7 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
 
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private final Map<String, Processor.Factory> processorFactories;
+    private final ScriptService scriptService;
     private volatile boolean newIngestDateFormat;
 
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
@@ -60,9 +62,11 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     volatile Map<String, Pipeline> pipelines = new HashMap<>();
 
-    public PipelineStore(ClusterSettings clusterSettings, Settings settings, Map<String, Processor.Factory> processorFactories) {
+    public PipelineStore(ClusterSettings clusterSettings, Settings settings, Map<String, Processor.Factory> processorFactories,
+                         ScriptService scriptService) {
         super(settings);
         this.processorFactories = processorFactories;
+        this.scriptService = scriptService;
         this.newIngestDateFormat = IngestService.NEW_INGEST_DATE_FORMAT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(IngestService.NEW_INGEST_DATE_FORMAT, this::setNewIngestDateFormat);
     }
@@ -86,7 +90,8 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
         Map<String, Pipeline> pipelines = new HashMap<>();
         for (PipelineConfiguration pipeline : ingestMetadata.getPipelines().values()) {
             try {
-                pipelines.put(pipeline.getId(), factory.create(pipeline.getId(), pipeline.getConfigAsMap(), processorFactories));
+                pipelines.put(pipeline.getId(), factory.create(pipeline.getId(), pipeline.getConfigAsMap(),
+                    processorFactories, scriptService));
             } catch (ElasticsearchParseException e) {
                 throw e;
             } catch (Exception e) {
@@ -170,8 +175,9 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
             throw new IllegalStateException("Ingest info is empty");
         }
 
-        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-        Pipeline pipeline = factory.create(request.getId(), pipelineConfig, processorFactories);
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false,
+            request.getXContentType()).v2();
+        Pipeline pipeline = factory.create(request.getId(), pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
@@ -210,6 +216,10 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
 
     public Map<String, Processor.Factory> getProcessorFactories() {
         return processorFactories;
+    }
+
+    public ScriptService getScriptService() {
+        return scriptService;
     }
 
     public boolean isNewIngestDateFormat() {

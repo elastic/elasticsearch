@@ -19,4 +19,8 @@ public class CommandRequestTests extends ESTestCase {
     public void testRoundTrip() throws IOException {
         assertRoundTripCurrentVersion(randomCommandRequest());
     }
+
+    public void testToString() {
+        assertEquals("CommandRequest<test>", new CommandRequest("test").toString());
+    }
 }

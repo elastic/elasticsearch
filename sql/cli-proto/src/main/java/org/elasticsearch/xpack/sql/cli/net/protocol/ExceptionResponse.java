@@ -43,7 +43,7 @@ public class ExceptionResponse extends Response {
     protected String toStringBody() {
         return "request=[" + requestType
                 + "] message=[" + message
-                + "] cuase=[" + cause + "]";
+                + "] cause=[" + cause + "]";
     }
 
     @Override

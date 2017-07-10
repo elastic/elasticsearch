@@ -46,7 +46,7 @@ public class ErrorResponse extends Response {
     protected String toStringBody() {
         return "request=[" + requestType
                 + "] message=[" + message
-                + "] cuase=[" + cause
+                + "] cause=[" + cause
                 + "] stack=[" + stack + "]";
     }
 

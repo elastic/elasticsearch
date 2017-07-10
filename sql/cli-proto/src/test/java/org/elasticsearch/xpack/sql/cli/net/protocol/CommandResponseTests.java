@@ -20,4 +20,9 @@ public class CommandResponseTests extends ESTestCase {
     public void testRoundTrip() throws IOException {
         assertRoundTripCurrentVersion(randomCommandResponse());
     }
+
+    public void testToString() {
+        assertEquals("CommandResponse<received=[123] sent=[332] requestId=[rid] data=[test]>",
+                new CommandResponse(123, 332, "rid", "test").toString());
+    }
 }

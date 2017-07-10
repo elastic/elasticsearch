@@ -20,4 +20,9 @@ public class ExceptionResponseTests extends ESTestCase {
     public void testRoundTrip() throws IOException {
         assertRoundTripCurrentVersion(randomExceptionResponse());
     }
+
+    public void testToString() {
+        assertEquals("ExceptionResponse<request=[COMMAND] message=[test] cause=[test]>",
+                new ExceptionResponse(RequestType.COMMAND, "test", "test").toString());
+    }
 }

@@ -59,7 +59,7 @@ public class InfoResponse extends Response {
                 + "]/[major=[" + majorVersion
                 + "] minor=[" + minorVersion
                 + "] hash=[" + versionHash
-                + "] date=[" + versionDate + "]";
+                + "] date=[" + versionDate + "]]";
     }
 
     @Override

@@ -20,4 +20,9 @@ public class InfoResponseTests extends ESTestCase {
     public void testRoundTrip() throws IOException {
         assertRoundTripCurrentVersion(randomInfoResponse());
     }
+
+    public void testToString() {
+        assertEquals("InfoResponse<node=[adsf] cluster=[test_cluster] version=[6.0.0]/[major=[6] minor=[0] hash=[feed] date=[date]]>",
+                new InfoResponse("adsf", "test_cluster", (byte) 6, (byte) 0, "6.0.0", "feed", "date").toString());
+    }
 }

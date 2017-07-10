@@ -20,4 +20,9 @@ public class ErrorResponseTests extends ESTestCase {
     public void testRoundTrip() throws IOException {
         assertRoundTripCurrentVersion(randomErrorResponse());
     }
+
+    public void testToString() {
+        assertEquals("ErrorResponse<request=[COMMAND] message=[test] cause=[test] stack=[stack\nstack]>",
+                new ErrorResponse(RequestType.COMMAND, "test", "test", "stack\nstack").toString());
+    }
 }

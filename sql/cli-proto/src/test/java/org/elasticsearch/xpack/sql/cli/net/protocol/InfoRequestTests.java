@@ -20,4 +20,9 @@ public class InfoRequestTests extends ESTestCase {
     public void testRoundTrip() throws IOException {
         assertRoundTripCurrentVersion(randomInfoRequest());
     }
+
+    public void testToString() {
+        assertEquals("InfoRequest<jvm=[version=[1.8.0_131] vendor=[testvendor] classPath=[testcp]] os=[name=[Mac OS X] version=[10.12.5]]>",
+                new InfoRequest("1.8.0_131", "testvendor", "testcp", "Mac OS X", "10.12.5").toString());
+    }
 }

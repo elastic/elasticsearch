@@ -1,44 +1,39 @@
 ---
-"Search with missing remote index pattern":
-  - do:
-      catch: "request"
-      search:
-        index: "my_remote_cluster:foo"
+"Test that remote index names are preserved in top hits":
 
   - do:
-      search:
-        index: "my_remote_cluster:fooo*"
-  - match: { _shards.total: 0 }
-  - match: { hits.total: 0 }
-
-  - do:
-      search:
-        index: "*:foo*"
-
-  - match: { _shards.total: 0 }
-  - match: { hits.total: 0 }
-
-  - do:
-      search:
-        index: "my_remote_cluster:test_index,my_remote_cluster:foo*"
+      indices.create:
+        index: single_doc_index
         body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "single_doc_index", "_type": "test_type"}}'
+            - '{"f1": "local_cluster", "sort_field": 0}'
+  - do:
+      search:
+        index: "single_doc_index,my_remote_cluster:single_doc_index"
+        body:
+          sort: "sort_field"
           aggs:
             cluster:
-              terms:
-                field: f1.keyword
+              top_hits:
+                size: 2
+                sort: "sort_field"
 
-  - match: { _shards.total: 3 }
-  - match: { hits.total: 6 }
-  - length: { aggregations.cluster.buckets: 1 }
-  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
-  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+  - match: { _shards.total: 2 }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: "single_doc_index"}
+  - match: { hits.hits.1._index: "my_remote_cluster:single_doc_index"}
 
-  - do:
-      catch: "request"
-      search:
-        index: "my_remote_cluster:test_index,my_remote_cluster:foo"
-        body:
-          aggs:
-            cluster:
-              terms:
-                field: f1.keyword
+  - length: { aggregations.cluster.hits.hits: 2 }
+  - match: { aggregations.cluster.hits.hits.0._index: "single_doc_index" }
+  - match: { aggregations.cluster.hits.hits.0._source.f1: "local_cluster" }
+  - match: { aggregations.cluster.hits.hits.1._index: "my_remote_cluster:single_doc_index" }
+  - match: { aggregations.cluster.hits.hits.1._source.f1: "remote_cluster" }

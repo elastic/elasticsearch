@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.SuppressForbidden;
@@ -17,6 +18,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -371,6 +373,64 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.authenticate(new UsernamePasswordToken(ElasticUser.NAME, new SecureString("foobar".toCharArray())), future, r);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
         assertThat(e.getMessage(), containsString("failed to authenticate"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testBootstrapElasticPassword() {
+        ReservedUserInfo user = new ReservedUserInfo(ReservedRealm.EMPTY_PASSWORD_HASH, true, true);
+        mockGetAllReservedUserInfo(usersStore, Collections.singletonMap(ElasticUser.NAME, user));
+        Settings settings = Settings.builder().build();
+        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+                new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+        PlainActionFuture<Boolean> listenerFuture = new PlainActionFuture<>();
+        SecureString passwordHash = new SecureString(randomAlphaOfLength(10).toCharArray());
+        reservedRealm.bootstrapElasticUserCredentials(passwordHash, listenerFuture);
+
+        ArgumentCaptor<ChangePasswordRequest> requestCaptor = ArgumentCaptor.forClass(ChangePasswordRequest.class);
+        ArgumentCaptor<ActionListener> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        verify(usersStore).changePassword(requestCaptor.capture(), listenerCaptor.capture());
+        assertEquals(passwordHash.getChars(), requestCaptor.getValue().passwordHash());
+
+        listenerCaptor.getValue().onResponse(null);
+
+        assertTrue(listenerFuture.actionGet());
+    }
+
+    public void testBootstrapElasticPasswordNotSetIfPasswordExists() {
+        mockGetAllReservedUserInfo(usersStore, Collections.singletonMap(ElasticUser.NAME, new ReservedUserInfo(new char[7], true, false)));
+        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+
+        Settings settings = Settings.builder().build();
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+                new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+        SecureString passwordHash = new SecureString(randomAlphaOfLength(10).toCharArray());
+        reservedRealm.bootstrapElasticUserCredentials(passwordHash, new PlainActionFuture<>());
+
+        verify(usersStore, times(0)).changePassword(any(ChangePasswordRequest.class), any());
+    }
+
+    public void testBootstrapElasticPasswordSettingFails() {
+        ReservedUserInfo user = new ReservedUserInfo(ReservedRealm.EMPTY_PASSWORD_HASH, true, true);
+        mockGetAllReservedUserInfo(usersStore, Collections.singletonMap(ElasticUser.NAME, user));
+        Settings settings = Settings.builder().build();
+        when(securityLifecycleService.isSecurityIndexExisting()).thenReturn(true);
+
+        final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore,
+                new AnonymousUser(Settings.EMPTY), securityLifecycleService, new ThreadContext(Settings.EMPTY));
+        PlainActionFuture<Boolean> listenerFuture = new PlainActionFuture<>();
+        SecureString passwordHash = new SecureString(randomAlphaOfLength(10).toCharArray());
+        reservedRealm.bootstrapElasticUserCredentials(passwordHash, listenerFuture);
+
+        ArgumentCaptor<ChangePasswordRequest> requestCaptor = ArgumentCaptor.forClass(ChangePasswordRequest.class);
+        ArgumentCaptor<ActionListener> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+        verify(usersStore).changePassword(requestCaptor.capture(), listenerCaptor.capture());
+        assertEquals(passwordHash.getChars(), requestCaptor.getValue().passwordHash());
+
+        listenerCaptor.getValue().onFailure(new RuntimeException());
+
+        expectThrows(RuntimeException.class, listenerFuture::actionGet);
     }
 
     /*

@@ -128,8 +128,8 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.bootstrap.BootstrapElasticPassword;
 import org.elasticsearch.xpack.security.bootstrap.ContainerPasswordBootstrapCheck;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.rest.SecurityRestFilter;
 import org.elasticsearch.xpack.security.rest.action.RestAuthenticateAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
@@ -180,7 +180,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.common.settings.Setting.groupSetting;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 
 public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
@@ -386,6 +385,11 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(), authzService, licenseState,
                 sslService, securityContext.get(), destructiveOperations));
+
+        BootstrapElasticPassword bootstrapElasticPassword = new BootstrapElasticPassword(settings, logger, clusterService, reservedRealm,
+                securityLifecycleService);
+        bootstrapElasticPassword.initiatePasswordBootstrap();
+
         return components;
     }
 

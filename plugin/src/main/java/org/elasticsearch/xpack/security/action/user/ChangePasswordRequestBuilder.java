@@ -39,18 +39,23 @@ public class ChangePasswordRequestBuilder
         return this;
     }
 
+    public static char[] validateAndHashPassword(SecureString password) {
+        Validation.Error error = Validation.Users.validatePassword(password.getChars());
+        if (error != null) {
+            ValidationException validationException = new ValidationException();
+            validationException.addValidationError(error.toString());
+            throw validationException;
+        }
+        return Hasher.BCRYPT.hash(password);
+    }
+
     /**
      * Sets the password. Note: the char[] passed to this method will be cleared.
      */
     public ChangePasswordRequestBuilder password(char[] password) {
         try (SecureString secureString = new SecureString(password)) {
-            Validation.Error error = Validation.Users.validatePassword(password);
-            if (error != null) {
-                ValidationException validationException = new ValidationException();
-                validationException.addValidationError(error.toString());
-                throw validationException;
-            }
-            request.passwordHash(Hasher.BCRYPT.hash(secureString));
+            char[] hash = validateAndHashPassword(secureString);
+            request.passwordHash(hash);
         }
         return this;
     }

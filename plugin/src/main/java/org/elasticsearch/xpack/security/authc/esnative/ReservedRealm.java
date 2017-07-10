@@ -9,14 +9,23 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.SecurityLifecycleService;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordAction;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordRequest;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.security.authc.IncomingRequest;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore.ReservedUserInfo;
@@ -39,6 +48,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * A realm for predefined users. These users can only be modified in terms of changing their passwords; no other modifications are allowed.
@@ -58,6 +69,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     public static final Setting<Boolean> ACCEPT_DEFAULT_PASSWORD_SETTING = Setting.boolSetting(
             Security.setting("authc.accept_default_password"), true, Setting.Property.NodeScope, Setting.Property.Filtered,
             Setting.Property.Deprecated);
+    public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("es.bootstrap.passwd.elastic", null);
 
     private final NativeUsersStore nativeUsersStore;
     private final AnonymousUser anonymousUser;
@@ -186,6 +198,31 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
+    public synchronized void bootstrapElasticUserCredentials(SecureString passwordHash, ActionListener<Boolean> listener) {
+        getUserInfo(ElasticUser.NAME, new ActionListener<ReservedUserInfo>() {
+            @Override
+            public void onResponse(ReservedUserInfo reservedUserInfo) {
+                if (reservedUserInfo == null) {
+                    listener.onFailure(new IllegalStateException("unexpected state: ReservedUserInfo was null"));
+                } else if (reservedUserInfo.hasEmptyPassword) {
+                    ChangePasswordRequest changePasswordRequest = new ChangePasswordRequest();
+                    changePasswordRequest.username(ElasticUser.NAME);
+                    changePasswordRequest.passwordHash(passwordHash.getChars());
+                    nativeUsersStore.changePassword(changePasswordRequest,
+                            ActionListener.wrap(v -> listener.onResponse(true), listener::onFailure));
+
+                } else {
+                    listener.onResponse(false);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
     private User getUser(String username, ReservedUserInfo userInfo) {
         assert username != null;
         switch (username) {
@@ -277,5 +314,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static void addSettings(List<Setting<?>> settingsList) {
         settingsList.add(ACCEPT_DEFAULT_PASSWORD_SETTING);
+        settingsList.add(BOOTSTRAP_ELASTIC_PASSWORD);
     }
 }

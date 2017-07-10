@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -77,6 +78,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -123,6 +125,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -281,14 +284,14 @@ public class IndexShardTests extends IndexShardTestCase {
 
         if (randomBoolean()) {
             // relocation target
-            indexShard = newShard(TestShardRouting.newShardRouting(shardId, "local_node", "other node",
+            indexShard = newShard(newShardRouting(shardId, "local_node", "other node",
                 true, ShardRoutingState.INITIALIZING, AllocationId.newRelocation(AllocationId.newInitializing())));
         } else if (randomBoolean()) {
             // simulate promotion
             indexShard = newStartedShard(false);
             ShardRouting replicaRouting = indexShard.routingEntry();
             indexShard.updatePrimaryTerm(indexShard.getPrimaryTerm() + 1);
-            ShardRouting primaryRouting = TestShardRouting.newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
+            ShardRouting primaryRouting = newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), null,
                 true, ShardRoutingState.STARTED, replicaRouting.allocationId());
             indexShard.updateRoutingEntry(primaryRouting);
         } else {
@@ -340,7 +343,7 @@ public class IndexShardTests extends IndexShardTestCase {
             case 1: {
                 // initializing replica / primary
                 final boolean relocating = randomBoolean();
-                ShardRouting routing = TestShardRouting.newShardRouting(shardId, "local_node",
+                ShardRouting routing = newShardRouting(shardId, "local_node",
                     relocating ? "sourceNode" : null,
                     relocating ? randomBoolean() : false,
                     ShardRoutingState.INITIALIZING,
@@ -352,7 +355,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 // relocation source
                 indexShard = newStartedShard(true);
                 ShardRouting routing = indexShard.routingEntry();
-                routing = TestShardRouting.newShardRouting(routing.shardId(), routing.currentNodeId(), "otherNode",
+                routing = newShardRouting(routing.shardId(), routing.currentNodeId(), "otherNode",
                     true, ShardRoutingState.RELOCATING, AllocationId.newRelocation(routing.allocationId()));
                 indexShard.updateRoutingEntry(routing);
                 indexShard.relocated("test");
@@ -892,6 +895,38 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
+    public void testRecoverFromStoreWithOutOfOrderDelete() throws IOException {
+        final IndexShard shard = newStartedShard(false);
+        final Engine.Index index = shard.prepareIndexOnReplica(
+            SourceToParse.source(SourceToParse.Origin.REPLICA, shard.shardId().getIndexName(), "type", "id", new BytesArray("{}"),
+                XContentType.JSON), 1, VersionType.EXTERNAL, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+        final Engine.Delete delete = shard.prepareDeleteOnReplica("type", "id", 2, VersionType.EXTERNAL);
+        shard.delete(delete);
+        final int translogOps;
+        if (randomBoolean()) {
+            flushShard(shard, true); // lucene won't flush due to just one pending delete
+            translogOps = 0;
+        } else {
+            translogOps = 1;
+        }
+        final Engine.IndexResult result = shard.index(index);
+        assertThat(result.getTranslogLocation(), nullValue());
+        final ShardRouting replicaRouting = shard.routingEntry();
+        IndexShard newShard = reinitShard(shard,
+            newShardRouting(replicaRouting.shardId(), replicaRouting.currentNodeId(), true, ShardRoutingState.INITIALIZING,
+                RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE));
+        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
+        assertTrue(newShard.recoverFromStore());
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperations());
+        assertEquals(translogOps, newShard.recoveryState().getTranslog().totalOperationsOnStart());
+        assertEquals(100.0f, newShard.recoveryState().getTranslog().recoveredPercent(), 0.01f);
+        newShard.updateRoutingEntry(newShard.routingEntry().moveToStarted());
+        assertDocCount(newShard, 0);
+        closeShards(newShard);
+    }
+
     public void testRecoverFromCleanStore() throws IOException {
         final IndexShard shard = newStartedShard(true);
         indexDoc(shard, "test", "0");
@@ -1314,7 +1349,7 @@ public class IndexShardTests extends IndexShardTestCase {
         sourceShard.refresh("test");
 
 
-        ShardRouting targetRouting = TestShardRouting.newShardRouting(new ShardId("index_1", "index_1", 0), "n1", true,
+        ShardRouting targetRouting = newShardRouting(new ShardId("index_1", "index_1", 0), "n1", true,
             ShardRoutingState.INITIALIZING, RecoverySource.LocalShardsRecoverySource.INSTANCE);
 
         final IndexShard targetShard;

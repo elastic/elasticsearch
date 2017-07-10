@@ -2528,8 +2528,8 @@ public class InternalEngineTests extends ESTestCase {
     public void testDoubleDeliveryPrimary() throws IOException {
         final ParsedDocument doc = testParsedDocument("1", "test", null, System.currentTimeMillis(), -1L,
             testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
-        Engine.Index operation = appendOnlyPrimary(doc, false, 1);
-        Engine.Index retry = appendOnlyPrimary(doc, true, 1);
+        final Engine.Index operation = appendOnlyPrimary(doc, false, 1);
+        final Engine.Index retry = appendOnlyPrimary(doc, true, 1);
         if (randomBoolean()) {
             Engine.IndexResult indexResult = engine.index(operation);
             assertFalse(engine.indexWriterHasDeletions());
@@ -2557,8 +2557,6 @@ public class InternalEngineTests extends ESTestCase {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
             assertEquals(1, topDocs.totalHits);
         }
-        operation = randomAppendOnly(doc, false, 1);
-        retry = randomAppendOnly(doc, true, 1);
         if (randomBoolean()) {
             Engine.IndexResult indexResult = engine.index(operation);
             assertNotNull(indexResult.getTranslogLocation());
@@ -2569,7 +2567,7 @@ public class InternalEngineTests extends ESTestCase {
             Engine.IndexResult retryResult = engine.index(retry);
             assertNotNull(retryResult.getTranslogLocation());
             Engine.IndexResult indexResult = engine.index(operation);
-            assertNotNull(retryResult.getTranslogLocation());
+            assertNotNull(indexResult.getTranslogLocation());
             assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
         }
 
@@ -2583,8 +2581,8 @@ public class InternalEngineTests extends ESTestCase {
     public void testDoubleDeliveryReplicaAppendingOnly() throws IOException {
         final ParsedDocument doc = testParsedDocument("1", "test", null, System.currentTimeMillis(), -1,
             testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
-        Engine.Index operation = appendOnlyReplica(doc, false, 1);
-        Engine.Index retry = appendOnlyReplica(doc, true, 1);
+        final Engine.Index operation = appendOnlyReplica(doc, false, 1);
+        final Engine.Index retry = appendOnlyReplica(doc, true, 1);
         if (randomBoolean()) {
             Engine.IndexResult indexResult = engine.index(operation);
             assertFalse(engine.indexWriterHasDeletions());
@@ -2593,8 +2591,7 @@ public class InternalEngineTests extends ESTestCase {
             Engine.IndexResult retryResult = engine.index(retry);
             assertFalse(engine.indexWriterHasDeletions());
             assertEquals(1, engine.getNumVersionLookups());
-            assertNotNull(retryResult.getTranslogLocation());
-            assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) > 0);
+            assertNull(retryResult.getTranslogLocation()); // we didn't index it nor put it in the translog
         } else {
             Engine.IndexResult retryResult = engine.index(retry);
             assertFalse(engine.indexWriterHasDeletions());
@@ -2603,8 +2600,7 @@ public class InternalEngineTests extends ESTestCase {
             Engine.IndexResult indexResult = engine.index(operation);
             assertFalse(engine.indexWriterHasDeletions());
             assertEquals(2, engine.getNumVersionLookups());
-            assertNotNull(retryResult.getTranslogLocation());
-            assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
+            assertNull(indexResult.getTranslogLocation()); // we didn't index it nor put it in the translog
         }
 
         engine.refresh("test");
@@ -2612,20 +2608,16 @@ public class InternalEngineTests extends ESTestCase {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
             assertEquals(1, topDocs.totalHits);
         }
-        operation = randomAppendOnly(doc, false, 1);
-        retry = randomAppendOnly(doc, true, 1);
         if (randomBoolean()) {
             Engine.IndexResult indexResult = engine.index(operation);
-            assertNotNull(indexResult.getTranslogLocation());
+            assertNull(indexResult.getTranslogLocation()); // we don't index because a retry has already been processed.
             Engine.IndexResult retryResult = engine.index(retry);
-            assertNotNull(retryResult.getTranslogLocation());
-            assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) > 0);
+            assertNull(retryResult.getTranslogLocation());
         } else {
             Engine.IndexResult retryResult = engine.index(retry);
-            assertNotNull(retryResult.getTranslogLocation());
+            assertNull(retryResult.getTranslogLocation());
             Engine.IndexResult indexResult = engine.index(operation);
-            assertNotNull(retryResult.getTranslogLocation());
-            assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
+            assertNull(indexResult.getTranslogLocation());
         }
 
         engine.refresh("test");
@@ -2651,8 +2643,7 @@ public class InternalEngineTests extends ESTestCase {
             Engine.IndexResult retryResult = engine.index(duplicate);
             assertFalse(engine.indexWriterHasDeletions());
             assertEquals(2, engine.getNumVersionLookups());
-            assertNotNull(retryResult.getTranslogLocation());
-            assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) > 0);
+            assertNull(retryResult.getTranslogLocation());
         } else {
             Engine.IndexResult retryResult = engine.index(duplicate);
             assertFalse(engine.indexWriterHasDeletions());
@@ -2664,8 +2655,7 @@ public class InternalEngineTests extends ESTestCase {
             Engine.IndexResult indexResult = engine.index(operation);
             assertFalse(engine.indexWriterHasDeletions());
             assertEquals(2, engine.getNumVersionLookups());
-            assertNotNull(retryResult.getTranslogLocation());
-            assertTrue(retryResult.getTranslogLocation().compareTo(indexResult.getTranslogLocation()) < 0);
+            assertNull(indexResult.getTranslogLocation()); // we didn't index, no need to put in translog
         }
 
         engine.refresh("test");

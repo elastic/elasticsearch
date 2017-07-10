@@ -33,9 +33,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -55,8 +52,6 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     private final AtomicInteger totalOps = new AtomicInteger();
     private final AtomicInteger shardExecutionIndex = new AtomicInteger(0);
     private final int concurrentRunnables;
-
-
 
     InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger) {
         super(name);

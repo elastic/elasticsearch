@@ -36,7 +36,7 @@
                       "filter": [
                         {
                           "term": {
-                            "_id": "${monitoring.watch.cluster_uuid}"
+                            "_id": "{{ctx.metadata.cluster_uuid}}"
                           }
                         },
                         {
@@ -81,7 +81,7 @@
                     "bool": {
                       "filter": {
                         "term": {
-                          "_id": "${monitoring.watch.unique_id}"
+                          "_id": "{{ctx.watch_id}}"
                         }
                       }
                     }

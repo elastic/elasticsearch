@@ -27,15 +27,4 @@ public interface ClusterInfoService {
 
     /** The latest cluster information */
     ClusterInfo getClusterInfo();
-
-    /** Add a listener that will be called every time new information is gathered */
-    void addListener(Listener listener);
-
-    /**
-     * Interface for listeners to implement in order to perform actions when
-     * new information about the cluster has been gathered
-     */
-    interface Listener {
-        void onNewInfo(ClusterInfo info);
-    }
 }

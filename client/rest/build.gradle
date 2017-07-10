@@ -18,7 +18,6 @@
  */
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.JavaVersion
 
 apply plugin: 'elasticsearch.build'
 apply plugin: 'ru.vyarus.animalsniffer'
@@ -61,11 +60,6 @@ forbiddenApisTest {
   //client does not depend on core, so only jdk signatures should be checked
   signaturesURLs = [PrecommitTasks.getResource('/forbidden/jdk-signatures.txt'),
                     PrecommitTasks.getResource('/forbidden/http-signatures.txt')]
-}
-
-dependencyLicenses {
-  mapping from: /http.*/, to: 'httpclient'
-  mapping from: /commons-.*/, to: 'commons'
 }
 
 //JarHell is part of es core, which we don't want to pull in

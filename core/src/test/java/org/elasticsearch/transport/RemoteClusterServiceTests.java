@@ -29,6 +29,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -269,20 +270,19 @@ public class RemoteClusterServiceTests extends ESTestCase {
         return ActionListener.wrap(x -> latch.countDown(), x -> fail());
     }
 
-
     public void testCollectNodes() throws InterruptedException, IOException {
         final Settings settings = Settings.EMPTY;
         final List<DiscoveryNode> knownNodes_c1 = new CopyOnWriteArrayList<>();
         final List<DiscoveryNode> knownNodes_c2 = new CopyOnWriteArrayList<>();
 
         try (MockTransportService c1N1 =
-                 startTransport("cluster_1_node_1", knownNodes_c1, Version.CURRENT);
+                 startTransport("cluster_1_node_1", knownNodes_c1, Version.CURRENT, settings);
              MockTransportService c1N2 =
-                 startTransport("cluster_1_node_2", knownNodes_c1, Version.CURRENT);
+                 startTransport("cluster_1_node_2", knownNodes_c1, Version.CURRENT, settings);
              MockTransportService c2N1 =
-                 startTransport("cluster_2_node_1", knownNodes_c2, Version.CURRENT);
+                 startTransport("cluster_2_node_1", knownNodes_c2, Version.CURRENT, settings);
              MockTransportService c2N2 =
-                 startTransport("cluster_2_node_2", knownNodes_c2, Version.CURRENT)) {
+                 startTransport("cluster_2_node_2", knownNodes_c2, Version.CURRENT, settings)) {
             final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
             final DiscoveryNode c1N2Node = c1N2.getLocalDiscoNode();
             final DiscoveryNode c2N1Node = c2N1.getLocalDiscoNode();
@@ -384,8 +384,11 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         assertEquals("no such remote cluster: [no such cluster]", ex.get().getMessage());
                     }
                     {
+
+                        logger.info("closing all source nodes");
                         // close all targets and check for the transport level failure path
                         IOUtils.close(c1N1, c1N2, c2N1, c2N2);
+                        logger.info("all source nodes are closed");
                         CountDownLatch failLatch = new CountDownLatch(1);
                         AtomicReference<Exception> ex = new AtomicReference<>();
                         service.collectNodes(new HashSet<>(Arrays.asList("cluster_1", "cluster_2")),
@@ -411,7 +414,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                         failLatch.await();
                         assertNotNull(ex.get());
                         if (ex.get() instanceof  IllegalStateException) {
-                            assertEquals(ex.get().getMessage(), "no seed node left");
+                            assertThat(ex.get().getMessage(), Matchers.anyOf(Matchers.equalTo("no seed node left"), Matchers.startsWith
+                                ("No node available for cluster:")));
                         } else {
                             if (ex.get() instanceof TransportException == false) {
                                 // we have an issue for this see #25301

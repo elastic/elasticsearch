@@ -24,7 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -53,7 +53,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
         Double compression;
     }
 
-    private static final ObjectParser<TDigestOptions, QueryParseContext> TDIGEST_OPTIONS_PARSER =
+    private static final ObjectParser<TDigestOptions, Void> TDIGEST_OPTIONS_PARSER =
             new ObjectParser<>(PercentilesMethod.TDIGEST.getParseField().getPreferredName(), TDigestOptions::new);
     static {
         TDIGEST_OPTIONS_PARSER.declareDouble((opts, compression) -> opts.compression = compression, new ParseField("compression"));
@@ -63,14 +63,14 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
         Integer numberOfSigDigits;
     }
 
-    private static final ObjectParser<HDROptions, QueryParseContext> HDR_OPTIONS_PARSER =
+    private static final ObjectParser<HDROptions, Void> HDR_OPTIONS_PARSER =
             new ObjectParser<>(PercentilesMethod.HDR.getParseField().getPreferredName(), HDROptions::new);
     static {
         HDR_OPTIONS_PARSER.declareInt((opts, numberOfSigDigits) -> opts.numberOfSigDigits = numberOfSigDigits,
                 new ParseField("number_of_significant_value_digits"));
     }
 
-    private static final ObjectParser<PercentileRanksAggregationBuilder, QueryParseContext> PARSER;
+    private static final ObjectParser<PercentileRanksAggregationBuilder, Void> PARSER;
     static {
         PARSER = new ObjectParser<>(PercentileRanksAggregationBuilder.NAME);
         ValuesSourceParserHelper.declareNumericFields(PARSER, true, false, false);
@@ -96,8 +96,8 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
         }, HDR_OPTIONS_PARSER::parse, PercentilesMethod.HDR.getParseField(), ObjectParser.ValueType.OBJECT);
     }
 
-    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new PercentileRanksAggregationBuilder(aggregationName), context);
+    public static AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new PercentileRanksAggregationBuilder(aggregationName), null);
     }
 
     private double[] values;

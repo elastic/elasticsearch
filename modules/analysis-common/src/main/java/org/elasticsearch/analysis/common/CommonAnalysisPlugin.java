@@ -68,7 +68,6 @@ import org.apache.lucene.analysis.util.ElisionFilter;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.DelimitedPayloadTokenFilterFactory;
 import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
-import org.elasticsearch.index.analysis.LimitTokenCountFilterFactory;
 import org.elasticsearch.index.analysis.PreConfiguredCharFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
@@ -115,6 +114,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin {
         filters.put("reverse", ReverseTokenFilterFactory::new);
         filters.put("elision", ElisionTokenFilterFactory::new);
         filters.put("truncate", requriesAnalysisSettings(TruncateTokenFilterFactory::new));
+        filters.put("limit", LimitTokenCountFilterFactory::new);
+        filters.put("common_grams", requriesAnalysisSettings(CommonGramsTokenFilterFactory::new));
+        filters.put("pattern_replace", requriesAnalysisSettings(PatternReplaceTokenFilterFactory::new));
+        filters.put("pattern_capture", requriesAnalysisSettings(PatternCaptureGroupTokenFilterFactory::new));
         return filters;
     }
 

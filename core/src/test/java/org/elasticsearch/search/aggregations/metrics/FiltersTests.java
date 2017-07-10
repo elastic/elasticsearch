@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
@@ -87,8 +86,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         builder.endObject();
         XContentParser parser = createParser(shuffleXContent(builder));
         parser.nextToken();
-        QueryParseContext context = new QueryParseContext(parser);
-        FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", context);
+        FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", parser);
         // The other bucket is disabled by default
         assertFalse(filters.otherBucket());
 
@@ -99,8 +97,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         builder.endObject();
         parser = createParser(shuffleXContent(builder));
         parser.nextToken();
-        context = new QueryParseContext(parser);
-        filters = FiltersAggregationBuilder.parse("agg_name", context);
+        filters = FiltersAggregationBuilder.parse("agg_name", parser);
         // but setting a key enables it automatically
         assertTrue(filters.otherBucket());
 
@@ -112,8 +109,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         builder.endObject();
         parser = createParser(shuffleXContent(builder));
         parser.nextToken();
-        context = new QueryParseContext(parser);
-        filters = FiltersAggregationBuilder.parse("agg_name", context);
+        filters = FiltersAggregationBuilder.parse("agg_name", parser);
         // unless the other bucket is explicitly disabled
         assertFalse(filters.otherBucket());
     }

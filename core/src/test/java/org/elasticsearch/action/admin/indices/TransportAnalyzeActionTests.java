@@ -72,7 +72,9 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                 .put("index.analysis.analyzer.custom_analyzer.tokenizer", "standard")
-                .put("index.analysis.analyzer.custom_analyzer.filter", "mock").build();
+                .put("index.analysis.analyzer.custom_analyzer.filter", "mock")
+                .put("index.analysis.normalizer.my_normalizer.type", "custom")
+                .putArray("index.analysis.normalizer.my_normalizer.filter", "lowercase").build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         environment = new Environment(settings);
         AnalysisPlugin plugin = new AnalysisPlugin() {
@@ -304,6 +306,14 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         } else {
             assertEquals(e.getMessage(), "failed to find global char filter under [foobar]");
         }
+
+        e = expectThrows(IllegalArgumentException.class,
+            () -> TransportAnalyzeAction.analyze(
+                new AnalyzeRequest()
+                    .normalizer("foobar")
+                    .text("the qu1ck brown fox"),
+                AllFieldMapper.NAME, null, indexAnalyzers, registry, environment));
+        assertEquals(e.getMessage(), "failed to find normalizer under [foobar]");
     }
 
     public void testNonPreBuildTokenFilter() throws IOException {
@@ -317,6 +327,16 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         int default_bucket_size = 512;
         int default_hash_set_size = 1;
         assertEquals(default_hash_count * default_bucket_size * default_hash_set_size, tokens.size());
+    }
 
+    public void testNormalizerWithIndex() throws IOException {
+        AnalyzeRequest request = new AnalyzeRequest("index");
+        request.normalizer("my_normalizer");
+        request.text("ABc");
+        AnalyzeResponse analyze = TransportAnalyzeAction.analyze(request, AllFieldMapper.NAME, null, indexAnalyzers, registry, environment);
+        List<AnalyzeResponse.AnalyzeToken> tokens = analyze.getTokens();
+
+        assertEquals(1, tokens.size());
+        assertEquals("abc", tokens.get(0).getTerm());
     }
 }

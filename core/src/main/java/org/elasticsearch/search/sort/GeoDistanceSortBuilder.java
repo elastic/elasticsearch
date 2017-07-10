@@ -48,7 +48,6 @@ import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointDVIndexFieldDa
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -384,7 +383,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     /**
-     * Creates a new {@link GeoDistanceSortBuilder} from the query held by the {@link QueryParseContext} in
+     * Creates a new {@link GeoDistanceSortBuilder} from the query held by the {@link XContentParser} in
      * {@link org.elasticsearch.common.xcontent.XContent} format.
      *
      * @param parser the input parser. The state on the parser contained in this context will be changed as a

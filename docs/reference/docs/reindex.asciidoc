@@ -297,7 +297,6 @@ change:
  * `_index`
  * `_version`
  * `_routing`
- * `_parent`
 
 Setting `_version` to `null` or clearing it from the `ctx` map is just like not
 sending the version in an indexing request. It will cause that document to be

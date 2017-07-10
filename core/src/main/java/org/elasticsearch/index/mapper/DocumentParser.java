@@ -436,7 +436,13 @@ final class DocumentParser {
             if (idField != null) {
                 // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
                 // delete it when the root document is deleted too.
-                nestedDoc.add(new Field(IdFieldMapper.NAME, idField.stringValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                if (idField.stringValue() != null) {
+                    // backward compat with 5.x
+                    // TODO: Remove on 7.0
+                    nestedDoc.add(new Field(IdFieldMapper.NAME, idField.stringValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                } else {
+                    nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                }
             } else {
                 throw new IllegalStateException("The root document of a nested document should have an id field");
             }

@@ -45,7 +45,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.function.Consumer;
@@ -69,7 +69,6 @@ public class NioTransport extends TcpTransport<NioChannel> {
         intSetting("transport.nio.acceptor_count", 1, 1, Setting.Property.NodeScope);
 
     private final TcpReadHandler tcpReadHandler = new TcpReadHandler(this);
-    private final BigArrays bigArrays;
     private final ConcurrentMap<String, ChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final OpenChannels openChannels = new OpenChannels(logger);
     private final ArrayList<AcceptingSelector> acceptors = new ArrayList<>();
@@ -80,7 +79,6 @@ public class NioTransport extends TcpTransport<NioChannel> {
     public NioTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                         NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("nio", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
-        this.bigArrays = bigArrays;
     }
 
     @Override
@@ -175,13 +173,9 @@ public class NioTransport extends TcpTransport<NioChannel> {
                     acceptors.add(acceptor);
                 }
                 // loop through all profiles and start them up, special handling for default one
-                for (Map.Entry<String, Settings> entry : buildProfileSettings().entrySet()) {
-                    // merge fallback settings with default settings with profile settings so we have complete settings with default values
-                    final Settings profileSettings = Settings.builder()
-                        .put(createFallbackSettings())
-                        .put(entry.getValue()).build();
-                    profileToChannelFactory.putIfAbsent(entry.getKey(), new ChannelFactory(profileSettings, tcpReadHandler));
-                    bindServer(entry.getKey(), profileSettings);
+                for (ProfileSettings profileSettings : profileSettings) {
+                    profileToChannelFactory.putIfAbsent(profileSettings.profileName, new ChannelFactory(profileSettings, tcpReadHandler));
+                    bindServer(profileSettings);
                 }
             }
             client = createClient();
@@ -269,7 +263,7 @@ public class NioTransport extends TcpTransport<NioChannel> {
 
     private NioClient createClient() {
         Supplier<SocketSelector> selectorSupplier = new RoundRobinSelectorSupplier(socketSelectors);
-        ChannelFactory channelFactory = new ChannelFactory(settings, tcpReadHandler);
+        ChannelFactory channelFactory = new ChannelFactory(new ProfileSettings(settings, "default"), tcpReadHandler);
         return new NioClient(logger, openChannels, selectorSupplier, defaultConnectionProfile.getConnectTimeout(), channelFactory);
     }
 

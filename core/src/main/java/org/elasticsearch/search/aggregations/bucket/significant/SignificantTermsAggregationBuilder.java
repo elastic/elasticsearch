@@ -24,8 +24,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -62,43 +62,45 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
     static final SignificanceHeuristic DEFAULT_SIGNIFICANCE_HEURISTIC = new JLHScore();
 
     public static Aggregator.Parser getParser(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry) {
-        ObjectParser<SignificantTermsAggregationBuilder, QueryParseContext> parser =
+        ObjectParser<SignificantTermsAggregationBuilder, Void> aggregationParser =
                 new ObjectParser<>(SignificantTermsAggregationBuilder.NAME);
-        ValuesSourceParserHelper.declareAnyFields(parser, true, true);
+        ValuesSourceParserHelper.declareAnyFields(aggregationParser, true, true);
 
-        parser.declareInt(SignificantTermsAggregationBuilder::shardSize, TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME);
+        aggregationParser.declareInt(SignificantTermsAggregationBuilder::shardSize, TermsAggregationBuilder.SHARD_SIZE_FIELD_NAME);
 
-        parser.declareLong(SignificantTermsAggregationBuilder::minDocCount, TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME);
+        aggregationParser.declareLong(SignificantTermsAggregationBuilder::minDocCount, TermsAggregationBuilder.MIN_DOC_COUNT_FIELD_NAME);
 
-        parser.declareLong(SignificantTermsAggregationBuilder::shardMinDocCount, TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
+        aggregationParser.declareLong(SignificantTermsAggregationBuilder::shardMinDocCount,
+                TermsAggregationBuilder.SHARD_MIN_DOC_COUNT_FIELD_NAME);
 
-        parser.declareInt(SignificantTermsAggregationBuilder::size, TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
+        aggregationParser.declareInt(SignificantTermsAggregationBuilder::size, TermsAggregationBuilder.REQUIRED_SIZE_FIELD_NAME);
 
-        parser.declareString(SignificantTermsAggregationBuilder::executionHint, TermsAggregationBuilder.EXECUTION_HINT_FIELD_NAME);
+        aggregationParser.declareString(SignificantTermsAggregationBuilder::executionHint,
+                TermsAggregationBuilder.EXECUTION_HINT_FIELD_NAME);
 
-        parser.declareObject(SignificantTermsAggregationBuilder::backgroundFilter,
+        aggregationParser.declareObject(SignificantTermsAggregationBuilder::backgroundFilter,
                 (p, context) -> parseInnerQueryBuilder(p),
                 SignificantTermsAggregationBuilder.BACKGROUND_FILTER);
 
-        parser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
+        aggregationParser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
                 IncludeExclude::parseInclude, IncludeExclude.INCLUDE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
 
-        parser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
+        aggregationParser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
                 IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
 
         for (String name : significanceHeuristicParserRegistry.getNames()) {
-            parser.declareObject(SignificantTermsAggregationBuilder::significanceHeuristic,
+            aggregationParser.declareObject(SignificantTermsAggregationBuilder::significanceHeuristic,
                     (p, context) -> {
                         SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
                                 .lookupReturningNullIfNotFound(name);
-                        return significanceHeuristicParser.parse(context);
+                        return significanceHeuristicParser.parse(p);
                     },
                     new ParseField(name));
         }
         return new Aggregator.Parser() {
             @Override
-            public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-                return parser.parse(context.parser(), new SignificantTermsAggregationBuilder(aggregationName, null), context);
+            public AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException {
+                return aggregationParser.parse(parser, new SignificantTermsAggregationBuilder(aggregationName, null), null);
             }
         };
     }

@@ -39,6 +39,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -220,14 +221,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 shards.flush();
                 committedDocs = totalDocs;
             }
-            // we need some indexing to happen to transfer local checkpoint information to the primary
-            // so it can update the global checkpoint and communicate to replicas
-            boolean expectSeqNoRecovery = totalDocs > 0;
-
 
             final IndexShard oldPrimary = shards.getPrimary();
             final IndexShard newPrimary = shards.getReplicas().get(0);
             final IndexShard replica = shards.getReplicas().get(1);
+            boolean expectSeqNoRecovery = true;
             if (randomBoolean()) {
                 // simulate docs that were inflight when primary failed, these will be rolled back
                 final int rollbackDocs = randomIntBetween(1, 5);
@@ -245,6 +243,12 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             }
 
             shards.promoteReplicaToPrimary(newPrimary);
+
+            // check that local checkpoint of new primary is properly tracked after primary promotion
+            assertThat(newPrimary.getLocalCheckpoint(), equalTo(totalDocs - 1L));
+            assertThat(IndexShardTestCase.getEngine(newPrimary).seqNoService()
+                .getTrackedLocalCheckpointForShard(newPrimary.routingEntry().allocationId().getId()), equalTo(totalDocs - 1L));
+
             // index some more
             totalDocs += shards.indexDocs(randomIntBetween(0, 5));
 

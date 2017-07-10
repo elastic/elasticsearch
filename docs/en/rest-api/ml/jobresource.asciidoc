@@ -277,26 +277,33 @@ For more information, see
 //<<ml-configuring-categories>>.
 
 `model_memory_limit`::
-  (long) The approximate maximum amount of memory resources that are required
-  for analytical processing, in MiB. Once this limit is approached, data pruning
+  (long or string) The approximate maximum amount of memory resources that are
+  required for analytical processing. Once this limit is approached, data pruning
   becomes more aggressive. Upon exceeding this limit, new entities are not
-  modeled. The default value is 4096.
+  modeled. The default value is `4096mb`. If you specify a number instead of a
+  string, the units are assumed to be MiB. Specifying a string is recommended
+  for clarity. If you specify a byte size unit of `b` or `kb` and the number
+  does not equate to a discrete number of megabytes, it is rounded down to the
+  closest MiB. The minimum valid value is 1 MiB. If you specify a value less
+  than 1 MiB, an error occurs. For more information about supported byte size
+  units, see
+  {ref}/common-options.html#byte-units[Byte size units].
 
 [float]
 [[ml-apimodelplotconfig]]
 ==== Model Plot Config
 
 This advanced configuration option stores model information along with the
-results. It provides a more detailed view into anomaly detection. 
+results. It provides a more detailed view into anomaly detection.
 
-WARNING: If you enable model plot it can add considerable overhead to the performance 
+WARNING: If you enable model plot it can add considerable overhead to the performance
 of the system; it is not feasible for jobs with many entities.
 
 Model plot provides a simplified and indicative view of the model and its bounds.
 It does not display complex features such as multivariate correlations or multimodal data.
 As such, anomalies may occasionally be reported which cannot be seen in the model plot.
 
-Model plot config can be configured when the job is created or updated later. It must be 
+Model plot config can be configured when the job is created or updated later. It must be
 disabled if performance issues are experienced.
 
 The `model_plot_config` object has the following properties:
@@ -306,7 +313,7 @@ The `model_plot_config` object has the following properties:
   each entity that is being analyzed. By default, this is not enabled.
 
 `terms`::
-  (string) Limits data collection to this comma separated list of partition or by field values. 
-  If terms are not specified or it is an empty string, no filtering is applied. 
+  (string) Limits data collection to this comma separated list of partition or by field values.
+  If terms are not specified or it is an empty string, no filtering is applied.
   For example, "CPU,NetworkIn,DiskWrites". This is experimental. Only the specified `terms` can
   be viewed when using the Single Metric Viewer.

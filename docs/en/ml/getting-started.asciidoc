@@ -483,12 +483,13 @@ The number of records that have been processed by the job.
 Memory status::
 The status of the mathematical models. When you create jobs by using the APIs or
 by using the advanced options in {kib}, you can specify a `model_memory_limit`.
-That value is the maximum amount of memory resources, in MiB, that the
-mathematical models can use. Once that limit is approached, data pruning becomes
-more aggressive. Upon exceeding that limit, new entities are not modeled.
-The default value is `4096`. The memory status field reflects whether you have
-reached or exceeded the model memory limit. It can have one of the following
-values: +
+That value is the maximum amount of memory resources that the mathematical
+models can use. Once that limit is approached, data pruning becomes more
+aggressive. Upon exceeding that limit, new entities are not modeled. For more
+information about this setting, see
+{ref}/ml-job-resource.html#ml-apilimits[Analysis Limits]. The memory status
+field reflects whether you have reached or exceeded the model memory limit. It
+can have one of the following values: +
 `ok`::: The models stayed below the configured value.
 `soft_limit`::: The models used more than 60% of the configured memory limit
 and older unused models will be pruned to free up space.

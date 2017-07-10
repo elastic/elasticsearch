@@ -242,7 +242,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     }
 
     @Override
-    protected void closeChannels(List<MockChannel> channel, boolean synchronous) throws IOException {
+    protected void closeChannels(List<MockChannel> channel, boolean blocking) throws IOException {
         IOUtils.close(channel);
     }
 

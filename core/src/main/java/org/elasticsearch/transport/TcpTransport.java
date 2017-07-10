@@ -1015,14 +1015,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected abstract Channel bind(String name, InetSocketAddress address) throws IOException;
 
     /**
-     * Closes all channels in this list. If the synchronous boolean is set to true, the channels must be
-     * closed before the method returns. This boolean should never be called with true from a network
-     * thread.
+     * Closes all channels in this list. If the blocking boolean is set to true, the channels must be
+     * closed before the method returns. This should never be called with blocking set to true from a
+     * network thread.
      *
      * @param channels the channels to close
-     * @param synchronous whether the channels should be closed synchronously
+     * @param blocking whether the channels should be closed synchronously
      */
-    protected abstract void closeChannels(List<Channel> channels, boolean synchronous) throws IOException;
+    protected abstract void closeChannels(List<Channel> channels, boolean blocking) throws IOException;
 
     /**
      * Sends message to channel. The listener's onResponse method will be called when the send is complete unless an exception

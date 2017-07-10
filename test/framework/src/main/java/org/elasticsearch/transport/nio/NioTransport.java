@@ -100,14 +100,14 @@ public class NioTransport extends TcpTransport<NioChannel> {
     }
 
     @Override
-    protected void closeChannels(List<NioChannel> channels, boolean synchronous) throws IOException {
+    protected void closeChannels(List<NioChannel> channels, boolean blocking) throws IOException {
         ArrayList<CloseFuture> futures = new ArrayList<>(channels.size());
         for (final NioChannel channel : channels) {
             if (channel != null && channel.isOpen()) {
                 futures.add(channel.closeAsync());
             }
         }
-        if (synchronous == false) {
+        if (blocking == false) {
             return;
         }
 

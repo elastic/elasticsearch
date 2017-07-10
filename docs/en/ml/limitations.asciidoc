@@ -23,13 +23,20 @@ you work with extensively in the beta, make note of all the details so
 that you can re-create them successfully.
 
 [float]
-=== {xpackml} features do not support cross cluster search
+=== {xpackml} features do not yet support cross cluster search
 
-You cannot use cross cluster search in either the {ml} APIs or the {ml}
-features in {kib}.
+At this time, you cannot use cross cluster search in either the {ml} APIs or the
+{ml} features in {kib}.
 
 For more information about cross cluster search,
 see {ref}/modules-cross-cluster-search.html[Cross Cluster Search].
+
+[float]
+=== {xpackml} features are not supported on tribe nodes
+
+You cannot use {ml} features on tribe nodes. For more information about that
+type of node, see
+{ref}/modules-tribe.html[Tribe node].
 
 [float]
 === Anomaly Explorer omissions and limitations

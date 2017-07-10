@@ -111,6 +111,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final List<SearchOperationListener> searchOperationListeners;
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
+
+    // don't convert to Setting<> and register... we only set this in tests and register via a plugin
+    private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
+
+    private final AsyncTrimTranslogTask trimTranslogTask;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
@@ -177,6 +182,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.searchOperationListeners = Collections.unmodifiableList(searchOperationListeners);
         // kick off async ops for the first shard in this index
         this.refreshTask = new AsyncRefreshTask(this);
+        this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         rescheduleFsyncTask(indexSettings.getTranslogDurability());
     }
 
@@ -629,7 +635,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         } finally {
             refreshTask = new AsyncRefreshTask(this);
         }
-
     }
 
     public interface ShardStoreDeleter {
@@ -689,6 +694,28 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     default:
                         throw new IllegalStateException("unknown state: " + shard.state());
                 }
+            }
+        }
+    }
+
+    private void maybeTrimTranslog() {
+        for (IndexShard shard : this.shards.values()) {
+            switch (shard.state()) {
+                case CREATED:
+                case RECOVERING:
+                case CLOSED:
+                    continue;
+                case POST_RECOVERY:
+                case STARTED:
+                case RELOCATED:
+                    try {
+                        shard.trimTranslog();
+                    } catch (IndexShardClosedException | AlreadyClosedException ex) {
+                        // fine - continue;
+                    }
+                    continue;
+                default:
+                    throw new IllegalStateException("unknown state: " + shard.state());
             }
         }
     }
@@ -834,6 +861,29 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         public String toString() {
             return "refresh";
+        }
+    }
+
+    final class AsyncTrimTranslogTask extends BaseAsyncTask {
+
+        AsyncTrimTranslogTask(IndexService indexService) {
+            super(indexService, indexService.getIndexSettings()
+                .getSettings().getAsTime(INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING, TimeValue.timeValueMinutes(10)));
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.maybeTrimTranslog();
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.GENERIC;
+        }
+
+        @Override
+        public String toString() {
+            return "trim_translog";
         }
     }
 

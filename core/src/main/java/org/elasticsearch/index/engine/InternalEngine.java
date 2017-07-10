@@ -1353,6 +1353,24 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @Override
+    public void trimTranslog() throws EngineException {
+        try (ReleasableLock lock = readLock.acquire()) {
+            ensureOpen();
+            translog.trimUnreferencedReaders();
+        } catch (AlreadyClosedException e) {
+            failOnTragicEvent(e);
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("translog trimming failed", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new EngineException(shardId, "failed to trim translog", e);
+        }
+    }
+
     private void pruneDeletedTombstones() {
         long timeMSec = engineConfig.getThreadPool().relativeTimeInMillis();
 

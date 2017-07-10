@@ -21,6 +21,7 @@ package org.elasticsearch.common;
 
 import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** These are essentially flake ids (http://boundary.com/blog/2012/01/12/flake-a-decentralized-k-ordered-unique-id-generator-in-erlang) but
  *  we use 6 (not 8) bytes for timestamp, and use 3 (not 2) bytes for sequence number. We also reorder bytes in a way that does not make ids
@@ -33,7 +34,7 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
     private final AtomicInteger sequenceNumber = new AtomicInteger(SecureRandomHolder.INSTANCE.nextInt());
 
     // Used to ensure clock moves forward:
-    private long lastTimestamp;
+    private final AtomicLong lastTimestamp = new AtomicLong(0L);
 
     private static final byte[] SECURE_MUNGED_ADDRESS = MacAddressProvider.getSecureMungedAddress();
 
@@ -54,21 +55,20 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
     @Override
     public String getBase64UUID()  {
         final int sequenceId = sequenceNumber.incrementAndGet() & 0xffffff;
-        long timestamp = currentTimeMillis();
-
-        synchronized (this) {
+        final long currentTimeMillis = currentTimeMillis();
+        long timestamp, prevTimestamp;
+        do {
+            prevTimestamp = lastTimestamp.get();
             // Don't let timestamp go backwards, at least "on our watch" (while this JVM is running).  We are still vulnerable if we are
             // shut down, clock goes backwards, and we restart... for this we randomize the sequenceNumber on init to decrease chance of
             // collision:
-            timestamp = Math.max(lastTimestamp, timestamp);
+            timestamp = Math.max(prevTimestamp, currentTimeMillis);
 
             if (sequenceId == 0) {
                 // Always force the clock to increment whenever sequence number is 0, in case we have a long time-slip backwards:
                 timestamp++;
             }
-
-            lastTimestamp = timestamp;
-        }
+        } while (lastTimestamp.compareAndSet(prevTimestamp, timestamp) == false);
 
         final byte[] uuidBytes = new byte[15];
         int i = 0;

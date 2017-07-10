@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -76,6 +77,9 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
         List<NodeInfo> nodeInfos = Collections.singletonList(new NodeInfo(Version.CURRENT, Build.CURRENT,
             discoveryNode, null, null, null, null,
             null, null, null, null, null, null));
+        List<NodeStats> nodeStats = Collections.singletonList(new NodeStats(discoveryNode, 0L, null,
+            null, null, null, null, null, null, null, null,
+            null, null, null));
         IndexNameExpressionResolver resolver = new IndexNameExpressionResolver(Settings.EMPTY);
         IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false,
             true, true);
@@ -83,13 +87,13 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
         boolean nodeIssueFound = randomBoolean();
         boolean indexIssueFound = randomBoolean();
         DeprecationIssue foundIssue = DeprecationIssueTests.createTestInstance();
-        List<BiFunction<List<NodeInfo>, ClusterState, DeprecationIssue>> clusterSettingsChecks =
+        List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
-                (ln, s) -> clusterIssueFound ? foundIssue : null
+                (s) -> clusterIssueFound ? foundIssue : null
             ));
-        List<BiFunction<List<NodeInfo>, ClusterState, DeprecationIssue>> nodeSettingsChecks =
+        List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> nodeSettingsChecks =
             Collections.unmodifiableList(Arrays.asList(
-                (ln, s) -> nodeIssueFound ? foundIssue : null
+                (ln, ls) -> nodeIssueFound ? foundIssue : null
             ));
 
         List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks =
@@ -97,7 +101,7 @@ public class DeprecationInfoActionResponseTests extends AbstractStreamableTestCa
                 (idx) -> indexIssueFound ? foundIssue : null
             ));
 
-        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(nodeInfos, state,
+        DeprecationInfoAction.Response response = DeprecationInfoAction.Response.from(nodeInfos, nodeStats, state,
             resolver, Strings.EMPTY_ARRAY, indicesOptions,
             clusterSettingsChecks, nodeSettingsChecks, indexSettingsChecks);
 

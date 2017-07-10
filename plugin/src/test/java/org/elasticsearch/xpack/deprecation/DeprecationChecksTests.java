@@ -36,33 +36,4 @@ public class DeprecationChecksTests extends ESTestCase {
         List<DeprecationIssue> filteredIssues = DeprecationChecks.filterChecks(checks, Supplier::get);
         assertThat(filteredIssues.size(), equalTo(numChecksFailed));
     }
-
-    public void testCoerceBooleanDeprecation() throws IOException {
-        XContentBuilder mapping = XContentFactory.jsonBuilder();
-        mapping.startObject(); {
-            mapping.startObject("properties"); {
-                mapping.startObject("my_boolean"); {
-                    mapping.field("type", "boolean");
-                }
-                mapping.endObject();
-            }
-            mapping.endObject();
-        }
-        mapping.endObject();
-
-        IndexMetaData indexMetaData = IndexMetaData.builder("test")
-            .putMapping("testBooleanCoercion", mapping.string())
-            .settings(settings(Version.V_5_6_0))
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-        DeprecationIssue expected = new DeprecationIssue(DeprecationIssue.Level.INFO,
-            "Coercion of boolean fields",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                "breaking_60_mappings_changes.html#_coercion_of_boolean_fields",
-            Arrays.toString(new String[] { "type: testBooleanCoercion, field: my_boolean" }));
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetaData));
-        assertThat(issues.size(), equalTo(1));
-        assertThat(issues.get(0), equalTo(expected));
-    }
 }

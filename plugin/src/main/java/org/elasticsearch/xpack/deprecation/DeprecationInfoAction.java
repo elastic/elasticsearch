@@ -6,12 +6,17 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
@@ -34,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.node.NodeService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
@@ -153,6 +159,7 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
          * cluster.
          *
          * @param nodesInfo The list of {@link NodeInfo} metadata objects for retrieving node-level information
+         * @param nodesStats The list of {@link NodeStats} metadata objects for retrieving node-level information
          * @param state The cluster state
          * @param indexNameExpressionResolver Used to resolve indices into their concrete names
          * @param indices The list of index expressions to evaluate using `indexNameExpressionResolver`
@@ -163,16 +170,16 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
          *                            concrete indices
          * @return The list of deprecation issues found in the cluster
          */
-        static DeprecationInfoAction.Response from(List<NodeInfo> nodesInfo, ClusterState state,
+        static DeprecationInfoAction.Response from(List<NodeInfo> nodesInfo, List<NodeStats> nodesStats, ClusterState state,
                                                    IndexNameExpressionResolver indexNameExpressionResolver,
                                                    String[] indices, IndicesOptions indicesOptions,
-                                                   List<BiFunction<List<NodeInfo>, ClusterState,DeprecationIssue>>clusterSettingsChecks,
-                                                   List<BiFunction<List<NodeInfo>, ClusterState, DeprecationIssue>> nodeSettingsChecks,
+                                                   List<Function<ClusterState,DeprecationIssue>>clusterSettingsChecks,
+                                                   List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> nodeSettingsChecks,
                                                    List<Function<IndexMetaData, DeprecationIssue>> indexSettingsChecks) {
             List<DeprecationIssue> clusterSettingsIssues = filterChecks(clusterSettingsChecks,
-                (c) -> c.apply(nodesInfo, state));
+                (c) -> c.apply(state));
             List<DeprecationIssue> nodeSettingsIssues = filterChecks(nodeSettingsChecks,
-                (c) -> c.apply(nodesInfo, state));
+                (c) -> c.apply(nodesInfo, nodesStats));
 
             String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, indices);
 
@@ -305,17 +312,24 @@ public class DeprecationInfoAction extends Action<DeprecationInfoAction.Request,
         protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
             if (licenseState.isDeprecationAllowed()) {
                 NodesInfoRequest nodesInfoRequest = new NodesInfoRequest("_local").settings(true).plugins(true);
-                client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(nodesInfoResponse -> {
-                    // if there's a failure, then we failed to work with the
-                    // _local node (guaranteed a single exception)
-                    if (nodesInfoResponse.hasFailures()) {
-                        throw nodesInfoResponse.failures().get(0);
-                    }
+                NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("_local").fs(true);
 
-                    listener.onResponse(Response.from(nodesInfoResponse.getNodes(), state,
-                        indexNameExpressionResolver, request.indices(), request.indicesOptions(),
-                        CLUSTER_SETTINGS_CHECKS, NODE_SETTINGS_CHECKS, INDEX_SETTINGS_CHECKS));
-                }, listener::onFailure));
+                client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(
+                    nodesInfoResponse -> {
+                        if (nodesInfoResponse.hasFailures()) {
+                            throw nodesInfoResponse.failures().get(0);
+                        }
+                        client.admin().cluster().nodesStats(nodesStatsRequest, ActionListener.wrap(
+                            nodesStatsResponse -> {
+                                if (nodesStatsResponse.hasFailures()) {
+                                    throw nodesStatsResponse.failures().get(0);
+                                }
+                                listener.onResponse(Response.from(nodesInfoResponse.getNodes(),
+                                    nodesStatsResponse.getNodes(), state, indexNameExpressionResolver,
+                                    request.indices(), request.indicesOptions(), CLUSTER_SETTINGS_CHECKS,
+                                    NODE_SETTINGS_CHECKS, INDEX_SETTINGS_CHECKS));
+                            }, listener::onFailure));
+                    },listener::onFailure));
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.DEPRECATION));
             }

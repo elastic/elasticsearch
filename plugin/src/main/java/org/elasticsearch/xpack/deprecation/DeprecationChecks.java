@@ -6,15 +6,13 @@
 package org.elasticsearch.xpack.deprecation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -35,39 +33,27 @@ public class DeprecationChecks {
     private DeprecationChecks() {
     }
 
-    static List<BiFunction<List<NodeInfo>, ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
+    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            // STUB: TODO(talevy): add checks
+            // STUB
         ));
 
-    static List<BiFunction<List<NodeInfo>, ClusterState, DeprecationIssue>> NODE_SETTINGS_CHECKS =
+    static List<BiFunction<List<NodeInfo>, List<NodeStats>, DeprecationIssue>> NODE_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            // STUB: TODO(talevy): add checks
+            // STUB
         ));
 
     @SuppressWarnings("unchecked")
     static List<Function<IndexMetaData, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
         Collections.unmodifiableList(Arrays.asList(
-            indexMetaData -> {
-                List<String> issues = new ArrayList<>();
-                if (indexMetaData.getCreationVersion().onOrBefore(Version.V_5_6_0)) {
-                    for (ObjectCursor<MappingMetaData> mappingMetaData : indexMetaData.getMappings().values()) {
-                        Map<String, Object> sourceAsMap = mappingMetaData.value.sourceAsMap();
-                        ((Map<String, Object>) sourceAsMap.getOrDefault("properties", Collections.emptyMap()))
-                            .forEach((key, value) -> {
-                                Map<String, Object> valueMap = ((Map<String, Object>) value);
-                                if ("boolean".equals(valueMap.get("type"))) {
-                                    issues.add("type: " + mappingMetaData.value.type() + ", field: " + key);
-                                }
-                            });
-                    }
-                }
-                return new DeprecationIssue(DeprecationIssue.Level.INFO, "Coercion of boolean fields",
-                    "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
-                        "breaking_60_mappings_changes.html#_coercion_of_boolean_fields",
-                    Arrays.toString(issues.toArray()));
-            }
-        ));
+            IndexDeprecationChecks::allMetaFieldIsDisabledByDefaultCheck,
+            IndexDeprecationChecks::baseSimilarityDefinedCheck,
+            IndexDeprecationChecks::coercionCheck,
+            IndexDeprecationChecks::dynamicTemplateWithMatchMappingTypeCheck,
+            IndexDeprecationChecks::includeInAllCheck,
+            IndexDeprecationChecks::indexSharedFileSystemCheck,
+            IndexDeprecationChecks::indexStoreTypeCheck,
+            IndexDeprecationChecks::storeThrottleSettingsCheck));
 
     /**
      * helper utility function to reduce repeat of running a specific {@link Set} of checks.

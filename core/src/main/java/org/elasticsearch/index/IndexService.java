@@ -115,7 +115,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
 
-    private volatile AsyncTrimTranslogTask trimTranslogTask;
+    private final AsyncTrimTranslogTask trimTranslogTask;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
@@ -637,14 +637,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    private void rescheduleTrimTranslogcheck() {
-        try {
-            trimTranslogTask.close();
-        } finally {
-            trimTranslogTask = new AsyncTrimTranslogTask(this);
-        }
-    }
-
     public interface ShardStoreDeleter {
         void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException;
 
@@ -903,7 +895,4 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         return fsyncTask;
     }
 
-    AsyncTrimTranslogTask getTrimTranslogTask() {
-        return trimTranslogTask;
-    }
 }

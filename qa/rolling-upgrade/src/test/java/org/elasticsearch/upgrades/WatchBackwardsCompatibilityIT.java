@@ -11,6 +11,7 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
@@ -46,6 +47,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/issues/1303")
 public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
 
     private Nodes nodes;
@@ -133,7 +135,6 @@ public class WatchBackwardsCompatibilityIT extends ESRestTestCase {
 
     // we have to have finish the upgrade API first to make this test work, so we can call it instead of
     // https://github.com/elastic/x-pack-elasticsearch/issues/1303
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack-elasticsearch/pull/1603")
     public void testWatchCrudApis() throws IOException {
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
 

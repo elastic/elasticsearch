@@ -161,6 +161,6 @@ public abstract class RemoteClusterAware extends AbstractComponent {
     }
 
     public static final String buildRemoteIndexName(String clusterAlias, String indexName) {
-        return clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexName;
+        return clusterAlias != null ? clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexName : indexName;
     }
 }

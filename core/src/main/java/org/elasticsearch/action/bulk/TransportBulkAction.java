@@ -290,13 +290,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case CREATE:
                         case INDEX:
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                            MappingMetaData mappingMd = null;
-                            Version indexCreated = null;
                             final IndexMetaData indexMetaData = metaData.index(concreteIndex);
-                            if (indexMetaData != null) {
-                                mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
-                                indexCreated = indexMetaData.getCreationVersion();
-                            }
+                            MappingMetaData mappingMd = indexMetaData.mappingOrDefault(indexRequest.type());
+                            Version indexCreated = indexMetaData.getCreationVersion();
                             indexRequest.resolveRouting(metaData);
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
                             break;

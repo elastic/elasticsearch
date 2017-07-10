@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.bucket.range.date;
+package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -25,9 +25,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
@@ -46,7 +43,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         PARSER.declareBoolean(DateRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
         PARSER.declareObjectArray((agg, ranges) -> {
-            for (Range range : ranges) {
+            for (RangeAggregator.Range range : ranges) {
                 agg.addRange(range);
             }
         }, (p, c) -> DateRangeAggregationBuilder.parseRange(p), RangeAggregator.RANGES_FIELD);
@@ -56,8 +53,8 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
         return PARSER.parse(parser, new DateRangeAggregationBuilder(aggregationName), null);
     }
 
-    private static Range parseRange(XContentParser parser) throws IOException {
-        return Range.fromXContent(parser);
+    private static RangeAggregator.Range parseRange(XContentParser parser) throws IOException {
+        return RangeAggregator.Range.fromXContent(parser);
     }
 
     public DateRangeAggregationBuilder(String name) {
@@ -68,7 +65,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      * Read from a stream.
      */
     public DateRangeAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalDateRange.FACTORY, Range::new);
+        super(in, InternalDateRange.FACTORY, RangeAggregator.Range::new);
     }
 
     @Override
@@ -87,7 +84,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      *            the upper bound on the dates, exclusive
      */
     public DateRangeAggregationBuilder addRange(String key, String from, String to) {
-        addRange(new Range(key, from, to));
+        addRange(new RangeAggregator.Range(key, from, to));
         return this;
     }
 
@@ -108,7 +105,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      *            the upper bound on the dates, exclusive
      */
     public DateRangeAggregationBuilder addUnboundedTo(String key, String to) {
-        addRange(new Range(key, null, to));
+        addRange(new RangeAggregator.Range(key, null, to));
         return this;
     }
 
@@ -129,7 +126,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      *            the lower bound on the distances, inclusive
      */
     public DateRangeAggregationBuilder addUnboundedFrom(String key, String from) {
-        addRange(new Range(key, from, null));
+        addRange(new RangeAggregator.Range(key, from, null));
         return this;
     }
 
@@ -152,7 +149,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      *            the upper bound on the dates, exclusive
      */
     public DateRangeAggregationBuilder addRange(String key, double from, double to) {
-        addRange(new Range(key, from, to));
+        addRange(new RangeAggregator.Range(key, from, to));
         return this;
     }
 
@@ -173,7 +170,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      *            the upper bound on the dates, exclusive
      */
     public DateRangeAggregationBuilder addUnboundedTo(String key, double to) {
-        addRange(new Range(key, null, to));
+        addRange(new RangeAggregator.Range(key, null, to));
         return this;
     }
 
@@ -194,7 +191,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      *            the lower bound on the distances, inclusive
      */
     public DateRangeAggregationBuilder addUnboundedFrom(String key, double from) {
-        addRange(new Range(key, from, null));
+        addRange(new RangeAggregator.Range(key, from, null));
         return this;
     }
 
@@ -217,7 +214,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      *            the upper bound on the dates, exclusive
      */
     public DateRangeAggregationBuilder addRange(String key, DateTime from, DateTime to) {
-        addRange(new Range(key, convertDateTime(from), convertDateTime(to)));
+        addRange(new RangeAggregator.Range(key, convertDateTime(from), convertDateTime(to)));
         return this;
     }
 
@@ -246,7 +243,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      *            the upper bound on the dates, exclusive
      */
     public DateRangeAggregationBuilder addUnboundedTo(String key, DateTime to) {
-        addRange(new Range(key, null, convertDateTime(to)));
+        addRange(new RangeAggregator.Range(key, null, convertDateTime(to)));
         return this;
     }
 
@@ -267,7 +264,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
      *            the lower bound on the distances, inclusive
      */
     public DateRangeAggregationBuilder addUnboundedFrom(String key, DateTime from) {
-        addRange(new Range(key, convertDateTime(from), null));
+        addRange(new RangeAggregator.Range(key, convertDateTime(from), null));
         return this;
     }
 
@@ -284,7 +281,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         // We need to call processRanges here so they are parsed and we know whether `now` has been used before we make
         // the decision of whether to cache the request
-        Range[] ranges = processRanges(context, config);
+        RangeAggregator.Range[] ranges = processRanges(context, config);
         if (ranges.length == 0) {
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
         }

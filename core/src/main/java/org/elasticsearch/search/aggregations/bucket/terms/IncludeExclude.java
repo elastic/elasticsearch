@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.terms.support;
+package org.elasticsearch.search.aggregations.bucket.terms;
 
 import com.carrotsearch.hppc.BitMixer;
 import com.carrotsearch.hppc.LongHashSet;
@@ -247,7 +247,8 @@ public class IncludeExclude implements Writeable, ToXContent {
 
             BytesRef term = termEnum.next();
             while (term != null) {
-                if (Math.floorMod(StringHelper.murmurhash3_x86_32(term, HASH_PARTITIONING_SEED), incNumPartitions) == incZeroBasedPartition) {
+                if (Math.floorMod(StringHelper.murmurhash3_x86_32(term, HASH_PARTITIONING_SEED),
+                        incNumPartitions) == incZeroBasedPartition) {
                     acceptedGlobalOrdinals.set(termEnum.ord());
                 }
                 term = termEnum.next();
@@ -717,10 +718,11 @@ public class IncludeExclude implements Writeable, ToXContent {
             return false;
         }
         IncludeExclude other = (IncludeExclude) obj;
-        return Objects.equals(include == null ? null : include.getOriginalString(), other.include == null ? null : other.include.getOriginalString())
-                && Objects.equals(exclude == null ? null : exclude.getOriginalString(), other.exclude == null ? null : other.exclude.getOriginalString())
-                && Objects.equals(includeValues, other.includeValues)
-                && Objects.equals(excludeValues, other.excludeValues)
+        return Objects.equals(include == null ? null : include.getOriginalString(),
+                other.include == null ? null : other.include.getOriginalString())
+                && Objects.equals(exclude == null ? null : exclude.getOriginalString(),
+                        other.exclude == null ? null : other.exclude.getOriginalString())
+                && Objects.equals(includeValues, other.includeValues) && Objects.equals(excludeValues, other.excludeValues)
                 && Objects.equals(incZeroBasedPartition, other.incZeroBasedPartition)
                 && Objects.equals(incNumPartitions, other.incNumPartitions);
     }

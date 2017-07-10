@@ -97,7 +97,7 @@ public class AnalyzeRequestTests extends ESTestCase {
         // AnalyzeRequest serializedRequest = new AnalyzeRequest("foo");
         // serializedRequest.text("text");
         // serializedRequest.normalizer("normalizer");
-        // Using Version.V_6_0_0_alpha3
+        // Using Version.V_6_0_0_beta1
         final byte[] data = Base64.getDecoder().decode("AAABA2ZvbwEEdGV4dAAAAAAAAAABCm5vcm1hbGl6ZXI=");
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0, Version.V_5_4_0);
         try (StreamInput in = StreamInput.wrap(data)) {

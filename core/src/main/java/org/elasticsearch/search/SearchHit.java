@@ -335,6 +335,13 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         }
     }
 
+    /**
+     * Returns the cluster alias this hit comes from or null if it comes from a local cluster
+     */
+    public String getClusterAlias() {
+        return clusterAlias;
+    }
+
     public void matchedQueries(String[] matchedQueries) {
         this.matchedQueries = matchedQueries;
     }

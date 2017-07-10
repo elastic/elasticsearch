@@ -86,7 +86,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
         @Override
         public SearchShardTarget shardTarget() {
-            return new SearchShardTarget("no node, this is a unit test", new Index("no index, this is a unit test", "_na_"), 0);
+            return new SearchShardTarget("no node, this is a unit test", new Index("no index, this is a unit test", "_na_"), 0, null);
         }
     }
 

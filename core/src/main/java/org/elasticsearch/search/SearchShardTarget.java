@@ -67,8 +67,8 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
     }
 
     //this constructor is only used in tests
-    public SearchShardTarget(String nodeId, Index index, int shardId) {
-        this(nodeId,  new ShardId(index, shardId), null, OriginalIndices.NONE);
+    public SearchShardTarget(String nodeId, Index index, int shardId, String clusterAlias) {
+        this(nodeId,  new ShardId(index, shardId), clusterAlias, OriginalIndices.NONE);
     }
 
     @Nullable
@@ -126,7 +126,7 @@ public final class SearchShardTarget implements Writeable, Comparable<SearchShar
         SearchShardTarget that = (SearchShardTarget) o;
         if (shardId.equals(that.shardId) == false) return false;
         if (nodeId != null ? !nodeId.equals(that.nodeId) : that.nodeId != null) return false;
-        if (clusterAlias != null ? !clusterAlias.equals(that.clusterAlias) : that.nodeId != null) return false;
+        if (clusterAlias != null ? !clusterAlias.equals(that.clusterAlias) : that.clusterAlias != null) return false;
         return true;
     }
 

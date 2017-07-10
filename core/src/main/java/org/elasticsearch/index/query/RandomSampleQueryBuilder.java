@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -38,17 +39,20 @@ public class RandomSampleQueryBuilder extends AbstractQueryBuilder<RandomSampleQ
     public static final String NAME = "random_sample";
     private static final ParseField PROBABILITY = new ParseField("probability");
     private static final ParseField SEED = new ParseField("seed");
+    private static final ParseField FIELD = new ParseField("field");
 
     private double p = 0.5;
-    private Long seed = null;
+    private Integer seed = null;
+    private String field = null;
 
     RandomSampleQueryBuilder(double probability) {
-        this(probability, null);
+        this(probability, null, null);
     }
 
-    RandomSampleQueryBuilder(double probability, Long seed) {
+    RandomSampleQueryBuilder(double probability, Integer seed, String field) {
         this.p = validateProbability(probability);
         this.seed = seed;
+        this.field = field;
     }
 
     private RandomSampleQueryBuilder() {
@@ -60,13 +64,21 @@ public class RandomSampleQueryBuilder extends AbstractQueryBuilder<RandomSampleQ
     public RandomSampleQueryBuilder(StreamInput in) throws IOException {
         super(in);
         p = in.readDouble();
-        seed = in.readOptionalLong();
+        if (in.readBoolean()) {
+            seed = in.readInt();
+        }
+        field = in.readOptionalString();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(p);
-        out.writeOptionalLong(seed);
+        out.writeBoolean(seed != null);
+        if (seed != null) {
+            out.writeInt(seed);
+        }
+        out.writeOptionalString(field);
+
     }
 
     public double getProbability() {
@@ -77,12 +89,20 @@ public class RandomSampleQueryBuilder extends AbstractQueryBuilder<RandomSampleQ
         this.p = validateProbability(p);
     }
 
-    public Long getSeed() {
+    public Integer getSeed() {
         return seed;
     }
 
-    public void setSeed(Long seed) {
+    public void setSeed(Integer seed) {
         this.seed = seed;
+    }
+
+    public String getField() {
+        return field;
+    }
+
+    public void setField(String field) {
+        this.field = field;
     }
 
     @Override
@@ -93,6 +113,9 @@ public class RandomSampleQueryBuilder extends AbstractQueryBuilder<RandomSampleQ
         if (seed != null) {
             builder.field(SEED.getPreferredName(), seed);
         }
+        if (field != null) {
+            builder.field(FIELD.getPreferredName(), field);
+        }
         builder.endObject();
     }
 
@@ -102,7 +125,8 @@ public class RandomSampleQueryBuilder extends AbstractQueryBuilder<RandomSampleQ
     static {
         declareStandardFields(PARSER);
         PARSER.declareDouble(RandomSampleQueryBuilder::setProbability, PROBABILITY);
-        PARSER.declareLong(RandomSampleQueryBuilder::setSeed, SEED);
+        PARSER.declareInt(RandomSampleQueryBuilder::setSeed, SEED);
+        PARSER.declareString(RandomSampleQueryBuilder::setField, FIELD);
     }
 
     public static RandomSampleQueryBuilder fromXContent(QueryParseContext context) {
@@ -114,19 +138,51 @@ public class RandomSampleQueryBuilder extends AbstractQueryBuilder<RandomSampleQ
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) {
-        return new RandomSampleQuery(p, seed);
+    protected final Query doToQuery(QueryShardContext context) {
+        final int salt = (context.index().getName().hashCode() << 10) | context.getShardId();
+        if (seed == null) {
+            // DocID-based random score generation
+            return new RandomSampleQuery(p, hash(context.nowInMillis()), salt, null);
+        } else {
+            final MappedFieldType fieldType;
+            if (field != null) {
+                fieldType = context.getMapperService().fullName(field);
+            } else {
+                throw new IllegalArgumentException("Seeding the random_score query requires the [" + FIELD.getPreferredName()
+                    + "] parameter to be set too.");
+            }
+            if (fieldType == null) {
+                if (context.getMapperService().types().isEmpty()) {
+                    // no mappings: the index is empty anyway
+                    return new RandomSampleQuery(p, hash(context.nowInMillis()), salt, null);
+                }
+                throw new IllegalArgumentException("Field [" + field + "] is not mapped on [" + context.index() +
+                    "] and cannot be used as a source of random numbers.");
+            }
+            int seed;
+            if (this.seed != null) {
+                seed = this.seed;
+            } else {
+                seed = hash(context.nowInMillis());
+            }
+            return new RandomSampleQuery(p, seed, salt, context.getForField(fieldType));
+        }
+    }
+
+    private static int hash(long value) {
+        return Long.hashCode(value);
     }
 
     @Override
     protected boolean doEquals(RandomSampleQueryBuilder other) {
         return Objects.equals(p, other.p) &&
-            Objects.equals(seed, other.seed);
+            Objects.equals(seed, other.seed) &&
+            Objects.equals(field, other.field);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(p, seed);
+        return Objects.hash(p, seed, field);
     }
 
     @Override

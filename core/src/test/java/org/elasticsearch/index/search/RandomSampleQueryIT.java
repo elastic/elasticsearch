@@ -24,22 +24,24 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RandomSampleQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, transportClientRatio = 0)
 public class RandomSampleQueryIT extends ESIntegTestCase {
 
-    private static final int NUM_DOCS = 1000;
+    private static final int NUM_DOCS = 10000;
     private static final int NUM_DOCS_SMALL = 100;
     @Before
     public void setUp() throws Exception {
         super.setUp();
         BulkRequestBuilder bulk = new BulkRequestBuilder(client(), BulkAction.INSTANCE);
         for (int i = 0; i < NUM_DOCS; i++) {
-            bulk.add(client().prepareIndex("test", "test", Integer.toString(i)).setSource("field",  Integer.toString(i)));
+            bulk.add(client().prepareIndex("test", "test", Integer.toString(i)).setSource("field", i*2));
         }
         for (int i = 0; i < NUM_DOCS_SMALL; i++) {
-            bulk.add(client().prepareIndex("test_small", "test", Integer.toString(i)).setSource("field",  Integer.toString(i)));
+            bulk.add(client().prepareIndex("test_small", "test", Integer.toString(i)).setSource("field", i*2));
         }
         bulk.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         bulk.get();
@@ -55,11 +57,10 @@ public class RandomSampleQueryIT extends ESIntegTestCase {
                 .get();
 
             long hits = searchResponse.getHits().getTotalHits();
-            long lower = Math.max((long)((NUM_DOCS * p)-50), 0L);
-            long upper = Math.min((long)((NUM_DOCS * p)+50), NUM_DOCS);
-            if (hits <= lower || hits >= upper) {
+            double error = Math.abs((NUM_DOCS * p)/hits) / (NUM_DOCS * p);
+            if (error > 0.15) {
                 fail("Hit count was [" + hits + "], expected to be close to " + NUM_DOCS * p
-                    + " ([" + lower + " - " + upper +"]), p=" + p);
+                    + " (+/- 15% error). Error was " + error + ", p=" + p);
             }
         }
     }
@@ -73,12 +74,52 @@ public class RandomSampleQueryIT extends ESIntegTestCase {
                 .get();
 
             long hits = searchResponse.getHits().getTotalHits();
-            long lower = Math.max((long)((NUM_DOCS_SMALL * p)-10), 0L);
-            long upper = Math.min((long)((NUM_DOCS_SMALL * p)+10), NUM_DOCS_SMALL);
-            if (hits < lower || hits > upper) {
-                fail("Hit count was [" + hits + "], expected to be close to " + NUM_DOCS_SMALL * p
-                    + " ([" + lower + " - " + upper +"]), p=" + p);
+            double error = Math.abs((NUM_DOCS * p)/hits) / (NUM_DOCS * p);
+            if (error > 0.30) {
+                fail("Hit count was [" + hits + "], expected to be close to " + NUM_DOCS * p
+                    + " (+/- 30% error). Error was " + error + ", p=" + p);
             }
         }
     }
+
+    public void testProbabilitySeeded() {
+        for (int i = 10; i < 100; i+=10) {
+            double p = ((double)i)/100;
+            RandomSampleQueryBuilder builder = QueryBuilders.randomSampleQuery(p);
+            builder.setSeed(randomInt());
+            builder.setField("field");
+            SearchResponse searchResponse = client()
+                .prepareSearch("test")
+                .setQuery(builder)
+                .get();
+
+            long hits = searchResponse.getHits().getTotalHits();
+            double error = Math.abs((NUM_DOCS * p)/hits) / (NUM_DOCS * p);
+            if (error > 0.15) {
+                fail("Hit count was [" + hits + "], expected to be close to " + NUM_DOCS * p
+                    + " (+/- 15% error). Error was " + error + ", p=" + p);
+            }
+        }
+    }
+
+    public void testProbabilitySmallIndexSeeded() {
+        for (int i = 10; i < 100; i+=10) {
+            double p = ((double)i)/100;
+            RandomSampleQueryBuilder builder = QueryBuilders.randomSampleQuery(p);
+            builder.setSeed(randomInt());
+            builder.setField("field");
+            SearchResponse searchResponse = client()
+                .prepareSearch("test_small")
+                .setQuery(builder)
+                .get();
+
+            long hits = searchResponse.getHits().getTotalHits();
+            double error = Math.abs((NUM_DOCS * p)/hits) / (NUM_DOCS * p);
+            if (error > 0.30) {
+                fail("Hit count was [" + hits + "], expected to be close to " + NUM_DOCS * p
+                    + " (+/- 30% error). Error was " + error + ", p=" + p);
+            }
+        }
+    }
+
 }

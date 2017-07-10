@@ -21,6 +21,11 @@ package org.elasticsearch.index.query;
 
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -34,14 +39,20 @@ public class RandomSampleQueryBuilderTests extends AbstractQueryTestCase<RandomS
 
     @Override
     protected RandomSampleQueryBuilder doCreateTestQueryBuilder() {
-        RandomSampleQueryBuilder query;
         double p = randomDoubleBetween(0.00001, 0.999999, true);
+        RandomSampleQueryBuilder builder = new RandomSampleQueryBuilder(p);
         if (randomBoolean()) {
-            query = new RandomSampleQueryBuilder(p, randomLong());
-        } else {
-            query = new RandomSampleQueryBuilder(p);
+            builder.setField(SeqNoFieldMapper.NAME); // guaranteed to exist
+            builder.setSeed(123);
         }
-        return query;
+        return builder;
+    }
+
+    @Override
+    protected boolean isCachable(RandomSampleQueryBuilder queryBuilder) {
+        // if the builder has a field, it is cacheable.  Otherwise it uses context.nowInMillis(),
+        // which makes it uncacheable
+        return queryBuilder.getField() != null;
     }
 
     @Override
@@ -61,6 +72,17 @@ public class RandomSampleQueryBuilderTests extends AbstractQueryTestCase<RandomS
 
         e = expectThrows(IllegalArgumentException.class, () -> new RandomSampleQueryBuilder(5.0));
         assertEquals("[probability] cannot be greater than or equal to 1.0.", e.getMessage());
+
+        final IndexMetaData EMPTY_INDEX_METADATA = IndexMetaData.builder("")
+            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(0).build();
+        final long nowInMillis = randomNonNegativeLong();
+
+        QueryShardContext context = new QueryShardContext(0,
+            new IndexSettings(EMPTY_INDEX_METADATA, Settings.EMPTY), null, null, null, null, null, xContentRegistry(),
+            null, null, () -> nowInMillis);
+        e = expectThrows(IllegalArgumentException.class, () -> new RandomSampleQueryBuilder(0.5, 123, null).doToQuery(context));
+        assertEquals("Seeding the random_score query requires the [field] parameter to be set too.", e.getMessage());
 
     }
 
@@ -84,12 +106,13 @@ public class RandomSampleQueryBuilderTests extends AbstractQueryTestCase<RandomS
                 "  \"random_sample\" : {\n" +
                 "    \"boost\" : 1.0,\n" +
                 "    \"probability\" : 0.5,\n" +
-                "    \"seed\" : 123\n" +
+                "    \"seed\" : 123,\n" +
+                "    \"field\" : \"" + SeqNoFieldMapper.NAME + "\"" +
                 "  }\n" +
                 "}";
         parsed = (RandomSampleQueryBuilder) parseQuery(json);
         assertThat(parsed.getProbability(), equalTo(0.5));
-        assertThat(parsed.getSeed(), equalTo(123L));
+        assertThat(parsed.getSeed(), equalTo(123));
 
     }
 }

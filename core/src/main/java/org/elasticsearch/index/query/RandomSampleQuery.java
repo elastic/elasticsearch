@@ -23,8 +23,8 @@ package org.elasticsearch.index.query;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Objects;
-import java.util.Random;
 
+import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreScorer;
@@ -36,7 +36,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.Randomness;
+import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.index.fielddata.AtomicFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 /**
  * A query that randomly matches documents with a user-provided probability.  May
@@ -55,23 +58,27 @@ import org.elasticsearch.common.Randomness;
 public final class RandomSampleQuery extends Query {
 
     private final double p;
-    private final Long seed;
+    private final int seed;
+    private final int salt;
+    private final IndexFieldData<?> fieldData;
+    private float LOG_INVERSE_P;
 
     // Above this threshold, it is probably faster to just use simple random sampling
-    private static final double PROBABILITY_THRESHOLD = 0.7;
-    private static final double EPSILON = 1e-10;
-    private static double LOG_INVERSE_P;
+    private static final double PROBABILITY_THRESHOLD = 0.5;
+    private static final float EPSILON = 1e-10f;
 
-    RandomSampleQuery(double p, Long seed) {
-        assert(p > 0.0 && p <= 1.0);
+    RandomSampleQuery(double p, int seed, int salt, IndexFieldData<?> fieldData) {
+        assert(p > 0.0 && p < 1.0);
         this.p = p;
         this.seed = seed;
-        LOG_INVERSE_P =  Math.log(1-p);
+        this.salt = salt;
+        this.fieldData = fieldData;
+        LOG_INVERSE_P =  (float)Math.log(1-p);
     }
 
-    static int getGap(Random rng) {
-        double u = Math.max(rng.nextDouble(), EPSILON);
-        return (int)(Math.floor(Math.log(u) / LOG_INVERSE_P)) + 1;
+    private int getGap(DocIdRNG rng, int doc) throws IOException {
+        float u = Math.max(rng.getFloat(doc), EPSILON);
+        return (int)(Math.log(u) / LOG_INVERSE_P) + 1;
     }
 
     @Override
@@ -83,15 +90,16 @@ public final class RandomSampleQuery extends Query {
             }
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                final Random rng = seed == null ? Randomness.get() : new Random(seed);
+
+                DocIdRNG rng = new DocIdRNG(seed, salt, fieldData, context);
                 int maxDoc = context.reader().maxDoc();
 
                 // For small doc sets, it's easier/more accurate to just sample directly
                 // instead of sampling gaps. Or, if the probability is high, faster to use SRS
                 if (maxDoc < 100 || p > PROBABILITY_THRESHOLD) {
-                    return new ConstantScoreScorer(this, score(), new RandomSamplingDocIdSetIterator(maxDoc, rng, p));
+                    return new ConstantScoreScorer(this, score(), new RandomSamplingDocIdSetIterator(maxDoc, p, rng));
                 } else {
-                    return new ConstantScoreScorer(this, score(), new RandomGapSamplingDocIdSetIterator(maxDoc, rng, p));
+                    return new ConstantScoreScorer(this, score(), new RandomGapSamplingDocIdSetIterator(maxDoc, p, rng));
                 }
 
             }
@@ -99,7 +107,7 @@ public final class RandomSampleQuery extends Query {
             public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                 final float score = score();
                 final int maxDoc = context.reader().maxDoc();
-                final Random rng = seed == null ? Randomness.get() : new Random(seed);
+                DocIdRNG rng = new DocIdRNG(seed, salt, fieldData, context);
 
                 // For small doc sets, it's easier/more accurate to just sample directly
                 // instead of sampling gaps. Or, if the probability is high, faster to use SRS
@@ -113,7 +121,7 @@ public final class RandomSampleQuery extends Query {
                             collector.setScorer(scorer);
 
                             for (int current = min; current < max; current++) {
-                                if (rng.nextDouble() <= p) {
+                                if (rng.getFloat(current) <= p) {
                                     scorer.doc = current;
                                     if (acceptDocs == null || acceptDocs.get(current)) {
                                         collector.collect(current);
@@ -138,7 +146,7 @@ public final class RandomSampleQuery extends Query {
 
                             int current = min;
                             while (current < max) {
-                                int gap = getGap(rng);
+                                int gap = getGap(rng, current);
                                 current = current + gap;
                                 if (current >= maxDoc) {
                                     return DocIdSetIterator.NO_MORE_DOCS;
@@ -190,10 +198,10 @@ public final class RandomSampleQuery extends Query {
     private static class RandomSamplingDocIdSetIterator extends DocIdSetIterator {
         int doc = -1;
         final int maxDoc;
-        final Random rng;
+        final DocIdRNG rng;
         final double p;
 
-        RandomSamplingDocIdSetIterator(int maxDoc, Random rng, double p) {
+        RandomSamplingDocIdSetIterator(int maxDoc, double p, DocIdRNG rng) {
             this.maxDoc = maxDoc;
             this.rng = rng;
             this.p = p;
@@ -213,7 +221,7 @@ public final class RandomSampleQuery extends Query {
         public int advance(int target) throws IOException {
             doc = target;
             while (doc < maxDoc) {
-                if (rng.nextDouble() <= p) {
+                if (rng.getFloat(doc) <= p) {
                     return doc;
                 }
                 doc = doc + 1;
@@ -232,13 +240,13 @@ public final class RandomSampleQuery extends Query {
      * according to the gap.  This is more efficient, especially for low probabilities,
      * because it can skip by many documents entirely.
      */
-    private static class RandomGapSamplingDocIdSetIterator extends DocIdSetIterator {
+    private class RandomGapSamplingDocIdSetIterator extends DocIdSetIterator {
         final int maxDoc;
-        final Random rng;
+        final DocIdRNG rng;
         final double p;
         int doc = -1;
 
-        RandomGapSamplingDocIdSetIterator(int maxDoc, Random rng, double p) {
+        RandomGapSamplingDocIdSetIterator(int maxDoc, double p, DocIdRNG rng) {
             this.maxDoc = maxDoc;
             this.rng = rng;
             this.p = p;
@@ -258,7 +266,7 @@ public final class RandomSampleQuery extends Query {
         public int advance(int target) throws IOException {
             // Keep approximating gaps until we hit or surpass the target
             while (doc <= target) {
-                doc += getGap(rng);
+                doc += getGap(rng, doc);
             }
             if (doc >= maxDoc) {
                 doc = NO_MORE_DOCS;
@@ -312,6 +320,41 @@ public final class RandomSampleQuery extends Query {
         @Override
         public Collection<ChildScorer> getChildren() {
             throw new UnsupportedOperationException();
+        }
+    }
+
+    class DocIdRNG {
+
+        final SortedBinaryDocValues values;
+        final LeafReaderContext context;
+        final int saltedSeed;
+
+        DocIdRNG(int seed, int salt, IndexFieldData<?> fieldData, LeafReaderContext context) {
+            this.context = context;
+            this.saltedSeed = BitMixer.mix(seed, salt);
+
+            if (fieldData != null) {
+                AtomicFieldData leafData = fieldData.load(context);
+                values = leafData.getBytesValues();
+                if (values == null) {
+                    throw new NullPointerException("failed to get fielddata");
+                }
+            } else {
+                values = null;
+            }
+        }
+
+        float getFloat(int docId) throws IOException {
+            int hash;
+            if (values == null) {
+                hash = BitMixer.mix(context.docBase + docId + 1);
+            } else if (values.advanceExact(docId)) {
+                hash = StringHelper.murmurhash3_x86_32(values.nextValue(), saltedSeed);
+            } else {
+                // field has no value
+                hash = saltedSeed;
+            }
+            return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
         }
     }
 

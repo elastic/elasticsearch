@@ -700,8 +700,8 @@ public abstract class QueryBuilders {
      * @param probability The probability that a document is randomly sampled
      * @param seed  A seed to use with the random generator
      */
-    public static RandomSampleQueryBuilder randomSampleQuery(double probability, Long seed) {
-        return new RandomSampleQueryBuilder(probability, seed);
+    public static RandomSampleQueryBuilder randomSampleQuery(double probability, int seed, String field) {
+        return new RandomSampleQueryBuilder(probability, seed, field);
     }
 
     /**

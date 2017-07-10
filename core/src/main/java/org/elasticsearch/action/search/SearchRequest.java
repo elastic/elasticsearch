@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -73,6 +74,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private Scroll scroll;
 
     private int batchedReduceSize = 512;
+
+    private int maxNunConcurrentShardRequests = 256;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -303,6 +306,27 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
+     * Returns the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default is <tt>256</tt>
+     */
+    public int getMaxNumConcurrentShardRequests() {
+        return maxNunConcurrentShardRequests;
+    }
+
+    /**
+     * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default is <tt>256</tt>
+     */
+    public void setMaxNumConcurrentShardRequests(int maxNunConcurrentShardRequests) {
+        if (maxNunConcurrentShardRequests < 1) {
+            throw new IllegalArgumentException("maxNunConcurrentShardRequests must be >= 1");
+        }
+        this.maxNunConcurrentShardRequests = maxNunConcurrentShardRequests;
+    }
+
+    /**
      * @return true if the request only has suggest
      */
     public boolean isSuggestOnly() {
@@ -349,6 +373,11 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            maxNunConcurrentShardRequests = in.readVInt();
+        }
+
+
     }
 
     @Override
@@ -367,6 +396,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            out.writeVInt(maxNunConcurrentShardRequests);
+        }
     }
 
     @Override
@@ -386,13 +418,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(requestCache, that.requestCache)  &&
                 Objects.equals(scroll, that.scroll) &&
                 Arrays.equals(types, that.types) &&
+                Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
+                Objects.equals(maxNunConcurrentShardRequests, that.maxNunConcurrentShardRequests) &&
                 Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions);
+                scroll, Arrays.hashCode(types), indicesOptions, maxNunConcurrentShardRequests);
     }
 
     @Override
@@ -406,6 +440,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", preference='" + preference + '\'' +
                 ", requestCache=" + requestCache +
                 ", scroll=" + scroll +
+                ", maxNunConcurrentShardRequests=" + maxNunConcurrentShardRequests +
+                ", batchedReduceSize=" + batchedReduceSize +
                 ", source=" + source + '}';
     }
 }

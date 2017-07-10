@@ -33,6 +33,9 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
@@ -50,6 +53,10 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     private final Logger logger;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
+    private final AtomicInteger shardExecutionIndex = new AtomicInteger(0);
+    private final int concurrentRunnables;
+
+
 
     InitialSearchPhase(String name, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts, Logger logger) {
         super(name);
@@ -61,6 +68,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
         // we process hence we add one for the non active partition here.
         this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
+        concurrentRunnables = Math.min(request.getMaxNumConcurrentShardRequests(), shardsIts.size());
     }
 
     private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
@@ -105,6 +113,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
                     onShardFailure(shardIndex, shard, shard.currentNodeId(), shardIt, inner);
                 }
             } else {
+                maybeExecuteNext(); // move to the next execution if needed
                 // no more shards active, add a failure
                 if (logger.isDebugEnabled() && !logger.isTraceEnabled()) { // do not double log this exception
                     if (e != null && !TransportActions.isShardNotAvailableException(e)) {
@@ -124,23 +133,26 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
 
     @Override
     public final void run() throws IOException {
-        int shardIndex = -1;
-        for (final SearchShardIterator shardIt : shardsIts) {
-            shardIndex++;
-            final ShardRouting shard = shardIt.nextOrNull();
-            if (shard != null) {
-                performPhaseOnShard(shardIndex, shardIt, shard);
-            } else {
-                // really, no shards active in this group
-                onShardFailure(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
-            }
+        boolean success = shardExecutionIndex.compareAndSet(0, concurrentRunnables);
+        assert success;
+        for (int i = 0; i < concurrentRunnables; i++) {
+            int index = i;
+            SearchShardIterator shardRoutings = shardsIts.get(index);
+            performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
         }
     }
 
+    private void maybeExecuteNext() {
+        final int index = shardExecutionIndex.getAndIncrement();
+        if (index < shardsIts.size()) {
+            SearchShardIterator shardRoutings = shardsIts.get(index);
+            performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
+        }
+    }
+
+
     private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final ShardRouting shard) {
         if (shard == null) {
-            // TODO upgrade this to an assert...
-            // no more active shards... (we should not really get here, but just for safety)
             onShardFailure(shardIndex, null, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
         } else {
             try {
@@ -166,6 +178,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     }
 
     private void onShardResult(FirstResult result, ShardIterator shardIt) {
+        maybeExecuteNext();
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
         onShardSuccess(result);

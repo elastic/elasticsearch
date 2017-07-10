@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.terms.support;
+package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 
 import java.util.Comparator;
 

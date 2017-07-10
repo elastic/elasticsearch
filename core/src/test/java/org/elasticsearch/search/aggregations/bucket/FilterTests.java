@@ -17,18 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.metrics;
+package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.missing.MissingAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 
-public class MissingTests extends BaseAggregationTestCase<MissingAggregationBuilder> {
+public class FilterTests extends BaseAggregationTestCase<FilterAggregationBuilder> {
 
     @Override
-    protected final MissingAggregationBuilder createTestAggregatorBuilder() {
-        MissingAggregationBuilder factory = new MissingAggregationBuilder("foo", null);
-        String field = randomNumericField();
-        randomFieldOrScript(factory, field);
+    protected FilterAggregationBuilder createTestAggregatorBuilder() {
+        FilterAggregationBuilder factory = new FilterAggregationBuilder(randomAlphaOfLengthBetween(1, 20),
+                QueryBuilders.termQuery(randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(5, 20)));
+        // NORELEASE make RandomQueryBuilder work outside of the
+        // AbstractQueryTestCase
+        // builder.query(RandomQueryBuilder.createQuery(getRandom()));
         return factory;
     }
 

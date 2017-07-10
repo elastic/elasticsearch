@@ -679,7 +679,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
         Term uid;
-        if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_beta1)) {
             uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
         } else if (docMapper.getDocumentMapper().idFieldMapper().fieldType().indexOptions() != IndexOptions.NONE) {
             uid = new Term(IdFieldMapper.NAME, doc.id());
@@ -776,7 +776,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private Term extractUidForDelete(String type, String id) {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
             assert indexSettings.isSingleType();
             // This is only correct because we create types dynamically on delete operations
             // otherwise this could match the same _id from a different type
@@ -986,6 +986,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Engine.CommitId commitId = engine.flush(force, waitIfOngoing);
         flushMetric.inc(System.nanoTime() - time);
         return commitId;
+    }
+
+    /**
+     * checks and removes translog files that no longer need to be retained. See
+     * {@link org.elasticsearch.index.translog.TranslogDeletionPolicy} for details
+     */
+    public void trimTranslog() {
+        verifyNotClosed();
+        final Engine engine = getEngine();
+        engine.trimTranslog();
     }
 
     /**
@@ -1715,8 +1725,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
      * @param globalCheckpoint the global checkpoint
+     * @param reason           the reason the global checkpoint was updated
      */
-    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint) {
+    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
         verifyReplicationTarget();
         final SequenceNumbersService seqNoService = getEngine().seqNoService();
         final long localCheckpoint = seqNoService.getLocalCheckpoint();
@@ -1733,7 +1744,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              */
             return;
         }
-        seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint);
+        seqNoService.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
     }
 
     /**
@@ -2099,7 +2110,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             assert operationPrimaryTerm > primaryTerm :
                                 "shard term already update.  op term [" + operationPrimaryTerm + "], shardTerm [" + primaryTerm + "]";
                             primaryTerm = operationPrimaryTerm;
-                            updateGlobalCheckpointOnReplica(globalCheckpoint);
+                            updateGlobalCheckpointOnReplica(globalCheckpoint, "primary term transition");
                             final long currentGlobalCheckpoint = getGlobalCheckpoint();
                             final long localCheckpoint;
                             if (currentGlobalCheckpoint == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
@@ -2146,7 +2157,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         } else {
                             if (globalCheckpointUpdated == false) {
                                 try {
-                                    updateGlobalCheckpointOnReplica(globalCheckpoint);
+                                    updateGlobalCheckpointOnReplica(globalCheckpoint, "operation");
                                 } catch (Exception e) {
                                     releasable.close();
                                     onPermitAcquired.onFailure(e);

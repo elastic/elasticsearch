@@ -240,7 +240,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         field = in.readOptionalString();
         explain = in.readBoolean();
         attributes = in.readStringArray();
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             normalizer = in.readOptionalString();
         }
     }
@@ -256,7 +256,7 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         out.writeOptionalString(field);
         out.writeBoolean(explain);
         out.writeStringArray(attributes);
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             out.writeOptionalString(normalizer);
         }
     }

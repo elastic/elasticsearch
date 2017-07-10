@@ -182,9 +182,10 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
      * @param globalCheckpoint the global checkpoint
+     * @param reason           the reason the global checkpoint was updated
      */
-    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint) {
-        globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint);
+    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
+        globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
     }
 
     /**

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.filters;
+package org.elasticsearch.search.aggregations.bucket.filter;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -36,10 +36,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.filters.InternalFilters;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 

@@ -28,7 +28,7 @@ nodes. Remote clusters set via the <<cluster-update-settings,cluster settings AP
 will be available on every node in the cluster.
 
 [WARNING]
-This feature was added in Elasticsearch `v5.3` and requires gateway eligible nodes to be on `v5.3` onwards.
+This feature was added as Beta in Elasticsearch `v5.3` with further improvements made in 5.4 and 5.5. It requires gateway eligible nodes to be on `v5.5` onwards.
 
 The `elasticsearch.yml` config file for a _cross cluster search_ node just needs to list the
 remote clusters that should be connected to, for instance:

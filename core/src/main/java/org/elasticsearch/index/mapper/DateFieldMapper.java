@@ -54,7 +54,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.ArrayList;
 import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 /** A {@link FieldMapper} for ip addresses. */
@@ -285,7 +284,7 @@ public class DateFieldMapper extends FieldMapper {
             }
             Query query = LongPoint.newRangeQuery(name(), l, u);
             if (hasDocValues()) {
-                Query dvQuery = SortedNumericDocValuesField.newRangeQuery(name(), l, u);
+                Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
                 query = new IndexOrDocValuesQuery(query, dvQuery);
             }
             return query;

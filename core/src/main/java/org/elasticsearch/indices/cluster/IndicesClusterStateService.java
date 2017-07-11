@@ -558,11 +558,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final long primaryTerm = indexMetaData.primaryTerm(shard.shardId().id());
             final Set<String> inSyncIds = indexMetaData.inSyncAllocationIds(shard.shardId().id());
             final IndexShardRoutingTable indexShardRoutingTable = routingTable.shardRoutingTable(shardRouting.shardId());
-            final Set<String> initializingIds = indexShardRoutingTable.getAllInitializingShards()
-                .stream()
-                .map(ShardRouting::allocationId)
-                .map(AllocationId::getId)
-                .collect(Collectors.toSet());
             final Set<String> pre60AllocationIds = indexShardRoutingTable.assignedShards()
                 .stream()
                 .filter(shr -> nodes.get(shr.currentNodeId()).getVersion().before(Version.V_6_0_0_alpha1))
@@ -570,7 +565,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 .map(AllocationId::getId)
                 .collect(Collectors.toSet());
             shard.updateShardState(shardRouting, primaryTerm, primaryReplicaSyncer::resync, clusterState.version(),
-                inSyncIds, initializingIds, pre60AllocationIds);
+                inSyncIds, indexShardRoutingTable, pre60AllocationIds);
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
             return;
@@ -730,14 +725,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * - Updates and persists the new routing value.
          * - Updates the primary term if this shard is a primary.
          * - Updates the allocation ids that are tracked by the shard if it is a primary.
-         *   See {@link GlobalCheckpointTracker#updateFromMaster(long, Set, Set, Set)} for details.
+         *   See {@link GlobalCheckpointTracker#updateFromMaster(long, Set, IndexShardRoutingTable, Set)} for details.
          *
          * @param shardRouting                the new routing entry
          * @param primaryTerm                 the new primary term
          * @param primaryReplicaSyncer        the primary-replica resync action to trigger when a term is increased on a primary
          * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
          * @param inSyncAllocationIds         the allocation ids of the currently in-sync shard copies
-         * @param initializingAllocationIds   the allocation ids of the currently initializing shard copies
+         * @param routingTable                the shard routing table
          * @throws IndexShardRelocatedException if shard is marked as relocated and relocation aborted
          * @throws IOException                  if shard state could not be persisted
          */
@@ -746,7 +741,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                               CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
                               long applyingClusterStateVersion,
                               Set<String> inSyncAllocationIds,
-                              Set<String> initializingAllocationIds,
+                              IndexShardRoutingTable routingTable,
                               Set<String> pre60AllocationIds) throws IOException;
     }
 

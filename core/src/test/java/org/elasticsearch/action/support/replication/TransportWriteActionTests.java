@@ -258,7 +258,7 @@ public class TransportWriteActionTests extends ESTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         ShardStateAction shardStateAction = new ShardStateAction(Settings.EMPTY, clusterService, transportService, null, null, threadPool);
-        TestAction action = action = new TestAction(Settings.EMPTY, "testAction", transportService,
+        TestAction action = new TestAction(Settings.EMPTY, "testAction", transportService,
                 clusterService, shardStateAction, threadPool);
         ReplicationOperation.Replicas proxy = action.newReplicasProxy();
         final String index = "test";
@@ -269,8 +269,11 @@ public class TransportWriteActionTests extends ESTestCase {
 
         // check that at unknown node fails
         PlainActionFuture<ReplicaResponse> listener = new PlainActionFuture<>();
+        ShardRoutingState routingState = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED,
+            ShardRoutingState.RELOCATING);
         proxy.performOn(
-                TestShardRouting.newShardRouting(shardId, "NOT THERE", false, randomFrom(ShardRoutingState.values())),
+            TestShardRouting.newShardRouting(shardId, "NOT THERE",
+                routingState == ShardRoutingState.RELOCATING ? state.nodes().iterator().next().getId() : null, false, routingState),
                 new TestRequest(),
                 randomNonNegativeLong(), listener);
         assertTrue(listener.isDone());

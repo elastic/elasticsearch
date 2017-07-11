@@ -84,10 +84,6 @@ the query string. This allows to use a field that has a different analysis chain
 for exact matching. Look <<mixing-exact-search-with-stemming,here>> for a
 comprehensive example.
 
-|`split_on_whitespace` |Whether query text should be split on whitespace prior to analysis.
-Instead  the queryparser would parse around only real 'operators'. Default to `false`.
-It is not allowed to set this option to `false` if `auto_generate_phrase_queries` is already set to `true`.
-
 |`all_fields` | Perform the query on all fields detected in the mapping that can
 be queried. Will be used by default when the `_all` field is disabled and no
 `default_field` is specified (either in the index settings or in the request
@@ -156,9 +152,8 @@ GET /_search
 // CONSOLE
 
 Since several queries are generated from the individual search terms,
-combining them can be automatically done using either a `dis_max` query or a
-simple `bool` query. For example (the `name` is boosted by 5 using `^5`
-notation):
+combining them is automatically done using a `dis_max` query with a tie_breaker.
+For example (the `name` is boosted by 5 using `^5` notation):
 
 [source,js]
 --------------------------------------------------
@@ -168,7 +163,7 @@ GET /_search
         "query_string" : {
             "fields" : ["content", "name^5"],
             "query" : "this AND that OR thus",
-            "use_dis_max" : true
+            "tie_breaker" : 0
         }
     }
 }
@@ -187,8 +182,7 @@ GET /_search
     "query": {
         "query_string" : {
             "fields" : ["city.*"],
-            "query" : "this AND that OR thus",
-            "use_dis_max" : true
+            "query" : "this AND that OR thus"
         }
     }
 }
@@ -205,8 +199,7 @@ GET /_search
 {
     "query": {
         "query_string" : {
-            "query" : "city.\\*:(this AND that OR thus)",
-            "use_dis_max" : true
+            "query" : "city.\\*:(this AND that OR thus)"
         }
     }
 }
@@ -222,11 +215,9 @@ following additional parameters are allowed:
 [cols="<,<",options="header",]
 |=======================================================================
 |Parameter |Description
-|`use_dis_max` |Should the queries be combined using `dis_max` (set it
-to `true`), or a `bool` query (set it to `false`). Defaults to `true`.
 
-|`tie_breaker` |When using `dis_max`, the disjunction max tie breaker.
-Defaults to `0`.
+|`tie_breaker` |The disjunction max tie breaker for multi fields.
+Defaults to `0`
 |=======================================================================
 
 The fields parameter can also include pattern based field names,
@@ -240,8 +231,7 @@ GET /_search
     "query": {
         "query_string" : {
             "fields" : ["content", "name.*^5"],
-            "query" : "this AND that OR thus",
-            "use_dis_max" : true
+            "query" : "this AND that OR thus"
         }
     }
 }

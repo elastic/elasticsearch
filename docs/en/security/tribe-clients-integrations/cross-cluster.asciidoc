@@ -15,6 +15,12 @@ roles are passed to the remote clusters. A remote cluster checks the user's
 roles against its local role definitions to determine which indices the user
 is allowed to access.
 
+
+ [WARNING]
+This feature was added as Beta in Elasticsearch `v5.3` with further
+improvements made in 5.4 and 5.5. It requires gateway eligible nodes to be on
+`v5.5` onwards.
+
 To use cross cluster search with secured clusters:
 
 * Install {xpack} on every node in each connected cluster.

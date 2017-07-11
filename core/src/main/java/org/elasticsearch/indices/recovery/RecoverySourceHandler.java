@@ -42,7 +42,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
-import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
@@ -63,9 +62,7 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
@@ -129,6 +126,10 @@ public class RecoverySourceHandler {
         this.response = new RecoveryResponse();
     }
 
+    public StartRecoveryRequest getRequest() {
+        return request;
+    }
+
     /**
      * performs the recovery from the local engine to the target
      */
@@ -167,6 +168,8 @@ public class RecoverySourceHandler {
                 }
             }
 
+            cancellableThreads.execute(() -> runUnderOperationPermit(() -> shard.initiateTracking(request.targetAllocationId())));
+
             try {
                 prepareTargetForTranslog(translogView.estimateTotalOperations(startingSeqNo));
             } catch (final Exception e) {
@@ -202,6 +205,17 @@ public class RecoverySourceHandler {
             finalizeRecovery(targetLocalCheckpoint);
         }
         return response;
+    }
+
+    private void runUnderOperationPermit(CancellableThreads.Interruptable runnable) throws InterruptedException {
+        final PlainActionFuture<Releasable> onAcquired = new PlainActionFuture<>();
+        shard.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME);
+        try (Releasable ignored = onAcquired.actionGet()) {
+            if (shard.state() == IndexShardState.RELOCATED) {
+                throw new IndexShardRelocatedException(shard.shardId());
+            }
+            runnable.run();
+        }
     }
 
     /**
@@ -461,15 +475,7 @@ public class RecoverySourceHandler {
              * marking the shard as in-sync. If the relocation handoff holds all the permits then after the handoff completes and we acquire
              * the permit then the state of the shard will be relocated and this recovery will fail.
              */
-            final PlainActionFuture<Releasable> onAcquired = new PlainActionFuture<>();
-            shard.acquirePrimaryOperationPermit(onAcquired, ThreadPool.Names.SAME);
-            try (Releasable ignored = onAcquired.actionGet()) {
-                if (shard.state() == IndexShardState.RELOCATED) {
-                    throw new IndexShardRelocatedException(shard.shardId());
-                }
-                shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint);
-            }
-
+            runUnderOperationPermit(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint));
             recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint());
         });
 

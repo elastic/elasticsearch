@@ -20,6 +20,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -47,6 +48,7 @@ import org.elasticsearch.transport.TransportService;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -125,11 +127,11 @@ public class MockNode extends Node {
 
     @Override
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
-                                                       ThreadPool threadPool, NodeClient client) {
+                                                       ThreadPool threadPool, NodeClient client, Consumer<ClusterInfo> listener) {
         if (getPluginsService().filterPlugins(MockInternalClusterInfoService.TestPlugin.class).isEmpty()) {
-            return super.newClusterInfoService(settings, clusterService, threadPool, client);
+            return super.newClusterInfoService(settings, clusterService, threadPool, client, listener);
         } else {
-            return new MockInternalClusterInfoService(settings, clusterService, threadPool, client);
+            return new MockInternalClusterInfoService(settings, clusterService, threadPool, client, listener);
         }
     }
 }

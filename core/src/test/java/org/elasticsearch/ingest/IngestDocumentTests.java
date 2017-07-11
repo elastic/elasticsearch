@@ -46,19 +46,14 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class IngestDocumentTests extends ESTestCase {
 
-    private static final Date BOGUS_TIMESTAMP = new Date(0L);
-    private static final ZonedDateTime BOGUS_TIMESTAMP_NEW_DATE_FORMAT = ZonedDateTime.of(2016, 10, 23, 0, 0, 0, 0, ZoneOffset.UTC);
+    private static final ZonedDateTime BOGUS_TIMESTAMP = ZonedDateTime.of(2016, 10, 23, 0, 0, 0, 0, ZoneOffset.UTC);
     private IngestDocument ingestDocument;
-    private IngestDocument ingestDocumentWithNewDateFormat;
 
-    public IngestDocument getTestIngestDocument(boolean newDateFormat) {
+    @Before
+    public void setTestIngestDocument() {
         Map<String, Object> document = new HashMap<>();
         Map<String, Object> ingestMap = new HashMap<>();
-        if (newDateFormat) {
-            ingestMap.put("timestamp", BOGUS_TIMESTAMP_NEW_DATE_FORMAT);
-        } else {
-            ingestMap.put("timestamp", BOGUS_TIMESTAMP);
-        }
+        ingestMap.put("timestamp", BOGUS_TIMESTAMP);
         document.put("_ingest", ingestMap);
         document.put("foo", "bar");
         document.put("int", 123);
@@ -79,18 +74,7 @@ public class IngestDocumentTests extends ESTestCase {
         list.add(null);
 
         document.put("list", list);
-        return new IngestDocument("index", "type", "id", null, null, document, newDateFormat);
-    }
-
-    @Before
-    public void setIngestDocuments() {
-        ingestDocument = getTestIngestDocument(false);
-        ingestDocumentWithNewDateFormat = getTestIngestDocument(true);
-    }
-
-    public void testDefaultConstructorUsesDateClass() {
-        IngestDocument ingestDocument = new IngestDocument("foo", "bar", "baz", "fuzz", "buzz", Collections.emptyMap());
-        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", Object.class).getClass(), equalTo(Date.class));
+        ingestDocument = new IngestDocument("index", "type", "id", null, null, document);
     }
 
     public void testSimpleGetFieldValue() {
@@ -101,16 +85,10 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.getFieldValue("_index", String.class), equalTo("index"));
         assertThat(ingestDocument.getFieldValue("_type", String.class), equalTo("type"));
         assertThat(ingestDocument.getFieldValue("_id", String.class), equalTo("id"));
-        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", Date.class),
-                both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
-        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", Date.class), equalTo(BOGUS_TIMESTAMP));
-    }
-
-    public void testNewDateFormat() {
-        assertThat(ingestDocumentWithNewDateFormat.getFieldValue("_ingest.timestamp", ZonedDateTime.class),
-            both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP_NEW_DATE_FORMAT))));
-        assertThat(ingestDocumentWithNewDateFormat.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class),
-            equalTo(BOGUS_TIMESTAMP_NEW_DATE_FORMAT));
+        assertThat(ingestDocument.getFieldValue("_ingest.timestamp", ZonedDateTime.class),
+            both(notNullValue()).and(not(equalTo(BOGUS_TIMESTAMP))));
+        assertThat(ingestDocument.getFieldValue("_source._ingest.timestamp", ZonedDateTime.class),
+            equalTo(BOGUS_TIMESTAMP));
     }
 
     public void testGetSourceObject() {
@@ -994,10 +972,11 @@ public class IngestDocumentTests extends ESTestCase {
         long before = System.currentTimeMillis();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         long after = System.currentTimeMillis();
-        Date timestamp = (Date) ingestDocument.getIngestMetadata().get(IngestDocument.TIMESTAMP);
+        ZonedDateTime timestamp = (ZonedDateTime) ingestDocument.getIngestMetadata().get(IngestDocument.TIMESTAMP);
+        long actualMillis = timestamp.toInstant().toEpochMilli();
         assertThat(timestamp, notNullValue());
-        assertThat(timestamp.getTime(), greaterThanOrEqualTo(before));
-        assertThat(timestamp.getTime(), lessThanOrEqualTo(after));
+        assertThat(actualMillis, greaterThanOrEqualTo(before));
+        assertThat(actualMillis, lessThanOrEqualTo(after));
     }
 
     public void testCopyConstructor() {

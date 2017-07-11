@@ -86,6 +86,7 @@ import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -378,6 +379,10 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         when(shard.acquireTranslogView()).thenReturn(translogView);
         when(shard.state()).thenReturn(IndexShardState.RELOCATED);
         when(shard.acquireIndexCommit(anyBoolean())).thenReturn(mock(Engine.IndexCommitRef.class));
+        doAnswer(invocation -> {
+            ((ActionListener<Releasable>)invocation.getArguments()[0]).onResponse(() -> {});
+            return null;
+        }).when(shard).acquirePrimaryOperationPermit(any(), anyString());
         final AtomicBoolean phase1Called = new AtomicBoolean();
 //        final Engine.IndexCommitRef indexCommitRef = mock(Engine.IndexCommitRef.class);
 //        when(shard.acquireIndexCommit(anyBoolean())).thenReturn(indexCommitRef);
@@ -420,7 +425,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         expectThrows(IndexShardRelocatedException.class, handler::recoverToTarget);
         // phase1 should only be attempted if we are not doing a sequence-number-based recovery
         assertThat(phase1Called.get(), equalTo(!isTranslogReadyForSequenceNumberBasedRecovery));
-        assertTrue(prepareTargetForTranslogCalled.get());
+        assertFalse(prepareTargetForTranslogCalled.get());
         assertFalse(phase2Called.get());
     }
 

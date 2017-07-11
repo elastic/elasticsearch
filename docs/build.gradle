@@ -51,7 +51,7 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/indices/recovery.asciidoc',
   'reference/indices/segments.asciidoc',
   'reference/indices/shard-stores.asciidoc',
-  'reference/search/field-stats.asciidoc',
+  'reference/mapping/removal_of_types.asciidoc',
   'reference/search/profile.asciidoc',
 ]
 
@@ -438,7 +438,7 @@ buildRestTests.setups['stored_scripted_metric_script'] = '''
         id: "my_init_script"
         body: { "script": { "lang": "painless", "source": "params._agg.transactions = []" } }
   - match: { acknowledged: true }
-  
+
   - do:
       put_script:
         id: "my_map_script"
@@ -457,3 +457,23 @@ buildRestTests.setups['stored_scripted_metric_script'] = '''
         body: { "script": { "lang": "painless", "source": "double profit = 0;for (a in params._aggs) { profit += a; } return profit" } }
   - match: { acknowledged: true }
 '''
+
+// Used by analyze api
+buildRestTests.setups['analyze_sample'] = '''
+  - do:
+        indices.create:
+          index: analyze_sample
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+              analysis:
+                normalizer:
+                  my_normalizer:
+                    type: custom
+                    filter: [lowercase]
+            mappings:
+              tweet:
+                properties:
+                  obj1.field1:
+                    type: text'''

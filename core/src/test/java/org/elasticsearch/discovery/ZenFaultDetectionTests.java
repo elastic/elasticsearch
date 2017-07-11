@@ -140,7 +140,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
                     .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), singleton(TransportLivenessAction.NAME))
                     .build(),
                 new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE, circuitBreakerService,
-                    namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version),
+                    namedWriteableRegistry, new NetworkService(Collections.emptyList()), version),
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 (boundAddress) ->

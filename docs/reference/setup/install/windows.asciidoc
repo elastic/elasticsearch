@@ -1,5 +1,5 @@
 [[windows]]
-=== Install Elasticsearch with MSI Windows Installer
+=== Install Elasticsearch with Windows MSI Installer
 
 Elasticsearch can be installed on Windows using the `.msi` package.  This can
 install Elasticsearch as a Windows service or allow it to be run manually using
@@ -71,9 +71,6 @@ part of the installation:
 [[msi-installer-selected-plugins]]
 image::images/msi_installer/msi_installer_selected_plugins.png[]
 
-By default, the {xpack-ref}/index.html[X-Pack] plugin will be selected to be installed, and if 
-installing with the <<ingest, ingest>> node role, the {plugins}/ingest-attachment.html[Ingest Attachment Processor] and {plugins}/ingest-geoip.html[Ingest GeoIP Processor] plugins will also be selected for installation.
-
 NOTE: X-Pack includes a trial license for 30 days. After that, you can obtain one of the https://www.elastic.co/subscriptions[available subscriptions] or {ref}/security-settings.html[disable Security]. The Basic license is free and includes the https://www.elastic.co/products/x-pack/monitoring[Monitoring] extension.
 
 After clicking the install button, Elasticsearch will be installed: 
@@ -104,7 +101,7 @@ start /wait msiexec.exe /i elasticsearch-{version}.msi /qn
 
 As with any MSI installation package, a log file for the installation process can be found 
 within the `%TEMP%` directory, with a randomly generated name adhering to the format 
-`MSI*.LOG`. The path to a log file can be supplied using the `/l` command line argument
+`MSI<random>.LOG`. The path to a log file can be supplied using the `/l` command line argument
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------
@@ -129,7 +126,7 @@ as _properties_ within Windows Installer documentation) that can be passed to ms
 [horizontal]
 `INSTALLDIR`:: 
 
-  The installation directory. Defaults to `%PROGRAMFILES%\Elastic\Elasticsearch`
+  The installation directory. Defaults to `%ProgramW6432%\Elastic\Elasticsearch`
 
 `DATADIRECTORY`:: 
 
@@ -212,12 +209,13 @@ Defaults to `%ALLUSERSPROFILE%\Elastic\Elasticsearch\data`
 `SELECTEDMEMORY`:: 
 
   The amount of memory to allocate to the JVM heap for Elasticsearch. 
-  Defaults to half of the available memory on the target machine, up to a maximum of 30.5GB
+  Defaults to `2048`. If the target machine has less than 4GB in total, defaults
+  to 50% of total memory.
 
 `LOCKMEMORY`:: 
 
   Whether `bootstrap.memory_lock` should be used to try to lock the process
-  address space into RAM. Defaults to `true`
+  address space into RAM. Defaults to `false`
 
 `UNICASTNODES`:: 
 
@@ -245,15 +243,14 @@ Defaults to `%ALLUSERSPROFILE%\Elastic\Elasticsearch\data`
 
 `PLUGINS`:: 
 
-  A comma separated list of the plugins to download and install as part of the installation. Defaults to 
-  `x-pack, ingest-attachment, ingest-geoip`
+  A comma separated list of the plugins to download and install as part of the installation. Defaults `""`
 
 To pass a value, simply append the property name and value using the format `<PROPERTYNAME>="<VALUE>"` to
-the installation command. For example, to use a different installation directory to the default one:
+the installation command. For example, to use a different installation directory to the default one and to install https://www.elastic.co/products/x-pack[X-Pack]:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------
-start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory"
+start /wait msiexec.exe /i elasticsearch-{version}.msi /qn INSTALLDIR="C:\Custom Install Directory" PLUGINS="x-pack"
 --------------------------------------------
 
 Consult the https://msdn.microsoft.com/en-us/library/windows/desktop/aa367988(v=vs.85).aspx[Windows Installer SDK Command-Line Options]
@@ -269,6 +266,11 @@ and configured to start when installation completes, as follows:
 --------------------------------------------
 .\bin\elasticsearch.exe
 --------------------------------------------
+
+The command line terminal will display output similar to the following:
+
+[[msi-installer-elasticsearch-exe]]
+image::images/msi_installer/elasticsearch_exe.png[]
 
 By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT` in addition
 to the `<cluster name>.log` file within `LOGSDIRECTORY`, and can be stopped by pressing `Ctrl-C`.
@@ -337,8 +339,8 @@ service in order to take affect.
 ==== Upgrade using the graphical user interface (GUI)
 
 The `.msi` package supports upgrading an installed version of Elasticsearch to a newer 
-version of Elasticsearch. The upgrade process handles upgrading all installed plugins as
-well as retaining both your data and configuration.
+version of Elasticsearch. The upgrade process through the GUI handles upgrading all 
+installed plugins as well as retaining both your data and configuration.
 
 Downloading and clicking on a newer version of the `.msi` package will launch the GUI wizard. 
 The first step will list the read only properties from the previous installation:
@@ -360,9 +362,20 @@ image::images/msi_installer/msi_installer_upgrade_plugins.png[]
 [[upgrade-msi-command-line]]
 ==== Upgrade using the command line
 
-The `.msi` can also upgrade Elasticsearch using the command line. The simplest upgrade
-using the same defaults as the currently installed version is achieved by first 
-navigating to the download directory, then running:
+The `.msi` can also upgrade Elasticsearch using the command line. 
+
+[IMPORTANT]
+===========================================
+A command line upgrade requires passing the **same** command line properties as
+used at first install time; the Windows Installer does not remember these properties.
+
+For example, if you originally installed with the command line options `PLUGINS="x-pack"` and
+`LOCKMEMORY="true"`, then you must pass these same values when performing an
+upgrade from the command line.
+===========================================
+
+The simplest upgrade, assuming Elasticsearch was installed using all defaults, 
+is achieved by first navigating to the download directory, then running:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------

@@ -59,6 +59,7 @@ import java.util.Optional;
 
 public class ShardSearchLocalRequest implements ShardSearchRequest {
 
+    private String clusterAlias;
     private ShardId shardId;
     private int numberOfShards;
     private SearchType searchType;
@@ -76,11 +77,12 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     ShardSearchLocalRequest(SearchRequest searchRequest, ShardId shardId, int numberOfShards,
-                            AliasFilter aliasFilter, float indexBoost, long nowInMillis) {
+                            AliasFilter aliasFilter, float indexBoost, long nowInMillis, String clusterAlias) {
         this(shardId, numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.requestCache(), aliasFilter, indexBoost);
         this.scroll = searchRequest.scroll();
         this.nowInMillis = nowInMillis;
+        this.clusterAlias = clusterAlias;
     }
 
     public ShardSearchLocalRequest(ShardId shardId, String[] types, long nowInMillis, AliasFilter aliasFilter) {
@@ -197,6 +199,9 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
         }
         nowInMillis = in.readVLong();
         requestCache = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_5_6_0)) {
+            clusterAlias = in.readOptionalString();
+        }
     }
 
     protected void innerWriteTo(StreamOutput out, boolean asKey) throws IOException {
@@ -216,6 +221,9 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             out.writeVLong(nowInMillis);
         }
         out.writeOptionalBoolean(requestCache);
+        if (out.getVersion().onOrAfter(Version.V_5_6_0)) {
+            out.writeOptionalString(clusterAlias);
+        }
     }
 
     @Override
@@ -237,5 +245,10 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
             source = rewritten;
         }
         this.source = source;
+    }
+
+    @Override
+    public String getClusterAlias() {
+        return clusterAlias;
     }
 }

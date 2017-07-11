@@ -39,7 +39,6 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -282,8 +281,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         builder.endObject();
     }
 
-    public static HasParentQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static HasParentQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String parentType = null;
         boolean score = false;
@@ -299,9 +297,9 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName)) {
-                    iqb = parseContext.parseInnerQueryBuilder();
+                    iqb = parseInnerQueryBuilder(parser);
                 } else if (INNER_HITS_FIELD.match(currentFieldName)) {
-                    innerHits = InnerHitBuilder.fromXContent(parseContext);
+                    innerHits = InnerHitBuilder.fromXContent(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
                         "[has_parent] query does not support [" + currentFieldName + "]");

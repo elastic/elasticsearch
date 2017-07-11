@@ -136,7 +136,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                     queryBuilder.distance()),
                     indexQuery);
             Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
-            assertEquals(LatLonDocValuesField.newDistanceQuery(queryBuilder.fieldName(),
+            assertEquals(LatLonDocValuesField.newSlowDistanceQuery(queryBuilder.fieldName(),
                     queryBuilder.point().lat(),
                     queryBuilder.point().lon(),
                     queryBuilder.distance()),

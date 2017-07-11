@@ -141,4 +141,10 @@ public interface ShardSearchRequest {
         }
     }
 
+    /**
+     * Returns the cluster alias if this request is for a remote cluster or <code>null</code> if the request if targeted to the local
+     * cluster.
+     */
+    String getClusterAlias();
+
 }

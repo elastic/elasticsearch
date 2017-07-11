@@ -1,0 +1,419 @@
+[[removal-of-types]]
+== Removal of mapping types
+
+IMPORTANT: Indices created in Elasticsearch 6.0.0 or later may only contain a
+single <<mapping-type,mapping type>>.  Indices created in 5.x with multiple
+mapping types will continue to function as before in Elasticsearch 6.x.
+Mapping types will be completely removed in Elasticsearch 7.0.0.
+
+[float]
+=== What are mapping types?
+
+Since the first release of Elasticsearch, each document has been stored in a
+single index and assigned a single mapping type.  A mapping type was used to
+represent the type of document or entity being indexed, for instance a
+`twitter` index might have a `user` type and a `tweet` type.
+
+Each mapping type could have its own fields, so the `user` type might have a
+`full_name` field, a `user_name` field, and an `email` field, while the
+`tweet` type could have a `content` field, a `tweeted_at` field and, like the
+`user` type, a `user_name` field.
+
+Each document had a `_type` meta-field containing the type name, and searches
+could be limited to one or more types by specifying the type name(s) in the
+URL:
+
+[source,js]
+----
+GET twitter/user,tweet/_search
+{
+  "query": {
+    "match": {
+      "user_name": "kimchy"
+    }
+  }
+}
+----
+// NOCONSOLE
+
+The `_type` field was combined with the document's `_id` to generate a `_uid`
+field, so documents of different types with the same `_id` could exist in a
+single index.
+
+Mapping types were also used to establish a
+/guide/en/elasticsearch/reference/5.4/mapping-parent-field.html[parent-child relationship]
+between documents, so documents of type `question` could be parents to
+documents of type `answer`.
+
+[float]
+=== Why are mapping types being removed?
+
+Initially, we spoke about an ``index'' being similar to a ``database'' in an
+SQL database, and a ``type'' being equivalent to a
+``table''.
+
+This was a bad analogy that led to incorrect assumptions. In an SQL database,
+tables are independent of each other.  The columns in one table have no
+bearing on columns with the same name in another table.  This is not the case
+for fields in a mapping type.
+
+In an Elasticsearch index, fields that have the same name in different mapping
+types are backed by the same Lucene field internally.  In other words, using
+the example above, the `user_name` field in the `user` type is stored in
+exactly the same field as the `user_name` field in the `tweet` type, and both
+`user_name` fields must have the same mapping (definition) in both types.
+
+This can lead to frustration when, for example, you want `deleted` to be a
+`date` field in one type and a `boolean` field in another type in the same
+index.
+
+On top of that, storing different entities that have few or no fields in
+common in the same index leads to sparse data and interferes with Lucene's
+ability to compress documents efficiently.
+
+For these reasons, we have decided to remove the concept of mapping types from
+Elasticsearch.
+
+[float]
+=== Alternatives to mapping types
+
+[float]
+==== Index per document type
+
+The first alternative is to have an index per document type.  Instead of
+storing tweets and users in a single `twitter` index, you could store tweets
+in the `tweets` index and users in the `user` index. Indices are completely
+independent of each other and so there will be no conflict of field types
+between indices.
+
+This approach has two benefits:
+
+* Data is more likely to be dense and so benefit from compression techniques
+  used in Lucene.
+
+* The term statistics used for scoring in full text search are more likely to
+  be accurate because all documents in the same index represent a single
+  entity.
+
+Each index can be sized appropriately for the number of documents it will
+contain: you can use a smaller number of primary shards for `users` and a
+larger number of primary shards for `tweets`.
+
+[float]
+==== Custom type field
+
+Of course, there is a limit to how many primary shards can exist in a cluster
+so you many not want to waste an entire shard for a collection of only a few
+thousand documents.  In this case, you can implement your own custom `type`
+field which will work in a similar way to the old `_type`.
+
+Let's take the `user`/`tweet` example above.  Originally, the workflow would
+have looked something like this:
+
+[source,js]
+----
+PUT twitter
+{
+  "mappings": {
+    "user": {
+      "properties": {
+        "name": { "type": "text" },
+        "user_name": { "type": "keyword" },
+        "email": { "type": "keyword" }
+      }
+    },
+    "tweet": {
+      "properties": {
+        "content": { "type": "text" },
+        "user_name": { "type": "keyword" },
+        "tweeted_at": { "type": "date" }
+      }
+    }
+  }
+}
+
+PUT twitter/user/kimchy
+{
+  "name": "Shay Banon",
+  "user_name": "kimchy",
+  "email": "shay@kimchy.com"
+}
+
+PUT twitter/tweet/1
+{
+  "user_name": "kimchy",
+  "tweeted_at": "2017-10-24T09:00:00Z",
+  "content": "Types are going away"
+}
+
+GET twitter/tweet/_search
+{
+  "query": {
+    "match": {
+      "user_name": "kimchy"
+    }
+  }
+}
+----
+// NOCONSOLE
+
+You could achieve the same thing by adding a custom `type` field as follows:
+
+[source,js]
+----
+PUT twitter
+{
+  "mappings": {
+    "doc": {
+      "properties": {
+        "type": { "type": "keyword" }, <1>
+        "name": { "type": "text" },
+        "user_name": { "type": "keyword" },
+        "email": { "type": "keyword" },
+        "content": { "type": "text" },
+        "tweeted_at": { "type": "date" }
+      }
+    }
+  }
+}
+
+PUT twitter/doc/user-kimchy
+{
+  "type": "user", <1>
+  "name": "Shay Banon",
+  "user_name": "kimchy",
+  "email": "shay@kimchy.com"
+}
+
+PUT twitter/doc/tweet-1
+{
+  "type": "tweet", <1>
+  "user_name": "kimchy",
+  "tweeted_at": "2017-10-24T09:00:00Z",
+  "content": "Types are going away"
+}
+
+GET twitter/_search
+{
+  "query": {
+    "bool": {
+      "must": {
+        "match": {
+          "user_name": "kimchy"
+        }
+      },
+      "filter": {
+        "match": {
+          "type": "tweet" <1>
+        }
+      }
+    }
+  }
+}
+----
+// NOCONSOLE
+<1> The explicit `type` field takes the place of the implicit `_type` field.
+
+[float]
+==== Parent/Child without mapping types
+
+Previously, a parent-child relationship was represented by making one mapping
+type the parent, and one or more other mapping types the children.  Without
+types, we can no longer use this syntax.  The parent-child feature will
+continue to function as before, except that the way of expressing the
+relationship between documents has been changed to use the new
+<<parent-join,`join` field>>.
+
+
+[float]
+=== Schedule for removal of mapping types
+
+This is a big change for our users, so we have tried to make it as painless as
+possible.  The change will roll out as follows:
+
+Elasticsearch 5.6.0::
+
+* Setting `index.mapping.single_type: true` on an index will enable the
+  single-type-per-index behaviour which will be enforced in 6.0.
+
+* The <<parent-join,`join` field>> replacement for parent-child is available
+  on indices created in 5.6.
+
+Elasticsearch 6.x::
+
+* Indices created in 5.x will continue to function in 6.x as they did in 5.x.
+
+* Indices created in 6.x only allow a single-type per index.  Any name
+  can be used for the type, but there can be only one.
+
+* The `_type` name can no longer be combined with the `_id` to form the `_uid`
+  field. The `_uid` field has become an alias for the `_id` field.
+
+* New indices no longer support the old-style of parent/child and should
+  use the <<parent-join,`join` field>> instead.
+
+* The `_default_` mapping type is deprecated.
+
+Elasticsearch 7.x::
+
+* The `type` parameter in URLs are optional.  For instance, indexing
+  a document no longer requires a document `type`.
+
+* The `GET|PUT _mapping` APIs support a query string parameter
+  (`include_type_name`) which indicates whether the body should include
+  a layer for the type name. It defaults to `true`. 7.x indices which
+  don't have an explicit type will use the dummy type name `_doc`.
+
+* The `_default_` mapping type is removed.
+
+Elasticsearch 8.x::
+
+* The `type` parameter is no longer supported in URLs.
+
+* The `include_in_type` parameter defaults to `false`.
+
+Elasticsearch 9.x::
+
+* The `include_in_type` parameter is removed.
+
+[float]
+=== Migrating multi-type indices to single-type
+
+The <<docs-reindex,Reindex API>> can be used to convert multi-type indices to
+single-type indices. The following examples can be used in Elasticsearch 5.6
+or Elasticsearch 6.x.  In 6.x, there is no need to specify
+`index.mapping.single_type` as that is the default.
+
+[float]
+==== Index per document type
+
+This first example splits our `twitter` index into a `tweets` index and a
+`users` index:
+
+[source,js]
+----
+PUT users
+{
+  "settings": {
+    "index.mapping.single_type": true
+  },
+  "mappings": {
+    "user": {
+      "properties": {
+        "name": {
+          "type": "text"
+        },
+        "user_name": {
+          "type": "keyword"
+        },
+        "email": {
+          "type": "keyword"
+        }
+      }
+    }
+  }
+}
+
+PUT tweets
+{
+  "settings": {
+    "index.mapping.single_type": true
+  },
+  "mappings": {
+    "tweet": {
+      "properties": {
+        "content": {
+          "type": "text"
+        },
+        "user_name": {
+          "type": "keyword"
+        },
+        "tweeted_at": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+POST _reindex
+{
+  "source": {
+    "index": "twitter",
+    "type": "user"
+  },
+  "dest": {
+    "index": "users"
+  }
+}
+
+POST _reindex
+{
+  "source": {
+    "index": "twitter",
+    "type": "tweet"
+  },
+  "dest": {
+    "index": "tweets"
+  }
+}
+----
+// NOCONSOLE
+
+[float]
+==== Custom type field
+
+This next example adds a custom `type` field and sets it to the value of the
+original `_type`.  It also adds the type to the `_id` in case there are any
+documents of different types which have conflicting IDs:
+
+[source,js]
+----
+PUT new_twitter
+{
+  "mappings": {
+    "doc": {
+      "properties": {
+        "type": {
+          "type": "keyword"
+        },
+        "name": {
+          "type": "text"
+        },
+        "user_name": {
+          "type": "keyword"
+        },
+        "email": {
+          "type": "keyword"
+        },
+        "content": {
+          "type": "text"
+        },
+        "tweeted_at": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+
+POST _reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter"
+  },
+  "script": {
+    "source": """
+      ctx._source.type = ctx._type;
+      ctx._id = ctx._type + '-' + ctx._id;
+      ctx._type = 'doc';
+    """
+  }
+}
+----
+// NOCONSOLE
+

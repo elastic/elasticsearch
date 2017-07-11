@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.fetch.subphase;
 
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -62,7 +62,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 hitContext.hit().fields(new HashMap<>(2));
             }
 
-            SearchHitField hitField = hitContext.hit().getFields().get(scriptField.name());
+            DocumentField hitField = hitContext.hit().getFields().get(scriptField.name());
             if (hitField == null) {
                 final List<Object> values;
                 if (value instanceof Collection) {
@@ -71,7 +71,7 @@ public final class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 } else {
                     values = Collections.singletonList(value);
                 }
-                hitField = new SearchHitField(scriptField.name(), values);
+                hitField = new DocumentField(scriptField.name(), values);
                 hitContext.hit().getFields().put(scriptField.name(), hitField);
             }
         }

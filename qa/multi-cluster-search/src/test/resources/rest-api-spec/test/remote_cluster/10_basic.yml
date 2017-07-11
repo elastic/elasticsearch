@@ -2,6 +2,22 @@
 "Index data and search on the old cluster":
 
   - do:
+      indices.create:
+        index: single_doc_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "single_doc_index", "_type": "test_type"}}'
+            - '{"f1": "remote_cluster", "sort_field": 1}'
+
+  - do:
         indices.create:
           index: field_caps_index_1
           body:

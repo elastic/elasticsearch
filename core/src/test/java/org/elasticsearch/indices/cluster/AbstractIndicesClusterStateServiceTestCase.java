@@ -140,12 +140,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
 
                         if (shard.routingEntry().primary() && shard.routingEntry().active()) {
                             IndexShardRoutingTable shardRoutingTable = state.routingTable().shardRoutingTable(shard.shardId());
-                            Set<String> activeIds = shardRoutingTable.activeShards().stream()
-                                .map(r -> r.allocationId().getId()).collect(Collectors.toSet());
+                            Set<String> inSyncIds = state.metaData().index(shard.shardId().getIndex())
+                                .inSyncAllocationIds(shard.shardId().id());
                             Set<String> initializingIds = shardRoutingTable.getAllInitializingShards().stream()
                                 .map(r -> r.allocationId().getId()).collect(Collectors.toSet());
-                            assertThat(shard.routingEntry() + " isn't updated with active aIDs", shard.activeAllocationIds,
-                                equalTo(activeIds));
+                            assertThat(shard.routingEntry() + " isn't updated with in-sync aIDs", shard.inSyncAllocationIds,
+                                equalTo(inSyncIds));
                             assertThat(shard.routingEntry() + " isn't updated with init aIDs", shard.initializingAllocationIds,
                                 equalTo(initializingIds));
                         }
@@ -325,7 +325,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         private volatile long clusterStateVersion;
         private volatile ShardRouting shardRouting;
         private volatile RecoveryState recoveryState;
-        private volatile Set<String> activeAllocationIds;
+        private volatile Set<String> inSyncAllocationIds;
         private volatile Set<String> initializingAllocationIds;
         private volatile long term;
 
@@ -345,17 +345,13 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public ShardRouting routingEntry() {
-            return shardRouting;
-        }
-
-        @Override
-        public IndexShardState state() {
-            return null;
-        }
-
-        @Override
-        public void updateRoutingEntry(ShardRouting shardRouting) throws IOException {
+        public void updateShardState(ShardRouting shardRouting,
+                                     long newPrimaryTerm,
+                                     CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer,
+                                     long applyingClusterStateVersion,
+                                     Set<String> inSyncAllocationIds,
+                                     Set<String> initializingAllocationIds,
+                                     Set<String> pre60AllocationIds) throws IOException {
             failRandomly();
             assertThat(this.shardId(), equalTo(shardRouting.shardId()));
             assertTrue("current: " + this.shardRouting + ", got: " + shardRouting, this.shardRouting.isSameAllocation(shardRouting));
@@ -364,20 +360,22 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
                     shardRouting.active());
             }
             this.shardRouting = shardRouting;
+            if (shardRouting.primary()) {
+                term = newPrimaryTerm;
+                this.clusterStateVersion = applyingClusterStateVersion;
+                this.inSyncAllocationIds = inSyncAllocationIds;
+                this.initializingAllocationIds = initializingAllocationIds;
+            }
         }
 
         @Override
-        public void updatePrimaryTerm(final long newPrimaryTerm,
-                                      CheckedBiConsumer<IndexShard, ActionListener<ResyncTask>, IOException> primaryReplicaSyncer) {
-            term = newPrimaryTerm;
+        public ShardRouting routingEntry() {
+            return shardRouting;
         }
 
         @Override
-        public void updateAllocationIdsFromMaster(
-                long applyingClusterStateVersion, Set<String> activeAllocationIds, Set<String> initializingAllocationIds) {
-            this.clusterStateVersion = applyingClusterStateVersion;
-            this.activeAllocationIds = activeAllocationIds;
-            this.initializingAllocationIds = initializingAllocationIds;
+        public IndexShardState state() {
+            return null;
         }
 
         public void updateTerm(long newTerm) {

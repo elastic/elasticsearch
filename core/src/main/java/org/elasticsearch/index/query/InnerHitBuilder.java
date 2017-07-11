@@ -53,7 +53,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     public static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
     public static final QueryBuilder DEFAULT_INNER_HIT_QUERY = new MatchAllQueryBuilder();
 
-    private static final ObjectParser<InnerHitBuilder, QueryParseContext> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
+    private static final ObjectParser<InnerHitBuilder, Void> PARSER = new ObjectParser<>("inner_hits", InnerHitBuilder::new);
 
     static {
         PARSER.declareString(InnerHitBuilder::setName, NAME_FIELD);
@@ -64,34 +64,28 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         PARSER.declareBoolean(InnerHitBuilder::setVersion, SearchSourceBuilder.VERSION_FIELD);
         PARSER.declareBoolean(InnerHitBuilder::setTrackScores, SearchSourceBuilder.TRACK_SCORES_FIELD);
         PARSER.declareStringArray(InnerHitBuilder::setStoredFieldNames, SearchSourceBuilder.STORED_FIELDS_FIELD);
-        PARSER.declareField((p, i, c) -> {
-            throw new ParsingException(p.getTokenLocation(), "The field [" +
-                SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
-                SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
-                "if the field is not stored");
-        }, SearchSourceBuilder.FIELDS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
         PARSER.declareStringArray(InnerHitBuilder::setDocValueFields, SearchSourceBuilder.DOCVALUE_FIELDS_FIELD);
         PARSER.declareField((p, i, c) -> {
             try {
                 Set<ScriptField> scriptFields = new HashSet<>();
                 for (XContentParser.Token token = p.nextToken(); token != END_OBJECT; token = p.nextToken()) {
-                    scriptFields.add(new ScriptField(c));
+                    scriptFields.add(new ScriptField(p));
                 }
                 i.setScriptFields(scriptFields);
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner script definition", e);
             }
         }, SearchSourceBuilder.SCRIPT_FIELDS_FIELD, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((p, i, c) -> i.setSorts(SortBuilder.fromXContent(c)), SearchSourceBuilder.SORT_FIELD,
+        PARSER.declareField((p, i, c) -> i.setSorts(SortBuilder.fromXContent(p)), SearchSourceBuilder.SORT_FIELD,
                 ObjectParser.ValueType.OBJECT_ARRAY);
         PARSER.declareField((p, i, c) -> {
             try {
-                i.setFetchSourceContext(FetchSourceContext.fromXContent(c.parser()));
+                i.setFetchSourceContext(FetchSourceContext.fromXContent(p));
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner _source definition", e);
             }
         }, SearchSourceBuilder._SOURCE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
-        PARSER.declareObject(InnerHitBuilder::setHighlightBuilder, (p, c) -> HighlightBuilder.fromXContent(c),
+        PARSER.declareObject(InnerHitBuilder::setHighlightBuilder, (p, c) -> HighlightBuilder.fromXContent(p),
                 SearchSourceBuilder.HIGHLIGHT_FIELD);
     }
 
@@ -394,41 +388,6 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
 
     /**
      * Gets the docvalue fields.
-     *
-     * @deprecated Use {@link InnerHitBuilder#getDocValueFields()} instead.
-     */
-    @Deprecated
-    public List<String> getFieldDataFields() {
-        return docValueFields;
-    }
-
-    /**
-     * Sets the stored fields to load from the docvalue and return.
-     *
-     * @deprecated Use {@link InnerHitBuilder#setDocValueFields(List)} instead.
-     */
-    @Deprecated
-    public InnerHitBuilder setFieldDataFields(List<String> fieldDataFields) {
-        this.docValueFields = fieldDataFields;
-        return this;
-    }
-
-    /**
-     * Adds a field to load from the docvalue and return.
-     *
-     * @deprecated Use {@link InnerHitBuilder#addDocValueField(String)} instead.
-     */
-    @Deprecated
-    public InnerHitBuilder addFieldDataField(String field) {
-        if (docValueFields == null) {
-            docValueFields = new ArrayList<>();
-        }
-        docValueFields.add(field);
-        return this;
-    }
-
-    /**
-     * Gets the docvalue fields.
      */
     public List<String> getDocValueFields() {
         return docValueFields;
@@ -529,8 +488,8 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         }
         if (docValueFields != null) {
             builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
-            for (String fieldDataField : docValueFields) {
-                builder.value(fieldDataField);
+            for (String docValueField : docValueFields) {
+                builder.value(docValueField);
             }
             builder.endArray();
         }
@@ -582,7 +541,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 storedFieldsContext, docValueFields, scriptFields, fetchSourceContext, sorts, highlightBuilder);
     }
 
-    public static InnerHitBuilder fromXContent(QueryParseContext context) throws IOException {
-        return PARSER.parse(context.parser(), new InnerHitBuilder(), context);
+    public static InnerHitBuilder fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new InnerHitBuilder(), null);
     }
 }

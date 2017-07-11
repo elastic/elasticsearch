@@ -165,7 +165,7 @@ to run with the serial collector. To pass the serial collector check,
 you must not start Elasticsearch with the serial collector (whether it's
 from the defaults for the JVM that you're using, or you've explicitly
 specified it with `-XX:+UseSerialGC`). Note that the default JVM
-configuration that ship with Elasticsearch configures Elasticsearch to
+configuration that ships with Elasticsearch configures Elasticsearch to
 use the CMS collector.
 
 === System call filter check

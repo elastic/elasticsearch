@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -148,8 +147,8 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
     }
 
     @Override
-    protected CategoryQueryContext fromXContent(QueryParseContext context) throws IOException {
-        return CategoryQueryContext.fromXContent(context);
+    protected CategoryQueryContext fromXContent(XContentParser parser) throws IOException {
+        return CategoryQueryContext.fromXContent(parser);
     }
 
     /**

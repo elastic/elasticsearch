@@ -128,8 +128,3 @@ The following parameters are accepted by `text` fields:
     Whether term vectors should be stored for an <<mapping-index,`analyzed`>>
     field. Defaults to `no`.
 
-NOTE: Indexes imported from 2.x do not support `text`. Instead they will
-attempt to downgrade `text` into `string`. This allows you to merge modern
-mappings with legacy mappings. Long lived indexes will have to be recreated
-before upgrading to 6.x but mapping downgrade gives you the opportunity to do
-the recreation on your own schedule.

@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class DateFieldMapperTests extends ESSingleNodeTestCase {
 
@@ -344,5 +345,27 @@ public class DateFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(2, fields.length);
 
         assertEquals(randomDate.withZone(DateTimeZone.UTC).getMillis(), fields[0].numericValue().longValue());
+    }
+
+    public void testMergeDate() throws IOException {
+        String initMapping = XContentFactory.jsonBuilder().startObject().startObject("movie")
+            .startObject("properties")
+            .startObject("release_date").field("type", "date").field("format", "yyyy/MM/dd").endObject()
+            .endObject().endObject().endObject().string();
+        DocumentMapper initMapper = indexService.mapperService().merge("movie", new CompressedXContent(initMapping),
+            MapperService.MergeReason.MAPPING_UPDATE, randomBoolean());
+
+        assertThat(initMapper.mappers().getMapper("release_date"), notNullValue());
+        assertFalse(initMapper.mappers().getMapper("release_date").fieldType().stored());
+
+        String updateFormatMapping = XContentFactory.jsonBuilder().startObject().startObject("movie")
+            .startObject("properties")
+            .startObject("release_date").field("type", "date").field("format", "epoch_millis").endObject()
+            .endObject().endObject().endObject().string();
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> indexService.mapperService().merge("movie", new CompressedXContent(updateFormatMapping),
+                MapperService.MergeReason.MAPPING_UPDATE, randomBoolean()));
+        assertThat(e.getMessage(), containsString("[mapper [release_date] has different [format] values]"));
     }
 }

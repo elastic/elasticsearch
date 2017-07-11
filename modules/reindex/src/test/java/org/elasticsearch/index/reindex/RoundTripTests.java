@@ -131,7 +131,9 @@ public class RoundTripTests extends ESTestCase {
     private void randomRequest(AbstractBulkByScrollRequest<?> request) {
         request.getSearchRequest().indices("test");
         request.getSearchRequest().source().size(between(1, 1000));
-        request.setSize(random().nextBoolean() ? between(1, Integer.MAX_VALUE) : -1);
+        if (randomBoolean()) {
+            request.setSize(between(1, Integer.MAX_VALUE));
+        }
         request.setAbortOnVersionConflict(random().nextBoolean());
         request.setRefresh(rarely());
         request.setTimeout(TimeValue.parseTimeValue(randomTimeValue(), null, "test"));

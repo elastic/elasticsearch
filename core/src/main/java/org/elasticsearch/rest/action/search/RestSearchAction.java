@@ -26,7 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -94,12 +93,19 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
-            QueryParseContext context = new QueryParseContext(requestContentParser);
-            searchRequest.source().parseXContent(context);
+            searchRequest.source().parseXContent(requestContentParser);
         }
 
         final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
         searchRequest.setBatchedReduceSize(batchedReduceSize);
+
+        if (request.hasParam("max_concurrent_shard_requests")) {
+            // only set if we have the parameter since we auto adjust the max concurrency on the coordinator
+            // based on the number of nodes in the cluster
+            final int maxConcurrentShardRequests = request.paramAsInt("max_concurrent_shard_requests",
+                searchRequest.getMaxConcurrentShardRequests());
+            searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        }
 
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
         // from the REST layer. these modes are an internal optimization and should
@@ -163,23 +169,12 @@ public class RestSearchAction extends BaseRestHandler {
             }
         }
 
-        if (request.param("fields") != null) {
-            throw new IllegalArgumentException("The parameter [" +
-                SearchSourceBuilder.FIELDS_FIELD + "] is no longer supported, please use [" +
-                SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
-                "if the field is not stored");
-        }
-
-
         StoredFieldsContext storedFieldsContext =
             StoredFieldsContext.fromRestRequest(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), request);
         if (storedFieldsContext != null) {
             searchSourceBuilder.storedFields(storedFieldsContext);
         }
         String sDocValueFields = request.param("docvalue_fields");
-        if (sDocValueFields == null) {
-            sDocValueFields = request.param("fielddata_fields");
-        }
         if (sDocValueFields != null) {
             if (Strings.hasText(sDocValueFields)) {
                 String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);

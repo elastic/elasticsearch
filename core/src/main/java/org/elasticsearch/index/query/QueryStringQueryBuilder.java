@@ -995,7 +995,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryParser.setFuzziness(fuzziness);
         queryParser.setFuzzyPrefixLength(fuzzyPrefixLength);
         queryParser.setFuzzyMaxExpansions(fuzzyMaxExpansions);
-        queryParser.setMultiTermRewriteMethod(QueryParsers.parseRewriteMethod(this.fuzzyRewrite));
+        queryParser.setFuzzyRewriteMethod(QueryParsers.parseRewriteMethod(this.fuzzyRewrite));
         queryParser.setMultiTermRewriteMethod(QueryParsers.parseRewriteMethod(this.rewrite));
         queryParser.setTimeZone(timeZone);
         queryParser.setMaxDeterminizedStates(maxDeterminizedStates);

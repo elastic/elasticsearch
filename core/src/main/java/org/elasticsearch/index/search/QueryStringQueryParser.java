@@ -34,6 +34,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -97,6 +98,7 @@ public class QueryStringQueryParser extends XQueryParser {
     private Fuzziness fuzziness = Fuzziness.AUTO;
     private int fuzzyMaxExpansions = FuzzyQuery.defaultMaxExpansions;
     private MappedFieldType currentFieldType;
+    private MultiTermQuery.RewriteMethod fuzzyRewriteMethod;
 
     /**
      * @param context The query shard context.
@@ -149,12 +151,18 @@ public class QueryStringQueryParser extends XQueryParser {
     }
 
     /**
-     *
-     * @param fuzziness Sets the default {@link Fuzziness} for fuzzy query
+     * @param fuzziness Sets the default {@link Fuzziness} for fuzzy query.
      * Defaults to {@link Fuzziness#AUTO}.
      */
     public void setFuzziness(Fuzziness fuzziness) {
         this.fuzziness = fuzziness;
+    }
+
+    /**
+     * @param fuzzyRewriteMethod Sets the default rewrite method for fuzzy query.
+     */
+    public void setFuzzyRewriteMethod(MultiTermQuery.RewriteMethod fuzzyRewriteMethod) {
+        this.fuzzyRewriteMethod = fuzzyRewriteMethod;
     }
 
     /**
@@ -440,7 +448,7 @@ public class QueryStringQueryParser extends XQueryParser {
         int numEdits = Fuzziness.build(minimumSimilarity).asDistance(term.text());
         FuzzyQuery query = new FuzzyQuery(term, numEdits, prefixLength,
             fuzzyMaxExpansions, FuzzyQuery.defaultTranspositions);
-        QueryParsers.setRewriteMethod(query, getMultiTermRewriteMethod());
+        QueryParsers.setRewriteMethod(query, fuzzyRewriteMethod);
         return query;
     }
 

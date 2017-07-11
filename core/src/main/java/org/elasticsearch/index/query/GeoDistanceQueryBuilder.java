@@ -251,7 +251,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
         Query query = LatLonPoint.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
         if (fieldType.hasDocValues()) {
-            Query dvQuery = LatLonDocValuesField.newDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
+            Query dvQuery = LatLonDocValuesField.newSlowDistanceQuery(fieldType.name(), center.lat(), center.lon(), this.distance);
             query = new IndexOrDocValuesQuery(query, dvQuery);
         }
         return query;

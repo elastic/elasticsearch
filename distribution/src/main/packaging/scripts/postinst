@@ -53,7 +53,7 @@ esac
 
 # to pick up /usr/lib/sysctl.d/elasticsearch.conf
 if command -v systemctl > /dev/null; then
-    systemctl restart systemd-sysctl.service
+    systemctl restart systemd-sysctl.service || true
 fi
 
 if [ "x$IS_UPGRADE" != "xtrue" ]; then

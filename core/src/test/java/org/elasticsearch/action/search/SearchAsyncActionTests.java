@@ -80,7 +80,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         GroupShardsIterator<SearchShardIterator> shardsIter = getShardsIter("idx",
             new OriginalIndices(new String[]{"idx"}, IndicesOptions.strictExpandOpenAndForbidClosed()),
             10, randomBoolean(), primaryNode, replicaNode);
-        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null);
+        SearchTransportService transportService = new SearchTransportService(Settings.EMPTY, null, null);
         Map<String, Transport.Connection> lookup = new HashMap<>();
         Map<ShardId, Boolean> seenShard = new ConcurrentHashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));

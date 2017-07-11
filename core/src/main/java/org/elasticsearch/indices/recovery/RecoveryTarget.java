@@ -120,7 +120,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
-        this.tempFilePrefix = RECOVERY_PREFIX + UUIDs.base64UUID() + ".";
+        this.tempFilePrefix = RECOVERY_PREFIX + UUIDs.randomBase64UUID() + ".";
         this.store = indexShard.store();
         this.ensureClusterStateVersionCallback = ensureClusterStateVersionCallback;
         // make sure the store is not released until we are done.

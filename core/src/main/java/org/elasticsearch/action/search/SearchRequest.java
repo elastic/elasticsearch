@@ -383,8 +383,6 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             maxConcurrentShardRequests = in.readVInt();
         }
-
-
     }
 
     @Override

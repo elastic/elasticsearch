@@ -531,8 +531,8 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
      * with this number to reduce the cluster load. The default is <tt>256</tt>
      */
-    public SearchRequestBuilder setMaxConcurrentShardRequests(int maxNunConcurrentShardRequests) {
-        this.request.setMaxConcurrentShardRequests(maxNunConcurrentShardRequests);
+    public SearchRequestBuilder setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        this.request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
         return this;
     }
 }

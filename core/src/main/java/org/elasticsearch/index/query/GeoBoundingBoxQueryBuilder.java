@@ -350,7 +350,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         Query query = LatLonPoint.newBoxQuery(fieldType.name(), luceneBottomRight.getLat(), luceneTopLeft.getLat(),
             luceneTopLeft.getLon(), luceneBottomRight.getLon());
         if (fieldType.hasDocValues()) {
-            Query dvQuery = LatLonDocValuesField.newBoxQuery(fieldType.name(),
+            Query dvQuery = LatLonDocValuesField.newSlowBoxQuery(fieldType.name(),
                     luceneBottomRight.getLat(), luceneTopLeft.getLat(),
                     luceneTopLeft.getLon(), luceneBottomRight.getLon());
             query = new IndexOrDocValuesQuery(query, dvQuery);

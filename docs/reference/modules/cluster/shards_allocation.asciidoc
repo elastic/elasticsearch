@@ -102,7 +102,7 @@ Specify when shard rebalancing is allowed:
 
 The following settings are used together to determine where to place each
 shard.  The cluster is balanced when no allowed action can bring the weights
-of each node closer together by more then the `balance.threshold`.
+of each node closer together by more than the `balance.threshold`.
 
 `cluster.routing.allocation.balance.shard`::
 

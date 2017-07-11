@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.range.DateRangeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeAggregationBuilder;
 
 public class DateRangeTests extends BaseAggregationTestCase<DateRangeAggregationBuilder> {
 

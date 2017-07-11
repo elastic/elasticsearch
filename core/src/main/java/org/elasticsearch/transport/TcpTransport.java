@@ -442,7 +442,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         public void close() throws IOException {
             if (closed.compareAndSet(false, true)) {
                 try {
-                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()));
+                    closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()), false);
                 } finally {
                     transportServiceAdapter.onConnectionClosed(this);
                 }
@@ -640,7 +640,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final void closeChannelWhileHandlingExceptions(final Channel channel) {
         if (isOpen(channel)) {
             try {
-                closeChannels(Collections.singletonList(channel));
+                closeChannels(Collections.singletonList(channel), false);
             } catch (IOException e) {
                 logger.warn("failed to close channel", e);
             }
@@ -902,7 +902,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 // first stop to accept any incoming connections so nobody can connect to this transport
                 for (Map.Entry<String, List<Channel>> entry : serverChannels.entrySet()) {
                     try {
-                        closeChannels(entry.getValue());
+                        closeChannels(entry.getValue(), true);
                     } catch (Exception e) {
                         logger.debug(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -975,7 +975,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     @Override
                     protected void innerInnerOnResponse(Channel channel) {
                         try {
-                            closeChannels(Collections.singletonList(channel));
+                            closeChannels(Collections.singletonList(channel), false);
                         } catch (IOException e1) {
                             logger.debug("failed to close httpOnTransport channel", e1);
                         }
@@ -984,7 +984,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     @Override
                     protected void innerOnFailure(Exception e) {
                         try {
-                            closeChannels(Collections.singletonList(channel));
+                            closeChannels(Collections.singletonList(channel), false);
                         } catch (IOException e1) {
                             e.addSuppressed(e1);
                             logger.debug("failed to close httpOnTransport channel", e1);
@@ -1015,9 +1015,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected abstract Channel bind(String name, InetSocketAddress address) throws IOException;
 
     /**
-     * Closes all channels in this list
+     * Closes all channels in this list. If the blocking boolean is set to true, the channels must be
+     * closed before the method returns. This should never be called with blocking set to true from a
+     * network thread.
+     *
+     * @param channels the channels to close
+     * @param blocking whether the channels should be closed synchronously
      */
-    protected abstract void closeChannels(List<Channel> channel) throws IOException;
+    protected abstract void closeChannels(List<Channel> channels, boolean blocking) throws IOException;
 
     /**
      * Sends message to channel. The listener's onResponse method will be called when the send is complete unless an exception

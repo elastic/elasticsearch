@@ -63,7 +63,7 @@ public class RandomizingClient extends FilterClient {
             this.maxConcurrentShardRequests = -1; // randomly use the default
         }
         if (random.nextBoolean()) {
-            preFilterAfter = 1 + random.nextInt(128);
+            preFilterAfter =  1 + random.nextInt(1 << random.nextInt(7));
         } else {
             preFilterAfter = -1;
         }

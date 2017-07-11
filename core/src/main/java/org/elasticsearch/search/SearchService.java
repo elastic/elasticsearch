@@ -842,9 +842,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public boolean canMatch(ShardSearchRequest request) throws IOException {
         try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, null)) {
-            QueryBuilder queryBuilder = context.request().source().query();
-            if (queryBuilder != null) {
-                return queryBuilder instanceof MatchNoneQueryBuilder == false;
+            SearchSourceBuilder source = context.request().source();
+            if (source != null) {
+                QueryBuilder queryBuilder = source.query();
+                AggregatorFactories.Builder aggregations = source.aggregations();
+                boolean hasGlobalAggs = aggregations != null && aggregations.hasGlobalAggregationBuilder();
+                if (queryBuilder != null && hasGlobalAggs == false) { // we need to executed hasGlobalAggs is equivalent to match all
+                    return queryBuilder instanceof MatchNoneQueryBuilder == false;
+                }
             }
             return true; // null query means match_all
         }

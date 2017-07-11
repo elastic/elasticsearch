@@ -5,10 +5,13 @@
  */
 package org.elasticsearch.xpack.upgrade;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -179,16 +182,37 @@ public class Upgrade implements ActionPlugin {
     }
 
     private static void postWatcherUpgrade(Client client, Boolean shouldStartWatcher, ActionListener<TransportResponse.Empty> listener) {
-        client.admin().indices().prepareDelete(".triggered_watches").execute(ActionListener.wrap(deleteIndexResponse -> {
-                    startWatcherIfNeeded(shouldStartWatcher, client, listener);
-                }, e -> {
-                    if (e instanceof IndexNotFoundException) {
-                        startWatcherIfNeeded(shouldStartWatcher, client, listener);
-                    } else {
-                        listener.onFailure(e);
-                    }
-                }
-        ));
+        // if you are confused that these steps are numbered reversed, we are creating the action listeners first
+        // but only calling the deletion at the end of the method (inception style)
+        // step 3, after successful deletion of triggered watch index: start watcher
+        ActionListener<DeleteIndexResponse> deleteTriggeredWatchIndexResponse = ActionListener.wrap(deleteIndexResponse ->
+                startWatcherIfNeeded(shouldStartWatcher, client, listener), e -> {
+            if (e instanceof IndexNotFoundException) {
+                startWatcherIfNeeded(shouldStartWatcher, client, listener);
+            } else {
+                listener.onFailure(e);
+            }
+        });
+
+        // step 2, after acknowledged delete triggered watches template: delete triggered watches index
+        ActionListener<DeleteIndexTemplateResponse> triggeredWatchIndexTemplateListener = ActionListener.wrap(r -> {
+            if (r.isAcknowledged()) {
+                client.admin().indices().prepareDelete(".triggered_watches").execute(deleteTriggeredWatchIndexResponse);
+            } else {
+                listener.onFailure(new ElasticsearchException("Deleting triggered_watches template not acknowledged"));
+            }
+
+        }, listener::onFailure);
+
+        // step 1, after acknowledged watches template deletion: delete triggered_watches template
+        ActionListener<DeleteIndexTemplateResponse> watchIndexTemplateListener = ActionListener.wrap(r -> {
+            if (r.isAcknowledged()) {
+                client.admin().indices().prepareDeleteTemplate("triggered_watches").execute(triggeredWatchIndexTemplateListener);
+            } else {
+                listener.onFailure(new ElasticsearchException("Deleting watches template not acknowledged"));
+            }
+        }, listener::onFailure);
+        client.admin().indices().prepareDeleteTemplate("watches").execute(watchIndexTemplateListener);
     }
 
     private static void startWatcherIfNeeded(Boolean shouldStartWatcher, Client client, ActionListener<TransportResponse.Empty> listener) {

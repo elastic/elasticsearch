@@ -320,7 +320,7 @@ public final class LdapUtils {
                 : attributes.toArray(new String[attributes.size()]);
     }
 
-    static String[] encodeFilterValues(String... arguments) {
+    private static String[] encodeFilterValues(String... arguments) {
         for (int i = 0; i < arguments.length; i++) {
             arguments[i] = Filter.encodeValue(arguments[i]);
         }

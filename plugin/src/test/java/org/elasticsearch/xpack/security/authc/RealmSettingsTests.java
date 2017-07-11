@@ -134,7 +134,7 @@ public class RealmSettingsTests extends ESTestCase {
         if (userSearch) {
             builder.put("user_search.base_dn", "o=people, dc=example, dc=com");
             builder.put("user_search.scope", "sub_tree");
-            builder.put("user_search.attribute", randomAlphaOfLengthBetween(2, 5));
+            builder.put("user_search.filter", "(" + randomAlphaOfLengthBetween(2, 5) + "={0})");
             builder.put("user_search.pool.enabled", randomBoolean());
             builder.put("user_search.pool.size", randomIntBetween(10, 100));
             builder.put("user_search.pool.initial_size", randomIntBetween(1, 10));

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.unboundid.ldap.sdk.Filter;
 import com.unboundid.ldap.sdk.GetEntryLDAPConnectionPoolHealthCheck;
 import com.unboundid.ldap.sdk.LDAPConnection;
 import com.unboundid.ldap.sdk.LDAPConnectionPool;
@@ -39,9 +40,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
-import static com.unboundid.ldap.sdk.Filter.createEqualityFilter;
-import static com.unboundid.ldap.sdk.Filter.encodeValue;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.attributesToSearchFor;
+import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.createFilter;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.searchForEntry;
 
 class LdapUserSearchSessionFactory extends SessionFactory {
@@ -52,10 +52,11 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     static final TimeValue DEFAULT_HEALTH_CHECK_INTERVAL = TimeValue.timeValueSeconds(60L);
 
     static final String SEARCH_PREFIX = "user_search.";
+    static final Setting<String> SEARCH_ATTRIBUTE = new Setting<>("user_search.attribute", DEFAULT_USERNAME_ATTRIBUTE,
+            Function.identity(), Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     private static final Setting<String> SEARCH_BASE_DN = Setting.simpleString("user_search.base_dn", Setting.Property.NodeScope);
-    private static final Setting<String> SEARCH_ATTRIBUTE = new Setting<>("user_search.attribute", DEFAULT_USERNAME_ATTRIBUTE,
-            Function.identity(), Setting.Property.NodeScope);
+    private static final Setting<String> SEARCH_FILTER = Setting.simpleString("user_search.filter", Setting.Property.NodeScope);
     private static final Setting<LdapSearchScope> SEARCH_SCOPE = new Setting<>("user_search.scope", (String) null,
             s -> LdapSearchScope.resolve(s, LdapSearchScope.SUB_TREE), Setting.Property.NodeScope);
 
@@ -79,7 +80,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
 
     private final String userSearchBaseDn;
     private final LdapSearchScope scope;
-    private final String userAttribute;
+    private final String searchFilter;
     private final GroupsResolver groupResolver;
     private final boolean useConnectionPool;
 
@@ -95,7 +96,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
             throw new IllegalArgumentException("[" + RealmSettings.getFullSettingKey(config, SEARCH_BASE_DN) + "] must be specified");
         }
         scope = SEARCH_SCOPE.get(settings);
-        userAttribute = SEARCH_ATTRIBUTE.get(settings);
+        searchFilter = getSearchFilter(config);
         groupResolver = groupResolver(settings);
         metaDataResolver = new LdapMetaDataResolver(config.settings(), ignoreReferralErrors);
         useConnectionPool = POOL_ENABLED.get(settings);
@@ -104,8 +105,8 @@ class LdapUserSearchSessionFactory extends SessionFactory {
         } else {
             connectionPool = null;
         }
-        logger.info("Realm [{}] is in user-search mode - base_dn=[{}], attribute=[{}]",
-                config.name(), userSearchBaseDn, userAttribute);
+        logger.info("Realm [{}] is in user-search mode - base_dn=[{}], search filter=[{}]",
+                config.name(), userSearchBaseDn, searchFilter);
     }
 
     static LDAPConnectionPool createConnectionPool(RealmConfig config, ServerSet serverSet, TimeValue timeout, Logger logger)
@@ -302,8 +303,16 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     }
 
     private void findUser(String user, LDAPInterface ldapInterface, ActionListener<SearchResultEntry> listener) {
+        final Filter filter;
+        try {
+            filter = createFilter(searchFilter, user);
+        } catch (LDAPException e) {
+            listener.onFailure(e);
+            return;
+        }
+
         searchForEntry(ldapInterface, userSearchBaseDn, scope.scope(),
-                createEqualityFilter(userAttribute, encodeValue(user)), Math.toIntExact(timeout.seconds()), ignoreReferralErrors, listener,
+                filter, Math.toIntExact(timeout.seconds()), ignoreReferralErrors, listener,
                 attributesToSearchFor(groupResolver.attributes(), metaDataResolver.attributeNames()));
     }
 
@@ -323,6 +332,23 @@ class LdapUserSearchSessionFactory extends SessionFactory {
         return new UserAttributeGroupsResolver(settings);
     }
 
+    static String getSearchFilter(RealmConfig config) {
+        final Settings settings = config.settings();
+        final boolean hasAttribute = SEARCH_ATTRIBUTE.exists(settings);
+        final boolean hasFilter = SEARCH_FILTER.exists(settings);
+        if (hasAttribute && hasFilter) {
+            throw new IllegalArgumentException("search attribute setting [" +
+                    RealmSettings.getFullSettingKey(config, SEARCH_ATTRIBUTE) + "] and filter setting [" +
+                    RealmSettings.getFullSettingKey(config, SEARCH_FILTER) + "] cannot be combined!");
+        } else if (hasFilter) {
+            return SEARCH_FILTER.get(settings);
+        } else if (hasAttribute) {
+            return "(" + SEARCH_ATTRIBUTE.get(settings) + "={0})";
+        } else {
+            return "(uid={0})";
+        }
+    }
+
     public static Set<Setting<?>> getSettings() {
         Set<Setting<?>> settings = new HashSet<>();
         settings.addAll(SessionFactory.getSettings());
@@ -337,6 +363,7 @@ class LdapUserSearchSessionFactory extends SessionFactory {
         settings.add(HEALTH_CHECK_INTERVAL);
         settings.add(BIND_DN);
         settings.add(BIND_PASSWORD);
+        settings.add(SEARCH_FILTER);
 
         settings.addAll(SearchGroupsResolver.getSettings());
         settings.addAll(UserAttributeGroupsResolver.getSettings());

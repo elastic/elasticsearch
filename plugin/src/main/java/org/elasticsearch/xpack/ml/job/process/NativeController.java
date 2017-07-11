@@ -50,7 +50,6 @@ public class NativeController {
 
     private final CppLogMessageHandler cppLogHandler;
     private final OutputStream commandStream;
-    private Thread logTailThread;
 
     NativeController(Environment env, NamedPipeHelper namedPipeHelper) throws IOException {
         ProcessPipes processPipes = new ProcessPipes(env, namedPipeHelper, ProcessCtrl.CONTROLLER, null,
@@ -61,15 +60,22 @@ public class NativeController {
     }
 
     void tailLogsInThread() {
-        logTailThread = new Thread(() -> {
-            try {
-                cppLogHandler.tailStream();
-                cppLogHandler.close();
-            } catch (IOException e) {
-                LOGGER.error("Error tailing C++ controller logs", e);
-            }
-            LOGGER.info("Native controller process has stopped - no new native processes can be started");
-        });
+        final Thread logTailThread = new Thread(
+                () -> {
+                    try {
+                        cppLogHandler.tailStream();
+                        cppLogHandler.close();
+                    } catch (IOException e) {
+                        LOGGER.error("Error tailing C++ controller logs", e);
+                    }
+                    LOGGER.info("Native controller process has stopped - no new native processes can be started");
+                },
+                "ml-cpp-log-tail-thread");
+        /*
+         * This thread is created on the main thread so would default to being a user thread which could prevent the JVM from exiting if
+         * this thread were to still be running during shutdown. As such, we mark it as a daemon thread.
+         */
+        logTailThread.setDaemon(true);
         logTailThread.start();
     }
 

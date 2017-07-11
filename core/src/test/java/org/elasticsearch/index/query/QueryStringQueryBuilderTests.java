@@ -525,7 +525,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertFalse(queryBuilder.enablePositionIncrements());
     }
 
-    @AwaitsFix(bugUrl = "http://todo")
     public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 

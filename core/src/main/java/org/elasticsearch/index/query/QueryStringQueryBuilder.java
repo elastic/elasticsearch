@@ -351,15 +351,17 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * @Deprecated Use {@link QueryStringQueryBuilder#tieBreaker} instead.
+     * Use {@link QueryStringQueryBuilder#tieBreaker} instead.
      */
+    @Deprecated
     public QueryStringQueryBuilder useDisMax(boolean useDisMax) {
         return this;
     }
 
     /**
-     * @Deprecated Use {@link QueryStringQueryBuilder#tieBreaker} instead.
+     * Use {@link QueryStringQueryBuilder#tieBreaker} instead.
      */
+    @Deprecated
     public boolean useDisMax() {
         return true;
     }
@@ -415,15 +417,17 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * @Deprecated This setting is ignored
+     * This setting is ignored
      */
+    @Deprecated
     public QueryStringQueryBuilder autoGeneratePhraseQueries(boolean autoGeneratePhraseQueries) {
         return this;
     }
 
     /**
-     * @Deprecated This setting is ignored
+     * This setting is ignored
      */
+    @Deprecated
     public boolean autoGeneratePhraseQueries() {
         return false;
     }
@@ -612,15 +616,17 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     /**
-     * @Deprecated This query parser splits on operator only.
+     * This query parser splits on operator only.
      */
+    @Deprecated
     public QueryStringQueryBuilder splitOnWhitespace(boolean value) {
         return this;
     }
 
     /**
-     * @Deprecated This query parser splits on operator only.
+     * This query parser splits on operator only.
      */
+    @Deprecated
     public boolean splitOnWhitespace() {
         return false;
     }

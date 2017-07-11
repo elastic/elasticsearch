@@ -28,20 +28,27 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.hamcrest.Matchers.greaterThan;
@@ -62,6 +69,107 @@ import static org.hamcrest.Matchers.greaterThan;
  * --------------------------------------------------
  */
 public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    @SuppressWarnings({ "unused", "unchecked" })
+    public void testSearch() throws IOException {
+        RestHighLevelClient client = highLevelClient();
+        {
+            BulkRequest request = new BulkRequest();
+            request.add(new IndexRequest("posts", "doc", "1")
+                    .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?", "user",
+                            Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
+            request.add(new IndexRequest("posts", "doc", "2")
+                    .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch", "user",
+                            Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
+            request.add(new IndexRequest("posts", "doc", "3")
+                    .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
+                            Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
+            request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
+            BulkResponse bulkResponse = client.bulk(request);
+            assertSame(bulkResponse.status(), RestStatus.OK);
+            assertFalse(bulkResponse.hasFailures());
+        }
+        {
+            // tag::search-request-basic
+            SearchRequest searchRequest = new SearchRequest(); // <1>
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder(); // <2>
+            searchSourceBuilder.query(QueryBuilders.matchAllQuery()); // <3>
+            // end::search-request-basic
+
+            // tag::search-response-basic
+            SearchResponse searchResponse = client.search(searchRequest); // <1>
+            TimeValue took = searchResponse.getTook();
+            boolean timedOut = searchResponse.isTimedOut();
+            SearchHits hits = searchResponse.getHits();  // <2>
+            long totalHits = hits.getTotalHits();
+            double maxScore = hits.getMaxScore();
+            SearchHit[] searchHits = hits.getHits(); // <3>
+            String docId = searchHits[0].getId();
+            String documentSource = searchHits[0].getSourceAsString();
+            // end::search-response-basic
+        }
+        {
+            // tag::search-request-details
+            SearchRequest searchRequest = new SearchRequest("posts"); // <1>
+            searchRequest.types("doc"); // <2>
+            searchRequest.routing("routing"); // <3>
+            searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen()); // <4>
+            searchRequest.preference("_local"); // <5>
+            // end::search-request-details
+            assertNotNull(client.search(searchRequest));
+        }
+        {
+            // tag::search-source-basics
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder(); // <1>
+            sourceBuilder.query(QueryBuilders.termQuery("user", "kimchy")); // <2>
+            sourceBuilder.from(0); // <3>
+            sourceBuilder.size(5); // <4>
+            sourceBuilder.sort(new ScoreSortBuilder().order(SortOrder.ASC));
+            sourceBuilder.timeout(new TimeValue(60, TimeUnit.SECONDS)); // <5>
+
+            SearchRequest searchRequest = new SearchRequest();
+            searchRequest.source(sourceBuilder);
+            // end::search-source-basics
+
+            // tag::search-response-details
+            SearchResponse searchResponse = client.search(searchRequest);
+            RestStatus status = searchResponse.status(); // <1>
+            TimeValue took = searchResponse.getTook(); // <2>
+            Boolean terminatedEarly = searchResponse.isTerminatedEarly();
+            boolean timedOut = searchResponse.isTimedOut();
+            int totalShards = searchResponse.getTotalShards(); // <3>
+            int successfulShards = searchResponse.getSuccessfulShards();
+            int failedShards = searchResponse.getFailedShards();
+            if (searchResponse.getShardFailures().length > 0) {
+                // <4>
+            }
+            // end::search-response-details
+            assertNotNull(searchResponse);
+
+            // tag::search-hits-details
+            SearchHits hits = searchResponse.getHits(); // <1>
+            long totalHits = hits.getTotalHits(); // <2>
+            float maxScore = hits.getMaxScore();
+            SearchHit[] searchHits = hits.getHits();
+            for (SearchHit hit : searchHits) { // <3>
+                String index = hit.getIndex(); // <4>
+                String type = hit.getType();
+                String id = hit.getId();
+                float score = hit.getScore();
+                String sourceAsString = hit.getSourceAsString(); // <5>
+                Map<String, Object> sourceAsMap = hit.getSourceAsMap(); // <6>
+                String documentTitle = (String) sourceAsMap.get("title"); // <7>
+                List<Object> users = (List<Object>) sourceAsMap.get("user"); // <8>
+                Map<String, Object> innerObject = (Map<String, Object>) sourceAsMap.get("innerObject"); // <9>
+            }
+            // end::search-hits-details
+            assertEquals(3, totalHits);
+            assertNotNull(hits.getHits()[0].getSourceAsString());
+            assertNotNull(hits.getHits()[0].getSourceAsMap().get("title"));
+            assertNotNull(hits.getHits()[0].getSourceAsMap().get("user"));
+            assertNotNull(hits.getHits()[0].getSourceAsMap().get("innerObject"));
+        }
+    }
 
     public void testScroll() throws IOException {
         RestHighLevelClient client = highLevelClient();

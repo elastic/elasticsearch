@@ -216,9 +216,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 //add the cluster name to the remote index names for indices disambiguation
                 //this ends up in the hits returned with the search response
                 ShardId shardId = clusterSearchShardsGroup.getShardId();
-                Index remoteIndex = shardId.getIndex();
-                Index index = new Index(RemoteClusterAware.buildRemoteIndexName(clusterAlias, remoteIndex.getName()),
-                    remoteIndex.getUUID());
                 final AliasFilter aliasFilter;
                 if (indicesAndFilters == null) {
                     aliasFilter = AliasFilter.EMPTY;
@@ -229,10 +226,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 String[] aliases = aliasFilter.getAliases();
                 String[] finalIndices = aliases.length == 0 ? new String[] {shardId.getIndexName()} : aliases;
                 // here we have to map the filters to the UUID since from now on we use the uuid for the lookup
-                aliasFilterMap.put(remoteIndex.getUUID(), aliasFilter);
+                aliasFilterMap.put(shardId.getIndex().getUUID(), aliasFilter);
                 final OriginalIndices originalIndices = remoteIndicesByCluster.get(clusterAlias);
                 assert originalIndices != null : "original indices are null for clusterAlias: " + clusterAlias;
-                SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, new ShardId(index, shardId.getId()),
+                SearchShardIterator shardIterator = new SearchShardIterator(clusterAlias, shardId,
                     Arrays.asList(clusterSearchShardsGroup.getShards()), new OriginalIndices(finalIndices,
                     originalIndices.indicesOptions()));
                 remoteShardIterators.add(shardIterator);

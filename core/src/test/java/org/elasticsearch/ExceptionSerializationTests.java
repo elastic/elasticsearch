@@ -286,7 +286,7 @@ public class ExceptionSerializationTests extends ESTestCase {
     }
 
     public void testSearchException() throws IOException {
-        SearchShardTarget target = new SearchShardTarget("foo", new Index("bar", "_na_"), 1);
+        SearchShardTarget target = new SearchShardTarget("foo", new Index("bar", "_na_"), 1, null);
         SearchException ex = serialize(new SearchException(target, "hello world"));
         assertEquals(target, ex.shard());
         assertEquals(ex.getMessage(), "hello world");

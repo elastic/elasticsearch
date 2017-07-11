@@ -125,6 +125,11 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
                 @Override
                 public void rewrite(QueryShardContext context) throws IOException {
                 }
+
+                @Override
+                public String getClusterAlias() {
+                    return null;
+                }
             };
             @Override
             public ShardSearchRequest request() {

@@ -98,7 +98,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
             filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
         }
         return new ShardSearchTransportRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
-                randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(), Math.abs(randomLong()));
+                randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(), Math.abs(randomLong()), null);
     }
 
     public void testFilteringAliases() throws Exception {

@@ -62,12 +62,6 @@ public class SearchHits implements Streamable, ToXContent, Iterable<SearchHit> {
         this.maxScore = maxScore;
     }
 
-    public void shardTarget(SearchShardTarget shardTarget) {
-        for (SearchHit hit : hits) {
-            hit.shard(shardTarget);
-        }
-    }
-
     /**
      * The total number of hits that matches the search request.
      * @deprecated use {@link #getTotalHits()} instead

@@ -43,7 +43,7 @@ public class MockSearchServiceTests extends ESTestCase {
             null, null, null, null, xContentRegistry(), null, null, () -> nowInMillis)) {
             @Override
             public SearchShardTarget shardTarget() {
-                return new SearchShardTarget("node", new Index("idx", "ignored"), 0);
+                return new SearchShardTarget("node", new Index("idx", "ignored"), 0, null);
             }
 
             @Override

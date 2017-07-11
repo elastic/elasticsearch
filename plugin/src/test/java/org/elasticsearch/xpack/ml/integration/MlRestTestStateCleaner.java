@@ -41,7 +41,7 @@ public class MlRestTestStateCleaner {
         deleteAllDatafeeds();
         deleteAllJobs();
         waitForPendingTasks();
-        deleteDotML();
+        // indices will be deleted by the ESIntegTestCase class
     }
 
     private void waitForPendingTasks() throws Exception {
@@ -150,13 +150,6 @@ public class MlRestTestStateCleaner {
             if (statusCode != 200) {
                 logger.error("Got status code " + statusCode + " when deleting job " + jobId);
             }
-        }
-    }
-
-    private void deleteDotML() throws IOException {
-        int statusCode = adminClient.performRequest("DELETE",  ".ml-*?ignore_unavailable=true").getStatusLine().getStatusCode();
-        if (statusCode != 200) {
-            logger.error("Got status code " + statusCode + " when deleting .ml-* indexes");
         }
     }
 }

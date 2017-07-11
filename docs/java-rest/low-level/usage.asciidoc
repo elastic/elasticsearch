@@ -23,7 +23,7 @@ low-level REST client is compatible with all elasticsearch versions.
 Here is how you can configure the dependency using maven as a dependency manager.
 Add the following to your `pom.xml` file:
 
-["source","xml",subs="attributes"]
+[source,xml]
 --------------------------------------------------
 <dependency>
     <groupId>org.elasticsearch.client</groupId>

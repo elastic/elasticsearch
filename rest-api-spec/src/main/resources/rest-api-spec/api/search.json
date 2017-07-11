@@ -166,7 +166,8 @@
         },
         "max_concurrent_shard_requests" : {
           "type" : "number",
-          "description" : "The number of concurrent shard requests this search executes concurrently. This values should be used to limitthe impact of the search on the cluster in order to limit the number of concurrent shard requests",
+          "description" : "The number of concurrent shard requests this search executes concurrently. This value should be used to limit the impact of the search on the cluster in order to limit the number of concurrent shard requests",
+
           "default" : 256
         }
       }

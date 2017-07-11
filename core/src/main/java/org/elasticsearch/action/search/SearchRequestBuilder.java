@@ -532,7 +532,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * with this number to reduce the cluster load. The default is <tt>256</tt>
      */
     public SearchRequestBuilder setMaxConcurrentShardRequests(int maxNunConcurrentShardRequests) {
-        this.request.setMaxNumConcurrentShardRequests(maxNunConcurrentShardRequests);
+        this.request.setMaxConcurrentShardRequests(maxNunConcurrentShardRequests);
         return this;
     }
 }

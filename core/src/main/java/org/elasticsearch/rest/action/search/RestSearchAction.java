@@ -99,8 +99,9 @@ public class RestSearchAction extends BaseRestHandler {
         final int batchedReduceSize = request.paramAsInt("batched_reduce_size", searchRequest.getBatchedReduceSize());
         searchRequest.setBatchedReduceSize(batchedReduceSize);
 
-        final int maxConcurrentShardRequests = request.paramAsInt("max_concurrent_shard_requests", searchRequest.getBatchedReduceSize());
-        searchRequest.setMaxNumConcurrentShardRequests(maxConcurrentShardRequests);
+        final int maxConcurrentShardRequests = request.paramAsInt("max_concurrent_shard_requests",
+            searchRequest.getMaxConcurrentShardRequests());
+        searchRequest.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
 
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
         // from the REST layer. these modes are an internal optimization and should

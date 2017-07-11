@@ -58,7 +58,7 @@ public class SearchAsyncActionTests extends ESTestCase {
     public void testLimitConcurrentShardRequests() throws InterruptedException {
         SearchRequest request = new SearchRequest();
         int numConcurrent = randomIntBetween(1, 5);
-        request.setMaxNumConcurrentShardRequests(numConcurrent);
+        request.setMaxConcurrentShardRequests(numConcurrent);
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<TestSearchResponse> response = new AtomicReference<>();
         ActionListener<SearchResponse> responseListener = new ActionListener<SearchResponse>() {
@@ -154,7 +154,7 @@ public class SearchAsyncActionTests extends ESTestCase {
 
     public void testFanOutAndCollect() throws InterruptedException {
         SearchRequest request = new SearchRequest();
-        request.setMaxNumConcurrentShardRequests(randomIntBetween(1, 100));
+        request.setMaxConcurrentShardRequests(randomIntBetween(1, 100));
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<TestSearchResponse> response = new AtomicReference<>();
         ActionListener<SearchResponse> responseListener = new ActionListener<SearchResponse>() {

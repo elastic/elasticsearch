@@ -63,7 +63,7 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
         // we process hence we add one for the non active partition here.
         this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
-        concurrentRunnables = Math.min(request.getMaxNumConcurrentShardRequests(), shardsIts.size());
+        concurrentRunnables = Math.min(request.getMaxConcurrentShardRequests(), shardsIts.size());
     }
 
     private void onShardFailure(final int shardIndex, @Nullable ShardRouting shard, @Nullable String nodeId,
@@ -131,9 +131,8 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
         boolean success = shardExecutionIndex.compareAndSet(0, concurrentRunnables);
         assert success;
         for (int i = 0; i < concurrentRunnables; i++) {
-            int index = i;
-            SearchShardIterator shardRoutings = shardsIts.get(index);
-            performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
+            SearchShardIterator shardRoutings = shardsIts.get(i);
+            performPhaseOnShard(i, shardRoutings, shardRoutings.nextOrNull());
         }
     }
 

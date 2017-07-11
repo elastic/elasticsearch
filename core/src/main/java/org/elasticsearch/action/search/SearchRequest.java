@@ -75,7 +75,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private int batchedReduceSize = 512;
 
-    private int maxNunConcurrentShardRequests = 256;
+    private int maxConcurrentShardRequests = 256;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -310,8 +310,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
      * with this number to reduce the cluster load. The default is <tt>256</tt>
      */
-    public int getMaxNumConcurrentShardRequests() {
-        return maxNunConcurrentShardRequests;
+    public int getMaxConcurrentShardRequests() {
+        return maxConcurrentShardRequests;
     }
 
     /**
@@ -319,11 +319,11 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
      * with this number to reduce the cluster load. The default is <tt>256</tt>
      */
-    public void setMaxNumConcurrentShardRequests(int maxNunConcurrentShardRequests) {
-        if (maxNunConcurrentShardRequests < 1) {
-            throw new IllegalArgumentException("maxNunConcurrentShardRequests must be >= 1");
+    public void setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        if (maxConcurrentShardRequests < 1) {
+            throw new IllegalArgumentException("maxConcurrentShardRequests must be >= 1");
         }
-        this.maxNunConcurrentShardRequests = maxNunConcurrentShardRequests;
+        this.maxConcurrentShardRequests = maxConcurrentShardRequests;
     }
 
     /**
@@ -374,7 +374,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            maxNunConcurrentShardRequests = in.readVInt();
+            maxConcurrentShardRequests = in.readVInt();
         }
 
 
@@ -397,7 +397,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
-            out.writeVInt(maxNunConcurrentShardRequests);
+            out.writeVInt(maxConcurrentShardRequests);
         }
     }
 
@@ -419,14 +419,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(scroll, that.scroll) &&
                 Arrays.equals(types, that.types) &&
                 Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
-                Objects.equals(maxNunConcurrentShardRequests, that.maxNunConcurrentShardRequests) &&
+                Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
                 Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions, maxNunConcurrentShardRequests);
+                scroll, Arrays.hashCode(types), indicesOptions, maxConcurrentShardRequests);
     }
 
     @Override
@@ -440,7 +440,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", preference='" + preference + '\'' +
                 ", requestCache=" + requestCache +
                 ", scroll=" + scroll +
-                ", maxNunConcurrentShardRequests=" + maxNunConcurrentShardRequests +
+                ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
                 ", batchedReduceSize=" + batchedReduceSize +
                 ", source=" + source + '}';
     }

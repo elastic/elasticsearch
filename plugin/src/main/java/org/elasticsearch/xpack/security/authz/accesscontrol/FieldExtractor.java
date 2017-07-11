@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.DocValuesNumbersQuery;
-import org.apache.lucene.search.FieldValueQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -23,9 +23,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.spans.SpanTermQuery;
 
-import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /** 
@@ -77,8 +75,8 @@ class FieldExtractor {
             fields.add(((PointRangeQuery)query).getField());
         } else if (query instanceof PointInSetQuery) {
             fields.add(((PointInSetQuery)query).getField());
-        } else if (query instanceof FieldValueQuery) {
-            fields.add(((FieldValueQuery)query).getField());
+        } else if (query instanceof DocValuesFieldExistsQuery) {
+            fields.add(((DocValuesFieldExistsQuery)query).getField());
         } else if (query instanceof DocValuesNumbersQuery) {
             fields.add(((DocValuesNumbersQuery)query).getField());
         } else if (query instanceof IndexOrDocValuesQuery) {

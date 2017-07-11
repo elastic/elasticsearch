@@ -319,8 +319,8 @@ Previously script mode settings (e.g., "script.inline: true",
 ==== Script sandbox settings removed
 
 Prior to 5.0 a third option could be specified for the `script.inline` and
-`script.stored` settings ("sandbox"). This has been removed, You can now only
-set `script.line: true` or `script.stored: true`.
+`script.stored` settings ("sandbox"). This has been removed, you can now only
+set `script.inline: true` or `script.stored: true`.
 
 ==== Search settings
 

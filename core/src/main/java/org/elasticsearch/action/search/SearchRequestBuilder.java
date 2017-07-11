@@ -535,4 +535,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         this.request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
         return this;
     }
+
+    /**
+     * Sets a threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public SearchRequestBuilder setPreFilterShardsAfter(int preFilterShardsAfter) {
+        this.request.setPreFilterSearchShardsAfter(preFilterShardsAfter);
+        return this;
+    }
 }

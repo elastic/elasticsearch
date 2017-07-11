@@ -227,41 +227,37 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
     /**
      * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
      */
-    static class SearchPhaseResults<Result extends SearchPhaseResult> {
-        final AtomicArray<Result> results;
+    abstract static class SearchPhaseResults<Result extends SearchPhaseResult> {
+        private final int numShards;
 
-        SearchPhaseResults(int size) {
-            results = new AtomicArray<>(size);
+        protected SearchPhaseResults(int numShards) {
+            this.numShards = numShards;
         }
-
         /**
          * Returns the number of expected results this class should collect
          */
         final int getNumShards() {
-            return results.length();
+            return numShards;
         }
 
         /**
          * A stream of all non-null (successful) shard results
          */
-        final Stream<Result> getSuccessfulResults() {
-            return results.asList().stream();
-        }
+        abstract Stream<Result> getSuccessfulResults();
 
         /**
          * Consumes a single shard result
          * @param result the shards result
          */
-        void consumeResult(Result result) {
-            assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
-            results.set(result.getShardIndex(), result);
-        }
+        abstract void consumeResult(Result result);
 
         /**
          * Returns <code>true</code> iff a result if present for the given shard ID.
          */
-        final boolean hasResult(int shardIndex) {
-            return results.get(shardIndex) != null;
+        abstract boolean hasResult(int shardIndex);
+
+        AtomicArray<Result> getAtomicArray() {
+            throw new UnsupportedOperationException();
         }
 
         /**
@@ -271,4 +267,35 @@ abstract class InitialSearchPhase<FirstResult extends SearchPhaseResult> extends
             throw new UnsupportedOperationException("reduce is not supported");
         }
     }
+
+    /**
+     * This class acts as a basic result collection that can be extended to do on-the-fly reduction or result processing
+     */
+    static class ArraySearchPhaseResults<Result extends SearchPhaseResult> extends SearchPhaseResults<Result> {
+        final AtomicArray<Result> results;
+
+        ArraySearchPhaseResults(int size) {
+            super(size);
+            this.results = new AtomicArray<>(size);
+        }
+
+        Stream<Result> getSuccessfulResults() {
+            return results.asList().stream();
+        }
+
+        void consumeResult(Result result) {
+            assert results.get(result.getShardIndex()) == null : "shardIndex: " + result.getShardIndex() + " is already set";
+            results.set(result.getShardIndex(), result);
+        }
+
+        boolean hasResult(int shardIndex) {
+            return results.get(shardIndex) != null;
+        }
+
+        @Override
+        AtomicArray<Result> getAtomicArray() {
+            return results;
+        }
+    }
+
 }

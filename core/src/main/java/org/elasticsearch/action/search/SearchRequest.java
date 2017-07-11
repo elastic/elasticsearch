@@ -58,6 +58,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
+    public static final int DEFAULT_PRE_FILTER_SHARDS_AFTER = 128;
+
     private SearchType searchType = SearchType.DEFAULT;
 
     private String[] indices = Strings.EMPTY_ARRAY;
@@ -76,6 +78,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     private int batchedReduceSize = 512;
 
     private int maxConcurrentShardRequests = 0;
+
+    private int preFilterShardsAfter = DEFAULT_PRE_FILTER_SHARDS_AFTER;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -325,6 +329,28 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         }
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
     }
+    /**
+     * Sets a threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public void setPreFilterSearchShardsAfter(int preFilterShardsAfter) {
+        if (preFilterShardsAfter < 1) {
+            throw new IllegalArgumentException("preFilterShardsAfter must be >= 1");
+        }
+        this.preFilterShardsAfter = preFilterShardsAfter;
+    }
+
+    /**
+     * Returns a threshold that enforces a pre-filter roundtrip to prefilter search shards based on query rewriting if the number of shards
+     * the search request expands to exceeds the threshold. This filter roundtrip can limit the number of shards significantly if for
+     * instance a shard can not match any documents based on it's rewrite method ie. if date filters are mandatory to match but the shard
+     * bounds and the query are disjoint. The default is <tt>128</tt>
+     */
+    public int getPreFilterShardsAfter() {
+        return preFilterShardsAfter;
+    }
 
     /**
      * Returns <code>true</code> iff the maxConcurrentShardRequest is set.
@@ -382,6 +408,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         batchedReduceSize = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             maxConcurrentShardRequests = in.readVInt();
+            preFilterShardsAfter = in.readVInt();
         }
     }
 
@@ -403,6 +430,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         out.writeVInt(batchedReduceSize);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
             out.writeVInt(maxConcurrentShardRequests);
+            out.writeVInt(preFilterShardsAfter);
         }
     }
 
@@ -425,13 +453,14 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Arrays.equals(types, that.types) &&
                 Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
                 Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
+                Objects.equals(preFilterShardsAfter, that.preFilterShardsAfter) &&
                 Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions, maxConcurrentShardRequests);
+                scroll, Arrays.hashCode(types), indicesOptions, batchedReduceSize, maxConcurrentShardRequests, preFilterShardsAfter);
     }
 
     @Override
@@ -447,6 +476,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", scroll=" + scroll +
                 ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
                 ", batchedReduceSize=" + batchedReduceSize +
+                ", preFilterShardsAfter=" + preFilterShardsAfter +
                 ", source=" + source + '}';
     }
 }

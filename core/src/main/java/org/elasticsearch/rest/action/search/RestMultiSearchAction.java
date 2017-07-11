@@ -39,6 +39,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -88,6 +89,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
 
+        int preFilterShardsAfter = restRequest.paramAsInt("pre_filter_shards_after", SearchRequest.DEFAULT_PRE_FILTER_SHARDS_AFTER);
+
+
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             try {
                 searchRequest.source(SearchSourceBuilder.fromXContent(parser));
@@ -96,7 +100,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
                 throw new ElasticsearchParseException("Exception when parsing search request", e);
             }
         });
-
+        List<SearchRequest> requests = multiRequest.requests();
+        preFilterShardsAfter = Math.max(1, preFilterShardsAfter / (requests.size()+1));
+        for (SearchRequest request : requests) {
+            request.setPreFilterSearchShardsAfter(preFilterShardsAfter);
+        }
         return multiRequest;
     }
 

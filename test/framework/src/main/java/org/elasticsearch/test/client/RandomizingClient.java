@@ -38,6 +38,7 @@ public class RandomizingClient extends FilterClient {
     private final String defaultPreference;
     private final int batchedReduceSize;
     private final int maxConcurrentShardRequests;
+    private final int preFilterAfter;
 
 
     public RandomizingClient(Client client, Random random) {
@@ -61,6 +62,11 @@ public class RandomizingClient extends FilterClient {
         } else {
             this.maxConcurrentShardRequests = -1; // randomly use the default
         }
+        if (random.nextBoolean()) {
+            preFilterAfter = 1 + random.nextInt(128);
+        } else {
+            preFilterAfter = -1;
+        }
     }
 
     @Override
@@ -69,6 +75,9 @@ public class RandomizingClient extends FilterClient {
             .setPreference(defaultPreference).setBatchedReduceSize(batchedReduceSize);
         if (maxConcurrentShardRequests != -1) {
             searchRequestBuilder.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        }
+        if (preFilterAfter != -1) {
+            searchRequestBuilder.setPreFilterShardsAfter(preFilterAfter);
         }
         return searchRequestBuilder;
     }

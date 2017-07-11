@@ -1,0 +1,101 @@
+setup:
+  - do:
+      indices.create:
+          index: index_1
+          body:
+            settings:
+              number_of_shards: 1
+            mappings:
+              doc:
+                properties:
+                  created_at:
+                     type: date
+                     format: "yyyy-MM-dd"
+  - do:
+      indices.create:
+          index: index_2
+          body:
+            settings:
+              number_of_shards: 1
+            mappings:
+              doc:
+                properties:
+                  created_at:
+                     type: date
+                     format: "yyyy-MM-dd"
+  - do:
+      indices.create:
+          index: index_3
+          body:
+            settings:
+              number_of_shards: 1
+            mappings:
+              doc:
+                properties:
+                  created_at:
+                     type: date
+                     format: "yyyy-MM-dd"
+
+
+---
+"pre_filter_shards_after with invalid parameter":
+  - skip:
+      version: " - 5.99.99"
+      reason:  this was added in 6.0.0
+  - do:
+      catch:      /preFilterShardsAfter must be >= 1/
+      search:
+        index: test_1
+        pre_filter_shards_after: 0
+
+---
+"pre_filter_shards_after with shards that have no hit":
+  - skip:
+      version: " - 5.99.99"
+      reason:  this was added in 6.0.0
+  - do:
+      index:
+        index: index_1
+        type: doc
+        id: 1
+        body: { "created_at": "2016-01-01" }
+
+  - do:
+      index:
+        index: index_2
+        type: doc
+        id: 2
+        body: { "created_at": "2017-01-01" }
+
+  - do:
+      index:
+        index: index_3
+        type: doc
+        id: 3
+        body: { "created_at": "2018-01-01" }
+  - do:
+      indices.refresh: {}
+
+
+  - do:
+      search:
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
+
+  - match: { _shards.total: 3 }
+  - match: { _shards.successful: 3 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+
+  - do:
+      search:
+        pre_filter_shards_after: 1
+        body: { "size" : 0, "query" : { "range" : { "created_at" : { "gte" : "2016-02-01", "lt": "2018-02-01"} } } }
+
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.failed: 0 }
+  - match: { hits.total: 2 }
+
+
+
+

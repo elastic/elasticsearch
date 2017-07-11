@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -831,5 +832,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
         return indicesService.buildAliasFilter(state, index, expressions);
+    }
+
+    /**
+     * This method does a very quick rewrite of the query and returns true if the query can potentially match any documents.
+     * This method can have false positives while if it returns <code>false</code> the query won't match any documents on the current
+     * shard.
+     */
+    public boolean canMatch(ShardSearchRequest request) throws IOException {
+        try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, null)) {
+            return context.request().source().query() instanceof MatchNoneQueryBuilder == false;
+        }
     }
 }

@@ -50,6 +50,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -313,8 +314,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             searchRequest.setMaxConcurrentShardRequests(Math.min(256, nodeCount
                 * IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getDefault(Settings.EMPTY)));
         }
+        boolean preFilterSearchShards = searchRequest.searchType() == QUERY_THEN_FETCH && // we can't do this for DFS it needs to fan out
+            // to all shards all the time
+            searchRequest.getPreFilterShardsAfter() < shardIterators.size();
         searchAsyncAction(task, searchRequest, shardIterators, timeProvider, connectionLookup, clusterState.version(),
-            Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener).start();
+            Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener, preFilterSearchShards).start();
     }
 
     static GroupShardsIterator<SearchShardIterator> mergeShardsIterators(GroupShardsIterator<ShardIterator> localShardsIterator,
@@ -341,25 +345,40 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                                                         BiFunction<String, String, Transport.Connection> connectionLookup,
                                                         long clusterStateVersion, Map<String, AliasFilter> aliasFilter,
                                                         Map<String, Float> concreteIndexBoosts,
-                                                        ActionListener<SearchResponse> listener) {
+                                                        ActionListener<SearchResponse> listener, boolean preFilter) {
         Executor executor = threadPool.executor(ThreadPool.Names.SEARCH);
-        AbstractSearchAsyncAction searchAsyncAction;
-        switch(searchRequest.searchType()) {
-            case DFS_QUERY_THEN_FETCH:
-                searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
-                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators,
-                    timeProvider, clusterStateVersion, task);
-                break;
-            case QUERY_AND_FETCH:
-            case QUERY_THEN_FETCH:
-                searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
-                    aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators,
-                    timeProvider, clusterStateVersion, task);
-                break;
-            default:
-                throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
+        if (preFilter) {
+            return new CanMatchPreFilterSearchPhase(logger, searchTransportService, connectionLookup,
+                aliasFilter, concreteIndexBoosts, executor, searchRequest, listener, shardIterators,
+                timeProvider, clusterStateVersion, task, (iter) -> {
+                AbstractSearchAsyncAction action = searchAsyncAction(task, searchRequest, iter, timeProvider, connectionLookup,
+                    clusterStateVersion, aliasFilter, concreteIndexBoosts, listener, false);
+                return new SearchPhase(action.getName()) {
+                    @Override
+                    public void run() throws IOException {
+                        action.start();
+                    }
+                };
+            });
+        } else {
+            AbstractSearchAsyncAction searchAsyncAction;
+            switch (searchRequest.searchType()) {
+                case DFS_QUERY_THEN_FETCH:
+                    searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
+                        aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators,
+                        timeProvider, clusterStateVersion, task);
+                    break;
+                case QUERY_AND_FETCH:
+                case QUERY_THEN_FETCH:
+                    searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
+                        aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators,
+                        timeProvider, clusterStateVersion, task);
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
+            }
+            return searchAsyncAction;
         }
-        return searchAsyncAction;
     }
 
     private static void failIfOverShardCountLimit(ClusterService clusterService, int shardCount) {

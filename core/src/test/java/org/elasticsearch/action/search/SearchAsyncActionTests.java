@@ -106,7 +106,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 0,
                 null,
-                new InitialSearchPhase.SearchPhaseResults<>(shardsIter.size())) {
+                new InitialSearchPhase.ArraySearchPhaseResults<>(shardsIter.size())) {
 
                 @Override
                 protected void executePhaseOnShard(SearchShardIterator shardIt, ShardRouting shard,
@@ -207,7 +207,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                         new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                         0,
                         null,
-                        new InitialSearchPhase.SearchPhaseResults<>(shardsIter.size())) {
+                        new InitialSearchPhase.ArraySearchPhaseResults<>(shardsIter.size())) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
@@ -232,7 +232,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     @Override
                     public void run() throws IOException {
                         for (int i = 0; i < results.getNumShards(); i++) {
-                            TestSearchPhaseResult result = results.results.get(i);
+                            TestSearchPhaseResult result = results.getAtomicArray().get(i);
                             assertEquals(result.node.getId(), result.getSearchShardTarget().getNodeId());
                             sendReleaseSearchContext(result.getRequestId(), new MockConnection(result.node), OriginalIndices.NONE);
                         }

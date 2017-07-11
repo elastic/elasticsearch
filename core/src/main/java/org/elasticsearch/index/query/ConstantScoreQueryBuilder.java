@@ -165,6 +165,9 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewrite = filterBuilder.rewrite(queryRewriteContext);
+        if (rewrite instanceof MatchNoneQueryBuilder) {
+            return rewrite; // we won't match anyway
+        }
         if (rewrite != filterBuilder) {
             return new ConstantScoreQueryBuilder(rewrite);
         }

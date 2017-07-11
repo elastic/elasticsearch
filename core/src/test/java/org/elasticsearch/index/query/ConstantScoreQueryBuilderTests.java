@@ -134,4 +134,9 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         assertWarnings("query malformed, empty clause found at [1:40]");
     }
 
+    public void testRewriteToMatchNone() throws IOException {
+        ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(new MatchNoneQueryBuilder());
+        QueryBuilder rewrite = constantScoreQueryBuilder.rewrite(createShardContext());
+        assertEquals(rewrite, new MatchNoneQueryBuilder());
+    }
 }

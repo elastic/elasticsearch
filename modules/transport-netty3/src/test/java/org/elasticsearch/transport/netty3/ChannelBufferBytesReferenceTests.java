@@ -28,8 +28,14 @@ import org.jboss.netty.buffer.ChannelBuffers;
 import java.io.IOException;
 
 public class ChannelBufferBytesReferenceTests extends AbstractBytesReferenceTestCase {
+
     @Override
     protected BytesReference newBytesReference(int length) throws IOException {
+        return newBytesReferenceWithOffsetOfZero(length);
+    }
+
+    @Override
+    protected BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException {
         ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(length, bigarrays);
         for (int i = 0; i < length; i++) {
             out.writeByte((byte) random().nextInt(1 << 8));

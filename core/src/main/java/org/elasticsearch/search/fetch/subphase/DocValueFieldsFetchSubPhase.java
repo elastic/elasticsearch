@@ -64,15 +64,13 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
         for (String field : context.docValueFieldsContext().fields()) {
             MappedFieldType fieldType = context.mapperService().fullName(field);
             if (fieldType != null) {
-                int currentReaderIndex = -1;
                 LeafReaderContext subReaderContext = null;
                 AtomicFieldData data = null;
                 ScriptDocValues<?> values = null;
                 for (SearchHit hit : hits) {
-                    int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
                     // if the reader index has changed we need to get a new doc values reader instance
-                    if (readerIndex != currentReaderIndex) {
-                        currentReaderIndex = readerIndex;
+                    if (subReaderContext == null || hit.docId() >= subReaderContext.docBase + subReaderContext.reader().maxDoc()) {
+                        int readerIndex = ReaderUtil.subIndex(hit.docId(), context.searcher().getIndexReader().leaves());
                         subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);
                         data = context.fieldData().getForField(fieldType).load(subReaderContext);
                         values = data.getScriptValues();

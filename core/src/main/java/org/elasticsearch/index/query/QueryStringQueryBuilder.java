@@ -58,8 +58,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static org.elasticsearch.index.query.MultiMatchQueryBuilder.Type;
-
 /**
  * A query that parses a query string and runs it. There are two modes that this operates. The first,
  * when no field is added (using {@link #field(String)}, will run the query once and non prefixed fields
@@ -204,8 +202,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         quoteAnalyzer = in.readOptionalString();
         quoteFieldSuffix = in.readOptionalString();
         if (in.getVersion().before(Version.V_6_0_0_beta1)) {
-            // ignore auto_generate_phrase_query
-            in.readBoolean();
+            in.readBoolean(); // auto_generate_phrase_query
         }
         allowLeadingWildcard = in.readOptionalBoolean();
         analyzeWildcard = in.readOptionalBoolean();
@@ -222,8 +219,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         fuzzyRewrite = in.readOptionalString();
         phraseSlop = in.readVInt();
         if (in.getVersion().before(Version.V_6_0_0_beta1)) {
-            // ignore use_dismax
-            in.readBoolean();
+            in.readBoolean(); // use_dismax
             tieBreaker = in.readFloat();
         } else {
             tieBreaker = in.readOptionalFloat();
@@ -236,8 +232,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         maxDeterminizedStates = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_5_1_1)) {
             if (in.getVersion().before(Version.V_6_0_0_beta1)) {
-                // ignore split_on_whitespace
-                in.readBoolean();
+                in.readBoolean(); // split_on_whitespace
             }
             useAllFields = in.readOptionalBoolean();
         }
@@ -257,8 +252,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalString(this.quoteAnalyzer);
         out.writeOptionalString(this.quoteFieldSuffix);
         if (out.getVersion().before(Version.V_6_0_0_beta1)) {
-            // BWC for auto_generate_phrase_query
-            out.writeBoolean(false);
+            out.writeBoolean(false); // auto_generate_phrase_query
         }
         out.writeOptionalBoolean(this.allowLeadingWildcard);
         out.writeOptionalBoolean(this.analyzeWildcard);
@@ -275,8 +269,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeOptionalString(this.fuzzyRewrite);
         out.writeVInt(this.phraseSlop);
         if (out.getVersion().before(Version.V_6_0_0_beta1)) {
-            // BWC for use_dismax
-            out.writeBoolean(true);
+            out.writeBoolean(true); // use_dismax
             out.writeFloat(tieBreaker != null ? tieBreaker : 0.0f);
         } else {
             out.writeOptionalFloat(tieBreaker);
@@ -289,8 +282,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         out.writeVInt(this.maxDeterminizedStates);
         if (out.getVersion().onOrAfter(Version.V_5_1_1)) {
             if (out.getVersion().before(Version.V_6_0_0_beta1)) {
-                // BWC for split_on_whitespace
-                out.writeBoolean(false);
+                out.writeBoolean(false); // split_on_whitespace
             }
             out.writeOptionalBoolean(this.useAllFields);
         }

@@ -56,14 +56,21 @@ public class RandomizingClient extends FilterClient {
             defaultPreference = null;
         }
         this.batchedReduceSize = 2 + random.nextInt(10);
-        this.maxConcurrentShardRequests = 1 + random.nextInt(1 << random.nextInt(8));
-
+        if (random.nextBoolean()) {
+            this.maxConcurrentShardRequests = 1 + random.nextInt(1 << random.nextInt(8));
+        } else {
+            this.maxConcurrentShardRequests = -1; // randomly use the default
+        }
     }
 
     @Override
     public SearchRequestBuilder prepareSearch(String... indices) {
-        return in.prepareSearch(indices).setSearchType(defaultSearchType).setPreference(defaultPreference)
-            .setBatchedReduceSize(batchedReduceSize).setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        SearchRequestBuilder searchRequestBuilder = in.prepareSearch(indices).setSearchType(defaultSearchType)
+            .setPreference(defaultPreference).setBatchedReduceSize(batchedReduceSize);
+        if (maxConcurrentShardRequests != -1) {
+            searchRequestBuilder.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        }
+        return searchRequestBuilder;
     }
 
     @Override

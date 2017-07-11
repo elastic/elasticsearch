@@ -75,7 +75,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private int batchedReduceSize = 512;
 
-    private int maxConcurrentShardRequests = 256;
+    private int maxConcurrentShardRequests = 0;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -308,22 +308,29 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     /**
      * Returns the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
      * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
-     * with this number to reduce the cluster load. The default is <tt>256</tt>
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
      */
     public int getMaxConcurrentShardRequests() {
-        return maxConcurrentShardRequests;
+        return maxConcurrentShardRequests == 0 ? 256 : maxConcurrentShardRequests;
     }
 
     /**
      * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
-     * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
-     * with this number to reduce the cluster load. The default is <tt>256</tt>
+     * reduce the number of shard requests fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
      */
     public void setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
         if (maxConcurrentShardRequests < 1) {
             throw new IllegalArgumentException("maxConcurrentShardRequests must be >= 1");
         }
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+    }
+
+    /**
+     * Returns <code>true</code> iff the maxConcurrentShardRequest is set.
+     */
+    boolean isMaxConcurrentShardRequestsSet() {
+        return maxConcurrentShardRequests != 0;
     }
 
     /**

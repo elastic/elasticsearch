@@ -168,7 +168,9 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         }
 
         MatchQuery matchQuery = new MatchQuery(context);
-        matchQuery.setAnalyzer(analyzer);
+        if (analyzer != null) {
+            matchQuery.setAnalyzer(analyzer);
+        }
         matchQuery.setPhraseSlop(slop);
         matchQuery.setMaxExpansions(maxExpansions);
 

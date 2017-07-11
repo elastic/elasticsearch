@@ -109,7 +109,6 @@ class InternalAwsS3Service extends AbstractLifecycleComponent implements AwsS3Se
          * you must be using Signature Version 4
          */
         clientConfiguration.withSignerOverride("AWSS3V4SignerType");
-
         return clientConfiguration;
     }
 

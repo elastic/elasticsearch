@@ -76,9 +76,7 @@ class DefaultS3OutputStream extends S3OutputStream {
     DefaultS3OutputStream(S3BlobStore blobStore, String bucketName, String blobName, int
             bufferSizeInBytes, boolean serverSideEncryption, String serverSideEncryptionKey) {
         super(blobStore, bucketName, blobName, bufferSizeInBytes, serverSideEncryption, serverSideEncryptionKey);
-
     }
-
 
     @Override
     public void flush(byte[] bytes, int off, int len, boolean closing) throws IOException {

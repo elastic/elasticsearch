@@ -62,9 +62,6 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     // length of the input data is 100 bytes
     private byte[] byteCounter = new byte[100];
 
-    private Region region;
-
-
     MockAmazonS3(int mockSocketPort) {
         this.mockSocketPort = mockSocketPort;
     }
@@ -89,12 +86,6 @@ class MockAmazonS3 extends AbstractAmazonS3 {
     @Override
     public boolean doesBucketExist(String bucket) {
         return true;
-    }
-
-    @Override
-    public void setRegion(Region region)
-        throws AmazonClientException, AmazonServiceException {
-        this.region = region;
     }
 
     @Override

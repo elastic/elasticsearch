@@ -1,0 +1,213 @@
+[[ingest-attachment]]
+=== Ingest Attachment Processor Plugin
+
+The ingest attachment plugin lets Elasticsearch extract file attachments in common formats (such as PPT, XLS, and PDF) by
+using the Apache text extraction library http://lucene.apache.org/tika/[Tika].
+
+You can use the ingest attachment plugin as a replacement for the mapper attachment plugin.
+
+The source field must be a base64 encoded binary. If you do not want to incur
+the overhead of converting back and forth between base64, you can use the CBOR
+format instead of JSON and specify the field as a bytes array instead of a string
+representation. The processor will skip the base64 decoding then.
+
+:plugin_name: ingest-attachment
+include::install_remove.asciidoc[]
+
+[[using-ingest-attachment]]
+==== Using the Attachment Processor in a Pipeline
+
+[[ingest-attachment-options]]
+.Attachment options
+[options="header"]
+|======
+| Name                   | Required  | Default          | Description
+| `field`                | yes       | -                | The field to get the base64 encoded field from
+| `target_field`         | no        | attachment       | The field that will hold the attachment information
+| `indexed_chars`        | no        | 100000           | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
+| `properties`           | no        | all properties   | Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`
+| `ignore_missing`       | no        | `false`          | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+|======
+
+For example, this:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/attachment
+{
+  "description" : "Extract attachment information",
+  "processors" : [
+    {
+      "attachment" : {
+        "field" : "data"
+      }
+    }
+  ]
+}
+PUT my_index/my_type/my_id?pipeline=attachment
+{
+  "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
+}
+GET my_index/my_type/my_id
+--------------------------------------------------
+// CONSOLE
+
+Returns this:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_index": "my_index",
+  "_type": "my_type",
+  "_id": "my_id",
+  "_version": 1,
+  "_source": {
+    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+    "attachment": {
+      "content_type": "application/rtf",
+      "language": "ro",
+      "content": "Lorem ipsum dolor sit amet",
+      "content_length": 28
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+To specify only some fields to be extracted:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/attachment
+{
+  "description" : "Extract attachment information",
+  "processors" : [
+    {
+      "attachment" : {
+        "field" : "data",
+        "properties": [ "content", "title" ]
+      }
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+
+NOTE: Extracting contents from binary data is a resource intensive operation and
+      consumes a lot of resources. It is highly recommended to run pipelines
+      using this processor in a dedicated ingest node.
+
+[[ingest-attachment-with-arrays]]
+==== Using the Attachment Processor with arrays
+
+To use the attachment processor within an array of attachments the
+{ref}/foreach-processor.html[foreach processor] is required. This
+enables the attachment processor to be run on the individual elements
+of the array.
+
+For example, given the following source:
+
+[source,js]
+--------------------------------------------------
+{
+  "attachments" : [
+    {
+      "filename" : "ipsum.txt",
+      "data" : "dGhpcyBpcwpqdXN0IHNvbWUgdGV4dAo="
+    },
+    {
+      "filename" : "test.txt",
+      "data" : "VGhpcyBpcyBhIHRlc3QK"
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+In this case, we want to process the data field in each element
+of the attachments field and insert
+the properties into the document so the following `foreach`
+processor is used:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/attachment
+{
+  "description" : "Extract attachment information from arrays",
+  "processors" : [
+    {
+      "foreach": {
+        "field": "attachments",
+        "processor": {
+          "attachment": {
+            "target_field": "_ingest._value.attachment",
+            "field": "_ingest._value.data"
+          }
+        }
+      }
+    }
+  ]
+}
+PUT my_index/my_type/my_id?pipeline=attachment
+{
+  "attachments" : [
+    {
+      "filename" : "ipsum.txt",
+      "data" : "dGhpcyBpcwpqdXN0IHNvbWUgdGV4dAo="
+    },
+    {
+      "filename" : "test.txt",
+      "data" : "VGhpcyBpcyBhIHRlc3QK"
+    }
+  ]
+}
+GET my_index/my_type/my_id
+--------------------------------------------------
+// CONSOLE
+
+Returns this:
+[source,js]
+--------------------------------------------------
+{
+  "_index" : "my_index",
+  "_type" : "my_type",
+  "_id" : "my_id",
+  "_version" : 1,
+  "found" : true,
+  "_source" : {
+    "attachments" : [
+      {
+        "filename" : "ipsum.txt",
+        "data" : "dGhpcyBpcwpqdXN0IHNvbWUgdGV4dAo=",
+        "attachment" : {
+          "content_type" : "text/plain; charset=ISO-8859-1",
+          "language" : "en",
+          "content" : "this is\njust some text",
+          "content_length" : 24
+        }
+      },
+      {
+        "filename" : "test.txt",
+        "data" : "VGhpcyBpcyBhIHRlc3QK",
+        "attachment" : {
+          "content_type" : "text/plain; charset=ISO-8859-1",
+          "language" : "en",
+          "content" : "This is a test",
+          "content_length" : 16
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+Note that the `target_field` needs to be set, otherwise the
+default value is used which is a top level field `attachment`. The
+properties on this top level field will contain the value of the
+first attachment only. However, by specifying the
+`target_field` on to a value on `_ingest._value` it will correctly
+associate the properties with the correct attachment.

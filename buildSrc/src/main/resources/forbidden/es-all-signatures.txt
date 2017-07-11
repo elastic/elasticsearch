@@ -1,0 +1,50 @@
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance  with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on
+# an 'AS IS' BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+# either express or implied. See the License for the specific
+# language governing permissions and limitations under the License.
+
+java.nio.file.Paths @ Use org.elasticsearch.common.io.PathUtils.get() instead.
+java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.common.io.PathUtils.getDefaultFileSystem() instead.
+
+java.nio.file.Files#getFileStore(java.nio.file.Path) @ Use org.elasticsearch.env.Environment.getFileStore() instead, impacted by JDK-8034057
+java.nio.file.Files#isWritable(java.nio.file.Path) @ Use org.elasticsearch.env.Environment.isWritable() instead, impacted by JDK-8034057
+
+@defaultMessage Use org.elasticsearch.common.Randomness#get for reproducible sources of randomness
+java.util.Random#<init>()
+java.util.concurrent.ThreadLocalRandom
+
+java.security.MessageDigest#clone() @ use org.elasticsearch.common.hash.MessageDigests
+
+@defaultMessage Don't use MethodHandles in slow ways, don't be lenient in tests.
+java.lang.invoke.MethodHandle#invoke(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.lang.Object[])
+java.lang.invoke.MethodHandle#invokeWithArguments(java.util.List)
+
+@defaultMessage Don't open socket connections
+java.net.URL#openStream()
+java.net.URLConnection#connect()
+java.net.URLConnection#getInputStream()
+java.net.Socket#connect(java.net.SocketAddress)
+java.net.Socket#connect(java.net.SocketAddress, int)
+java.nio.channels.SocketChannel#open(java.net.SocketAddress)
+java.nio.channels.SocketChannel#connect(java.net.SocketAddress)
+
+# This method is misleading, and uses lenient boolean parsing under the hood. If you intend to parse
+# a system property as a boolean, use
+# org.elasticsearch.common.Booleans#parseBoolean(java.lang.String) on the result of
+# java.lang.SystemProperty#getProperty(java.lang.String) instead. If you were not intending to parse
+# a system property as a boolean, but instead parse a string to a boolean, use
+# org.elasticsearch.common.Booleans#parseBoolean(java.lang.String) directly on the string.
+@defaultMessage use org.elasticsearch.common.Booleans#parseBoolean(java.lang.String)
+java.lang.Boolean#getBoolean(java.lang.String)

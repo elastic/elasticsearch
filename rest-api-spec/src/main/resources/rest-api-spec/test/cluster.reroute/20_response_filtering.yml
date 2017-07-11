@@ -1,0 +1,14 @@
+---
+"Do not return metadata by default":
+  - do:
+      cluster.reroute: {}
+  - is_false: state.metadata
+---
+"return metadata if requested":
+  - do:
+      cluster.reroute:
+        metric: metadata
+
+  - is_true: state.metadata
+  - is_false: state.nodes
+

@@ -1,0 +1,63 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+task buildRpm(type: Rpm) {
+  dependsOn preparePackagingFiles
+  baseName 'elasticsearch' // this is what pom generation uses for artifactId
+  // Follow elasticsearch's rpm file naming convention
+  archiveName "${packageName}-${project.version}.rpm"
+  packageGroup 'Application/Internet'
+  prefix '/usr'
+  packager 'Elasticsearch'
+  version = project.version.replace('-', '_')
+  release = '1'
+  arch 'NOARCH'
+  os 'LINUX'
+  license '2009'
+  distribution 'Elasticsearch'
+  vendor 'Elasticsearch'
+  dirMode 0755
+  fileMode 0644
+  addParentDirs false
+  // TODO ospackage doesn't support icon but we used to have one
+
+  // Declare the folders so that the RPM package manager removes
+  // them when upgrading or removing the package
+  directory('/usr/share/elasticsearch/bin', 0755)
+  directory('/usr/share/elasticsearch/lib', 0755)
+  directory('/usr/share/elasticsearch/modules', 0755)
+  modulesFiles.eachFile { FileCopyDetails fcp ->
+    if (fcp.name == "plugin-descriptor.properties") {
+      directory('/usr/share/elasticsearch/modules/' + fcp.file.parentFile.name, 0755)
+    }
+  }
+}
+
+artifacts {
+  'default' buildRpm
+  archives buildRpm
+}
+
+integTest {
+  /* We use real rpm tools to extract the rpm file for testing so we have to
+    skip the test if they aren't around. */
+  enabled = new File('/bin/rpm').exists() ||   // Standard location
+      new File('/usr/bin/rpm').exists() ||     // Debian location
+      new File('/usr/local/bin/rpm').exists()  // Homebrew location
+}

@@ -1,0 +1,225 @@
+#
+# Licensed to Elasticsearch under one or more contributor
+# license agreements. See the NOTICE file distributed with
+# this work for additional information regarding copyright
+# ownership. Elasticsearch licenses this file to you under
+# the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+#
+# Painless definition file. This defines the hierarchy of classes,
+# what methods and fields they have, etc.
+#
+
+#### Interfaces
+
+class Temporal -> java.time.temporal.Temporal extends TemporalAccessor {
+  Temporal minus(long,TemporalUnit)
+  Temporal minus(TemporalAmount)
+  Temporal plus(long,TemporalUnit)
+  Temporal plus(TemporalAmount)
+  long until(Temporal,TemporalUnit)
+  Temporal with(TemporalAdjuster)
+  Temporal with(TemporalField,long)
+}
+
+class TemporalAccessor -> java.time.temporal.TemporalAccessor {
+  int get(TemporalField)
+  long getLong(TemporalField)
+  boolean isSupported(TemporalField)
+  def query(TemporalQuery)
+  ValueRange range(TemporalField)
+}
+
+class TemporalAdjuster -> java.time.temporal.TemporalAdjuster {
+  Temporal adjustInto(Temporal)
+}
+
+class TemporalAmount -> java.time.temporal.TemporalAmount {
+  Temporal addTo(Temporal)
+  long get(TemporalUnit)
+  List getUnits()
+  Temporal subtractFrom(Temporal)
+}
+
+class TemporalField -> java.time.temporal.TemporalField {
+  Temporal adjustInto(Temporal,long)
+  TemporalUnit getBaseUnit()
+  String getDisplayName(Locale)
+  long getFrom(TemporalAccessor)
+  TemporalUnit getRangeUnit()
+  boolean isDateBased()
+  boolean isSupportedBy(TemporalAccessor)
+  boolean isTimeBased()
+  ValueRange range()
+  ValueRange rangeRefinedBy(TemporalAccessor)
+  TemporalAccessor resolve(Map,TemporalAccessor,ResolverStyle)
+  String toString()
+}
+
+class TemporalQuery -> java.time.temporal.TemporalQuery {
+  def queryFrom(TemporalAccessor)
+}
+
+class TemporalUnit -> java.time.temporal.TemporalUnit {
+  Temporal addTo(Temporal,long)
+  long between(Temporal,Temporal)
+  Duration getDuration()
+  boolean isDateBased()
+  boolean isDurationEstimated()
+  boolean isSupportedBy(Temporal)
+  boolean isTimeBased()
+  String toString()
+}
+
+#### Classes
+
+class IsoFields -> java.time.temporal.IsoFields extends Object {
+  TemporalField DAY_OF_QUARTER
+  TemporalField QUARTER_OF_YEAR
+  TemporalUnit QUARTER_YEARS
+  TemporalField WEEK_BASED_YEAR
+  TemporalUnit WEEK_BASED_YEARS
+  TemporalField WEEK_OF_WEEK_BASED_YEAR
+}
+
+class JulianFields -> java.time.temporal.JulianFields extends Object {
+  TemporalField JULIAN_DAY
+  TemporalField MODIFIED_JULIAN_DAY
+  TemporalField RATA_DIE
+}
+
+class TemporalAdjusters -> java.time.temporal.TemporalAdjusters extends Object {
+  TemporalAdjuster dayOfWeekInMonth(int,DayOfWeek)
+  TemporalAdjuster firstDayOfMonth()
+  TemporalAdjuster firstDayOfNextMonth()
+  TemporalAdjuster firstDayOfNextYear()
+  TemporalAdjuster firstDayOfYear()
+  TemporalAdjuster firstInMonth(DayOfWeek)
+  TemporalAdjuster lastDayOfMonth()
+  TemporalAdjuster lastDayOfYear()
+  TemporalAdjuster lastInMonth(DayOfWeek)
+  TemporalAdjuster next(DayOfWeek)
+  TemporalAdjuster nextOrSame(DayOfWeek)
+  TemporalAdjuster ofDateAdjuster(UnaryOperator)
+  TemporalAdjuster previous(DayOfWeek)
+  TemporalAdjuster previousOrSame(DayOfWeek)
+}
+
+class TemporalQueries -> java.time.temporal.TemporalQueries extends Object {
+  TemporalQuery chronology()
+  TemporalQuery localDate()
+  TemporalQuery localTime()
+  TemporalQuery offset()
+  TemporalQuery precision()
+  TemporalQuery zone()
+  TemporalQuery zoneId()
+}
+
+class ValueRange -> java.time.temporal.ValueRange extends Object {
+  int checkValidIntValue(long,TemporalField)
+  long checkValidValue(long,TemporalField)
+  long getLargestMinimum()
+  long getMaximum()
+  long getMinimum()
+  long getSmallestMaximum()
+  boolean isFixed()
+  boolean isIntValue()
+  boolean isValidIntValue(long)
+  boolean isValidValue(long)
+  ValueRange of(long,long)
+  ValueRange of(long,long,long)
+  ValueRange of(long,long,long,long)
+}
+
+class WeekFields -> java.time.temporal.WeekFields extends Object {
+  WeekFields ISO
+  WeekFields SUNDAY_START
+  TemporalUnit WEEK_BASED_YEARS
+  TemporalField dayOfWeek()
+  DayOfWeek getFirstDayOfWeek()
+  int getMinimalDaysInFirstWeek()
+  WeekFields of(DayOfWeek,int)
+  WeekFields of(Locale)
+  TemporalField weekBasedYear()
+  TemporalField weekOfMonth()
+  TemporalField weekOfWeekBasedYear()
+  TemporalField weekOfYear()
+}
+
+#### Enums
+
+class ChronoField -> java.time.temporal.ChronoField extends Enum,Comparable,TemporalField,Object {
+  ChronoField ALIGNED_DAY_OF_WEEK_IN_MONTH
+  ChronoField ALIGNED_DAY_OF_WEEK_IN_YEAR
+  ChronoField ALIGNED_WEEK_OF_MONTH
+  ChronoField ALIGNED_WEEK_OF_YEAR
+  ChronoField AMPM_OF_DAY
+  ChronoField CLOCK_HOUR_OF_AMPM
+  ChronoField CLOCK_HOUR_OF_DAY
+  ChronoField DAY_OF_MONTH
+  ChronoField DAY_OF_WEEK
+  ChronoField DAY_OF_YEAR
+  ChronoField EPOCH_DAY
+  ChronoField ERA
+  ChronoField HOUR_OF_AMPM
+  ChronoField HOUR_OF_DAY
+  ChronoField INSTANT_SECONDS
+  ChronoField MICRO_OF_DAY
+  ChronoField MICRO_OF_SECOND
+  ChronoField MILLI_OF_DAY
+  ChronoField MILLI_OF_SECOND
+  ChronoField MINUTE_OF_DAY
+  ChronoField MINUTE_OF_HOUR
+  ChronoField MONTH_OF_YEAR
+  ChronoField NANO_OF_DAY
+  ChronoField NANO_OF_SECOND
+  ChronoField OFFSET_SECONDS
+  ChronoField PROLEPTIC_MONTH
+  ChronoField SECOND_OF_DAY
+  ChronoField SECOND_OF_MINUTE
+  ChronoField YEAR
+  ChronoField YEAR_OF_ERA
+  int checkValidIntValue(long)
+  long checkValidValue(long)
+  ChronoField valueOf(String)
+  ChronoField[] values()
+}
+
+class ChronoUnit -> java.time.temporal.ChronoUnit extends Enum,Comparable,TemporalUnit,Object {
+  ChronoUnit CENTURIES
+  ChronoUnit DAYS
+  ChronoUnit DECADES
+  ChronoUnit ERAS
+  ChronoUnit FOREVER
+  ChronoUnit HALF_DAYS
+  ChronoUnit HOURS
+  ChronoUnit MICROS
+  ChronoUnit MILLENNIA
+  ChronoUnit MILLIS
+  ChronoUnit MINUTES
+  ChronoUnit MONTHS
+  ChronoUnit NANOS
+  ChronoUnit SECONDS
+  ChronoUnit WEEKS
+  ChronoUnit YEARS
+  ChronoUnit valueOf(String)
+  ChronoUnit[] values()
+}
+
+#### Exceptions
+
+class UnsupportedTemporalTypeException -> java.time.temporal.UnsupportedTemporalTypeException extends DateTimeException,RuntimeException,Exception,Object {
+  UnsupportedTemporalTypeException <init>(String)
+}

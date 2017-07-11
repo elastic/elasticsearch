@@ -1,0 +1,23 @@
+[[analysis-smartcn]]
+=== Smart Chinese Analysis Plugin
+
+The Smart Chinese Analysis plugin integrates Lucene's Smart Chinese analysis
+module into elasticsearch.
+
+It provides an analyzer for Chinese or mixed Chinese-English text. This
+analyzer uses probabilistic knowledge to find the optimal word segmentation
+for Simplified Chinese text. The text is first broken into sentences, then
+each sentence is segmented into words.
+
+:plugin_name: analysis-smartcn
+include::install_remove.asciidoc[]
+
+
+[[analysis-smartcn-tokenizer]]
+[float]
+==== `smartcn` tokenizer and token filter
+
+The plugin provides the `smartcn` analyzer and `smartcn_tokenizer` tokenizer,
+which are not configurable.
+
+NOTE: The `smartcn_word` token filter and `smartcn_sentence` have been deprecated.

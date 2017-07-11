@@ -1,0 +1,11 @@
+[[java-query-dsl-multi-match-query]]
+==== Multi Match Query
+
+See {ref}/query-dsl-multi-match-query.html[Multi Match Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[multi_match]
+--------------------------------------------------
+<1> text
+<2> fields

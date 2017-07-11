@@ -7,7 +7,29 @@ ground for all Elasticsearch-related code in Python; because of this it tries
 to be opinion-free and very extendable. The full documentation is available at
 http://elasticsearch-py.rtfd.org/
 
-It can be installed with:
+.Elasticsearch DSL
+************************************************************************************
+For a more high level client library with more limited scope, have a look at
+http://elasticsearch-dsl.rtfd.org/[elasticsearch-dsl] - a more pythonic library
+sitting on top of `elasticsearch-py`.
+
+It provides a more convenient and idiomatic way to write and manipulate
+http://elasticsearch-dsl.readthedocs.org/en/latest/search_dsl.html[queries]. It
+stays close to the Elasticsearch JSON DSL, mirroring its terminology and
+structure while exposing the whole range of the DSL from Python either directly
+using defined classes or a queryset-like expressions.
+
+It also provides an optional
+http://elasticsearch-dsl.readthedocs.org/en/latest/persistence.html#doctype[persistence
+layer] for working with documents as Python objects in an ORM-like fashion:
+defining mappings, retrieving and saving documents, wrapping the document data
+in user-defined classes.
+************************************************************************************
+
+
+=== Installation
+
+It can be installed with pip:
 
 [source,sh]
 ------------------------------------
@@ -16,12 +38,24 @@ pip install elasticsearch
 
 === Versioning
 
-There are two branches for development - `master` and `0.4`. Master branch is
-used to track all the changes for Elasticsearch 1.0 and beyond whereas 0.4
-tracks Elasticsearch 0.90.
+There are two branches for development - `master` and `1.x`. Master branch is
+used to track all the changes for Elasticsearch 2.0 and beyond whereas 1.x
+tracks Elasticsearch 1.*.
 
 Releases with major version 1 (1.X.Y) are to be used with Elasticsearch 1.* and
 later, 0.4 releases are meant to work with Elasticsearch 0.90.*.
+
+The recommended way to set your requirements in your `setup.py` or
+`requirements.txt` is:
+
+[source,txt]
+------------------------------------
+    # Elasticsearch 2.x
+    elasticsearch>=2.0.0,<3.0.0
+
+    # Elasticsearch 1.x
+    elasticsearch>=1.0.0,<2.0.0
+------------------------------------
 
 === Example use
 
@@ -44,7 +78,7 @@ Simple use-case:
 {u'any': u'data', u'timestamp': u'2013-05-12T19:45:31.804229'}
 ------------------------------------
 
-[NOTE] 
+[NOTE]
 All the API calls map the raw REST api as closely as possible, including
 the distinction between required and optional arguments to the calls. This
 means that the code makes distinction between positional and keyword arguments;
@@ -71,10 +105,14 @@ The client's features include:
 
 * pluggable architecture
 
+The client also contains a convenient set of
+http://elasticsearch-py.readthedocs.org/en/master/helpers.html[helpers] for
+some of the more engaging tasks like bulk indexing and reindexing.
+
 
 === License
 
-Copyright 2013 Elasticsearch
+Copyright 2013-2016 Elasticsearch
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -87,4 +125,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-

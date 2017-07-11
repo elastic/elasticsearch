@@ -1,0 +1,12 @@
+[[java-query-dsl-geo-distance-query]]
+==== Geo Distance Query
+
+See {ref}/query-dsl-geo-distance-query.html[Geo Distance Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[geo_bounding_box]
+--------------------------------------------------
+<1> field
+<2> center point
+<3> distance from center point

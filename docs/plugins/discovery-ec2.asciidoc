@@ -1,0 +1,294 @@
+[[discovery-ec2]]
+=== EC2 Discovery Plugin
+
+The EC2 discovery plugin uses the https://github.com/aws/aws-sdk-java[AWS API] for unicast discovery.
+
+*If you are looking for a hosted solution of Elasticsearch on AWS, please visit http://www.elastic.co/cloud.*
+
+:plugin_name: discovery-ec2
+include::install_remove.asciidoc[]
+
+[[discovery-ec2-usage]]
+==== Getting started with AWS
+
+The plugin will default to using
+http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html[IAM Role]
+credentials for authentication. These can be overridden by, in increasing
+order of precedence, system properties `aws.accessKeyId` and `aws.secretKey`,
+environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_KEY`, or the
+elasticsearch config using `cloud.aws.access_key` and `cloud.aws.secret_key`:
+
+[source,yaml]
+----
+cloud:
+    aws:
+        access_key: AKVAIQBF2RECL7FJWGJQ
+        secret_key: vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br
+----
+
+[[discovery-ec2-usage-security]]
+===== Transport security
+
+By default this plugin uses HTTPS for all API calls to AWS endpoints. If you wish to configure HTTP you can set
+`cloud.aws.protocol` in the elasticsearch config. You can optionally override this setting per individual service
+via: `cloud.aws.ec2.protocol` or `cloud.aws.s3.protocol`.
+
+[source,yaml]
+----
+cloud:
+    aws:
+        protocol: https
+        ec2:
+            protocol: https
+----
+
+In addition, a proxy can be configured with the `proxy.host`, `proxy.port`, `proxy.username` and `proxy.password` settings
+(note that protocol can be `http` or `https`):
+
+[source,yaml]
+----
+cloud:
+    aws:
+        protocol: https
+        proxy:
+            host: proxy1.company.com
+            port: 8083
+            username: myself
+            password: theBestPasswordEver!
+----
+
+You can also set different proxies for `ec2` and `s3`:
+
+[source,yaml]
+----
+cloud:
+    aws:
+        s3:
+            proxy:
+                host: proxy1.company.com
+                port: 8083
+                username: myself1
+                password: theBestPasswordEver1!
+        ec2:
+            proxy:
+                host: proxy2.company.com
+                port: 8083
+                username: myself2
+                password: theBestPasswordEver2!
+----
+
+[[discovery-ec2-usage-region]]
+===== Region
+
+The `cloud.aws.region` can be set to a region and will automatically use the relevant settings for both `ec2` and `s3`.
+The available values are:
+
+* `us-east` (`us-east-1`) for US East (N. Virginia)
+* `us-east-2` for US East (Ohio)
+* `us-west` (`us-west-1`) for US West (N. California)
+* `us-west-2` for US West (Oregon)
+* `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
+* `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
+* `ap-southeast-2` for Asia Pacific (Sydney)
+* `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
+* `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
+* `eu-west` (`eu-west-1`) for EU (Ireland)
+* `eu-west-2` (`eu-west-2`) for EU (London)
+* `eu-central` (`eu-central-1`) for EU (Frankfurt)
+* `sa-east` (`sa-east-1`) for South America (São Paulo)
+* `cn-north` (`cn-north-1`) for China (Beijing)
+* `ca-central` (`ca-central-1`) for Canada (Central)
+
+[[discovery-ec2-usage-signer]]
+===== EC2 Signer API
+
+If you are using a compatible EC2 service, they might be using an older API to sign the requests.
+You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.ec2.signer`)
+with the right signer to use.
+
+===== Read timeout
+
+Read timeout determines the amount of time to wait for data to be transferred over an established,
+open connection before the connection is timed out. Defaults to AWS SDK default value (`50 s`).
+It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.ec2.read_timeout`) setting:
+
+[source, yaml]
+----
+cloud.aws.read_timeout: 30s
+----
+
+[[discovery-ec2-discovery]]
+==== EC2 Discovery
+
+ec2 discovery allows to use the ec2 APIs to perform automatic discovery (similar to multicast in non hostile multicast
+environments). Here is a simple sample configuration:
+
+[source,yaml]
+----
+discovery:
+    zen.hosts_provider: ec2
+----
+
+You must also set `cloud.aws.region` if you are not using default AWS region. See <<discovery-ec2-usage-region>> for details.
+
+The ec2 discovery is using the same credentials as the rest of the AWS services provided by this plugin (`repositories`).
+See <<discovery-ec2-usage>> for details.
+
+The following are a list of settings (prefixed with `discovery.ec2`) that can further control the discovery:
+
+`groups`::
+
+    Either a comma separated list or array based list of (security) groups.
+    Only instances with the provided security groups will be used in the
+    cluster discovery. (NOTE: You could provide either group NAME or group
+    ID.)
+
+`host_type`::
+
++
+--
+The type of host type to use to communicate with other instances. Can be
+one of `private_ip`, `public_ip`, `private_dns`, `public_dns` or `tag:TAGNAME` where
+`TAGNAME` refers to a name of a tag configured for all EC2 instances. Instances which don't
+have this tag set will be ignored by the discovery process.
+
+For example if you defined a tag `my-elasticsearch-host` in ec2 and set it to `myhostname1.mydomain.com`, then
+setting `host_type: tag:my-elasticsearch-host` will tell Discovery Ec2 plugin to read the host name from the
+`my-elasticsearch-host` tag. In this case, it will be resolved to `myhostname1.mydomain.com`.
+http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html[Read more about EC2 Tags].
+
+Defaults to `private_ip`.
+--
+
+`availability_zones`::
+
+    Either a comma separated list or array based list of availability zones.
+    Only instances within the provided availability zones will be used in the
+    cluster discovery.
+
+`any_group`::
+
+    If set to `false`, will require all security groups to be present for the
+    instance to be used for the discovery. Defaults to `true`.
+
+`node_cache_time`::
+
+    How long the list of hosts is cached to prevent further requests to the AWS API.
+    Defaults to `10s`.
+
+[IMPORTANT]
+.Binding the network host
+==============================================
+
+It's important to define `network.host` as by default it's bound to `localhost`.
+
+You can use {ref}/modules-network.html[core network host settings] or
+<<discovery-ec2-network-host,ec2 specific host settings>>:
+
+==============================================
+
+[[discovery-ec2-network-host]]
+===== EC2 Network Host
+
+When the `discovery-ec2` plugin is installed, the following are also allowed
+as valid network host settings:
+
+[cols="<,<",options="header",]
+|==================================================================
+|EC2 Host Value |Description
+|`_ec2:privateIpv4_` |The private IP address (ipv4) of the machine.
+|`_ec2:privateDns_` |The private host of the machine.
+|`_ec2:publicIpv4_` |The public IP address (ipv4) of the machine.
+|`_ec2:publicDns_` |The public host of the machine.
+|`_ec2:privateIp_` |equivalent to `_ec2:privateIpv4_`.
+|`_ec2:publicIp_` |equivalent to `_ec2:publicIpv4_`.
+|`_ec2_` |equivalent to `_ec2:privateIpv4_`.
+|==================================================================
+
+[[discovery-ec2-permissions]]
+===== Recommended EC2 Permissions
+
+EC2 discovery requires making a call to the EC2 service. You'll want to setup
+an IAM policy to allow this. You can create a custom policy via the IAM
+Management Console. It should look similar to this.
+
+[source,js]
+----
+{
+  "Statement": [
+    {
+      "Action": [
+        "ec2:DescribeInstances"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+        "*"
+      ]
+    }
+  ],
+  "Version": "2012-10-17"
+}
+----
+// NOTCONSOLE
+
+[[discovery-ec2-filtering]]
+===== Filtering by Tags
+
+The ec2 discovery can also filter machines to include in the cluster based on tags (and not just groups). The settings
+to use include the `discovery.ec2.tag.` prefix. For example, setting `discovery.ec2.tag.stage` to `dev` will only
+filter instances with a tag key set to `stage`, and a value of `dev`. Several tags set will require all of those tags
+to be set for the instance to be included.
+
+One practical use for tag filtering is when an ec2 cluster contains many nodes that are not running elasticsearch. In
+this case (particularly with high `discovery.zen.ping_timeout` values) there is a risk that a new node's discovery phase
+will end before it has found the cluster (which will result in it declaring itself master of a new cluster with the same
+name - highly undesirable). Tagging elasticsearch ec2 nodes and then filtering by that tag will resolve this issue.
+
+[[discovery-ec2-attributes]]
+===== Automatic Node Attributes
+
+Though not dependent on actually using `ec2` as discovery (but still requires the `discovery-ec2` plugin installed), the
+plugin can automatically add node attributes relating to ec2. In the future this may support other attributes, but this will
+currently only add an `aws_availability_zone` node attribute, which is the availability zone of the current node. Attributes
+can be used to isolate primary and replica shards across availability zones by using the
+{ref}/allocation-awareness.html[Allocation Awareness] feature.
+
+In order to enable it, set `cloud.node.auto_attributes` to `true` in the settings. For example:
+
+[source,yaml]
+----
+cloud.node.auto_attributes: true
+
+cluster.routing.allocation.awareness.attributes: aws_availability_zone
+----
+
+[[discovery-ec2-endpoint]]
+===== Using other EC2 endpoint
+
+If you are using any EC2 api compatible service, you can set the endpoint you want to use by setting
+`cloud.aws.ec2.endpoint` to your URL provider.
+
+[[cloud-aws-best-practices]]
+==== Best Practices in AWS
+
+Collection of best practices and other information around running Elasticsearch on AWS.
+
+===== Instance/Disk
+When selecting disk please be aware of the following order of preference:
+
+* https://aws.amazon.com/efs/[EFS] - Avoid as the sacrifices made to offer durability, shared storage, and grow/shrink come at performance cost, such file systems have been known to cause corruption of indices, and due to Elasticsearch being distributed and having built-in replication, the benefits that EFS offers are not needed.
+* https://aws.amazon.com/ebs/[EBS] - Works well if running a small cluster (1-2 nodes) and cannot tolerate the loss all storage backing a node easily or if running indices with no replicas. If EBS is used, then leverage provisioned IOPS to ensure performance.
+* http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/InstanceStorage.html[Instance Store] - When running clusters of larger size and with replicas the ephemeral nature of Instance Store is ideal since Elasticsearch can tolerate the loss of shards. With Instance Store one gets the performance benefit of having disk physically attached to the host running the instance and also the cost benefit of avoiding paying extra for EBS.
+
+
+Prefer https://aws.amazon.com/amazon-linux-ami/[Amazon Linux AMIs] as since Elasticsearch runs on the JVM, OS dependencies are very minimal and one can benefit from the lightweight nature, support, and performance tweaks specific to EC2 that the Amazon Linux AMIs offer.
+
+===== Networking
+* Networking throttling takes place on smaller instance types in both the form of https://lab.getbase.com/how-we-discovered-limitations-on-the-aws-tcp-stack/[bandwidth and number of connections]. Therefore if large number of connections are needed and networking is becoming a bottleneck, avoid https://aws.amazon.com/ec2/instance-types/[instance types] with networking labeled as `Moderate` or `Low`.
+* Multicast is not supported, even when in an VPC; the aws cloud plugin which joins by performing a security group lookup.
+* When running in multiple http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html[availability zones] be sure to leverage {ref}/allocation-awareness.html[shard allocation awareness] so that not all copies of shard data reside in the same availability zone.
+* Do not span a cluster across regions.  If necessary, use a tribe node.
+
+===== Misc
+* If you have split your nodes into roles, consider https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html[tagging the EC2 instances] by role to make it easier to filter and view your EC2 instances in the AWS console.
+* Consider https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/terminating-instances.html#Using_ChangingDisableAPITermination[enabling termination protection] for all of your instances to avoid accidentally terminating a node in the cluster and causing a potentially disruptive reallocation.

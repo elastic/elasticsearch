@@ -1,0 +1,44 @@
+# Integration tests for Phonetic analysis components
+#
+---
+"Index phonetic content":
+    - do:
+        indices.create:
+            index:  phonetic_sample
+            body:
+                settings:
+                    index:
+                        analysis:
+                            analyzer:
+                                my_analyzer:
+                                    tokenizer:  standard
+                                    filter: ["standard", "lowercase", "my_metaphone"]
+                            filter:
+                                my_metaphone:
+                                    type: phonetic
+                                    encoder: metaphone
+                                    replace: false
+                mappings:
+                    type:
+                        properties:
+                            text:
+                                type:     text
+                                analyzer: my_analyzer
+
+    - do:
+        index:
+            index:  phonetic_sample
+            type:   type
+            id:     1
+            body:   { "text": "hello world" }
+    - do:
+        indices.refresh: {}
+
+    - do:
+        search:
+            index: phonetic_sample
+            body:
+                query:
+                    match:
+                        text: helllo
+    - match: { hits.total: 1 }

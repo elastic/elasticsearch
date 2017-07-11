@@ -1,0 +1,23 @@
+[[breaking_60_docs_changes]]
+=== Document API changes
+
+==== version type `force` removed
+
+Document modification operations may no longer specify the `version_type` of
+`force` to override any previous version checks.
+
+==== <<upserts,Upserts>> no longer support versions
+
+Adding a `version` to an upsert request is no longer supported.
+
+==== `created` field removed in the Index API
+
+The `created` field has been removed in the Index API as in the `index` and
+`create` bulk operations. `operation` field should be used instead.
+
+
+==== `found` field removed in the Delete API
+
+The `found` field has been removed in the Delete API as in the `delete` bulk
+operations. `operation` field should be used instead.
+

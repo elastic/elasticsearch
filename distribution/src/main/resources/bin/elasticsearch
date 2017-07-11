@@ -1,0 +1,178 @@
+#!/bin/bash
+
+# CONTROLLING STARTUP:
+#
+# This script relies on few environment variables to determine startup
+# behavior, those variables are:
+#
+#   ES_CLASSPATH -- A Java classpath containing everything necessary to run.
+#   ES_JVM_OPTIONS -- Path to file containing JVM options
+#   ES_JAVA_OPTS -- External Java Opts on top of the defaults set
+#
+# Optionally, exact memory values can be set using the `ES_JAVA_OPTS`.
+# Note that the Xms and Xmx lines in the JVM options file must be
+# commented out. Sample format include "512m", and "10g".
+#
+#   ES_JAVA_OPTS="-Xms8g -Xmx8g" ./bin/elasticsearch
+#
+# As a convenience, a fragment of shell is sourced in order to set one or
+# more of these variables. This so-called `include' can be placed in a
+# number of locations and will be searched for in order. The lowest
+# priority search path is the same directory as the startup script, and
+# since this is the location of the sample in the project tree, it should
+# almost work Out Of The Box.
+#
+# Any serious use-case though will likely require customization of the
+# include. For production installations, it is recommended that you copy
+# the sample to one of /usr/share/elasticsearch/elasticsearch.in.sh,
+# /usr/local/share/elasticsearch/elasticsearch.in.sh, or
+# /opt/elasticsearch/elasticsearch.in.sh and make your modifications there.
+#
+# Another option is to specify the full path to the include file in the
+# environment. For example:
+#
+#   $ ES_INCLUDE=/path/to/in.sh elasticsearch -p /var/run/es.pid
+#
+# Note: This is particularly handy for running multiple instances on a
+# single installation, or for quick tests.
+#
+# If you would rather configure startup entirely from the environment, you
+# can disable the include by exporting an empty ES_INCLUDE, or by
+# ensuring that no include files exist in the aforementioned search list.
+# Be aware that you will be entirely responsible for populating the needed
+# environment variables.
+
+# Check to see if you are trying to run this without building it first. Gradle
+# will replace the project.name with _something_.
+
+if echo '${project.name}' | grep project.name > /dev/null ; then
+    cat >&2 << EOF
+Error: You must build the project with Gradle or download a pre-built package
+before you can run Elasticsearch. See 'Building from Source' in README.textile
+or visit https://www.elastic.co/download to get a pre-built package.
+EOF
+    exit 1
+fi
+
+parse_jvm_options() {
+  if [ -f "$1" ]; then
+    echo "$(grep "^-" "$1" | tr '\n' ' ')"
+  fi
+}
+
+CDPATH=""
+SCRIPT="$0"
+
+# SCRIPT may be an arbitrarily deep series of symlinks. Loop until we have the concrete path.
+while [ -h "$SCRIPT" ] ; do
+  ls=`ls -ld "$SCRIPT"`
+  # Drop everything prior to ->
+  link=`expr "$ls" : '.*-> \(.*\)$'`
+  if expr "$link" : '/.*' > /dev/null; then
+    SCRIPT="$link"
+  else
+    SCRIPT=`dirname "$SCRIPT"`/"$link"
+  fi
+done
+
+# determine elasticsearch home
+ES_HOME=`dirname "$SCRIPT"`/..
+
+# make ELASTICSEARCH_HOME absolute
+ES_HOME=`cd "$ES_HOME"; pwd`
+
+if [ -z "$ES_JVM_OPTIONS" ]; then
+    for jvm_options in "$ES_HOME"/config/jvm.options \
+                      /etc/elasticsearch/jvm.options; do
+        if [ -r "$jvm_options" ]; then
+            ES_JVM_OPTIONS=$jvm_options
+            break
+        fi
+    done
+fi
+
+ES_JAVA_OPTS="$(parse_jvm_options "$ES_JVM_OPTIONS") $ES_JAVA_OPTS"
+
+# If an include wasn't specified in the environment, then search for one...
+if [ "x$ES_INCLUDE" = "x" ]; then
+    # Locations (in order) to use when searching for an include file.
+    for include in /usr/share/elasticsearch/elasticsearch.in.sh \
+                   /usr/local/share/elasticsearch/elasticsearch.in.sh \
+                   /opt/elasticsearch/elasticsearch.in.sh \
+                   ~/.elasticsearch.in.sh \
+                   "$ES_HOME/bin/elasticsearch.in.sh" \
+                   "`dirname "$0"`"/elasticsearch.in.sh; do
+        if [ -r "$include" ]; then
+            . "$include"
+            break
+        fi
+    done
+# ...otherwise, source the specified include.
+elif [ -r "$ES_INCLUDE" ]; then
+    . "$ES_INCLUDE"
+fi
+
+if [ -x "$JAVA_HOME/bin/java" ]; then
+    JAVA="$JAVA_HOME/bin/java"
+else
+    JAVA=`which java`
+fi
+
+if [ ! -x "$JAVA" ]; then
+    echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+    exit 1
+fi
+
+if [ -z "$ES_CLASSPATH" ]; then
+    echo "You must set the ES_CLASSPATH var" >&2
+    exit 1
+fi
+
+# don't let JAVA_TOOL_OPTIONS slip in (e.g. crazy agents in ubuntu)
+# works around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487
+if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
+    echo "Warning: Ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+    echo "Please pass JVM parameters via ES_JAVA_OPTS instead"
+    unset JAVA_TOOL_OPTIONS
+fi
+
+# JAVA_OPTS is not a built-in JVM mechanism but some people think it is
+# so let us warn them that we are not observing the value of $JAVA_OPTS
+if [ "x$JAVA_OPTS" != "x" ]; then
+    echo "Warning: Ignoring JAVA_OPTS=$JAVA_OPTS"
+    echo "Please pass JVM parameters via ES_JAVA_OPTS instead"
+fi
+
+"$JAVA" -cp "$ES_CLASSPATH" org.elasticsearch.tools.JavaVersionChecker
+
+if [ $? -ne 0 ]; then
+    echo "Elasticsearch requires at least Java 8 but your Java version from $JAVA does not meet this requirement"
+    exit 1
+fi
+
+# full hostname passed through cut for portability on systems that do not support hostname -s
+# export on separate line for shells that do not support combining definition and export
+HOSTNAME=`hostname | cut -d. -f1`
+export HOSTNAME
+
+# manual parsing to find out, if process should be detached
+daemonized=`echo $* | egrep -- '(^-d |-d$| -d |--daemonize$|--daemonize )'`
+if [ -z "$daemonized" ] ; then
+    exec "$JAVA" $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
+          org.elasticsearch.bootstrap.Elasticsearch "$@"
+else
+    exec "$JAVA" $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
+          org.elasticsearch.bootstrap.Elasticsearch "$@" <&- &
+    retval=$?
+    pid=$!
+    [ $retval -eq 0 ] || exit $retval
+    if [ ! -z "$ES_STARTUP_SLEEP_TIME" ]; then
+      sleep $ES_STARTUP_SLEEP_TIME
+    fi
+    if ! ps -p $pid > /dev/null ; then
+      exit 1
+    fi
+    exit 0
+fi
+
+exit $?

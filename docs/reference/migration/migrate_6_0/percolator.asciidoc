@@ -1,0 +1,6 @@
+[[breaking_60_percolator_changes]]
+=== Percolator changes
+
+==== Deprecated percolator and mpercolate apis have been removed
+
+Instead the `percolate` query should be used via either the search or msearch apis.

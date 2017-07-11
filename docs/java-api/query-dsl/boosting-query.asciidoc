@@ -1,0 +1,12 @@
+[[java-query-dsl-boosting-query]]
+==== Boosting Query
+
+See {ref}/query-dsl-boosting-query.html[Boosting Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[boosting]
+--------------------------------------------------
+<1> query that will promote documents
+<2> query that will demote documents
+<3> negative boost

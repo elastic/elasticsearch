@@ -1,7 +1,59 @@
 [[analysis-keyword-analyzer]]
 === Keyword Analyzer
 
-An analyzer of type `keyword` that "tokenizes" an entire stream as a
-single token. This is useful for data like zip codes, ids and so on.
-Note, when using mapping definitions, it might make more sense to simply
-mark the field as `not_analyzed`.
+The `keyword` analyzer is a ``noop'' analyzer which returns the entire input
+string as a single token.
+
+[float]
+=== Definition
+
+It consists of:
+
+Tokenizer::
+* <<analysis-keyword-tokenizer,Keyword Tokenizer>>
+
+[float]
+=== Example output
+
+[source,js]
+---------------------------
+POST _analyze
+{
+  "analyzer": "keyword",
+  "text": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone."
+}
+---------------------------
+// CONSOLE
+
+/////////////////////
+
+[source,js]
+----------------------------
+{
+  "tokens": [
+    {
+      "token": "The 2 QUICK Brown-Foxes jumped over the lazy dog's bone.",
+      "start_offset": 0,
+      "end_offset": 56,
+      "type": "word",
+      "position": 0
+    }
+  ]
+}
+----------------------------
+// TESTRESPONSE
+
+/////////////////////
+
+
+The above sentence would produce the following single term:
+
+[source,text]
+---------------------------
+[ The 2 QUICK Brown-Foxes jumped over the lazy dog's bone. ]
+---------------------------
+
+[float]
+=== Configuration
+
+The `keyword` analyzer is not configurable.

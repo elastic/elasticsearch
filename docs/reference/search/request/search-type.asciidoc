@@ -12,63 +12,46 @@ results to retrieve from each shard. For example, if we have 10 shards,
 the 1st shard might hold the most relevant results from 0 till 10, with
 other shards results ranking below it. For this reason, when executing a
 request, we will need to get results from 0 till 10 from all shards,
-sort them, and then return the results if we want to insure correct
+sort them, and then return the results if we want to ensure correct
 results.
 
-Another question, which relates to search engine, is the fact that each
+Another question, which relates to the search engine, is the fact that each
 shard stands on its own. When a query is executed on a specific shard,
 it does not take into account term frequencies and other search engine
 information from the other shards. If we want to support accurate
-ranking, we would need to first execute the query against all shards and
-gather the relevant term frequencies, and then, based on it, execute the
-query.
+ranking, we would need to first gather the term frequencies from all
+shards to calculate global term frequencies, then execute the query on
+each shard using these global frequencies.
 
 Also, because of the need to sort the results, getting back a large
-document set, or even scrolling it, while maintaing the correct sorting
+document set, or even scrolling it, while maintaining the correct sorting
 behavior can be a very expensive operation. For large result set
-scrolling without sorting, the `scan` search type (explained below) is
-also available.
+scrolling, it is best to sort by `_doc` if the order in which documents
+are returned is not important.
 
 Elasticsearch is very flexible and allows to control the type of search
 to execute on a *per search request* basis. The type can be configured
 by setting the *search_type* parameter in the query string. The types
 are:
 
-[[query-and-fetch]]
-==== Query And Fetch
-
-Parameter value: *query_and_fetch*.
-
-The most naive (and possibly fastest) implementation is to simply
-execute the query on all relevant shards and return the results. Each
-shard returns `size` results. Since each shard already returns `size`
-hits, this type actually returns `size` times `number of shards` results
-back to the caller.
-
 [[query-then-fetch]]
 ==== Query Then Fetch
 
 Parameter value: *query_then_fetch*.
 
-The query is executed against all shards, but only enough information is
-returned (*not the document content*). The results are then sorted and
-ranked, and based on it, *only the relevant shards* are asked for the
-actual document content. The return number of hits is exactly as
-specified in `size`, since they are the only ones that are fetched. This
-is very handy when the index has a lot of shards (not replicas, shard id
-groups).
+The request is processed in two phases. In the first phase, the query
+is forwarded to *all involved shards*. Each shard executes the search
+and generates a sorted list of results, local to that shard. Each
+shard returns *just enough information* to the coordinating node
+to allow it merge and re-sort the shard level results into a globally
+sorted set of results, of maximum length `size`. 
 
-NOTE: This is the default setting, if you do not specify a `search_type` 
+During the second phase, the coordinating node requests the document
+content (and highlighted snippets, if any) from *only the relevant
+shards*.
+
+NOTE: This is the default setting, if you do not specify a `search_type`
       in your request.
-
-[[dfs-query-and-fetch]]
-==== Dfs, Query And Fetch
-
-Parameter value: *dfs_query_and_fetch*.
-
-Same as "Query And Fetch", except for an initial scatter phase which
-goes and computes the distributed term frequencies for more accurate
-scoring.
 
 [[dfs-query-then-fetch]]
 ==== Dfs, Query Then Fetch
@@ -79,78 +62,4 @@ Same as "Query Then Fetch", except for an initial scatter phase which
 goes and computes the distributed term frequencies for more accurate
 scoring.
 
-[[count]]
-==== Count
 
-Parameter value: *count*.
-
-A special search type that returns the count that matched the search
-request without any docs (represented in `total_hits`), and possibly,
-including facets as well. In general, this is preferable to the `count`
-API as it provides more options.
-
-[[scan]]
-==== Scan
-
-Parameter value: *scan*.
-
-The `scan` search type allows to efficiently scroll a large result set.
-It's used first by executing a search request with scrolling and a
-query:
-
-[source,js]
---------------------------------------------------
-curl -XGET 'localhost:9200/_search?search_type=scan&scroll=10m&size=50' -d '
-{
-    "query" : {
-        "match_all" : {}
-    }
-}
-'
---------------------------------------------------
-
-The `scroll` parameter control the keep alive time of the scrolling
-request and initiates the scrolling process. The timeout applies per
-round trip (i.e. between the previous scan scroll request, to the next).
-
-The response will include no hits, with two important results, the
-`total_hits` will include the total hits that match the query, and the
-`scroll_id` that allows to start the scroll process. From this stage,
-the `_search/scroll` endpoint should be used to scroll the hits, feeding
-the next scroll request with the previous search result `scroll_id`. For
-example:
-
-[source,js]
---------------------------------------------------
-curl -XGET 'localhost:9200/_search/scroll?scroll=10m' -d 'c2NhbjsxOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7MzowSzM3aVhLalNiMmR5ZlVET3hSTmZ3OzU6MEszN2lYS2pTYjJkeWZVRE94Uk5mdzsyOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7NDowSzM3aVhLalNiMmR5ZlVET3hSTmZ3Ow=='
---------------------------------------------------
-
-Scroll requests will include a number of hits equal to the size
-multiplied by the number of primary shards.
-
-The "breaking" condition out of a scroll is when no hits has been
-returned. The total_hits will be maintained between scroll requests.
-
-Note, scan search type does not support sorting (either on score or a
-field) or faceting.
-
-[[clear-scroll]]
-===== Clear scroll api
-
-Besides consuming the scroll search until no hits has been returned a scroll
-search can also be aborted by deleting the `scroll_id`. This can be done via
-the clear scroll api. When the `scroll_id` has been deleted all the
-resources to keep the view open will be released. Example usage:
-
-[source,js]
---------------------------------------------------
-curl -XDELETE 'localhost:9200/_search/scroll/c2NhbjsxOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7MzowSzM3aVhLalNiMmR5ZlVET3hSTmZ3OzU6MEszN2lYS2pTYjJkeWZVRE94Uk5mdzsyOjBLMzdpWEtqU2IyZHlmVURPeFJOZnc7NDowSzM3aVhLalNiMmR5ZlVET3hSTmZ3Ow=='
---------------------------------------------------
-
-Multiple scroll ids can be specified in a comma separated manner.
-If all scroll ids need to be cleared the reserved `_all` value can used instead of an actual `scroll_id`:
-
-[source,js]
---------------------------------------------------
-curl -XDELETE 'localhost:9200/_search/scroll/_all'
---------------------------------------------------

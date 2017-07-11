@@ -3,75 +3,157 @@
 
 [partintro]
 --
-Mapping is the process of defining how a document should be mapped to
-the Search Engine, including its searchable characteristics such as
-which fields are searchable and if/how they are tokenized. In
-Elasticsearch, an index may store documents of different "mapping
-types". Elasticsearch allows one to associate multiple mapping
-definitions for each mapping type.
 
-Explicit mapping is defined on an index/type level. By default, there
-isn't a need to define an explicit mapping, since one is automatically
-created and registered when a new type or new field is introduced (with
-no performance overhead) and have sensible defaults. Only when the
-defaults need to be overridden must a mapping definition be provided.
+Mapping is the process of defining how a document, and the fields it contains,
+are stored and indexed.  For instance, use mappings to define:
 
-[float]
-[[all-mapping-types]]
-=== Mapping Types
-
-Mapping types are a way to divide the documents in an index into logical
-groups. Think of it as tables in a database. Though there is separation
-between types, it's not a full separation (all end up as a document
-within the same Lucene index).
-
-Field names with the same name across types are highly recommended to
-have the same type and same mapping characteristics (analysis settings
-for example). There is an effort to allow to explicitly "choose" which
-field to use by using type prefix (`my_type.my_field`), but it's not
-complete, and there are places where it will never work (like faceting
-on the field).
-
-In practice though, this restriction is almost never an issue. The field
-name usually ends up being a good indication to its "typeness" (e.g.
-"first_name" will always be a string). Note also, that this does not
-apply to the cross index case.
+* which string fields should be treated as full text fields.
+* which fields contain numbers, dates, or geolocations.
+* whether the values of all fields in the document should be
+  indexed into the catch-all <<mapping-all-field,`_all`>> field.
+* the <<mapping-date-format,format>> of date values.
+* custom rules to control the mapping for
+  <<dynamic-mapping,dynamically added fields>>.
 
 [float]
-[[mapping-api]]
-=== Mapping API
+[[mapping-type]]
+== Mapping Type
 
-To create a mapping, you will need the <<indices-put-mapping,Put Mapping
-API>>, or you can add multiple mappings when you <<indices-create-index,create an
-index>>.
+Each index has one _mapping type_ which determines how the document will be
+indexed.
+
+deprecated[6.0.0,See <<removal-of-types>>].
+
+A mapping type has:
+
+<<mapping-fields,Meta-fields>>::
+
+Meta-fields are used to customize how a document's metadata associated is
+treated. Examples of meta-fields include the document's
+<<mapping-index-field,`_index`>>, <<mapping-type-field,`_type`>>,
+<<mapping-id-field,`_id`>>,  and <<mapping-source-field,`_source`>> fields.
+
+<<mapping-types,Fields>> or _properties_::
+
+A mapping type contains a list of fields or `properties` pertinent to the
+document.
+
 
 [float]
-[[mapping-settings]]
-=== Global Settings
+== Field datatypes
 
-The `index.mapping.ignore_malformed` global setting can be set on the
-index level to allow to ignore malformed content globally across all
-mapping types (malformed content example is trying to index a text string
-value as a numeric type).
+Each field has a data `type` which can be:
 
-The `index.mapping.coerce` global setting can be set on the
-index level to coerce numeric content globally across all
-mapping types (The default setting is true and coercions attempted are 
-to convert strings with numbers into numeric types and also numeric values
-with fractions to any integer/short/long values minus the fraction part).
-When the permitted conversions fail in their attempts, the value is considered 
-malformed and the ignore_malformed setting dictates what will happen next.
+* a simple type like <<text,`text`>>, <<keyword,`keyword`>>, <<date,`date`>>, <<number,`long`>>,
+  <<number,`double`>>, <<boolean,`boolean`>> or <<ip,`ip`>>.
+* a type which supports the hierarchical nature of JSON such as
+  <<object,`object`>> or <<nested,`nested`>>.
+* or a specialised type like <<geo-point,`geo_point`>>,
+  <<geo-shape,`geo_shape`>>, or <<search-suggesters-completion,`completion`>>.
+
+It is often useful to index the same field in different ways for different
+purposes. For instance, a `string` field could be <<mapping-index,indexed>> as
+a `text` field for full-text search, and as a `keyword` field for
+sorting or aggregations.  Alternatively, you could index a string field with
+the <<analysis-standard-analyzer,`standard` analyzer>>, the
+<<english-analyzer,`english`>> analyzer, and the
+<<french-analyzer,`french` analyzer>>.
+
+This is the purpose of _multi-fields_.  Most datatypes support multi-fields
+via the <<multi-fields>> parameter.
+
+[[mapping-limit-settings]]
+[float]
+=== Settings to prevent mappings explosion
+
+The following settings allow you to limit the number of field mappings that
+can be created manually or dynamically, in order to prevent bad documents from
+causing a mapping explosion:
+
+`index.mapping.total_fields.limit`::
+    The maximum number of fields in an index. The default value is `1000`.
+
+`index.mapping.depth.limit`::
+    The maximum depth for a field, which is measured as the number of inner
+    objects. For instance, if all fields are defined at the root object level,
+    then the depth is `1`. If there is one object mapping, then the depth is
+    `2`, etc. The default is `20`.
+
+`index.mapping.nested_fields.limit`::
+    The maximum number of `nested` fields in an index, defaults to `50`.
+    Indexing 1 document with 100 nested fields actually indexes 101 documents
+    as each nested document is indexed as a separate hidden document.
+
+
+[float]
+== Dynamic mapping
+
+Fields and mapping types do not need to be defined before being used. Thanks
+to _dynamic mapping_, new field names will be added automatically, just by
+indexing a document. New fields can be added both to the top-level mapping
+type, and to inner <<object,`object`>>  and <<nested,`nested`>> fields.
+
+The <<dynamic-mapping,dynamic mapping>> rules can be configured to customise
+the mapping that is used for new fields.
+
+[float]
+== Explicit mappings
+
+You know more about your data than Elasticsearch can guess, so while dynamic
+mapping can be useful to get started, at some point you will want to specify
+your own explicit mappings.
+
+You can create field mappings when you
+<<indices-create-index,create an index>>, and you can add
+fields to an existing index with the <<indices-put-mapping,PUT mapping API>>.
+
+[float]
+== Updating existing field mappings
+
+Other than where documented, *existing field mappings cannot be
+updated*. Changing the mapping would mean invalidating already indexed
+documents.  Instead, you should create a new index with the correct mappings
+and <<docs-reindex,reindex>> your data into that index.
+
+[float]
+== Example mapping
+
+A mapping could be specified when creating an index, as follows:
+
+[source,js]
+---------------------------------------
+PUT my_index <1>
+{
+  "mappings": {
+    "doc": { <2>
+      "properties": { <3>
+        "title":    { "type": "text"  }, <4>
+        "name":     { "type": "text"  }, <4>
+        "age":      { "type": "integer" },  <4>
+        "created":  {
+          "type":   "date", <4>
+          "format": "strict_date_optional_time||epoch_millis"
+        }
+      }
+    }
+  }
+}
+---------------------------------------
+// CONSOLE
+<1> Create an index called `my_index`.
+<2> Add a mapping type called `doc`.
+<3> Specify fields or _properties_.
+<4> Specify the data `type` and mapping for each field.
+
+
 --
 
-include::mapping/fields.asciidoc[]
+include::mapping/removal_of_types.asciidoc[]
 
 include::mapping/types.asciidoc[]
 
-include::mapping/date-format.asciidoc[]
+include::mapping/fields.asciidoc[]
+
+include::mapping/params.asciidoc[]
 
 include::mapping/dynamic-mapping.asciidoc[]
-
-include::mapping/conf-mappings.asciidoc[]
-
-include::mapping/meta.asciidoc[]
-

@@ -1,0 +1,22 @@
+[[java-admin-indices-get-settings]]
+==== Get Settings
+
+The get settings API allows to retrieve settings of index/indices:
+
+[source,java]
+--------------------------------------------------
+GetSettingsResponse response = client.admin().indices()
+        .prepareGetSettings("company", "employee").get();                           <1>
+for (ObjectObjectCursor<String, Settings> cursor : response.getIndexToSettings()) { <2>
+    String index = cursor.key;                                                      <3>
+    Settings settings = cursor.value;                                               <4>
+    Integer shards = settings.getAsInt("index.number_of_shards", null);             <5>
+    Integer replicas = settings.getAsInt("index.number_of_replicas", null);         <6>
+}
+--------------------------------------------------
+<1> Get settings for indices `company` and `employee`
+<2> Iterate over results
+<3> Index name
+<4> Settings for the given index
+<5> Number of shards for this index
+<6> Number of replicas for this index

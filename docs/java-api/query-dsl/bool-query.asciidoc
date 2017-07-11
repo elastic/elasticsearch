@@ -1,0 +1,13 @@
+[[java-query-dsl-bool-query]]
+==== Bool Query
+
+See {ref}/query-dsl-bool-query.html[Bool Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[bool]
+--------------------------------------------------
+<1> must query
+<2> must not query
+<3> should query
+<4> a query that must appear in the matching documents but doesn't contribute to scoring.

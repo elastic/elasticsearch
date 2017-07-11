@@ -1,0 +1,26 @@
+[[java-specialized-queries]]
+
+=== Specialized queries
+
+This group contains queries which do not fit into the other groups:
+
+<<java-query-dsl-mlt-query,`more_like_this` query>>::
+
+This query finds documents which are similar to the specified text, document,
+or collection of documents.
+
+<<java-query-dsl-script-query,`script` query>>::
+
+This query allows a script to act as a filter.  Also see the
+<<java-query-dsl-function-score-query,`function_score` query>>.
+
+<<java-query-percolate-query,`percolate` query>>::
+
+This query finds percolator queries based on documents.
+
+include::mlt-query.asciidoc[]
+
+include::script-query.asciidoc[]
+
+include::percolate-query.asciidoc[]
+

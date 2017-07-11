@@ -12,12 +12,15 @@ A `rescore` request is executed on each shard before it returns its
 results to be sorted by the node handling the overall search request.
 
 Currently the rescore API has only one implementation: the query
-rescorer, which uses a query to tweak the scoring. In the future, 
+rescorer, which uses a query to tweak the scoring. In the future,
 alternative rescorers may be made available, for example, a pair-wise rescorer.
 
-*Note:* the `rescore` phase is not executed when
-<<search-request-search-type,`search_type`>> is set
-to `scan` or `count`.
+NOTE: the `rescore` phase is not executed when <<search-request-sort,`sort`>> is used.
+
+NOTE: when exposing pagination to your users, you should not change
+`window_size` as you step through each page (by passing different
+`from` values) since that can alter the top hits causing results to
+confusingly shift as the user steps through pages.
 
 ==== Query rescorer
 
@@ -38,13 +41,13 @@ For example:
 
 [source,js]
 --------------------------------------------------
-curl -s -XPOST 'localhost:9200/_search' -d '{
+POST /_search
+{
    "query" : {
       "match" : {
-         "field1" : {
+         "message" : {
             "operator" : "or",
-            "query" : "the quick brown",
-            "type" : "boolean"
+            "query" : "the quick brown"
          }
       }
    },
@@ -52,10 +55,9 @@ curl -s -XPOST 'localhost:9200/_search' -d '{
       "window_size" : 50,
       "query" : {
          "rescore_query" : {
-            "match" : {
-               "field1" : {
+            "match_phrase" : {
+               "message" : {
                   "query" : "the quick brown",
-                  "type" : "phrase",
                   "slop" : 2
                }
             }
@@ -65,10 +67,11 @@ curl -s -XPOST 'localhost:9200/_search' -d '{
       }
    }
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
-The way the scores are combined can be controled with the `score_mode`:
+The way the scores are combined can be controlled with the `score_mode`:
 [cols="<,<",options="header",]
 |=======================================================================
 |Score Mode |Description
@@ -82,18 +85,17 @@ for <<query-dsl-function-score-query,`function query`>> rescores.
 
 ==== Multiple Rescores
 
-added[1.1.0]
-
 It is also possible to execute multiple rescores in sequence:
+
 [source,js]
 --------------------------------------------------
-curl -s -XPOST 'localhost:9200/_search' -d '{
+POST /_search
+{
    "query" : {
       "match" : {
-         "field1" : {
+         "message" : {
             "operator" : "or",
-            "query" : "the quick brown",
-            "type" : "boolean"
+            "query" : "the quick brown"
          }
       }
    },
@@ -101,10 +103,9 @@ curl -s -XPOST 'localhost:9200/_search' -d '{
       "window_size" : 100,
       "query" : {
          "rescore_query" : {
-            "match" : {
-               "field1" : {
+            "match_phrase" : {
+               "message" : {
                   "query" : "the quick brown",
-                  "type" : "phrase",
                   "slop" : 2
                }
             }
@@ -119,15 +120,18 @@ curl -s -XPOST 'localhost:9200/_search' -d '{
          "rescore_query" : {
             "function_score" : {
                "script_score": {
-                  "script": "log10(doc['numeric'].value + 2)"
+                  "script": {
+                    "source": "Math.log10(doc.likes.value + 2)"
+                  }
                }
             }
          }
       }
    } ]
 }
-'
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 The first one gets the results of the query then the second one gets the
 results of the first, etc.  The second rescore will "see" the sorting done

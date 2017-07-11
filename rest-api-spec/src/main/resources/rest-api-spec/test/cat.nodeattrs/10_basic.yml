@@ -1,0 +1,70 @@
+---
+"Help":
+  - do:
+      cat.nodeattrs:
+        help: true
+
+  - match:
+      $body: |
+               /^  node   .+ \n
+                   id     .+ \n
+                   pid    .+ \n
+                   host   .+ \n
+                   ip     .+ \n
+                   port   .+ \n
+                   attr   .+ \n
+                   value  .+ \n
+               $/
+
+---
+"Test cat nodes attrs output":
+  - do:
+      cat.nodeattrs: {}
+  # All attributes look good
+  - match:
+      $body: |
+               /^#  node\s+         host\s+ ip\s+                   attr\s+     value\s* \n
+                    (((\S+\s?){1,10})\s+(\S+)\s+(\d{1,3}\.){3}\d{1,3}\s+(\S+)\s+    (\S+)\s* \n)+
+               $/
+  # A specific planted attribute is present and looks good
+  - match:
+      $body: |
+               /#   node\s+              host\s+  ip\s+                   attr\s+     value\s* \n
+                    (\S+(\s\S+){0,7})\s+ (\S+)\s+ (\d{1,3}\.){3}\d{1,3}\s+testattr\s+ test \s* \n
+               /
+  # Note for future editors: its quite possible to construct a regex with an
+  # intense amount of backtracking if you use something like (\S\s?)+ to match
+  # node name.
+
+  - do:
+      cat.nodeattrs:
+        v: true
+  # All attributes look good including the heading
+  - match:
+      $body: |
+               /^   node\s+        host\s+ ip\s+                   attr\s+     value\s* \n
+                    (((\S+\s?){1,10})\s+(\S+)\s+(\d{1,3}\.){3}\d{1,3}\s+(\S+)\s+    (\S+)\s* \n)+
+               $/
+  # A specific planted attribute is present and looks good
+  - match:
+      $body: |
+               /#   node\s+              host\s+  ip\s+                    attr\s+     value\s* \n
+                    (\S+(\s\S+){0,7})\s+ (\S+)\s+ (\d{1,3}\.){3}\d{1,3}\s+ testattr\s+ test \s* \n
+               /
+
+  - do:
+      cat.nodeattrs:
+          h: attr,value
+          v: true
+  # All attributes look good
+  - match:
+      $body: |
+               /^   attr\s+     value\s*\n
+                    ((\S+)\s+   (\S+)\s*)+
+               $/
+  # A specific planted attribute is present and looks good
+  - match:
+      $body: |
+               /#   attr\s+     value\s*\n
+                    testattr\s+ test\s*\n
+               /

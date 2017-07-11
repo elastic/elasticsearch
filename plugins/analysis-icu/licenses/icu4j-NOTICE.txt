@@ -1,0 +1,3 @@
+ICU4J, (under lucene/analysis/icu) is licensed under an MIT style license
+(modules/analysis/icu/lib/icu4j-LICENSE-BSD_LIKE.txt) and Copyright (c) 1995-2012
+International Business Machines Corporation and others

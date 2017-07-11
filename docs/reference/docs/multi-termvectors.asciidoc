@@ -1,33 +1,39 @@
 [[docs-multi-termvectors]]
 == Multi termvectors API
 
-Multi termvectors API allows to get multiple termvectors based on an index, type and id. The response includes a `docs`
+Multi termvectors API allows to get multiple termvectors at once. The
+documents from which to retrieve the term vectors are specified by an index,
+type and id. But the documents could also be artificially provided in the request itself.
+
+The response includes a `docs`
 array with all the fetched termvectors, each element having the structure
 provided by the <<docs-termvectors,termvectors>>
 API. Here is an example:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/_mtermvectors' -d '{
+POST /_mtermvectors
 {
    "docs": [
       {
-         "_index": "testidx",
-         "_type": "test",
+         "_index": "twitter",
+         "_type": "tweet",
          "_id": "2",
          "term_statistics": true
       },
       {
-         "_index": "testidx",
-         "_type": "test",
+         "_index": "twitter",
+         "_type": "tweet",
          "_id": "1",
          "fields": [
-            "text"
+            "message"
          ]
       }
    ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 See the <<docs-termvectors,termvectors>> API for a description of possible parameters.
 
@@ -36,34 +42,38 @@ is not required in the body):
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/testidx/_mtermvectors' -d '{
+POST /twitter/_mtermvectors
+{
    "docs": [
       {
-         "_type": "test",
+         "_type": "tweet",
          "_id": "2",
          "fields": [
-            "text"
+            "message"
          ],
          "term_statistics": true
       },
       {
-         "_type": "test",
+         "_type": "tweet",
          "_id": "1"
       }
    ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 And type:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/testidx/test/_mtermvectors' -d '{
+POST /twitter/tweet/_mtermvectors
+{
    "docs": [
       {
          "_id": "2",
          "fields": [
-            "text"
+            "message"
          ],
          "term_statistics": true
       },
@@ -71,23 +81,56 @@ curl 'localhost:9200/testidx/test/_mtermvectors' -d '{
          "_id": "1"
       }
    ]
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
 If all requested documents are on same index and have same type and also the parameters are the same, the request can be simplified:
 
 [source,js]
 --------------------------------------------------
-curl 'localhost:9200/testidx/test/_mtermvectors' -d '{
+POST /twitter/tweet/_mtermvectors
+{
     "ids" : ["1", "2"],
     "parameters": {
     	"fields": [
-         	"text"
+         	"message"
       	],
-      	"term_statistics": true,
-      	…
+      	"term_statistics": true
     }
-}'
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
 
-Parameters can aslo be set by passing them as uri parameters (see <<docs-termvectors,termvectors>>). uri parameters are the default parameters and are overwritten by any parameter setting defined in the body.
+Additionally, just like for the <<docs-termvectors,termvectors>>
+API, term vectors could be generated for user provided documents.  The mapping used is
+determined by `_index` and `_type`.
+
+[source,js]
+--------------------------------------------------
+POST /_mtermvectors
+{
+   "docs": [
+      {
+         "_index": "twitter",
+         "_type": "tweet",
+         "doc" : {
+            "user" : "John Doe",
+            "message" : "twitter test test test"
+         }
+      },
+      {
+         "_index": "twitter",
+         "_type": "test",
+         "doc" : {
+           "user" : "Jane Doe",
+           "message" : "Another twitter test ..."
+         }
+      }
+   ]
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]

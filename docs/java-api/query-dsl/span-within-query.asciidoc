@@ -1,0 +1,11 @@
+[[java-query-dsl-span-within-query]]
+==== Span Within Query
+
+See {ref}/query-dsl-span-within-query.html[Span Within Query]
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{query-dsl-test}[span_within]
+--------------------------------------------------
+<1> `big` part
+<2> `little` part

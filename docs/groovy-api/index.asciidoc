@@ -1,18 +1,18 @@
 = Groovy API
-:ref:  http://www.elasticsearch.org/guide/en/elasticsearch/reference/current
-:java: http://www.elasticsearch.org/guide/en/elasticsearch/client/java-api/current
+
+include::../Versions.asciidoc[]
 
 [preface]
 == Preface
 
-This section describes the http://groovy.codehaus.org/[Groovy] API
+This section describes the http://groovy-lang.org/[Groovy] API
 elasticsearch provides. All elasticsearch APIs are executed using a
 <<client,GClient>>, and are completely
 asynchronous in nature (they either accept a listener, or return a
 future).
 
 The Groovy API is a wrapper on top of the
-{java}[Java API] exposing it in a groovier
+{javaclient}[Java API] exposing it in a groovier
 manner. The execution options for each API follow a similar manner and
 covered in <<anatomy>>.
 
@@ -21,17 +21,17 @@ covered in <<anatomy>>.
 === Maven Repository
 
 The Groovy API is hosted on
-http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22elasticsearch-client-groovy%22[Maven
+http://search.maven.org/#search%7Cga%7C1%7Ca%3A%22elasticsearch-groovy%22[Maven
 Central].
 
 For example, you can define the latest version in your `pom.xml` file:
 
-[source,xml]
+["source","xml",subs="attributes"]
 --------------------------------------------------
 <dependency>
     <groupId>org.elasticsearch</groupId>
-    <artifactId>elasticsearch-client-groovy</artifactId>
-    <version>${es.version}</version>
+    <artifactId>elasticsearch-groovy</artifactId>
+    <version>{version}</version>
 </dependency>
 --------------------------------------------------
 
@@ -46,6 +46,3 @@ include::get.asciidoc[]
 include::delete.asciidoc[]
 
 include::search.asciidoc[]
-
-include::count.asciidoc[]
-

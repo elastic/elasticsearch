@@ -1,52 +1,45 @@
 [[mapping-id-field]]
-=== `_id`
+=== `_id` field
 
-Each document indexed is associated with an id and a type. The `_id`
-field can be used to index just the id, and possible also store it. By
-default it is not indexed and not stored (thus, not created).
+Each document has an `_id` that uniquely identifies it, which is indexed
+so that documents can be looked up either with the <<docs-get,GET API>> or the
+<<query-dsl-ids-query,`ids` query>>.
 
-Note, even though the `_id` is not indexed, all the APIs still work
-(since they work with the `_uid` field), as well as fetching by ids
-using `term`, `terms` or `prefix` queries/filters (including the
-specific `ids` query/filter).
+NOTE: This was not the case with pre-6.0 indices due to the fact that they
+supported multiple types, so the `_type` and `_id` were merged into a composite
+primary key called `_uid`.
 
-The `_id` field can be enabled to be indexed, and possibly stored,
-using:
+The value of the `_id` field is accessible in certain queries (`term`,
+`terms`, `match`, `query_string`, `simple_query_string`).
 
 [source,js]
---------------------------------------------------
+--------------------------
+# Example documents
+PUT my_index/my_type/1
 {
-    "tweet" : {
-        "_id" : {"index": "not_analyzed", "store" : false }
+  "text": "Document with ID 1"
+}
+
+PUT my_index/my_type/2&refresh=true
+{
+  "text": "Document with ID 2"
+}
+
+GET my_index/_search
+{
+  "query": {
+    "terms": {
+      "_id": [ "1", "2" ] <1>
     }
+  }
 }
---------------------------------------------------
+--------------------------
+// CONSOLE
 
-The `_id` mapping can also be associated with a `path` that will be used
-to extract the id from a different location in the source document. For
-example, having the following mapping:
+<1> Querying on the `_id` field (also see the <<query-dsl-ids-query,`ids` query>>)
 
-[source,js]
---------------------------------------------------
-{
-    "tweet" : {
-        "_id" : {
-            "path" : "post_id"
-        }
-    }
-}
---------------------------------------------------
-
-Will cause `1` to be used as the id for:
-
-[source,js]
---------------------------------------------------
-{
-    "message" : "You know, for Search",
-    "post_id" : "1"
-}
---------------------------------------------------
-
-This does require an additional lightweight parsing step while indexing,
-in order to extract the id to decide which shard the index operation
-will be executed on.
+The value of the `_id` field is also accessible in aggregations or for sorting,
+but doing so is discouraged as it requires to load a lot of data in memory. In
+case sorting or aggregating on the `_id` field is required, it is advised to
+duplicate the content of the `_id` field in another field that has `doc_values`
+enabled.

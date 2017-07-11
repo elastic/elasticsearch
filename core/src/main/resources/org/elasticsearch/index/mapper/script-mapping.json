@@ -1,0 +1,9 @@
+{
+     "_default_": {
+
+       "properties": {
+         "script": { "enabled": false },
+         "template": { "enabled": false }
+       }
+     }
+}

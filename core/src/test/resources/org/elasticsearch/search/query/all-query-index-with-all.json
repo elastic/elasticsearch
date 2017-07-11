@@ -1,0 +1,23 @@
+{
+  "settings": {
+    "index": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "version": {
+        "created": "5000099"
+      },
+      "query.default_field": "f1"
+    }
+  },
+  "mappings": {
+    "doc": {
+      "_all": {
+        "enabled": true
+      },
+      "properties": {
+        "f1": {"type": "text"},
+        "f2": {"type": "text"}
+      }
+    }
+  }
+}

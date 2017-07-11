@@ -1,0 +1,203 @@
+[[nested]]
+=== Nested datatype
+
+The `nested` type is a specialised version of the <<object,`object`>> datatype
+that allows arrays of objects to be indexed and queried independently of each
+other.
+
+==== How arrays of objects are flattened
+
+Arrays of inner <<object,`object` fields>> do not work the way you may expect.
+Lucene has no concept of inner objects, so Elasticsearch flattens object
+hierarchies into a simple list of field names and values. For instance, the
+following document:
+
+[source,js]
+--------------------------------------------------
+PUT my_index/my_type/1
+{
+  "group" : "fans",
+  "user" : [ <1>
+    {
+      "first" : "John",
+      "last" :  "Smith"
+    },
+    {
+      "first" : "Alice",
+      "last" :  "White"
+    }
+  ]
+}
+--------------------------------------------------
+// CONSOLE
+<1> The `user` field is dynamically added as a field of type `object`.
+
+would be transformed internally into a document that looks more like this:
+
+[source,js]
+--------------------------------------------------
+{
+  "group" :        "fans",
+  "user.first" : [ "alice", "john" ],
+  "user.last" :  [ "smith", "white" ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+The `user.first` and `user.last` fields are flattened into multi-value fields,
+and the association between `alice` and `white` is lost.  This document would
+incorrectly match a query for `alice AND smith`:
+
+[source,js]
+--------------------------------------------------
+GET my_index/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "user.first": "Alice" }},
+        { "match": { "user.last":  "Smith" }}
+      ]
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+==== Using `nested` fields for arrays of objects
+
+If you need to index arrays of objects and to maintain the independence of
+each object in the array, you should use the `nested` datatype instead of the
+<<object,`object`>> datatype.  Internally, nested objects index each object in
+the array as a separate hidden document, meaning that each nested object can be
+queried independently of the others, with the <<query-dsl-nested-query,`nested` query>>:
+
+[source,js]
+--------------------------------------------------
+PUT my_index
+{
+  "mappings": {
+    "my_type": {
+      "properties": {
+        "user": {
+          "type": "nested" <1>
+        }
+      }
+    }
+  }
+}
+
+PUT my_index/my_type/1
+{
+  "group" : "fans",
+  "user" : [
+    {
+      "first" : "John",
+      "last" :  "Smith"
+    },
+    {
+      "first" : "Alice",
+      "last" :  "White"
+    }
+  ]
+}
+
+GET my_index/_search
+{
+  "query": {
+    "nested": {
+      "path": "user",
+      "query": {
+        "bool": {
+          "must": [
+            { "match": { "user.first": "Alice" }},
+            { "match": { "user.last":  "Smith" }} <2>
+          ]
+        }
+      }
+    }
+  }
+}
+
+GET my_index/_search
+{
+  "query": {
+    "nested": {
+      "path": "user",
+      "query": {
+        "bool": {
+          "must": [
+            { "match": { "user.first": "Alice" }},
+            { "match": { "user.last":  "White" }} <3>
+          ]
+        }
+      },
+      "inner_hits": { <4>
+        "highlight": {
+          "fields": {
+            "user.first": {}
+          }
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+<1> The `user` field is mapped as type `nested` instead of type `object`.
+<2> This query doesn't match because `Alice` and `Smith` are not in the same nested object.
+<3> This query matches because `Alice` and `White` are in the same nested object.
+<4> `inner_hits` allow us to highlight the matching nested documents.
+
+
+Nested documents can be:
+
+* queried with the <<query-dsl-nested-query,`nested`>> query.
+* analyzed with the <<search-aggregations-bucket-nested-aggregation,`nested`>>
+  and <<search-aggregations-bucket-reverse-nested-aggregation, `reverse_nested`>>
+  aggregations.
+* sorted with <<nested-sorting,nested sorting>>.
+* retrieved and highlighted with <<nested-inner-hits,nested inner hits>>.
+
+
+[[nested-params]]
+==== Parameters for `nested` fields
+
+The following parameters are accepted by `nested` fields:
+
+[horizontal]
+<<dynamic,`dynamic`>>::
+
+    Whether or not new `properties` should be added dynamically to an existing
+    nested object.  Accepts `true` (default), `false` and `strict`.
+
+<<properties,`properties`>>::
+
+    The fields within the nested object, which can be of any
+    <<mapping-types,datatype>>, including `nested`. New properties
+    may be added to an existing nested object.
+
+
+[IMPORTANT]
+=============================================
+
+Because nested documents are indexed as separate documents, they can only be
+accessed  within the scope of the `nested` query, the
+`nested`/`reverse_nested`, or <<nested-inner-hits,nested inner hits>>.
+
+For instance, if a string field within a nested document has
+<<index-options,`index_options`>> set to `offsets` to allow use of the postings
+during the highlighting, these offsets will not be available during the main highlighting
+phase.  Instead, highlighting needs to be performed via
+<<nested-inner-hits,nested inner hits>>.
+
+=============================================
+
+
+==== Limiting the number of `nested` fields
+
+Indexing a document with 100 nested fields actually indexes 101 documents as each nested
+document is indexed as a separate document. To safeguard against ill-defined mappings
+the number of nested fields that can be defined per index has been limited to 50. See
+<<mapping-limit-settings>>.

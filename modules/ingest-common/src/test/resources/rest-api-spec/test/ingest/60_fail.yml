@@ -1,0 +1,75 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test Fail Processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fail" : {
+                  "message" : "error_message"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: request
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {}
+
+---
+"Test fail with on_failure":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "fail" : {
+                  "message" : "error",
+                  "on_failure" : [
+                    {
+                      "set" : {
+                        "field" : "error_message",
+                        "value" : "fail_processor_ran"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        type: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.error_message: "fail_processor_ran" }
+

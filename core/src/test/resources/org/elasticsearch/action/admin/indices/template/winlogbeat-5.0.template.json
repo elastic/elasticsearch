@@ -1,0 +1,159 @@
+{
+  "mappings": {
+    "_default_": {
+      "_meta": {
+        "version": "5.0.0-beta1"
+      },
+      "dynamic_templates": [
+        {
+          "fields": {
+            "mapping": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "match_mapping_type": "string",
+            "path_match": "fields.*"
+          }
+        },
+        {
+          "event_data": {
+            "mapping": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "match_mapping_type": "string",
+            "path_match": "event_data.*"
+          }
+        },
+        {
+          "user_data": {
+            "mapping": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "match_mapping_type": "string",
+            "path_match": "user_data.*"
+          }
+        }
+      ],
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "activity_id": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "beat": {
+          "properties": {
+            "hostname": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "name": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "computer_name": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "event_id": {
+          "type": "long"
+        },
+        "keywords": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "level": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "log_name": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "message": {
+          "norms": false,
+          "type": "text"
+        },
+        "message_error": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "opcode": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "process_id": {
+          "type": "long"
+        },
+        "provider_guid": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "record_number": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "related_activity_id": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "source_name": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "tags": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "task": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "thread_id": {
+          "type": "long"
+        },
+        "type": {
+          "ignore_above": 1024,
+          "type": "keyword"
+        },
+        "user": {
+          "properties": {
+            "domain": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "identifier": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "name": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "type": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "version": {
+          "type": "long"
+        },
+        "xml": {
+          "norms": false,
+          "type": "text"
+        }
+      }
+    }
+  },
+  "order": 0,
+  "settings": {
+    "index.refresh_interval": "5s"
+  },
+  "template": "winlogbeat-*"
+}

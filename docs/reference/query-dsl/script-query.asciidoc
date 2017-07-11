@@ -1,0 +1,57 @@
+[[query-dsl-script-query]]
+=== Script Query
+
+A query allowing to define
+<<modules-scripting,scripts>> as queries. They are typically used in a filter
+context, for example:
+
+[source,js]
+----------------------------------------------
+GET /_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "script" : {
+                    "script" : {
+                        "source": "doc['num1'].value > 1",
+                        "lang": "painless"
+                     }
+                }
+            }
+        }
+    }
+}
+----------------------------------------------
+// CONSOLE
+
+[float]
+==== Custom Parameters
+
+Scripts are compiled and cached for faster execution. If the same script
+can be used, just with different parameters provider, it is preferable
+to use the ability to pass parameters to the script itself, for example:
+
+[source,js]
+----------------------------------------------
+GET /_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "script" : {
+                    "script" : {
+                        "source" : "doc['num1'].value > params.param1",
+                        "lang"   : "painless",
+                        "params" : {
+                            "param1" : 5
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+----------------------------------------------
+// CONSOLE
+

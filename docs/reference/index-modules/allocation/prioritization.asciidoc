@@ -1,0 +1,56 @@
+[[recovery-prioritization]]
+=== Index recovery prioritization
+
+Unallocated shards are recovered in order of priority, whenever possible.
+Indices are sorted into priority order as follows:
+
+* the optional `index.priority` setting (higher before lower)
+* the index creation date (higher before lower)
+* the index name (higher before lower)
+
+This means that, by default, newer indices will be recovered before older indices.
+
+Use the per-index dynamically updateable `index.priority` setting to customise
+the index prioritization order.  For instance:
+
+[source,js]
+------------------------------
+PUT index_1
+
+PUT index_2
+
+PUT index_3
+{
+  "settings": {
+    "index.priority": 10
+  }
+}
+
+PUT index_4
+{
+  "settings": {
+    "index.priority": 5
+  }
+}
+------------------------------
+// CONSOLE
+
+In the above example:
+
+* `index_3` will be recovered first because it has the highest `index.priority`.
+* `index_4` will be recovered next because it has the next highest priority.
+* `index_2` will be recovered next because it was created more recently.
+* `index_1` will be recovered last.
+
+This setting accepts an integer, and can be updated on a live index with the
+<<indices-update-settings,update index settings API>>:
+
+[source,js]
+------------------------------
+PUT index_4/_settings
+{
+  "index.priority": 1
+}
+------------------------------
+// CONSOLE
+// TEST[continued]

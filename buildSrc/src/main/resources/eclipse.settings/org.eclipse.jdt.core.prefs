@@ -1,0 +1,21 @@
+eclipse.preferences.version=1
+
+# this is merged with gradle's generated properties during 'gradle eclipse'
+
+# NOTE: null pointer analysis etc is not enabled currently, it seems very unstable
+# (e.g. crashing eclipse etc)
+# org.eclipse.jdt.core.compiler.annotation.inheritNullAnnotations=enabled
+# org.eclipse.jdt.core.compiler.annotation.missingNonNullByDefaultAnnotation=ignore
+# org.eclipse.jdt.core.compiler.annotation.nullable=org.elasticsearch.common.Nullable
+# org.eclipse.jdt.core.compiler.annotation.nullanalysis=enabled
+# org.eclipse.jdt.core.compiler.problem.nonnullParameterAnnotationDropped=warning
+# org.eclipse.jdt.core.compiler.problem.nullAnnotationInferenceConflict=warning
+# org.eclipse.jdt.core.compiler.problem.nullReference=warning
+# org.eclipse.jdt.core.compiler.problem.nullSpecViolation=warning
+# org.eclipse.jdt.core.compiler.problem.nullUncheckedConversion=warning
+# org.eclipse.jdt.core.compiler.problem.potentialNullReference=warning
+
+org.eclipse.jdt.core.compiler.problem.forbiddenReference=warning
+org.eclipse.jdt.core.formatter.lineSplit=140
+org.eclipse.jdt.core.formatter.tabulation.char=space
+org.eclipse.jdt.core.formatter.tabulation.size=4

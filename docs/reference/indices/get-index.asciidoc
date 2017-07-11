@@ -1,0 +1,17 @@
+[[indices-get-index]]
+== Get Index
+
+The get index API allows to retrieve information about one or more indexes.
+
+[source,js]
+--------------------------------------------------
+GET /twitter
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+The above example gets the information for an index called `twitter`. Specifying an index,
+alias or wildcard expression is required.
+
+The get index API can also be applied to more than one index, or on
+all indices by using `_all` or `*` as index.

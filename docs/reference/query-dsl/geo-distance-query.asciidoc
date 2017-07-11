@@ -1,0 +1,226 @@
+[[query-dsl-geo-distance-query]]
+=== Geo Distance Query
+
+Filters documents that include only hits that exists within a specific
+distance from a geo point. Assuming the following mapping and indexed
+document:
+
+[source,js]
+--------------------------------------------------
+PUT /my_locations
+{
+    "mappings": {
+        "location": {
+            "properties": {
+                "pin": {
+                    "properties": {
+                        "location": {
+                            "type": "geo_point"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+PUT /my_locations/location/1
+{
+    "pin" : {
+        "location" : {
+            "lat" : 40.12,
+            "lon" : -71.34
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TESTSETUP
+
+
+Then the following simple query can be executed with a `geo_distance`
+filter:
+
+[source,js]
+--------------------------------------------------
+GET /my_locations/location/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "200km",
+                    "pin.location" : {
+                        "lat" : 40,
+                        "lon" : -70
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
+==== Accepted Formats
+
+In much the same way the `geo_point` type can accept different
+representations of the geo point, the filter can accept it as well:
+
+[float]
+===== Lat Lon As Properties
+
+[source,js]
+--------------------------------------------------
+GET /my_locations/location/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "12km",
+                    "pin.location" : {
+                        "lat" : 40,
+                        "lon" : -70
+                    }
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
+===== Lat Lon As Array
+
+Format in `[lon, lat]`, note, the order of lon/lat here in order to
+conform with http://geojson.org/[GeoJSON].
+
+[source,js]
+--------------------------------------------------
+GET /my_locations/location/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "12km",
+                    "pin.location" : [-70, 40]
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+
+[float]
+===== Lat Lon As String
+
+Format in `lat,lon`.
+
+[source,js]
+--------------------------------------------------
+GET /my_locations/location/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "12km",
+                    "pin.location" : "40,-70"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
+===== Geohash
+
+[source,js]
+--------------------------------------------------
+GET /my_locations/location/_search
+{
+    "query": {
+        "bool" : {
+            "must" : {
+                "match_all" : {}
+            },
+            "filter" : {
+                "geo_distance" : {
+                    "distance" : "12km",
+                    "pin.location" : "drm3btev3e86"
+                }
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
+==== Options
+
+The following are options allowed on the filter:
+
+[horizontal]
+
+`distance`::
+
+    The radius of the circle centred on the specified location. Points which
+    fall into this circle are considered to be matches. The `distance` can be
+    specified in various units. See <<distance-units>>.
+
+`distance_type`::
+
+    How to compute the distance. Can either be `arc` (default), or `plane` (faster, but inaccurate on long distances and close to the poles).
+
+`_name`::
+
+    Optional name field to identify the query
+
+`validation_method`::
+
+    Set to `IGNORE_MALFORMED` to accept geo points with invalid latitude or
+    longitude, set to `COERCE` to additionally try and infer correct
+    coordinates (default is `STRICT`).
+
+[float]
+==== geo_point Type
+
+The filter *requires* the `geo_point` type to be set on the relevant
+field.
+
+[float]
+==== Multi Location Per Document
+
+The `geo_distance` filter can work with multiple locations / points per
+document. Once a single location / point matches the filter, the
+document will be included in the filter.
+
+[float]
+==== Ignore Unmapped
+
+When set to `true` the `ignore_unmapped` option will ignore an unmapped field
+and will not match any documents for this query. This can be useful when
+querying multiple indexes which might have different mappings. When set to
+`false` (the default value) the query will throw an exception if the field
+is not mapped.

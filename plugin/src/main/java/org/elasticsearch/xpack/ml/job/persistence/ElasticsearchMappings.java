@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.job.config.Detector;
 import org.elasticsearch.xpack.ml.job.config.Job;
@@ -111,10 +112,24 @@ public class ElasticsearchMappings {
                 .endArray();
     }
 
+    /**
+     * Inserts "_meta" containing useful information like the version into the mapping
+     * template.
+     *
+     * @param builder The builder for the mappings
+     * @throws IOException On write error
+     */
+    public static void addMetaInformation(XContentBuilder builder) throws IOException {
+        builder.startObject("_meta")
+                    .field("version", Version.CURRENT)
+               .endObject();
+    }
+
     public static XContentBuilder docMapping() throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.startObject(DOC_TYPE);
+        addMetaInformation(builder);
         addDefaultMapping(builder);
         builder.startObject(PROPERTIES);
 
@@ -523,12 +538,15 @@ public class ElasticsearchMappings {
      * by knowing the ID of a particular document.
      */
     public static XContentBuilder stateMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                    .startObject(DOC_TYPE)
-                        .field(ENABLED, false)
-                    .endObject()
-                .endObject();
+        XContentBuilder builder = jsonBuilder();
+        builder.startObject();
+        builder.startObject(DOC_TYPE);
+        addMetaInformation(builder);
+        builder.field(ENABLED, false);
+        builder.endObject();
+        builder.endObject();
+
+        return builder;
     }
 
     /**

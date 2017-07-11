@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
@@ -27,12 +28,14 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -491,9 +494,12 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
             }
             String[] concreteIndices = aliasOrIndex.getIndices().stream().map(IndexMetaData::getIndex).map(Index::getName)
                     .toArray(String[]::new);
-            if (state.metaData().findMappings(concreteIndices, new String[] {ElasticsearchMappings.DOC_TYPE}).isEmpty()) {
+
+            String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, logger);
+
+            if (indicesThatRequireAnUpdate.length > 0) {
                 try (XContentBuilder mapping = mappingSupplier.get()) {
-                    PutMappingRequest putMappingRequest = new PutMappingRequest(concreteIndices);
+                    PutMappingRequest putMappingRequest = new PutMappingRequest(indicesThatRequireAnUpdate);
                     putMappingRequest.type(ElasticsearchMappings.DOC_TYPE);
                     putMappingRequest.source(mapping);
                     client.execute(PutMappingAction.INSTANCE, putMappingRequest, ActionListener.wrap(
@@ -502,13 +508,14 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
                                     listener.onResponse(true);
                                 } else {
                                     listener.onFailure(new ElasticsearchException("Attempt to put missing mapping in indices "
-                                            + Arrays.toString(concreteIndices) + " was not acknowledged"));
+                                            + Arrays.toString(indicesThatRequireAnUpdate) + " was not acknowledged"));
                                 }
                             }, listener::onFailure));
                 } catch (IOException e) {
                     listener.onFailure(e);
                 }
             } else {
+                logger.trace("Mappings are uptodate.");
                 listener.onResponse(true);
             }
         }
@@ -746,5 +753,52 @@ public class OpenJobAction extends Action<OpenJobAction.Request, OpenJobAction.R
 
     static boolean nodeSupportsJobVersion(Version nodeVersion, Version jobVersion) {
         return nodeVersion.onOrAfter(Version.V_5_5_0);
+    }
+
+    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Logger logger) {
+        List<String> indicesToUpdate = new ArrayList<>();
+
+        ImmutableOpenMap<String, ImmutableOpenMap<String, MappingMetaData>> currentMapping = state.metaData().findMappings(concreteIndices,
+                new String[] { ElasticsearchMappings.DOC_TYPE });
+
+        for (String index : concreteIndices) {
+            ImmutableOpenMap<String, MappingMetaData> innerMap = currentMapping.get(index);
+            if (innerMap != null) {
+                MappingMetaData metaData = innerMap.get(ElasticsearchMappings.DOC_TYPE);
+                try {
+                    Map<String, Object> meta = (Map<String, Object>) metaData.sourceAsMap().get("_meta");
+                    if (meta != null) {
+                        String versionString = (String) meta.get("version");
+                        if (versionString == null) {
+                            logger.info("Version of mappings for [{}] not found, recreating", index);
+                            indicesToUpdate.add(index);
+                            continue;
+                        }
+
+                        Version mappingVersion = Version.fromString(versionString);
+
+                        if (mappingVersion.equals(Version.CURRENT)) {
+                            continue;
+                        } else {
+                            logger.info("Mappings for [{}] are outdated [{}], updating it[{}].", index, mappingVersion, Version.CURRENT);
+                            indicesToUpdate.add(index);
+                            continue;
+                        }
+                    } else {
+                        logger.info("Version of mappings for [{}] not found, recreating", index);
+                        indicesToUpdate.add(index);
+                        continue;
+                    }
+                } catch (Exception e) {
+                    logger.error(new ParameterizedMessage("Failed to retrieve mapping version for [{}], recreating", index), e);
+                    indicesToUpdate.add(index);
+                    continue;
+                }
+            } else {
+                logger.info("No mappings found for [{}], recreating", index);
+                indicesToUpdate.add(index);
+            }
+        }
+        return indicesToUpdate.toArray(new String[indicesToUpdate.size()]);
     }
 }

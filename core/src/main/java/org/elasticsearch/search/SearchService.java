@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
@@ -841,7 +842,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public boolean canMatch(ShardSearchRequest request) throws IOException {
         try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, null)) {
-            return context.request().source().query() instanceof MatchNoneQueryBuilder == false;
+            QueryBuilder queryBuilder = context.request().source().query();
+            if (queryBuilder != null) {
+                return queryBuilder instanceof MatchNoneQueryBuilder == false;
+            }
+            return true; // null query means match_all
         }
     }
 }

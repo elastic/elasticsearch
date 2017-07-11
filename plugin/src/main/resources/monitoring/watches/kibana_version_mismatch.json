@@ -33,7 +33,7 @@
                       "filter": [
                         {
                           "term": {
-                            "cluster_uuid": "{{ctx.metadata.cluster_uuid}}"
+                            "cluster_uuid": "{{ctx.metadata.xpack.cluster_uuid}}"
                           }
                         },
                         {

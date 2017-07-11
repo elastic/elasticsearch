@@ -52,7 +52,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/indices/segments.asciidoc',
   'reference/indices/shard-stores.asciidoc',
   'reference/mapping/removal_of_types.asciidoc',
-  'reference/search/field-stats.asciidoc',
   'reference/search/profile.asciidoc',
 ]
 

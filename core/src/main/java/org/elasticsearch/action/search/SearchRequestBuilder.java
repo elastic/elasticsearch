@@ -525,4 +525,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         this.request.setBatchedReduceSize(batchedReduceSize);
         return this;
     }
+
+    /**
+     * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard requests fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public SearchRequestBuilder setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        this.request.setMaxConcurrentShardRequests(maxConcurrentShardRequests);
+        return this;
+    }
 }

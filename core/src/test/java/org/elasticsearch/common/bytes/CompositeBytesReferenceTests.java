@@ -29,8 +29,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase {
+
     @Override
     protected BytesReference newBytesReference(int length) throws IOException {
+        return newBytesReferenceWithOffsetOfZero(length);
+    }
+
+    @Override
+    protected BytesReference newBytesReferenceWithOffsetOfZero(int length) throws IOException {
         // we know bytes stream output always creates a paged bytes reference, we use it to create randomized content
         List<BytesReference> referenceList = newRefList(length);
         BytesReference ref = new CompositeBytesReference(referenceList.toArray(new BytesReference[0]));

@@ -266,7 +266,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 return;
             }
             for (int i = 0; i < count; i++) {
-                dates[i].setMillis(in.nextValue());
+                dates[i] = new MutableDateTime(in.nextValue(), DateTimeZone.UTC);
             }
         }
     }
@@ -340,7 +340,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
                 resize(in.docValueCount());
                 for (int i = 0; i < count; i++) {
                     GeoPoint point = in.nextValue();
-                    values[i].reset(point.lat(), point.lon());
+                    values[i] = new GeoPoint(point.lat(), point.lon());
                 }
             } else {
                 resize(0);

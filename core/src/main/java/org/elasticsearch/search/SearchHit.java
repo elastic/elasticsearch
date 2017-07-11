@@ -49,6 +49,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -106,6 +107,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
     private SearchShardTarget shard;
 
     private transient String index;
+    private transient String clusterAlias;
 
     private Map<String, Object> sourceAsMap;
 
@@ -329,7 +331,15 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
         this.shard = target;
         if (target != null) {
             this.index = target.getIndex();
+            this.clusterAlias = target.getClusterAlias();
         }
+    }
+
+    /**
+     * Returns the cluster alias this hit comes from or null if it comes from a local cluster
+     */
+    public String getClusterAlias() {
+        return clusterAlias;
     }
 
     public void matchedQueries(String[] matchedQueries) {
@@ -408,7 +418,7 @@ public final class SearchHit implements Streamable, ToXContentObject, Iterable<D
             nestedIdentity.toXContent(builder, params);
         } else {
             if (index != null) {
-                builder.field(Fields._INDEX, index);
+                builder.field(Fields._INDEX, RemoteClusterAware.buildRemoteIndexName(clusterAlias, index));
             }
             if (type != null) {
                 builder.field(Fields._TYPE, type);

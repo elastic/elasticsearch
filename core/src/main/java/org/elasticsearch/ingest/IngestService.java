@@ -40,13 +40,10 @@ import static org.elasticsearch.common.settings.Setting.Property;
  * Holder class for several ingest related services.
  */
 public class IngestService {
-    public static final Setting<Boolean> NEW_INGEST_DATE_FORMAT =
-        Setting.boolSetting("ingest.new_date_format", false, Property.NodeScope, Property.Dynamic, Property.Deprecated);
-
     private final PipelineStore pipelineStore;
     private final PipelineExecutionService pipelineExecutionService;
 
-    public IngestService(ClusterSettings clusterSettings, Settings settings, ThreadPool threadPool,
+    public IngestService(Settings settings, ThreadPool threadPool,
                          Environment env, ScriptService scriptService, AnalysisRegistry analysisRegistry,
                          List<IngestPlugin> ingestPlugins) {
         Processor.Parameters parameters = new Processor.Parameters(env, scriptService,
@@ -60,7 +57,7 @@ public class IngestService {
                 }
             }
         }
-        this.pipelineStore = new PipelineStore(clusterSettings, settings, Collections.unmodifiableMap(processorFactories));
+        this.pipelineStore = new PipelineStore(settings, Collections.unmodifiableMap(processorFactories));
         this.pipelineExecutionService = new PipelineExecutionService(pipelineStore, threadPool);
     }
 

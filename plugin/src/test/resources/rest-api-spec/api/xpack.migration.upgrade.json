@@ -12,12 +12,6 @@
           "required" : true,
           "description" : "The name of the index"
         }
-      },
-      "params": {
-        "kibana_indices": {
-          "type": "list",
-          "description": "A comma separated list of indices that should be treated as kibana indices"
-        }
       }
     }
   }

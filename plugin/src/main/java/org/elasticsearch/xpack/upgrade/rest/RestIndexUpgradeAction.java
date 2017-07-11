@@ -27,15 +27,11 @@ import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeAction.Request;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 
 public class RestIndexUpgradeAction extends BaseRestHandler {
-    private final Set<String> extraParameters;
-
-    public RestIndexUpgradeAction(Settings settings, RestController controller, Set<String> extraParameters) {
+    public RestIndexUpgradeAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.POST, "_xpack/migration/upgrade/{index}", this);
-        this.extraParameters = extraParameters;
     }
 
     @Override
@@ -54,14 +50,6 @@ public class RestIndexUpgradeAction extends BaseRestHandler {
 
     private RestChannelConsumer handlePost(final RestRequest request, NodeClient client) {
         Request upgradeRequest = new Request(request.param("index"));
-        Map<String, String> extraParamsMap = new HashMap<>();
-        for (String param : extraParameters) {
-            String value = request.param(param);
-            if (value != null) {
-                extraParamsMap.put(param, value);
-            }
-        }
-        upgradeRequest.extraParams(extraParamsMap);
         Map<String, String> params = new HashMap<>();
         params.put(BulkByScrollTask.Status.INCLUDE_CREATED, Boolean.toString(true));
         params.put(BulkByScrollTask.Status.INCLUDE_UPDATED, Boolean.toString(true));

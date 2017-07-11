@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.upgrade.UpgradeActionRequired;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -126,7 +125,6 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
 
         private String[] indices = null;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
-        private Map<String, String> extraParams = Collections.emptyMap();
 
         // for serialization
         public Request() {
@@ -157,23 +155,11 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
             this.indicesOptions = indicesOptions;
         }
 
-        public Map<String, String> extraParams() {
-            return extraParams;
-        }
-
-        public Request extraParams(Map<String, String> extraParams) {
-            this.extraParams = extraParams;
-            return this;
-        }
-
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (indices == null) {
                 validationException = addValidationError("index/indices is missing", validationException);
-            }
-            if (extraParams == null) {
-                validationException = addValidationError("params are missing", validationException);
             }
             return validationException;
         }
@@ -183,7 +169,6 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
             super.readFrom(in);
             indices = in.readStringArray();
             indicesOptions = IndicesOptions.readIndicesOptions(in);
-            extraParams = in.readMap(StreamInput::readString, StreamInput::readString);
         }
 
         @Override
@@ -191,7 +176,6 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
             super.writeTo(out);
             out.writeStringArray(indices);
             indicesOptions.writeIndicesOptions(out);
-            out.writeMap(extraParams, StreamOutput::writeString, StreamOutput::writeString);
         }
 
         @Override
@@ -200,13 +184,12 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
             return Arrays.equals(indices, request.indices) &&
-                    Objects.equals(indicesOptions.toString(), request.indicesOptions.toString()) &&
-                    Objects.equals(extraParams, request.extraParams);
+                    Objects.equals(indicesOptions.toString(), request.indicesOptions.toString());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(Arrays.hashCode(indices), indicesOptions.toString(), extraParams);
+            return Objects.hash(Arrays.hashCode(indices), indicesOptions.toString());
         }
     }
 
@@ -225,13 +208,6 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
             request.indicesOptions(indicesOptions);
             return this;
         }
-
-        public RequestBuilder setExtraParams(Map<String, String> params) {
-            request.extraParams(params);
-            return this;
-        }
-
-
     }
 
     public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
@@ -272,7 +248,7 @@ public class IndexUpgradeInfoAction extends Action<IndexUpgradeInfoAction.Reques
         protected final void masterOperation(final Request request, ClusterState state, final ActionListener<Response> listener) {
             if (licenseState.isUpgradeAllowed()) {
                 Map<String, UpgradeActionRequired> results =
-                        indexUpgradeService.upgradeInfo(request.indices(), request.indicesOptions(), request.extraParams(), state);
+                        indexUpgradeService.upgradeInfo(request.indices(), request.indicesOptions(), state);
                 listener.onResponse(new Response(results));
             } else {
                 listener.onFailure(LicenseUtils.newComplianceException(XPackPlugin.UPGRADE));

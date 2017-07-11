@@ -16,10 +16,9 @@ import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.transport.TransportResponse;
 
-import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * Generic upgrade check applicable to all indices to be upgraded from the current version
@@ -35,7 +34,7 @@ public class IndexUpgradeCheck<T> extends AbstractComponent {
     public static final int UPRADE_VERSION = 6;
 
     private final String name;
-    private final BiFunction<IndexMetaData, Map<String, String>, UpgradeActionRequired> actionRequired;
+    private final Function<IndexMetaData, UpgradeActionRequired> actionRequired;
     private final InternalIndexReindexer<T> reindexer;
 
     /**
@@ -50,7 +49,7 @@ public class IndexUpgradeCheck<T> extends AbstractComponent {
      * @param updateScript   - the upgrade script that should be used during reindexing
      */
     public IndexUpgradeCheck(String name, Settings settings,
-                             BiFunction<IndexMetaData, Map<String, String>, UpgradeActionRequired> actionRequired,
+                             Function<IndexMetaData, UpgradeActionRequired> actionRequired,
                              Client client, ClusterService clusterService, String[] types, Script updateScript) {
         this(name, settings, actionRequired, client, clusterService, types, updateScript,
                 listener -> listener.onResponse(null), (t, listener) -> listener.onResponse(TransportResponse.Empty.INSTANCE));
@@ -70,7 +69,7 @@ public class IndexUpgradeCheck<T> extends AbstractComponent {
      * @param postUpgrade    - action that should be performed after upgrade
      */
     public IndexUpgradeCheck(String name, Settings settings,
-                             BiFunction<IndexMetaData, Map<String, String>, UpgradeActionRequired> actionRequired,
+                             Function<IndexMetaData, UpgradeActionRequired> actionRequired,
                              Client client, ClusterService clusterService, String[] types, Script updateScript,
                              Consumer<ActionListener<T>> preUpgrade,
                              BiConsumer<T, ActionListener<TransportResponse.Empty>> postUpgrade) {
@@ -92,11 +91,10 @@ public class IndexUpgradeCheck<T> extends AbstractComponent {
      * This method is called by Upgrade API to verify if upgrade or reindex for this index is required
      *
      * @param indexMetaData index metadata
-     * @param params        additional user-specified parameters see {@link IndexUpgradeCheckFactory#supportedParams}
      * @return required action or UpgradeActionRequired.NOT_APPLICABLE if this check cannot be performed on the index
      */
-    public UpgradeActionRequired actionRequired(IndexMetaData indexMetaData, Map<String, String> params) {
-        return actionRequired.apply(indexMetaData, params);
+    public UpgradeActionRequired actionRequired(IndexMetaData indexMetaData) {
+        return actionRequired.apply(indexMetaData);
     }
 
     /**

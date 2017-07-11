@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -34,15 +33,11 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
     }
 
     public void testIndexUpgradeInfo() {
+        // Testing only negative case here, the positive test is done in bwcTests
         assertAcked(client().admin().indices().prepareCreate("test").get());
-        assertAcked(client().admin().indices().prepareCreate("kibana_test").get());
-        ensureYellow("test", "kibana_test");
-        Response response = client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("test", "kibana_test")
-                .setExtraParams(Collections.singletonMap("kibana_indices", "kibana_test")).get();
-        logger.info("Got response [{}]", Strings.toString(response));
-        assertThat(response.getActions().size(), equalTo(1));
-        assertThat(response.getActions().get("kibana_test"), equalTo(UpgradeActionRequired.UPGRADE));
-        assertThat(Strings.toString(response), containsString("kibana_test"));
+        ensureYellow("test");
+        Response response = client().prepareExecute(IndexUpgradeInfoAction.INSTANCE).setIndices("test").get();
+        assertThat(response.getActions().entrySet(), empty());
     }
 
     public void testIndexUpgradeInfoLicense() throws Exception {
@@ -57,8 +52,9 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         assertThat(response.getActions().entrySet(), empty());
     }
 
-    public void testUpgradeInternalIndex() throws Exception {
-        String testIndex = ".kibana";
+    public void testUpToDateIndexUpgrade() throws Exception {
+        // Testing only negative case here, the positive test is done in bwcTests
+        String testIndex = "test";
         String testType = "doc";
         assertAcked(client().admin().indices().prepareCreate(testIndex).get());
         indexRandom(true,
@@ -67,22 +63,25 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
         );
         ensureYellow(testIndex);
 
-        BulkByScrollResponse response = client().prepareExecute(IndexUpgradeAction.INSTANCE).setIndex(testIndex).get();
-        assertThat(response.getCreated(), equalTo(2L));
+        IllegalStateException ex = expectThrows(IllegalStateException.class,
+                () -> client().prepareExecute(IndexUpgradeAction.INSTANCE).setIndex(testIndex).get());
+        assertThat(ex.getMessage(), equalTo("Index [" + testIndex + "] cannot be upgraded"));
 
         SearchResponse searchResponse = client().prepareSearch(testIndex).get();
         assertEquals(2L, searchResponse.getHits().getTotalHits());
     }
 
-    public void testInternalUpgradePrePostChecks() {
+    public void testInternalUpgradePrePostChecks() throws Exception {
+        String testIndex = "internal_index";
+        String testType = "test";
         Long val = randomLong();
         AtomicBoolean preUpgradeIsCalled = new AtomicBoolean();
         AtomicBoolean postUpgradeIsCalled = new AtomicBoolean();
 
         IndexUpgradeCheck check = new IndexUpgradeCheck<Long>(
                 "test", Settings.EMPTY,
-                (indexMetaData, stringStringMap) -> {
-                    if (indexMetaData.getIndex().getName().equals("internal_index")) {
+                indexMetaData -> {
+                    if (indexMetaData.getIndex().getName().equals(testIndex)) {
                         return UpgradeActionRequired.UPGRADE;
                     } else {
                         return UpgradeActionRequired.NOT_APPLICABLE;
@@ -101,13 +100,22 @@ public class IndexUpgradeIT extends IndexUpgradeIntegTestCase {
                     listener.onResponse(TransportResponse.Empty.INSTANCE);
                 });
 
-        assertAcked(client().admin().indices().prepareCreate("internal_index").get());
+        assertAcked(client().admin().indices().prepareCreate(testIndex).get());
+        indexRandom(true,
+                client().prepareIndex(testIndex, testType, "1").setSource("{\"foo\":\"bar\"}", XContentType.JSON),
+                client().prepareIndex(testIndex, testType, "2").setSource("{\"foo\":\"baz\"}", XContentType.JSON)
+        );
+        ensureYellow(testIndex);
 
         IndexUpgradeService service = new IndexUpgradeService(Settings.EMPTY, Collections.singletonList(check));
 
         PlainActionFuture<BulkByScrollResponse> future = PlainActionFuture.newFuture();
-        service.upgrade("internal_index", Collections.emptyMap(), clusterService().state(), future);
-        future.actionGet();
+        service.upgrade(testIndex, clusterService().state(), future);
+        BulkByScrollResponse response = future.actionGet();
+        assertThat(response.getCreated(), equalTo(2L));
+
+        SearchResponse searchResponse = client().prepareSearch(testIndex).get();
+        assertEquals(2L, searchResponse.getHits().getTotalHits());
 
         assertTrue(preUpgradeIsCalled.get());
         assertTrue(postUpgradeIsCalled.get());

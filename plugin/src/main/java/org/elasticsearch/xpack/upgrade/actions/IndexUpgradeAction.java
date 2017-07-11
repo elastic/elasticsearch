@@ -30,8 +30,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.upgrade.IndexUpgradeService;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -60,7 +58,6 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest {
 
         private String index = null;
-        private Map<String, String> extraParams = Collections.emptyMap();
 
         // for serialization
         public Request() {
@@ -95,23 +92,11 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
         }
 
 
-        public Map<String, String> extraParams() {
-            return extraParams;
-        }
-
-        public Request extraParams(Map<String, String> extraParams) {
-            this.extraParams = extraParams;
-            return this;
-        }
-
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
             if (index == null) {
                 validationException = addValidationError("index is missing", validationException);
-            }
-            if (extraParams == null) {
-                validationException = addValidationError("params are missing", validationException);
             }
             return validationException;
         }
@@ -120,14 +105,12 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             index = in.readString();
-            extraParams = in.readMap(StreamInput::readString, StreamInput::readString);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(index);
-            out.writeMap(extraParams, StreamOutput::writeString, StreamOutput::writeString);
         }
 
         @Override
@@ -135,13 +118,12 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(index, request.index) &&
-                    Objects.equals(extraParams, request.extraParams);
+            return Objects.equals(index, request.index);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(index, extraParams);
+            return Objects.hash(index);
         }
     }
 
@@ -155,13 +137,6 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
             request.index(index);
             return this;
         }
-
-        public RequestBuilder setExtraParams(Map<String, String> params) {
-            request.extraParams(params);
-            return this;
-        }
-
-
     }
 
     public static class TransportAction extends TransportMasterNodeAction<Request, BulkByScrollResponse> {
@@ -196,7 +171,7 @@ public class IndexUpgradeAction extends Action<IndexUpgradeAction.Request, BulkB
 
         @Override
         protected final void masterOperation(final Request request, ClusterState state, ActionListener<BulkByScrollResponse> listener) {
-            indexUpgradeService.upgrade(request.index(), request.extraParams(), state, listener);
+            indexUpgradeService.upgrade(request.index(), state, listener);
         }
     }
 }

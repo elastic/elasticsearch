@@ -17,20 +17,14 @@ import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction;
 import org.elasticsearch.xpack.upgrade.actions.IndexUpgradeInfoAction.Request;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
 
 public class RestIndexUpgradeInfoAction extends BaseRestHandler {
-    private final Set<String> extraParameters;
 
-    public RestIndexUpgradeInfoAction(Settings settings, RestController controller, Set<String> extraParameters) {
+    public RestIndexUpgradeInfoAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(RestRequest.Method.GET, "/_xpack/migration/assistance", this);
         controller.registerHandler(RestRequest.Method.GET, "/_xpack/migration/assistance/{index}", this);
-        this.extraParameters = extraParameters;
     }
-
 
     @Override
     public String getName() {
@@ -49,14 +43,6 @@ public class RestIndexUpgradeInfoAction extends BaseRestHandler {
     private RestChannelConsumer handleGet(final RestRequest request, NodeClient client) {
         Request infoRequest = new Request(Strings.splitStringByCommaToArray(request.param("index")));
         infoRequest.indicesOptions(IndicesOptions.fromRequest(request, infoRequest.indicesOptions()));
-        Map<String, String> extraParamsMap = new HashMap<>();
-        for (String param : extraParameters) {
-            String value = request.param(param);
-            if (value != null) {
-                extraParamsMap.put(param, value);
-            }
-        }
-        infoRequest.extraParams(extraParamsMap);
         return channel -> client.execute(IndexUpgradeInfoAction.INSTANCE, infoRequest, new RestToXContentListener<>(channel));
     }
 

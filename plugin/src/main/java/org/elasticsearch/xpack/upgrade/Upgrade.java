@@ -16,9 +16,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -48,9 +45,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -60,18 +55,11 @@ public class Upgrade implements ActionPlugin {
 
     private final Settings settings;
     private final List<BiFunction<InternalClient, ClusterService, IndexUpgradeCheck>> upgradeCheckFactories;
-    private final Set<String> extraParameters;
 
     public Upgrade(Settings settings) {
         this.settings = settings;
-        this.extraParameters = new HashSet<>();
         this.upgradeCheckFactories = new ArrayList<>();
-        for (Tuple<Collection<String>, BiFunction<InternalClient, ClusterService, IndexUpgradeCheck>> checkFactory : Arrays.asList(
-                getKibanaUpgradeCheckFactory(settings),
-                getWatcherUpgradeCheckFactory(settings))) {
-            extraParameters.addAll(checkFactory.v1());
-            upgradeCheckFactories.add(checkFactory.v2());
-        }
+        upgradeCheckFactories.add(getWatcherUpgradeCheckFactory(settings));
     }
 
     public Collection<Object> createComponents(InternalClient internalClient, ClusterService clusterService, ThreadPool threadPool,
@@ -98,66 +86,37 @@ public class Upgrade implements ActionPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(
-                new RestIndexUpgradeInfoAction(settings, restController, extraParameters),
-                new RestIndexUpgradeAction(settings, restController, extraParameters)
+                new RestIndexUpgradeInfoAction(settings, restController),
+                new RestIndexUpgradeAction(settings, restController)
         );
     }
 
-    static Tuple<Collection<String>, BiFunction<InternalClient, ClusterService, IndexUpgradeCheck>> getKibanaUpgradeCheckFactory(
-            Settings settings) {
-        return new Tuple<>(
-                Collections.singletonList("kibana_indices"),
-                (internalClient, clusterService) ->
-                        new IndexUpgradeCheck<Void>("kibana",
-                                settings,
-                                (indexMetaData, params) -> {
-                                    String indexName = indexMetaData.getIndex().getName();
-                                    String kibanaIndicesMasks = params.getOrDefault("kibana_indices", ".kibana");
-                                    String[] kibanaIndices = Strings.delimitedListToStringArray(kibanaIndicesMasks, ",");
-                                    if (Regex.simpleMatch(kibanaIndices, indexName)) {
-                                        return UpgradeActionRequired.UPGRADE;
-                                    } else {
-                                        return UpgradeActionRequired.NOT_APPLICABLE;
-                                    }
-                                }, internalClient,
-                                clusterService,
-                                Strings.EMPTY_ARRAY,
-                                new Script(ScriptType.INLINE, "painless", "ctx._id = ctx._type + \"-\" + ctx._id;\n" +
-                                        "ctx._source = [ ctx._type : ctx._source ];\n" +
-                                        "ctx._source.type = ctx._type;\n" +
-                                        "ctx._type = \"doc\";",
-                                        new HashMap<>())));
-    }
-
-    static Tuple<Collection<String>, BiFunction<InternalClient, ClusterService, IndexUpgradeCheck>> getWatcherUpgradeCheckFactory(
-            Settings settings) {
-        return new Tuple<>(
-                Collections.emptyList(),
-                (internalClient, clusterService) ->
-                        new IndexUpgradeCheck<Boolean>("watcher",
-                                settings,
-                                (indexMetaData, params) -> {
-                                    if (".watches".equals(indexMetaData.getIndex().getName()) ||
-                                            indexMetaData.getAliases().containsKey(".watches")) {
-                                        if (indexMetaData.getMappings().size() == 1 && indexMetaData.getMappings().containsKey("doc") ) {
-                                            return UpgradeActionRequired.UP_TO_DATE;
-                                        } else {
-                                            return UpgradeActionRequired.UPGRADE;
-                                        }
-                                    } else {
-                                        return UpgradeActionRequired.NOT_APPLICABLE;
-                                    }
-                                }, internalClient,
-                                clusterService,
-                                new String[]{"watch"},
-                                new Script(ScriptType.INLINE, "painless", "ctx._type = \"doc\";\n" +
-                                        "if (ctx._source.containsKey(\"_status\") && !ctx._source.containsKey(\"status\")  ) {\n" +
-                                        "  ctx._source.status = ctx._source.remove(\"_status\");\n" +
-                                        "}",
-                                        new HashMap<>()),
-                                booleanActionListener -> preWatcherUpgrade(internalClient, booleanActionListener),
-                                (shouldStartWatcher, listener) -> postWatcherUpgrade(internalClient, shouldStartWatcher, listener)
-                        ));
+    static BiFunction<InternalClient, ClusterService, IndexUpgradeCheck> getWatcherUpgradeCheckFactory(Settings settings) {
+        return (internalClient, clusterService) ->
+                new IndexUpgradeCheck<Boolean>("watcher",
+                        settings,
+                        indexMetaData -> {
+                            if (".watches".equals(indexMetaData.getIndex().getName()) ||
+                                    indexMetaData.getAliases().containsKey(".watches")) {
+                                if (indexMetaData.getMappings().size() == 1 && indexMetaData.getMappings().containsKey("doc")) {
+                                    return UpgradeActionRequired.UP_TO_DATE;
+                                } else {
+                                    return UpgradeActionRequired.UPGRADE;
+                                }
+                            } else {
+                                return UpgradeActionRequired.NOT_APPLICABLE;
+                            }
+                        }, internalClient,
+                        clusterService,
+                        new String[]{"watch"},
+                        new Script(ScriptType.INLINE, "painless", "ctx._type = \"doc\";\n" +
+                                "if (ctx._source.containsKey(\"_status\") && !ctx._source.containsKey(\"status\")  ) {\n" +
+                                "  ctx._source.status = ctx._source.remove(\"_status\");\n" +
+                                "}",
+                                new HashMap<>()),
+                        booleanActionListener -> preWatcherUpgrade(internalClient, booleanActionListener),
+                        (shouldStartWatcher, listener) -> postWatcherUpgrade(internalClient, shouldStartWatcher, listener)
+                );
     }
 
     private static void preWatcherUpgrade(Client client, ActionListener<Boolean> listener) {

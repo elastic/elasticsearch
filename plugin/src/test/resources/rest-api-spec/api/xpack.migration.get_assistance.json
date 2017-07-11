@@ -27,10 +27,6 @@
         "ignore_unavailable": {
           "type" : "boolean",
           "description" : "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
-        },
-        "kibana_indices": {
-          "type": "list",
-          "description": "A comma separated list of indices that should be treated as kibana indices"
         }
       }
     }

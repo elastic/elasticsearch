@@ -39,18 +39,16 @@ public class IndexUpgradeService extends AbstractComponent {
      *
      * @param indices list of indices to check, specify _all for all indices
      * @param options wild card resolution option
-     * @param params  list of additional parameters that will be passed to upgrade checks
      * @param state   the current cluster state
      * @return a list of indices that should be upgraded/reindexed
      */
-    public Map<String, UpgradeActionRequired> upgradeInfo(String[] indices, IndicesOptions options, Map<String, String> params,
-                                                          ClusterState state) {
+    public Map<String, UpgradeActionRequired> upgradeInfo(String[] indices, IndicesOptions options, ClusterState state) {
         Map<String, UpgradeActionRequired> results = new HashMap<>();
         String[] concreteIndexNames = indexNameExpressionResolver.concreteIndexNames(state, options, indices);
         MetaData metaData = state.getMetaData();
         for (String index : concreteIndexNames) {
             IndexMetaData indexMetaData = metaData.index(index);
-            UpgradeActionRequired upgradeActionRequired = upgradeInfo(indexMetaData, index, params);
+            UpgradeActionRequired upgradeActionRequired = upgradeInfo(indexMetaData, index);
             if (upgradeActionRequired != null) {
                 results.put(index, upgradeActionRequired);
             }
@@ -58,9 +56,9 @@ public class IndexUpgradeService extends AbstractComponent {
         return results;
     }
 
-    private UpgradeActionRequired upgradeInfo(IndexMetaData indexMetaData, String index, Map<String, String> params) {
+    private UpgradeActionRequired upgradeInfo(IndexMetaData indexMetaData, String index) {
         for (IndexUpgradeCheck check : upgradeChecks) {
-            UpgradeActionRequired upgradeActionRequired = check.actionRequired(indexMetaData, params);
+            UpgradeActionRequired upgradeActionRequired = check.actionRequired(indexMetaData);
             logger.trace("[{}] check [{}] returned [{}]", index, check.getName(), upgradeActionRequired);
             switch (upgradeActionRequired) {
                 case UPGRADE:
@@ -87,14 +85,13 @@ public class IndexUpgradeService extends AbstractComponent {
         }
     }
 
-    public void upgrade(String index, Map<String, String> params, ClusterState state,
-                        ActionListener<BulkByScrollResponse> listener) {
+    public void upgrade(String index, ClusterState state, ActionListener<BulkByScrollResponse> listener) {
         IndexMetaData indexMetaData = state.metaData().index(index);
         if (indexMetaData == null) {
             throw new IndexNotFoundException(index);
         }
         for (IndexUpgradeCheck check : upgradeChecks) {
-            UpgradeActionRequired upgradeActionRequired = check.actionRequired(indexMetaData, params);
+            UpgradeActionRequired upgradeActionRequired = check.actionRequired(indexMetaData);
             switch (upgradeActionRequired) {
                 case UPGRADE:
                     // this index needs to be upgraded - start the upgrade procedure

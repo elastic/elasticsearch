@@ -211,7 +211,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 Query query = HalfFloatPoint.newRangeQuery(field, l, u);
                 if (hasDocValues) {
-                    Query dvQuery = SortedNumericDocValuesField.newRangeQuery(field,
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field,
                             HalfFloatPoint.halfFloatToSortableShort(l),
                             HalfFloatPoint.halfFloatToSortableShort(u));
                     query = new IndexOrDocValuesQuery(query, dvQuery);
@@ -307,7 +307,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 Query query = FloatPoint.newRangeQuery(field, l, u);
                 if (hasDocValues) {
-                    Query dvQuery = SortedNumericDocValuesField.newRangeQuery(field,
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field,
                             NumericUtils.floatToSortableInt(l),
                             NumericUtils.floatToSortableInt(u));
                     query = new IndexOrDocValuesQuery(query, dvQuery);
@@ -403,7 +403,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 Query query = DoublePoint.newRangeQuery(field, l, u);
                 if (hasDocValues) {
-                    Query dvQuery = SortedNumericDocValuesField.newRangeQuery(field,
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field,
                             NumericUtils.doubleToSortableLong(l),
                             NumericUtils.doubleToSortableLong(u));
                     query = new IndexOrDocValuesQuery(query, dvQuery);
@@ -660,7 +660,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 Query query = IntPoint.newRangeQuery(field, l, u);
                 if (hasDocValues) {
-                    Query dvQuery = SortedNumericDocValuesField.newRangeQuery(field, l, u);
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
                 return query;
@@ -790,7 +790,7 @@ public class NumberFieldMapper extends FieldMapper {
                 }
                 Query query = LongPoint.newRangeQuery(field, l, u);
                 if (hasDocValues) {
-                    Query dvQuery = SortedNumericDocValuesField.newRangeQuery(field, l, u);
+                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(field, l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
                 return query;

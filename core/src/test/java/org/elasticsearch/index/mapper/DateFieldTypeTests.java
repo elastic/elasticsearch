@@ -177,7 +177,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         ft.setIndexOptions(IndexOptions.DOCS);
         Query expected = new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", instant, instant + 999),
-                SortedNumericDocValuesField.newRangeQuery("field", instant, instant + 999));
+                SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999));
         assertEquals(expected, ft.termQuery(date, context));
 
         ft.setIndexOptions(IndexOptions.NONE);
@@ -201,7 +201,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         ft.setIndexOptions(IndexOptions.DOCS);
         Query expected = new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", instant1, instant2),
-                SortedNumericDocValuesField.newRangeQuery("field", instant1, instant2));
+                SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2));
         assertEquals(expected,
                 ft.rangeQuery(date1, date2, true, true, context).rewrite(new MultiReader()));
 

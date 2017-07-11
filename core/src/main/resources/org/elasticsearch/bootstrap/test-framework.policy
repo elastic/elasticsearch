@@ -33,7 +33,7 @@ grant codeBase "${codebase.securemock-1.2.jar}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.lucene-test-framework-7.0.0-snapshot-ad2cb77.jar}" {
+grant codeBase "${codebase.lucene-test-framework-7.0.0-snapshot-00142c9.jar}" {
   // needed by RamUsageTester
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed for testing hardlinks in StoreRecoveryTests since we install MockFS
@@ -64,7 +64,7 @@ grant codeBase "${codebase.mocksocket-1.2.jar}" {
 };
 
 
-grant codeBase "${codebase.rest-6.0.0-alpha3-SNAPSHOT.jar}" {
+grant codeBase "${codebase.rest-6.0.0-beta1-SNAPSHOT.jar}" {
   // rest makes socket connections for rest tests
   permission java.net.SocketPermission "*", "connect";
 };

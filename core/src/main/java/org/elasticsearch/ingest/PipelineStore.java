@@ -52,7 +52,6 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
 
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private final Map<String, Processor.Factory> processorFactories;
-    private volatile boolean newIngestDateFormat;
 
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -60,15 +59,9 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
     volatile Map<String, Pipeline> pipelines = new HashMap<>();
 
-    public PipelineStore(ClusterSettings clusterSettings, Settings settings, Map<String, Processor.Factory> processorFactories) {
+    public PipelineStore(Settings settings, Map<String, Processor.Factory> processorFactories) {
         super(settings);
         this.processorFactories = processorFactories;
-        this.newIngestDateFormat = IngestService.NEW_INGEST_DATE_FORMAT.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(IngestService.NEW_INGEST_DATE_FORMAT, this::setNewIngestDateFormat);
-    }
-
-    private void setNewIngestDateFormat(Boolean newIngestDateFormat) {
-        this.newIngestDateFormat = newIngestDateFormat;
     }
 
     @Override
@@ -210,10 +203,6 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
 
     public Map<String, Processor.Factory> getProcessorFactories() {
         return processorFactories;
-    }
-
-    public boolean isNewIngestDateFormat() {
-        return newIngestDateFormat;
     }
 
     /**

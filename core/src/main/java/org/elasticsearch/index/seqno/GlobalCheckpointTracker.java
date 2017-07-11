@@ -49,7 +49,8 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * The global checkpoint tracker can operate in two modes:
      * - primary: this shard is in charge of collecting local checkpoint information from all shard copies and computing the global
      *            checkpoint based on the local checkpoints of all in-sync shard copies.
-     * - replica: this shard receives global checkpoint information from the primary (see {@link #updateGlobalCheckpointOnReplica}).
+     * - replica: this shard receives global checkpoint information from the primary (see
+     *   {@link #updateGlobalCheckpointOnReplica(long, String)}).
      *
      * When a shard is initialized (be it a primary or replica), it initially operates in replica mode. The global checkpoint tracker is
      * then switched to primary mode in the following three scenarios:
@@ -245,8 +246,9 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
      * @param globalCheckpoint the global checkpoint
+     * @param reason           the reason the global checkpoint was updated
      */
-    public synchronized void updateGlobalCheckpointOnReplica(final long globalCheckpoint) {
+    public synchronized void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
         assert invariant();
         assert primaryMode == false;
         /*
@@ -255,8 +257,8 @@ public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
          * replica shards). In these cases, the local knowledge of the global checkpoint could be higher than sync from the lagging primary.
          */
         if (this.globalCheckpoint <= globalCheckpoint) {
+            logger.trace("updating global checkpoint from [{}] to [{}] due to [{}]", this.globalCheckpoint, globalCheckpoint, reason);
             this.globalCheckpoint = globalCheckpoint;
-            logger.trace("global checkpoint updated from primary to [{}]", globalCheckpoint);
         }
         assert invariant();
     }

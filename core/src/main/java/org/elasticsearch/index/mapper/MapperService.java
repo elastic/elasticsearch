@@ -35,7 +35,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -805,7 +804,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (hasMapping(type) == false) {
             return null;
         }
-        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha3)) {
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
             assert indexSettings.isSingleType();
             return new Term(IdFieldMapper.NAME, Uid.encodeId(id));
         } else if (indexSettings.isSingleType()) {

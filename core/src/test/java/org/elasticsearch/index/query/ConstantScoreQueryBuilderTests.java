@@ -117,4 +117,10 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         assertEquals(json, 23.0, parsed.boost(), 0.0001);
         assertEquals(json, 42.0, parsed.innerQuery().boost(), 0.0001);
     }
+
+    public void testRewriteToMatchNone() throws IOException {
+        ConstantScoreQueryBuilder constantScoreQueryBuilder = new ConstantScoreQueryBuilder(new MatchNoneQueryBuilder());
+        QueryBuilder rewrite = constantScoreQueryBuilder.rewrite(createShardContext());
+        assertEquals(rewrite, new MatchNoneQueryBuilder());
+    }
 }

@@ -496,8 +496,11 @@ public class TribeIT extends ESIntegTestCase {
         Collections.sort(customMetaDatas, (cm1, cm2) -> cm2.getData().compareTo(cm1.getData()));
         final MergableCustomMetaData1 tribeNodeCustomMetaData = customMetaDatas.get(0);
         try (Releasable tribeNode = startTribeNode()) {
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             putCustomMetaData(cluster1, customMetaData1);
             assertCustomMetaDataUpdated(internalCluster(), customMetaData1);
+            // check that cluster state version is properly incremented
+            assertThat(client().admin().cluster().prepareState().get().getState().getVersion(), equalTo(clusterState.getVersion() + 1));
             putCustomMetaData(cluster2, customMetaData2);
             assertCustomMetaDataUpdated(internalCluster(), tribeNodeCustomMetaData);
         }

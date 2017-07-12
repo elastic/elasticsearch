@@ -236,6 +236,26 @@ public class NumberFieldMapper extends FieldMapper {
                 return fields;
             }
 
+            void validateParsed(Number value) throws IllegalArgumentException {
+                /** this checks mimics logic of {@link org.apache.lucene.document.HalfFloatPoint#halfFloatToShortBits} */
+                int floatBits = Float.floatToIntBits(value.floatValue());
+                int exp = (floatBits >>> 23) & 0xff;
+                if (exp == 0xff) {
+                    throw new IllegalArgumentException("Infitity and NaN are not supported");
+                }
+                if (exp == 0x00) {
+                    return;
+                }
+                exp = exp - 127 + 15;
+                if (exp >= 0x1f) {
+                    throw new IllegalArgumentException("Too large value");
+                }
+                int shift = 23 - 10 - exp + 1;
+                if (exp <= 0 && shift >= 32) {
+                    throw new IllegalArgumentException("Decimal part is too small");
+                }
+            }
+
             @Override
             FieldStats.Double stats(IndexReader reader, String fieldName,
                                     boolean isSearchable, boolean isAggregatable) throws IOException {
@@ -863,6 +883,10 @@ public class NumberFieldMapper extends FieldMapper {
             return value;
         }
 
+        void validateParsed(Number value) throws IllegalArgumentException {
+            // todo override in all subclasses and then make abstract
+        }
+
         /**
          * Returns true if the object is a number and has a decimal part
          */
@@ -1066,6 +1090,8 @@ public class NumberFieldMapper extends FieldMapper {
         if (numericValue == null) {
             numericValue = fieldType().type.parse(value, coerce.value());
         }
+
+        fieldType().type.validateParsed(numericValue);
 
         if (includeInAll) {
             context.allEntries().addText(fieldType().name(), value.toString(), fieldType().boost());

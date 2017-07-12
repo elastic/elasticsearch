@@ -19,3 +19,12 @@ Elasticsearch accepted a flag `ES_SKIP_SET_KERNEL_PARAMTERS` to skip this
 writing. Starting in Elasticsearch 5.5.0, this flag has been removed and
 instead the same functionality can be achieved by masking the `systemd-sysctl`
 service.
+
+[[breaking_55_java_api_changes]]
+[float]
+=== Java API changes
+
+The `has_child`, `has_parent` and `parent_id` queries have moved to parent-join module. Also the
+`children` aggregation has been moved to the parent-join module.
+The parent-join module should be loaded when using the transport client. Alternatively use the `PreBuiltTransportClient`
+client, which load the module automatically.

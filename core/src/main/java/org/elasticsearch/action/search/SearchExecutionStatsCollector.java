@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -32,14 +31,14 @@ import java.util.Objects;
  * result to get the piggybacked queue size and service time EWMA, adding those
  * values to the coordinating nodes' {@code ResponseCollectorService}.
  */
-public class ResponseListenerWrapper implements ActionListener<SearchPhaseResult> {
+public class SearchExecutionStatsCollector implements ActionListener<SearchPhaseResult> {
 
     private final SearchActionListener<SearchPhaseResult> listener;
     private final ResponseCollectorService collector;
     private final long startNanos;
 
-    public ResponseListenerWrapper(SearchActionListener<SearchPhaseResult> listener,
-                                   ResponseCollectorService collector) {
+    public SearchExecutionStatsCollector(SearchActionListener<SearchPhaseResult> listener,
+                                         ResponseCollectorService collector) {
         this.listener = Objects.requireNonNull(listener, "listener cannot be null");
         this.collector = Objects.requireNonNull(collector, "response collector cannot be null");
         this.startNanos = System.nanoTime();

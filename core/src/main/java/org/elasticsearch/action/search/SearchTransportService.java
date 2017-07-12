@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
@@ -124,7 +123,7 @@ public class SearchTransportService extends AbstractComponent {
         final boolean fetchDocuments = request.numberOfShards() == 1;
         Supplier<SearchPhaseResult> supplier = fetchDocuments ? QueryFetchSearchResult::new : QuerySearchResult::new;
         ActionListener handler =
-            responseCollectorService == null ? listener : new ResponseListenerWrapper(listener, responseCollectorService);
+            responseCollectorService == null ? listener : new SearchExecutionStatsCollector(listener, responseCollectorService);
         transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, task,
             new ActionListenerResponseHandler<>(handler, supplier));
     }

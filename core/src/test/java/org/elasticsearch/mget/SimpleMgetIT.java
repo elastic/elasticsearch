@@ -106,6 +106,23 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), containsString("more than one indices"));
     }
 
+    public void testThatMgetShouldWorkWithAliasRouting() throws IOException {
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias1").routing("abc"))
+            .addMapping("test", jsonBuilder()
+                .startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
+
+        client().prepareIndex("alias1", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject())
+            .setRefreshPolicy(IMMEDIATE).get();
+
+        MultiGetResponse mgetResponse = client().prepareMultiGet()
+            .add(new MultiGetRequest.Item("alias1", "test", "1"))
+            .get();
+        assertThat(mgetResponse.getResponses().length, is(1));
+
+        assertThat(mgetResponse.getResponses()[0].getIndex(), is("test"));
+        assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));
+    }
+
     public void testThatParentPerDocumentIsSupported() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("test", jsonBuilder()

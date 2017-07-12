@@ -152,6 +152,8 @@ public class AzureManagementServiceImpl implements AzureManagementService, AutoC
             if (primaryPublicIpAddress.getAssignedNetworkInterfaceIpConfiguration() != null) {
                 machine.setPrivateIp(primaryPublicIpAddress.getAssignedNetworkInterfaceIpConfiguration().privateIpAddress());
             }
+        } else if (vm.getPrimaryNetworkInterface() != null) {
+            machine.setPrivateIp(vm.getPrimaryNetworkInterface().primaryPrivateIp());
         }
         return machine;
     }

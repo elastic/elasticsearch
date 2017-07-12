@@ -44,6 +44,7 @@ public class AzureArmClientTests extends ESTestCase {
     private static final String SECRET = "FILL_WITH_YOUR_SECRET";
     private static final String TENANT = "FILL_WITH_YOUR_TENANT";
     private static final String SUBSCRIPTION_ID = "FILL_WITH_YOUR_SUBSCRIPTION_ID";
+    private static final String GROUP_NAME = null;
 
     private static AzureManagementServiceImpl service;
 
@@ -66,7 +67,7 @@ public class AzureArmClientTests extends ESTestCase {
     }
 
     public void testConnectWithKeySecret() {
-        List<AzureVirtualMachine> vms = service.getVirtualMachines(null);
+        List<AzureVirtualMachine> vms = service.getVirtualMachines(GROUP_NAME);
 
         for (AzureVirtualMachine vm : vms) {
             logger.info(" -> {}", vm);

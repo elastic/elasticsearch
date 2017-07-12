@@ -67,10 +67,9 @@ When using the zip or tarball packages, the `config`, `data`, `logs` and
 default.
 
 It is a good idea to place these directories in a different location so that
-there is no chance of deleting them when upgrading Elasticsearch.  These
-custom paths can be <<path-settings,configured>> with the `path.conf`,
-`path.logs`, and `path.data` settings, and using `ES_JVM_OPTIONS` to specify
-the location of the `jvm.options` file.
+there is no chance of deleting them when upgrading Elasticsearch.  These custom
+paths can be <<path-settings,configured>> with the `CONF_DIR` environment
+variable, and the `path.logs`, and `path.data` settings.
 
 The <<deb,Debian>> and <<rpm,RPM>> packages place these directories in the
 appropriate place for each operating system.

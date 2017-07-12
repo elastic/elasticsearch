@@ -6,7 +6,7 @@
 # behavior, those variables are:
 #
 #   ES_CLASSPATH -- A Java classpath containing everything necessary to run.
-#   ES_JVM_OPTIONS -- Path to file containing JVM options
+#   CONF_DIR -- Path to config directory
 #   ES_JAVA_OPTS -- External Java Opts on top of the defaults set
 #
 # Optionally, exact memory values can be set using the `ES_JAVA_OPTS`.
@@ -81,14 +81,10 @@ ES_HOME=`dirname "$SCRIPT"`/..
 # make ELASTICSEARCH_HOME absolute
 ES_HOME=`cd "$ES_HOME"; pwd`
 
-if [ -z "$ES_JVM_OPTIONS" ]; then
-    for jvm_options in "$ES_HOME"/config/jvm.options \
-                      /etc/elasticsearch/jvm.options; do
-        if [ -r "$jvm_options" ]; then
-            ES_JVM_OPTIONS=$jvm_options
-            break
-        fi
-    done
+if [ -z "$CONF_DIR" ]; then
+    ES_JVM_OPTIONS="$ES_HOME"/config/jvm.options
+else
+    ES_JVM_OPTIONS="$CONF_DIR"/jvm.options
 fi
 
 ES_JAVA_OPTS="$(parse_jvm_options "$ES_JVM_OPTIONS") $ES_JAVA_OPTS"

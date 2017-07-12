@@ -35,20 +35,24 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
-{es} supports three highlighters:
+{es} supports three highlighters: `unified`, `plain`, and `fvh` (fast vector
+highlighter). You can specify the highlighter `type` you want to use
+for each field.
 
 [[unified-highlighter]]
-* The `unified` highlighter uses the Lucene Unified Highlighter. This
+==== Unified highlighter
+The `unified` highlighter uses the Lucene Unified Highlighter. This
 highlighter breaks the text into sentences and uses the BM25 algorithm to score
 individual sentences as if they were documents in the corpus. It also supports
 accurate phrase and multi-term (fuzzy, prefix, regex) highlighting. This is the
 default highlighter.
 
 [[plain-highlighter]]
-* The `plain` highlighter uses the standard Lucene highlighter. It attempts to
+==== Plain highlighter
+The `plain` highlighter uses the standard Lucene highlighter. It attempts to
 reflect the query matching logic in terms of understanding word importance and
 any word positioning criteria in phrase queries.
-+
+
 [WARNING]
 The `plain` highlighter works best for highlighting simple query matches in a
 single field. To accurately reflect query logic, it creates a tiny in-memory
@@ -59,20 +63,23 @@ If you want to highlight a lot of fields in a lot of documents with complex
 queries, we recommend using one of the other highlighters.
 
 [[fast-vector-highlighter]]
-* The `fvh` highlighter uses the Lucene Fast Vector highlighter.
+==== Fast vector highlighter
+The `fvh` highlighter uses the Lucene Fast Vector highlighter.
 This highlighter can be used on fields with `term_vector` set to
 `with_positions_offsets` in the mapping. The fast vector highlighter:
 
-** Is faster especially for large fields (> `1MB`)
-** Can be customized with  a <<boundary-scanners,`boundary_scanner`>>. 
-** Requires setting `term_vector` to `with_positions_offsets` which
+* Is faster especially for large fields (> `1MB`)
+* Can be customized with  a <<boundary-scanners,`boundary_scanner`>>. 
+* Requires setting `term_vector` to `with_positions_offsets` which
   increases the size of the index
-** Can combine matches from multiple fields into one result.  See
+* Can combine matches from multiple fields into one result.  See
   `matched_fields`
-** Can assign different weights to matches at different positions allowing
+* Can assign different weights to matches at different positions allowing
   for things like phrase matches being sorted above term matches when
   highlighting a Boosting Query that boosts phrase matches over term matches
 
+[[offsets-strategy]]
+==== Offsets Strategy
 To create meaningful search snippets from the terms being queried,
 the highlighter needs to know the start and end character offsets of each word
 in the original text. These offsets can be obtained from:
@@ -99,9 +106,6 @@ Lucene's query execution planner to get access to low-level match information on
 the current document. This is repeated for every field and every document that
 needs highlighting. The `plain` highlighter always uses plain highlighting.
 
-You can specify the highlighter `type` you want to use
-for each field.
-
 [[highlighting-settings]]
 ==== Highlighting Settings
 
@@ -118,11 +122,10 @@ boundary_scanner:: Specifies how to break the highlighted fragments: `chars`,
 `sentence`, or `word`. Only valid for the `unified` and `fvh` highlighters.
 Defaults to `sentence` for the `unified` highlighter. Defaults to `chars` for
 the `fvh` highlighter.
-+
-* `chars` Use the characters specified by `boundary_chars` as highlighting
+`chars`::: Use the characters specified by `boundary_chars` as highlighting
 boundaries.  The `boundary_max_scan` setting controls how far to scan for
 boundary characters. Only valid for the `fvh` highlighter.
-* `sentence` Break highlighted fragments at the next sentence boundary, as
+`sentence`::: Break highlighted fragments at the next sentence boundary, as
 determined by Java's 
 https://docs.oracle.com/javase/8/docs/api/java/text/BreakIterator.html[BreakIterator].
 You can specify the locale to use with `boundary_scanner_locale`.
@@ -131,7 +134,7 @@ NOTE: When used with the `unified` highlighter, the `sentence` scanner splits
 sentences bigger than `fragment_size` at the first word boundary next to
 `fragment_size`. You can set `fragment_size` to 0 to never split any sentence.
 
-* `word` Break highlighted fragments at the next word boundary, as determined
+`word`::: Break highlighted fragments at the next word boundary, as determined
 by Java's https://docs.oracle.com/javase/8/docs/api/java/text/BreakIterator.html[BreakIterator].
 You can specify the locale to use with `boundary_scanner_locale`.
 
@@ -156,9 +159,9 @@ stored separately. Defaults to `false`.
 fragmenter:: Specifies how text should be broken up in highlight
 snippets: `simple` or `span`. Only valid for the `plain` highlighter.
 Defaults to `span`.
-+
-* `simple` Breaks up text into same-sized fragments.
-* `span` Breaks up text into same-sized fragments, but tried to avoid
+
+`simple`::: Breaks up text into same-sized fragments.
+`span`::: Breaks up text into same-sized fragments, but tried to avoid
 breaking up text between highlighted terms. This is helpful when you're
 querying for phrases. Default.
 
@@ -207,7 +210,7 @@ Defaults to 256.
 
 pre_tags:: Use in conjunction with `post_tags` to define the HTML tags
 to use for the highlighted text. By default, highlighted text is wrapped
-in `<em>` and </em>` tags. Specify as an array of strings.
+in `<em>` and `</em>` tags. Specify as an array of strings.
 
 post_tags:: Use in conjunction with `pre_tags` to define the HTML tags
 to use for the highlighted text. By default, highlighted text is wrapped
@@ -229,7 +232,6 @@ schema defines the following `pre_tags` and defines `post_tags` as
 <em class="hlt10">
 --------------------------------------------------
 
-
 [[highlighter-type]]
 type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 `unified`.
@@ -237,50 +239,120 @@ type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 [[highlighting-examples]]
 ==== Highlighting Examples
 
-Here is an example of setting the `comment` field in the index mapping to allow for
-highlighting using the postings:
+* <<override-global-settings, Override global settings>>
+* <<specify-highlight-query, Specify a highlight query>>
+* <<set-highlighter-type, Set highlighter type>>
+* <<configure-tags, Configure highlighting tags>>
+* <<highlight-source, Highlight source>>
+* <<highlight-all, Highlight all fields>>
+* <<matched-fields, Combine matches on multiple fields>>
+* <<explicit-field-order, Explicitly order highlighted fields>>
+* <<control-highlighted-frags, Control highlighted fragments>>
+* <<highlight-postings-list, Highlight using the postings list>>
+* <<specify-fragmenter, Specify a fragmenter for the plain highlighter>>
+
+[[override-global-settings]]
+[float]
+=== Override global settings
+
+You can specify highlighter settings globally and selectively override them for
+individual fields.
 
 [source,js]
 --------------------------------------------------
-PUT /example
+GET /_search
 {
-  "mappings": {
-    "doc" : {
-      "properties": {
-        "comment" : {
-          "type": "text",
-          "index_options" : "offsets"
+    "query" : {
+        "match": { "user": "kimchy" }
+    },
+    "highlight" : {
+        "number_of_fragments" : 3,
+        "fragment_size" : 150,
+        "fields" : {
+            "_all" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] },
+            "blog.title" : { "number_of_fragments" : 0 },
+            "blog.author" : { "number_of_fragments" : 0 },
+            "blog.comment" : { "number_of_fragments" : 5, "order" : "score" }
         }
-      }
     }
-  }
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
-Here is an example of setting the `comment` field to allow for
-highlighting using the `term_vectors` (this will cause the index to be bigger):
+[float]
+[[specify-highlight-query]]
+=== Specify a highlight query
+
+You can specify a `highlight_query` to take additional information into account
+when highlighting. For example, the following query includes both the search
+query and rescore query in the `highlight_query`. Without the `highlight_query`,
+highlighting would only take the search query into account.
 
 [source,js]
 --------------------------------------------------
-PUT /example
+GET /_search
 {
-  "mappings": {
-    "doc" : {
-      "properties": {
-        "comment" : {
-          "type": "text",
-          "term_vector" : "with_positions_offsets"
+    "stored_fields": [ "_id" ],
+    "query" : {
+        "match": {
+            "comment": {
+                "query": "foo bar"
+            }
         }
-      }
+    },
+    "rescore": {
+        "window_size": 50,
+        "query": {
+            "rescore_query" : {
+                "match_phrase": {
+                    "comment": {
+                        "query": "foo bar",
+                        "slop": 1
+                    }
+                }
+            },
+            "rescore_query_weight" : 10
+        }
+    },
+    "highlight" : {
+        "order" : "score",
+        "fields" : {
+            "comment" : {
+                "fragment_size" : 150,
+                "number_of_fragments" : 3,
+                "highlight_query": {
+                    "bool": {
+                        "must": {
+                            "match": {
+                                "comment": {
+                                    "query": "foo bar"
+                                }
+                            }
+                        },
+                        "should": {
+                            "match_phrase": {
+                                "comment": {
+                                    "query": "foo bar",
+                                    "slop": 1,
+                                    "boost": 10.0
+                                }
+                            }
+                        },
+                        "minimum_should_match": 0
+                    }
+                }
+            }
+        }
     }
-  }
 }
 --------------------------------------------------
 // CONSOLE
+// TEST[setup:twitter]
 
-
-===== Force highlighter type
+[float]
+[[set-highlighter-type]]
+=== Set highlighter type
 
 The `type` field allows to force a specific highlighter type.
 The allowed values are: `unified`, `plain` and `fvh`.
@@ -303,30 +375,9 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
-===== Force highlighting on source
-
-Forces the highlighting to highlight fields based on the source even if fields
-are stored separately. Defaults to `false`.
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "fields" : {
-            "comment" : {"force_source" : true}
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-[[tags]]
-===== Configure highlighting tags
+[[configure-tags]]
+[float]
+=== Configure highlighting tags
 
 By default, the highlighting will wrap highlighted text in `<em>` and
 `</em>`. This can be controlled by setting `pre_tags` and `post_tags`,
@@ -393,57 +444,12 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
+[float]
+[[highlight-source]]
+=== Highlight on source
 
-===== Controlling highlighted fragments
-
-Each field highlighted can control the size of the highlighted fragment
-in characters (defaults to `100`), and the maximum number of fragments
-to return (defaults to `5`).
-For example:
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "fields" : {
-            "comment" : {"fragment_size" : 150, "number_of_fragments" : 3}
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-On top of this it is possible to specify that highlighted fragments need
-to be sorted by score:
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "order" : "score",
-        "fields" : {
-            "comment" : {"fragment_size" : 150, "number_of_fragments" : 3}
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-If the `number_of_fragments` value is set to `0` then no fragments are
-produced, instead the whole content of the field is returned, and of
-course it is highlighted. This can be very handy if short texts (like
-document title or address) need to be highlighted but no fragmentation
-is required. Note that `fragment_size` is ignored in this case.
+Forces the highlighting to highlight fields based on the source even if fields
+are stored separately. Defaults to `false`.
 
 [source,js]
 --------------------------------------------------
@@ -454,8 +460,7 @@ GET /_search
     },
     "highlight" : {
         "fields" : {
-            "_all" : {},
-            "blog.title" : {"number_of_fragments" : 0}
+            "comment" : {"force_source" : true}
         }
     }
 }
@@ -463,249 +468,10 @@ GET /_search
 // CONSOLE
 // TEST[setup:twitter]
 
-When using `fvh` one can use `fragment_offset`
-parameter to control the margin to start highlighting from.
 
-In the case where there is no matching fragment to highlight, the default is
-to not return anything. Instead, we can return a snippet of text from the
-beginning of the field by setting `no_match_size` (default `0`) to the length
-of the text that you want returned. The actual length may be shorter or longer than
-specified as it tries to break on a word boundary.
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "fields" : {
-            "comment" : {
-                "fragment_size" : 150,
-                "number_of_fragments" : 3,
-                "no_match_size": 150
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-===== Specifying a fragmenter for the plain highlighter
-
-When using the `plain` highlighter, you can choose between the `simple` and
-`span` fragmenters:
-
-[source,js]
---------------------------------------------------
-GET twitter/tweet/_search
-{
-    "query" : {
-        "match_phrase": { "message": "number 1" }
-    },
-    "highlight" : {
-        "fields" : {
-            "message" : {
-                "type": "plain",
-                "fragment_size" : 15,
-                "number_of_fragments" : 3,
-                "fragmenter": "simple"
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    ...
-    "hits": {
-        "total": 1,
-        "max_score": 1.601195,
-        "hits": [
-            {
-                "_index": "twitter",
-                "_type": "tweet",
-                "_id": "1",
-                "_score": 1.601195,
-                "_source": {
-                    "user": "test",
-                    "message": "some message with the number 1",
-                    "date": "2009-11-15T14:12:12",
-                    "likes": 1
-                },
-                "highlight": {
-                    "message": [
-                        " with the <em>number</em>",
-                        " <em>1</em>"
-                    ]
-                }
-            }
-        ]
-    }
-}
---------------------------------------------------
-// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
-
-[source,js]
---------------------------------------------------
-GET twitter/tweet/_search
-{
-    "query" : {
-        "match_phrase": { "message": "number 1" }
-    },
-    "highlight" : {
-        "fields" : {
-            "message" : {
-                "type": "plain",
-                "fragment_size" : 15,
-                "number_of_fragments" : 3,
-                "fragmenter": "span"
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-Response:
-
-[source,js]
---------------------------------------------------
-{
-    ...
-    "hits": {
-        "total": 1,
-        "max_score": 1.601195,
-        "hits": [
-            {
-                "_index": "twitter",
-                "_type": "tweet",
-                "_id": "1",
-                "_score": 1.601195,
-                "_source": {
-                    "user": "test",
-                    "message": "some message with the number 1",
-                    "date": "2009-11-15T14:12:12",
-                    "likes": 1
-                },
-                "highlight": {
-                    "message": [
-                        "some message with the <em>number</em> <em>1</em>"
-                    ]
-                }
-            }
-        ]
-    }
-}
---------------------------------------------------
-// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
-
-If the `number_of_fragments` option is set to `0`,
-`NullFragmenter` is used which does not fragment the text at all.
-This is useful for highlighting the entire contents of a document or field.
-
-===== Specifying a highlight query
-
-Here is an example of including both the search
-query and the rescore query in `highlight_query`.
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "stored_fields": [ "_id" ],
-    "query" : {
-        "match": {
-            "comment": {
-                "query": "foo bar"
-            }
-        }
-    },
-    "rescore": {
-        "window_size": 50,
-        "query": {
-            "rescore_query" : {
-                "match_phrase": {
-                    "comment": {
-                        "query": "foo bar",
-                        "slop": 1
-                    }
-                }
-            },
-            "rescore_query_weight" : 10
-        }
-    },
-    "highlight" : {
-        "order" : "score",
-        "fields" : {
-            "comment" : {
-                "fragment_size" : 150,
-                "number_of_fragments" : 3,
-                "highlight_query": {
-                    "bool": {
-                        "must": {
-                            "match": {
-                                "comment": {
-                                    "query": "foo bar"
-                                }
-                            }
-                        },
-                        "should": {
-                            "match_phrase": {
-                                "comment": {
-                                    "query": "foo bar",
-                                    "slop": 1,
-                                    "boost": 10.0
-                                }
-                            }
-                        },
-                        "minimum_should_match": 0
-                    }
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-[[overriding-global-settings]]
-===== Overriding global settings
-
-[source,js]
---------------------------------------------------
-GET /_search
-{
-    "query" : {
-        "match": { "user": "kimchy" }
-    },
-    "highlight" : {
-        "number_of_fragments" : 3,
-        "fragment_size" : 150,
-        "fields" : {
-            "_all" : { "pre_tags" : ["<em>"], "post_tags" : ["</em>"] },
-            "blog.title" : { "number_of_fragments" : 0 },
-            "blog.author" : { "number_of_fragments" : 0 },
-            "blog.comment" : { "number_of_fragments" : 5, "order" : "score" }
-        }
-    }
-}
---------------------------------------------------
-// CONSOLE
-// TEST[setup:twitter]
-
-[[field-match]]
-===== Highlighting in all fields
+[[highlight-all]]
+[float]
+=== Highlight in all fields
 
 By default, only fields that contains a query match are highlighted. Set
 `require_field_match` to `false` to highlight all fields.
@@ -729,7 +495,8 @@ GET /_search
 // TEST[setup:twitter]
 
 [[matched-fields]]
-===== Combining matches on multiple fields
+[float]
+=== Combine matches on multiple fields
 
 WARNING: This is only supported by the `fvh` highlighter
 
@@ -865,7 +632,8 @@ to
 
 
 [[explicit-field-order]]
-===== Explicitly ordering highlighted fields
+[float]
+=== Explicitly order highlighted fields
 Elasticsearch highlights the fields in the order that they are sent, but per the
 JSON spec, objects are unordered.  If you need to be explicit about the order
 in which fields are highlighted specify the `fields` as an array:
@@ -887,3 +655,275 @@ GET /_search
 
 None of the highlighters built into Elasticsearch care about the order that the
 fields are highlighted but a plugin might.
+
+
+
+
+[float]
+[[control-highlighted-frags]]
+=== Control highlighted fragments
+
+Each field highlighted can control the size of the highlighted fragment
+in characters (defaults to `100`), and the maximum number of fragments
+to return (defaults to `5`).
+For example:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query" : {
+        "match": { "user": "kimchy" }
+    },
+    "highlight" : {
+        "fields" : {
+            "comment" : {"fragment_size" : 150, "number_of_fragments" : 3}
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+On top of this it is possible to specify that highlighted fragments need
+to be sorted by score:
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query" : {
+        "match": { "user": "kimchy" }
+    },
+    "highlight" : {
+        "order" : "score",
+        "fields" : {
+            "comment" : {"fragment_size" : 150, "number_of_fragments" : 3}
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+If the `number_of_fragments` value is set to `0` then no fragments are
+produced, instead the whole content of the field is returned, and of
+course it is highlighted. This can be very handy if short texts (like
+document title or address) need to be highlighted but no fragmentation
+is required. Note that `fragment_size` is ignored in this case.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query" : {
+        "match": { "user": "kimchy" }
+    },
+    "highlight" : {
+        "fields" : {
+            "_all" : {},
+            "blog.title" : {"number_of_fragments" : 0}
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+When using `fvh` one can use `fragment_offset`
+parameter to control the margin to start highlighting from.
+
+In the case where there is no matching fragment to highlight, the default is
+to not return anything. Instead, we can return a snippet of text from the
+beginning of the field by setting `no_match_size` (default `0`) to the length
+of the text that you want returned. The actual length may be shorter or longer than
+specified as it tries to break on a word boundary.
+
+[source,js]
+--------------------------------------------------
+GET /_search
+{
+    "query" : {
+        "match": { "user": "kimchy" }
+    },
+    "highlight" : {
+        "fields" : {
+            "comment" : {
+                "fragment_size" : 150,
+                "number_of_fragments" : 3,
+                "no_match_size": 150
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+[float]
+[[highlight-postings-list]]
+=== Highlight using the postings list
+
+Here is an example of setting the `comment` field in the index mapping to
+allow for highlighting using the postings:
+
+[source,js]
+--------------------------------------------------
+PUT /example
+{
+  "mappings": {
+    "doc" : {
+      "properties": {
+        "comment" : {
+          "type": "text",
+          "index_options" : "offsets"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+Here is an example of setting the `comment` field to allow for
+highlighting using the `term_vectors` (this will cause the index to be bigger):
+
+[source,js]
+--------------------------------------------------
+PUT /example
+{
+  "mappings": {
+    "doc" : {
+      "properties": {
+        "comment" : {
+          "type": "text",
+          "term_vector" : "with_positions_offsets"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// CONSOLE
+
+[float]
+[[specify-fragmenter]]
+=== Specify a fragmenter for the plain highlighter
+
+When using the `plain` highlighter, you can choose between the `simple` and
+`span` fragmenters:
+
+[source,js]
+--------------------------------------------------
+GET twitter/tweet/_search
+{
+    "query" : {
+        "match_phrase": { "message": "number 1" }
+    },
+    "highlight" : {
+        "fields" : {
+            "message" : {
+                "type": "plain",
+                "fragment_size" : 15,
+                "number_of_fragments" : 3,
+                "fragmenter": "simple"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "hits": {
+        "total": 1,
+        "max_score": 1.601195,
+        "hits": [
+            {
+                "_index": "twitter",
+                "_type": "tweet",
+                "_id": "1",
+                "_score": 1.601195,
+                "_source": {
+                    "user": "test",
+                    "message": "some message with the number 1",
+                    "date": "2009-11-15T14:12:12",
+                    "likes": 1
+                },
+                "highlight": {
+                    "message": [
+                        " with the <em>number</em>",
+                        " <em>1</em>"
+                    ]
+                }
+            }
+        ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
+
+[source,js]
+--------------------------------------------------
+GET twitter/tweet/_search
+{
+    "query" : {
+        "match_phrase": { "message": "number 1" }
+    },
+    "highlight" : {
+        "fields" : {
+            "message" : {
+                "type": "plain",
+                "fragment_size" : 15,
+                "number_of_fragments" : 3,
+                "fragmenter": "span"
+            }
+        }
+    }
+}
+--------------------------------------------------
+// CONSOLE
+// TEST[setup:twitter]
+
+Response:
+
+[source,js]
+--------------------------------------------------
+{
+    ...
+    "hits": {
+        "total": 1,
+        "max_score": 1.601195,
+        "hits": [
+            {
+                "_index": "twitter",
+                "_type": "tweet",
+                "_id": "1",
+                "_score": 1.601195,
+                "_source": {
+                    "user": "test",
+                    "message": "some message with the number 1",
+                    "date": "2009-11-15T14:12:12",
+                    "likes": 1
+                },
+                "highlight": {
+                    "message": [
+                        "some message with the <em>number</em> <em>1</em>"
+                    ]
+                }
+            }
+        ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,/]
+
+If the `number_of_fragments` option is set to `0`,
+`NullFragmenter` is used which does not fragment the text at all.
+This is useful for highlighting the entire contents of a document or field.

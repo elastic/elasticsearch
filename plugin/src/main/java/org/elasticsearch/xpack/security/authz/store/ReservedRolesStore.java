@@ -58,8 +58,8 @@ public class ReservedRolesStore {
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("ingest_admin", new RoleDescriptor("ingest_admin", new String[] { "manage_index_templates", "manage_pipeline" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("reporting_user", new RoleDescriptor("reporting_user", null, new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(".reporting-*").privileges("read", "write").build() },
+                 // reporting_user doesn't have any privileges in Elasticsearch, and Kibana authorizes privileges based on this role
+                .put("reporting_user", new RoleDescriptor("reporting_user", null, null,
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME, new String[] { "monitor", MonitoringBulkAction.NAME},
                         new RoleDescriptor.IndicesPrivileges[] {

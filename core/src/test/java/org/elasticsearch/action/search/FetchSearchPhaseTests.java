@@ -350,7 +350,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         mockSearchPhaseContext.assertNoFailure();
         assertNotNull(responseRef.get());
         assertEquals(2, responseRef.get().getHits().totalHits);
-        assertEquals(1, responseRef.get().getHits().internalHits().length);
+        assertEquals(1, responseRef.get().getHits().getHits().length);
         assertEquals(84, responseRef.get().getHits().getAt(0).docId());
         assertEquals(0, responseRef.get().getFailedShards());
         assertEquals(2, responseRef.get().getSuccessfulShards());

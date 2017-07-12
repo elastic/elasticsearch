@@ -19,13 +19,19 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymGraphFilter;
+import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
+import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
+import java.io.Reader;
 
 public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
     public SynonymGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
@@ -35,7 +41,45 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        // fst is null means no synonyms
-        return synonymMap.fst == null ? tokenStream : new SynonymGraphFilter(tokenStream, synonymMap, ignoreCase);
+        throw new IllegalStateException("Call createPerAnalyzerSynonymGraphFactory to specialize this factory for an analysis chain first");
+    }
+
+    Factory createPerAnalyzerSynonymGraphFactory(Analyzer analyzerForParseSynonym, Environment env){
+        return new Factory("synonymgraph", analyzerForParseSynonym, getRulesFromSettings(env));
+    }
+
+    public class Factory implements TokenFilterFactory{
+
+        private final String name;
+        private final SynonymMap synonymMap;
+
+        public Factory(String name, final Analyzer analyzerForParseSynonym, Reader rulesReader) {
+            this.name = name;
+
+            try {
+                SynonymMap.Builder parser;
+                if ("wordnet".equalsIgnoreCase(format)) {
+                    parser = new WordnetSynonymParser(true, expand, analyzerForParseSynonym);
+                    ((WordnetSynonymParser) parser).parse(rulesReader);
+                } else {
+                    parser = new SolrSynonymParser(true, expand, analyzerForParseSynonym);
+                    ((SolrSynonymParser) parser).parse(rulesReader);
+                }
+                synonymMap = parser.build();
+            } catch (Exception e) {
+                throw new IllegalArgumentException("failed to build synonyms", e);
+            }
+        }
+
+        @Override
+        public String name() {
+            return this.name;
+        }
+
+        @Override
+        public TokenStream create(TokenStream tokenStream) {
+            // fst is null means no synonyms
+            return synonymMap.fst == null ? tokenStream : new SynonymGraphFilter(tokenStream, synonymMap, ignoreCase);
+        }
     }
 }

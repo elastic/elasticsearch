@@ -118,38 +118,45 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             for (Map.Entry<String, OriginalIndices> remoteIndices : remoteClusterIndices.entrySet()) {
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
-                Transport.Connection connection = remoteClusterService.getConnection(remoteIndices.getKey());
-                FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
-                remoteRequest.setMergeResults(false); // we need to merge on this node
-                remoteRequest.indicesOptions(originalIndices.indicesOptions());
-                remoteRequest.indices(originalIndices.indices());
-                remoteRequest.fields(request.fields());
-                transportService.sendRequest(connection, FieldCapabilitiesAction.NAME, remoteRequest, TransportRequestOptions.EMPTY,
-                    new TransportResponseHandler<FieldCapabilitiesResponse>() {
-                    @Override
-                    public FieldCapabilitiesResponse newInstance() {
-                        return new FieldCapabilitiesResponse();
-                    }
+                // if we are connected this is basically a no-op, if we are not we try to connect in parallel in a non-blocking fashion
+                remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(v -> {
+                    Transport.Connection connection = remoteClusterService.getConnection(clusterAlias);
+                    FieldCapabilitiesRequest remoteRequest = new FieldCapabilitiesRequest();
+                    remoteRequest.setMergeResults(false); // we need to merge on this node
+                    remoteRequest.indicesOptions(originalIndices.indicesOptions());
+                    remoteRequest.indices(originalIndices.indices());
+                    remoteRequest.fields(request.fields());
+                    transportService.sendRequest(connection, FieldCapabilitiesAction.NAME, remoteRequest, TransportRequestOptions.EMPTY,
+                        new TransportResponseHandler<FieldCapabilitiesResponse>() {
 
-                    @Override
-                    public void handleResponse(FieldCapabilitiesResponse response) {
-                        for (FieldCapabilitiesIndexResponse res : response.getIndexResponses()) {
-                            indexResponses.add(new FieldCapabilitiesIndexResponse(RemoteClusterAware.buildRemoteIndexName(clusterAlias,
-                                res.getIndexName()), res.get()));
-                        }
-                        onResponse.run();
-                    }
+                            @Override
+                            public FieldCapabilitiesResponse newInstance() {
+                                return new FieldCapabilitiesResponse();
+                            }
 
-                    @Override
-                    public void handleException(TransportException exp) {
-                        onResponse.run();
-                    }
+                            @Override
+                            public void handleResponse(FieldCapabilitiesResponse response) {
+                                try {
+                                    for (FieldCapabilitiesIndexResponse res : response.getIndexResponses()) {
+                                        indexResponses.add(new FieldCapabilitiesIndexResponse(RemoteClusterAware.
+                                            buildRemoteIndexName(clusterAlias, res.getIndexName()), res.get()));
+                                    }
+                                } finally {
+                                    onResponse.run();
+                                }
+                            }
 
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-                });
+                            @Override
+                            public void handleException(TransportException exp) {
+                                onResponse.run();
+                            }
+
+                            @Override
+                            public String executor() {
+                                return ThreadPool.Names.SAME;
+                            }
+                        });
+                }, e -> onResponse.run()));
             }
 
         }

@@ -233,7 +233,7 @@ public class BooleanFieldMapper extends FieldMapper {
                     value = fieldType().nullValue();
                 }
             } else {
-                if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_alpha1)) {
                     value = context.parser().booleanValue();
                 } else {
                     value = context.parser().booleanValueLenient();

@@ -26,8 +26,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -36,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.UidIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -120,7 +118,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
                     public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                             CircuitBreakerService breakerService, MapperService mapperService) {
                         MappedFieldType idFieldType = mapperService.fullName(IdFieldMapper.NAME);
-                        IndexOrdinalsFieldData idFieldData = (IndexOrdinalsFieldData) idFieldType.fielddataBuilder()
+                        IndexFieldData<?> idFieldData = idFieldType.fielddataBuilder()
                                 .build(indexSettings, idFieldType, cache, breakerService, mapperService);
                         final String type = mapperService.types().iterator().next();
                         return new UidIndexFieldData(indexSettings.getIndex(), type, idFieldData);
@@ -150,20 +148,22 @@ public class UidFieldMapper extends MetadataFieldMapper {
                 return new MatchNoDocsQuery("No types");
             }
             assert indexTypes.size() == 1;
-            BytesRef indexType = indexedValueForSearch(indexTypes.iterator().next());
-            BytesRefBuilder prefixBuilder = new BytesRefBuilder();
-            prefixBuilder.append(indexType);
-            prefixBuilder.append((byte) '#');
-            BytesRef expectedPrefix = prefixBuilder.get();
+            final String expectedPrefix = indexTypes.iterator().next() + "#";
             List<BytesRef> ids = new ArrayList<>();
             for (Object uid : values) {
-                BytesRef uidBytes = indexedValueForSearch(uid);
-                if (StringHelper.startsWith(uidBytes, expectedPrefix)) {
-                    BytesRef id = new BytesRef();
-                    id.bytes = uidBytes.bytes;
-                    id.offset = uidBytes.offset + expectedPrefix.length;
-                    id.length = uidBytes.length - expectedPrefix.length;
-                    ids.add(id);
+                if (uid instanceof BytesRef) {
+                    uid = ((BytesRef) uid).utf8ToString();
+                }
+                String uidString = uid.toString();
+                if (uidString.startsWith(expectedPrefix)) {
+                    String id = uidString.substring(expectedPrefix.length(), uidString.length());
+                    BytesRef encodedId;
+                    if (context.indexVersionCreated().onOrAfter(Version.V_6_0_0_beta1)) {
+                        encodedId = Uid.encodeId(id);
+                    } else {
+                        encodedId = new BytesRef(id);
+                    }
+                    ids.add(encodedId);
                 }
             }
             return new TermInSetQuery(IdFieldMapper.NAME, ids);

@@ -103,7 +103,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         out.writeString(path);
         out.writeVInt(scoreMode.ordinal());
         out.writeNamedWriteable(query);
-        if (out.getVersion().before(Version.V_6_0_0_alpha2_UNRELEASED)) {
+        if (out.getVersion().before(Version.V_5_5_0)) {
             final boolean hasInnerHit = innerHitBuilder != null;
             out.writeBoolean(hasInnerHit);
             if (hasInnerHit) {
@@ -178,8 +178,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         builder.endObject();
     }
 
-    public static NestedQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static NestedQueryBuilder fromXContent(XContentParser parser) throws IOException {
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         ScoreMode scoreMode = ScoreMode.Avg;
         String queryName = null;
@@ -194,9 +193,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName)) {
-                    query = parseContext.parseInnerQueryBuilder();
+                    query = parseInnerQueryBuilder(parser);
                 } else if (INNER_HITS_FIELD.match(currentFieldName)) {
-                    innerHitBuilder = InnerHitBuilder.fromXContent(parseContext);
+                    innerHitBuilder = InnerHitBuilder.fromXContent(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
                 }

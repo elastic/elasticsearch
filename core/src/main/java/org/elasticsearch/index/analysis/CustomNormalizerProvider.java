@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,7 +43,8 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
         this.analyzerSettings = settings;
     }
 
-    public void build(final Map<String, CharFilterFactory> charFilters, final Map<String, TokenFilterFactory> tokenFilters) {
+    public void build(final TokenizerFactory keywordTokenizerFactory, final Map<String, CharFilterFactory> charFilters,
+            final Map<String, TokenFilterFactory> tokenFilters) {
         String tokenizerName = analyzerSettings.get("tokenizer");
         if (tokenizerName != null) {
             throw new IllegalArgumentException("Custom normalizer [" + name() + "] cannot configure a tokenizer");
@@ -82,7 +82,8 @@ public final class CustomNormalizerProvider extends AbstractIndexAnalyzerProvide
         }
 
         this.customAnalyzer = new CustomAnalyzer(
-                PreBuiltTokenizers.KEYWORD.getTokenizerFactory(indexSettings.getIndexVersionCreated()),
+                "keyword",
+                keywordTokenizerFactory,
                 charFiltersList.toArray(new CharFilterFactory[charFiltersList.size()]),
                 tokenFilterList.toArray(new TokenFilterFactory[tokenFilterList.size()])
         );

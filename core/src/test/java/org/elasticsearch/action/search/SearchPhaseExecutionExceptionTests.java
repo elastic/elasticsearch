@@ -49,11 +49,11 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
         SearchPhaseExecutionException exception = new SearchPhaseExecutionException("test", "all shards failed",
                 new ShardSearchFailure[]{
                         new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                                new SearchShardTarget("node_1", new Index("foo", "_na_"), 0)),
+                                new SearchShardTarget("node_1", new Index("foo", "_na_"), 0, null)),
                         new ShardSearchFailure(new IndexShardClosedException(new ShardId(new Index("foo", "_na_"), 1)),
-                                new SearchShardTarget("node_2", new Index("foo", "_na_"), 1)),
+                                new SearchShardTarget("node_2", new Index("foo", "_na_"), 1, null)),
                         new ShardSearchFailure(new ParsingException(5, 7, "foobar", null),
-                                new SearchShardTarget("node_3", new Index("foo", "_na_"), 2)),
+                                new SearchShardTarget("node_3", new Index("foo", "_na_"), 2, null)),
                 });
 
         // Failures are grouped (by default)
@@ -150,7 +150,7 @@ public class SearchPhaseExecutionExceptionTests extends ESTestCase {
                     new TimestampParsingException("foo", null),
                     new NullPointerException()
             );
-            shardSearchFailures[i] = new  ShardSearchFailure(cause, new SearchShardTarget("node_" + i, new Index("test", "_na_"), i));
+            shardSearchFailures[i] = new  ShardSearchFailure(cause, new SearchShardTarget("node_" + i, new Index("test", "_na_"), i, null));
         }
 
         final String phase = randomFrom("query", "search", "other");

@@ -84,7 +84,7 @@ export HOSTNAME
 declare -a args=("$@")
 
 if [ -e "$CONF_DIR" ]; then
-  args=("${args[@]}" -Edefault.path.conf="$CONF_DIR")
+  args=("${args[@]}" --path.conf "$CONF_DIR")
 fi
 
 exec "$JAVA" $ES_JAVA_OPTS -Delasticsearch -Des.path.home="$ES_HOME" -cp "$ES_HOME/lib/*" org.elasticsearch.index.translog.TranslogToolCli "${args[@]}"

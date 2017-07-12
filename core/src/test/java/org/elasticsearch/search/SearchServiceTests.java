@@ -19,6 +19,7 @@
 package org.elasticsearch.search;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
@@ -272,7 +273,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+        protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) {
             throw new IllegalStateException("Fail on rewrite phase");
         }
 

@@ -57,14 +57,8 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 public class NodeTests extends ESTestCase {
 
     public void testNodeName() throws IOException {
-        final Path tempDir = createTempDir();
         final String name = randomBoolean() ? randomAlphaOfLength(10) : null;
-        Settings.Builder settings = Settings.builder()
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("transport.type", "mock-socket-network")
-            .put(Node.NODE_DATA_SETTING.getKey(), true);
+        Settings.Builder settings = baseSettings();
         if (name != null) {
             settings.put(Node.NODE_NAME_SETTING.getKey(), name);
         }
@@ -97,14 +91,8 @@ public class NodeTests extends ESTestCase {
     }
 
     public void testLoadPluginBootstrapChecks() throws IOException {
-        final Path tempDir = createTempDir();
         final String name = randomBoolean() ? randomAlphaOfLength(10) : null;
-        Settings.Builder settings = Settings.builder()
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
-            .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-            .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-            .put("transport.type", "mock-socket-network")
-            .put(Node.NODE_DATA_SETTING.getKey(), true);
+        Settings.Builder settings = baseSettings();
         if (name != null) {
             settings.put(Node.NODE_NAME_SETTING.getKey(), name);
         }
@@ -175,79 +163,13 @@ public class NodeTests extends ESTestCase {
         }
     }
 
-    public void testDefaultPathDataSet() throws IOException {
-        final Path zero = createTempDir().toAbsolutePath();
-        final Path one = createTempDir().toAbsolutePath();
-        final Path defaultPathData = createTempDir().toAbsolutePath();
-        final Settings settings = Settings.builder()
-                .put("path.home", "/home")
-                .put("path.data.0", zero)
-                .put("path.data.1", one)
-                .put("default.path.data", defaultPathData)
-                .build();
-        try (NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings))) {
-            final Path defaultPathDataWithNodesAndId = defaultPathData.resolve("nodes/0");
-            Files.createDirectories(defaultPathDataWithNodesAndId);
-            final NodeEnvironment.NodePath defaultNodePath = new NodeEnvironment.NodePath(defaultPathDataWithNodesAndId);
-            final boolean indexExists = randomBoolean();
-            final List<String> indices;
-            if (indexExists) {
-                indices = IntStream.range(0, randomIntBetween(1, 3)).mapToObj(i -> UUIDs.randomBase64UUID()).collect(Collectors.toList());
-                for (final String index : indices) {
-                    Files.createDirectories(defaultNodePath.indicesPath.resolve(index));
-                }
-            } else {
-                indices = Collections.emptyList();
-            }
-            final Logger mock = mock(Logger.class);
-            if (indexExists) {
-                final IllegalStateException e = expectThrows(
-                        IllegalStateException.class,
-                        () -> Node.checkForIndexDataInDefaultPathData(settings, nodeEnv, mock));
-                final String message = String.format(
-                        Locale.ROOT,
-                        "detected index data in default.path.data [%s] where there should not be any; check the logs for details",
-                        defaultPathData);
-                assertThat(e, hasToString(containsString(message)));
-                verify(mock)
-                        .error("detected index data in default.path.data [{}] where there should not be any", defaultNodePath.indicesPath);
-                for (final String index : indices) {
-                    verify(mock).info(
-                            "index folder [{}] in default.path.data [{}] must be moved to any of {}",
-                            index,
-                            defaultNodePath.indicesPath,
-                            Arrays.stream(nodeEnv.nodePaths()).map(np -> np.indicesPath).collect(Collectors.toList()));
-                }
-                verifyNoMoreInteractions(mock);
-            } else {
-                Node.checkForIndexDataInDefaultPathData(settings, nodeEnv, mock);
-                verifyNoMoreInteractions(mock);
-            }
-        }
-    }
-
-    public void testDefaultPathDataNotSet() throws IOException {
-        final Path zero = createTempDir().toAbsolutePath();
-        final Path one = createTempDir().toAbsolutePath();
-        final Settings settings = Settings.builder()
-                .put("path.home", "/home")
-                .put("path.data.0", zero)
-                .put("path.data.1", one)
-                .build();
-        try (NodeEnvironment nodeEnv = new NodeEnvironment(settings, new Environment(settings))) {
-            final Logger mock = mock(Logger.class);
-            Node.checkForIndexDataInDefaultPathData(settings, nodeEnv, mock);
-            verifyNoMoreInteractions(mock);
-        }
-    }
-
     private static Settings.Builder baseSettings() {
         final Path tempDir = createTempDir();
         return Settings.builder()
                 .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put("transport.type", "mock-socket-network")
+                .put(NetworkModule.TRANSPORT_TYPE_KEY, "mock-socket-network")
                 .put(Node.NODE_DATA_SETTING.getKey(), true);
     }
 

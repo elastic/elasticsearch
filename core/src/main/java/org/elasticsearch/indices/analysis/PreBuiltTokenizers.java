@@ -19,7 +19,6 @@
 package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.core.KeywordTokenizer;
 import org.apache.lucene.analysis.core.LetterTokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
@@ -32,13 +31,8 @@ import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.analysis.CustomNormalizerProvider;
-import org.elasticsearch.index.analysis.MultiTermAwareComponent;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
-
-import java.util.Locale;
 
 public enum PreBuiltTokenizers {
 
@@ -67,13 +61,6 @@ public enum PreBuiltTokenizers {
         @Override
         protected Tokenizer create(Version version) {
             return new PathHierarchyTokenizer();
-        }
-    },
-
-    KEYWORD(CachingStrategy.ONE) {
-        @Override
-        protected Tokenizer create(Version version) {
-            return new KeywordTokenizer();
         }
     },
 
@@ -127,61 +114,13 @@ public enum PreBuiltTokenizers {
         return null;
     }
 
-    protected final PreBuiltCacheFactory.PreBuiltCache<TokenizerFactory> cache;
     private final CachingStrategy cachingStrategy;
 
     PreBuiltTokenizers(CachingStrategy cachingStrategy) {
         this.cachingStrategy = cachingStrategy;
-        cache = PreBuiltCacheFactory.getCache(cachingStrategy);
     }
 
     public CachingStrategy getCachingStrategy() {
         return cachingStrategy;
     }
-
-    private interface MultiTermAwareTokenizerFactory extends TokenizerFactory, MultiTermAwareComponent {}
-
-    /**
-     * Old style resolution for {@link TokenizerFactory}. Exists entirely to keep
-     * {@link CustomNormalizerProvider#build(java.util.Map, java.util.Map)} working during the migration.
-     */
-    public synchronized TokenizerFactory getTokenizerFactory(final Version version) {
-            TokenizerFactory tokenizerFactory = cache.get(version);
-            if (tokenizerFactory == null) {
-                final String finalName = name().toLowerCase(Locale.ROOT);
-                if (getMultiTermComponent(version) != null) {
-                    tokenizerFactory = new MultiTermAwareTokenizerFactory() {
-                        @Override
-                        public String name() {
-                            return finalName;
-                        }
-    
-                        @Override
-                        public Tokenizer create() {
-                            return PreBuiltTokenizers.this.create(version);
-                        }
-    
-                        @Override
-                        public Object getMultiTermComponent() {
-                            return PreBuiltTokenizers.this.getMultiTermComponent(version);
-                        }
-                    };
-                } else {
-                    tokenizerFactory = new TokenizerFactory() {
-                        @Override
-                        public String name() {
-                            return finalName;
-                        }
-    
-                        @Override
-                        public Tokenizer create() {
-                            return PreBuiltTokenizers.this.create(version);
-                        }
-                    };
-                }
-                cache.put(version, tokenizerFactory);
-            }
-    
-            return tokenizerFactory;
-        }
 }

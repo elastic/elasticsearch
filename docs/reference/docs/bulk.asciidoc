@@ -12,8 +12,8 @@ bulk requests and reindexing of documents from one index to another:
 
 Perl::
 
-    See https://metacpan.org/pod/Search::Elasticsearch::Bulk[Search::Elasticsearch::Bulk]
-    and https://metacpan.org/pod/Search::Elasticsearch::Scroll[Search::Elasticsearch::Scroll]
+    See https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Bulk[Search::Elasticsearch::Client::5_0::Bulk]
+    and https://metacpan.org/pod/Search::Elasticsearch::Client::5_0::Scroll[Search::Elasticsearch::Client::5_0::Scroll]
 
 Python::
 
@@ -102,7 +102,6 @@ The result of this bulk operation is:
                "successful": 1,
                "failed": 0
             },
-            "created": true,
             "status": 201,
             "_seq_no" : 0,
             "_primary_term": 1
@@ -110,7 +109,6 @@ The result of this bulk operation is:
       },
       {
          "delete": {
-            "found": false,
             "_index": "test",
             "_type": "type1",
             "_id": "2",
@@ -138,7 +136,6 @@ The result of this bulk operation is:
                "successful": 1,
                "failed": 0
             },
-            "created": true,
             "status": 201,
             "_seq_no" : 2,
             "_primary_term" : 3
@@ -217,14 +214,6 @@ Each bulk item can include the routing value using the
 index / delete operation based on the `_routing` mapping.
 
 [float]
-[[bulk-parent]]
-=== Parent
-
-Each bulk item can include the parent value using the `_parent`/`parent`
-field. It automatically follows the behavior of the index / delete
-operation based on the `_parent` / `_routing` mapping.
-
-[float]
 [[bulk-wait-for-active-shards]]
 === Wait For Active Shards
 
@@ -260,7 +249,7 @@ POST _bulk
 { "update" : {"_id" : "1", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"} }
 { "update" : { "_id" : "0", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
-{ "script" : { "inline": "ctx._source.counter += params.param1", "lang" : "painless", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
+{ "script" : { "source": "ctx._source.counter += params.param1", "lang" : "painless", "params" : {"param1" : 1}}, "upsert" : {"counter" : 1}}
 { "update" : {"_id" : "2", "_type" : "type1", "_index" : "index1", "_retry_on_conflict" : 3} }
 { "doc" : {"field" : "value"}, "doc_as_upsert" : true }
 { "update" : {"_id" : "3", "_type" : "type1", "_index" : "index1", "_source" : true} }

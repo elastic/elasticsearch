@@ -296,27 +296,6 @@ public abstract class BlendedTermQuery extends Query {
         return Objects.hash(classHash(), Arrays.hashCode(equalsTerms()));
     }
 
-    public static BlendedTermQuery booleanBlendedQuery(Term[] terms) {
-        return booleanBlendedQuery(terms, null);
-    }
-
-    public static BlendedTermQuery booleanBlendedQuery(Term[] terms, final float[] boosts) {
-        return new BlendedTermQuery(terms, boosts) {
-            @Override
-            protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
-                BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
-                for (int i = 0; i < terms.length; i++) {
-                    Query query = new TermQuery(terms[i], ctx[i]);
-                    if (boosts != null && boosts[i] != 1f) {
-                        query = new BoostQuery(query, boosts[i]);
-                    }
-                    booleanQueryBuilder.add(query, BooleanClause.Occur.SHOULD);
-                }
-                return booleanQueryBuilder.build();
-            }
-        };
-    }
-
     public static BlendedTermQuery commonTermsBlendedQuery(Term[] terms, final float[] boosts, final float maxTermFrequency) {
         return new BlendedTermQuery(terms, boosts) {
             @Override

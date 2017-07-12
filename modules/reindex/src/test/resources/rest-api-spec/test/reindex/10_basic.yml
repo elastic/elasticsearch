@@ -299,3 +299,16 @@
         index: source
         metric: search
   - match: {indices.source.total.search.open_contexts: 0}
+
+---
+"missing body":
+
+  - skip:
+      version: " - 5.99.99"
+      reason: NPE caused by missing body fixed in 6.0.0
+      
+  - do:
+      catch: /request body is required/
+      raw:
+        method: POST
+        path: _reindex

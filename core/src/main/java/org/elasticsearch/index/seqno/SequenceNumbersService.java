@@ -40,6 +40,11 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public static final long NO_OPS_PERFORMED = -1L;
 
+    /**
+     * Represents a local checkpoint coming from a pre-6.0 node
+     */
+    public static final long PRE_60_NODE_LOCAL_CHECKPOINT = -3L;
+
     private final LocalCheckpointTracker localCheckpointTracker;
     private final GlobalCheckpointTracker globalCheckpointTracker;
 
@@ -106,6 +111,15 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
+     * Resets the local checkpoint to the specified value.
+     *
+     * @param localCheckpoint the local checkpoint to reset to
+     */
+    public void resetLocalCheckpoint(final long localCheckpoint) {
+        localCheckpointTracker.resetCheckpoint(localCheckpoint);
+    }
+
+    /**
      * The current sequence number stats.
      *
      * @return stats encapsulating the maximum sequence number, the local checkpoint and the global checkpoint
@@ -123,6 +137,16 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
         globalCheckpointTracker.updateLocalCheckpoint(allocationId, checkpoint);
+    }
+
+    /**
+     * Called when the recovery process for a shard is ready to open the engine on the target shard.
+     * See {@link GlobalCheckpointTracker#initiateTracking(String)} for details.
+     *
+     * @param allocationId  the allocation ID of the shard for which recovery was initiated
+     */
+    public void initiateTracking(final String allocationId) {
+        globalCheckpointTracker.initiateTracking(allocationId);
     }
 
     /**
@@ -158,20 +182,51 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * Updates the global checkpoint on a replica shard after it has been updated by the primary.
      *
      * @param globalCheckpoint the global checkpoint
+     * @param reason           the reason the global checkpoint was updated
      */
-    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint) {
-        globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint);
+    public void updateGlobalCheckpointOnReplica(final long globalCheckpoint, final String reason) {
+        globalCheckpointTracker.updateGlobalCheckpointOnReplica(globalCheckpoint, reason);
+    }
+
+    /**
+     * Returns the local checkpoint information tracked for a specific shard. Used by tests.
+     */
+    public synchronized long getTrackedLocalCheckpointForShard(final String allocationId) {
+        return globalCheckpointTracker.getTrackedLocalCheckpointForShard(allocationId).getLocalCheckpoint();
+    }
+
+    /**
+     * Activates the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
+     * Called on primary activation or promotion.
+     */
+    public void activatePrimaryMode(final String allocationId, final long localCheckpoint) {
+        globalCheckpointTracker.activatePrimaryMode(allocationId, localCheckpoint);
     }
 
     /**
      * Notifies the service of the current allocation IDs in the cluster state. See
-     * {@link GlobalCheckpointTracker#updateAllocationIdsFromMaster(Set, Set)} for details.
+     * {@link GlobalCheckpointTracker#updateFromMaster(long, Set, Set, Set)} for details.
      *
-     * @param activeAllocationIds       the allocation IDs of the currently active shard copies
-     * @param initializingAllocationIds the allocation IDs of the currently initializing shard copies
+     * @param applyingClusterStateVersion the cluster state version being applied when updating the allocation IDs from the master
+     * @param inSyncAllocationIds         the allocation IDs of the currently in-sync shard copies
+     * @param initializingAllocationIds   the allocation IDs of the currently initializing shard copies
+     * @param pre60AllocationIds          the allocation IDs of shards that are allocated to pre-6.0 nodes
      */
-    public void updateAllocationIdsFromMaster(final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
-        globalCheckpointTracker.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+    public void updateAllocationIdsFromMaster(
+            final long applyingClusterStateVersion, final Set<String> inSyncAllocationIds, final Set<String> initializingAllocationIds,
+            final Set<String> pre60AllocationIds) {
+        globalCheckpointTracker.updateFromMaster(applyingClusterStateVersion, inSyncAllocationIds, initializingAllocationIds,
+            pre60AllocationIds);
+    }
+
+    /**
+     * Activates the global checkpoint tracker in primary mode (see {@link GlobalCheckpointTracker#primaryMode}.
+     * Called on primary relocation target during primary relocation handoff.
+     *
+     * @param primaryContext the primary context used to initialize the state
+     */
+    public void activateWithPrimaryContext(final GlobalCheckpointTracker.PrimaryContext primaryContext) {
+        globalCheckpointTracker.activateWithPrimaryContext(primaryContext);
     }
 
     /**
@@ -181,6 +236,29 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      */
     public boolean pendingInSync() {
         return globalCheckpointTracker.pendingInSync();
+    }
+
+    /**
+     * Get the primary context for the shard. This includes the state of the global checkpoint tracker.
+     *
+     * @return the primary context
+     */
+    public GlobalCheckpointTracker.PrimaryContext startRelocationHandoff() {
+        return globalCheckpointTracker.startRelocationHandoff();
+    }
+
+    /**
+     * Marks a relocation handoff attempt as successful. Moves the tracker into replica mode.
+     */
+    public void completeRelocationHandoff() {
+        globalCheckpointTracker.completeRelocationHandoff();
+    }
+
+    /**
+     * Fails a relocation handoff attempt.
+     */
+    public void abortRelocationHandoff() {
+        globalCheckpointTracker.abortRelocationHandoff();
     }
 
 }

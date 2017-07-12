@@ -35,6 +35,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+
 /**
  * Represents a {@link QueryBuilder} and a list of alias names that filters the builder is composed of.
  */
@@ -71,7 +73,7 @@ public final class AliasFilter implements Writeable {
              * of dependencies we pass in a function that can perform the parsing. */
             CheckedFunction<byte[], QueryBuilder, IOException> filterParser = bytes -> {
                 try (XContentParser parser = XContentFactory.xContent(bytes).createParser(context.getXContentRegistry(), bytes)) {
-                    return context.newParseContext(parser).parseInnerQueryBuilder();
+                    return parseInnerQueryBuilder(parser);
                 }
             };
             return ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliases);

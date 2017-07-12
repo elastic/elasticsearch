@@ -42,22 +42,7 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
         super.setUp();
         format = randomNumericDocValueFormat();
 
-        final int interval = randomFrom(1, 5, 10, 25, 50, 100);
-        final int numRanges = randomIntBetween(1, 10);
-
-        List<Tuple<Double, Double>> listOfRanges = new ArrayList<>(numRanges);
-        for (int i = 0; i < numRanges; i++) {
-            double from = i * interval;
-            double to = from + interval;
-            listOfRanges.add(Tuple.tuple(from, to));
-        }
-        if (randomBoolean()) {
-            // Add some overlapping ranges
-            double max = (double) numRanges * interval;
-            listOfRanges.add(Tuple.tuple(0.0, max));
-            listOfRanges.add(Tuple.tuple(0.0, max / 2));
-            listOfRanges.add(Tuple.tuple(max / 3, max / 3 * 2));
-        }
+        List<Tuple<Double, Double>> listOfRanges = new ArrayList<>();
         if (rarely()) {
             listOfRanges.add(Tuple.tuple(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY));
         }
@@ -67,6 +52,25 @@ public class InternalRangeTests extends InternalRangeTestCase<InternalRange> {
         if (rarely()) {
             listOfRanges.add(Tuple.tuple(randomDouble(), Double.POSITIVE_INFINITY));
         }
+
+        final int interval = randomFrom(1, 5, 10, 25, 50, 100);
+        final int numRanges = Math.max(0, randomNumberOfBuckets() - listOfRanges.size());
+        final double max = (double) numRanges * interval;
+
+        for (int i = 0; numRanges - listOfRanges.size() > 0; i++) {
+            double from = i * interval;
+            double to = from + interval;
+
+            Tuple<Double, Double> range;
+            if (randomBoolean()) {
+                range = Tuple.tuple(from, to);
+            } else {
+                // Add some overlapping range
+                range = Tuple.tuple(randomFrom(0.0, max / 3), randomFrom(max, max / 2, max / 3 * 2));
+            }
+            listOfRanges.add(range);
+        }
+        Collections.shuffle(listOfRanges, random());
         ranges = Collections.unmodifiableList(listOfRanges);
     }
 

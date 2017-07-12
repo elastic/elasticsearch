@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -38,6 +39,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
@@ -72,6 +75,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     private int batchedReduceSize = 512;
 
+    private int maxConcurrentShardRequests = 0;
+
     private String[] types = Strings.EMPTY_ARRAY;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -102,7 +107,12 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException validationException = null;
+        if (source != null && source.trackTotalHits() == false && scroll() != null) {
+            validationException =
+                addValidationError("disabling [track_total_hits] is not allowed in a scroll context", validationException);
+        }
+        return validationException;
     }
 
     /**
@@ -296,6 +306,34 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
     }
 
     /**
+     * Returns the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard reqeusts fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public int getMaxConcurrentShardRequests() {
+        return maxConcurrentShardRequests == 0 ? 256 : maxConcurrentShardRequests;
+    }
+
+    /**
+     * Sets the number of shard requests that should be executed concurrently. This value should be used as a protection mechanism to
+     * reduce the number of shard requests fired per high level search request. Searches that hit the entire cluster can be throttled
+     * with this number to reduce the cluster load. The default grows with the number of nodes in the cluster but is at most <tt>256</tt>.
+     */
+    public void setMaxConcurrentShardRequests(int maxConcurrentShardRequests) {
+        if (maxConcurrentShardRequests < 1) {
+            throw new IllegalArgumentException("maxConcurrentShardRequests must be >= 1");
+        }
+        this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+    }
+
+    /**
+     * Returns <code>true</code> iff the maxConcurrentShardRequest is set.
+     */
+    boolean isMaxConcurrentShardRequestsSet() {
+        return maxConcurrentShardRequests != 0;
+    }
+
+    /**
      * @return true if the request only has suggest
      */
     public boolean isSuggestOnly() {
@@ -342,6 +380,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         requestCache = in.readOptionalBoolean();
         batchedReduceSize = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            maxConcurrentShardRequests = in.readVInt();
+        }
     }
 
     @Override
@@ -360,6 +401,9 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
         out.writeVInt(batchedReduceSize);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_beta1)) {
+            out.writeVInt(maxConcurrentShardRequests);
+        }
     }
 
     @Override
@@ -379,13 +423,15 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 Objects.equals(requestCache, that.requestCache)  &&
                 Objects.equals(scroll, that.scroll) &&
                 Arrays.equals(types, that.types) &&
+                Objects.equals(batchedReduceSize, that.batchedReduceSize) &&
+                Objects.equals(maxConcurrentShardRequests, that.maxConcurrentShardRequests) &&
                 Objects.equals(indicesOptions, that.indicesOptions);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(searchType, Arrays.hashCode(indices), routing, preference, source, requestCache,
-                scroll, Arrays.hashCode(types), indicesOptions);
+                scroll, Arrays.hashCode(types), indicesOptions, maxConcurrentShardRequests);
     }
 
     @Override
@@ -399,6 +445,8 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
                 ", preference='" + preference + '\'' +
                 ", requestCache=" + requestCache +
                 ", scroll=" + scroll +
+                ", maxConcurrentShardRequests=" + maxConcurrentShardRequests +
+                ", batchedReduceSize=" + batchedReduceSize +
                 ", source=" + source + '}';
     }
 }

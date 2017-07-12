@@ -26,17 +26,24 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.InnerHitBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Context used for field collapsing
  */
 public class CollapseContext {
     private final MappedFieldType fieldType;
-    private final InnerHitBuilder innerHit;
+    private final List<InnerHitBuilder> innerHits;
 
     public CollapseContext(MappedFieldType fieldType, InnerHitBuilder innerHit) {
         this.fieldType = fieldType;
-        this.innerHit = innerHit;
+        this.innerHits = Collections.singletonList(innerHit);
+    }
+
+    public CollapseContext(MappedFieldType fieldType, List<InnerHitBuilder> innerHits) {
+        this.fieldType = fieldType;
+        this.innerHits = innerHits;
     }
 
     /** The field type used for collapsing **/
@@ -44,13 +51,12 @@ public class CollapseContext {
         return fieldType;
     }
 
-
     /** The inner hit options to expand the collapsed results **/
-    public InnerHitBuilder getInnerHit() {
-        return innerHit;
+    public List<InnerHitBuilder> getInnerHit() {
+        return innerHits;
     }
 
-    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, boolean trackMaxScore) throws IOException {
+    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, boolean trackMaxScore) {
         if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
             return CollapsingTopDocsCollector.createKeyword(fieldType.name(), sort, topN, trackMaxScore);
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {

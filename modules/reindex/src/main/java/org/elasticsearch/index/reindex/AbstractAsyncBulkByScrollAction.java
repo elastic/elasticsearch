@@ -20,6 +20,7 @@
 package org.elasticsearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -49,10 +50,8 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -234,7 +233,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * Start the action by firing the initial search request.
      */
     public void start() {
+        logger.debug("[{}]: starting", task.getId());
         if (task.isCancelled()) {
+            logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
@@ -253,7 +254,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param response the scroll response to process
      */
     void onScrollResponse(TimeValue lastBatchStartTime, int lastBatchSize, ScrollableHitSource.Response response) {
+        logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), response.getHits().size());
         if (task.isCancelled()) {
+            logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
@@ -295,7 +298,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * thread may be blocked by the user script.
      */
     void prepareBulkRequest(TimeValue thisBatchStartTime, ScrollableHitSource.Response response) {
+        logger.debug("[{}]: preparing bulk request", task.getId());
         if (task.isCancelled()) {
+            logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
@@ -322,10 +327,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
         request.timeout(mainRequest.getTimeout());
         request.waitForActiveShards(mainRequest.getWaitForActiveShards());
-        if (logger.isDebugEnabled()) {
-            logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
-                    new ByteSizeValue(request.estimatedSizeInBytes()));
-        }
         sendBulkRequest(thisBatchStartTime, request);
     }
 
@@ -333,7 +334,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * Send a bulk request, handling retries.
      */
     void sendBulkRequest(TimeValue thisBatchStartTime, BulkRequest request) {
+        if (logger.isDebugEnabled()) {
+            logger.debug("[{}]: sending [{}] entry, [{}] bulk request", task.getId(), request.requests().size(),
+                    new ByteSizeValue(request.estimatedSizeInBytes()));
+        }
         if (task.isCancelled()) {
+            logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
@@ -383,6 +389,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
 
             if (task.isCancelled()) {
+                logger.debug("[{}]: Finishing early because the task was cancelled", task.getId());
                 finishHim(null);
                 return;
             }
@@ -414,6 +421,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     void startNextScroll(TimeValue lastBatchStartTime, TimeValue now, int lastBatchSize) {
         if (task.isCancelled()) {
+            logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
             return;
         }
@@ -444,6 +452,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
         RefreshRequest refresh = new RefreshRequest();
         refresh.indices(destinationIndices.toArray(new String[destinationIndices.size()]));
+        logger.debug("[{}]: refreshing", task.getId());
         client.admin().indices().refresh(refresh, new ActionListener<RefreshResponse>() {
             @Override
             public void onResponse(RefreshResponse response) {
@@ -463,6 +472,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param failure if non null then the request failed catastrophically with this exception
      */
     protected void finishHim(Exception failure) {
+        logger.debug(() -> new ParameterizedMessage("[{}]: finishing with a catastrophic failure", task.getId()), failure);
         finishHim(failure, emptyList(), emptyList(), false);
     }
 
@@ -475,6 +485,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     protected void finishHim(Exception failure, List<Failure> indexingFailures,
             List<SearchFailure> searchFailures, boolean timedOut) {
+        logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
         scrollSource.close(() -> {
             if (failure == null) {
                 BulkByScrollResponse response = buildResponse(
@@ -773,8 +784,8 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 return request;
             }
             if (executable == null) {
-                CompiledScript compiled = scriptService.compile(script, ScriptContext.UPDATE);
-                executable = scriptService.executable(compiled, params);
+                ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.UPDATE_CONTEXT);
+                executable = factory.newInstance(params);
             }
             if (context == null) {
                 context = new HashMap<>();

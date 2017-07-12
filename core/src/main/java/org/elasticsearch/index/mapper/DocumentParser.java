@@ -424,15 +424,39 @@ final class DocumentParser {
         context = context.createNestedContext(mapper.fullPath());
         ParseContext.Document nestedDoc = context.doc();
         ParseContext.Document parentDoc = nestedDoc.getParent();
-        // pre add the uid field if possible (id was already provided)
-        IndexableField uidField = parentDoc.getField(UidFieldMapper.NAME);
-        if (uidField != null) {
-            // we don't need to add it as a full uid field in nested docs, since we don't need versioning
-            // we also rely on this for UidField#loadVersion
 
-            // this is a deeply nested field
-            nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+        // We need to add the uid or id to this nested Lucene document too,
+        // If we do not do this then when a document gets deleted only the root Lucene document gets deleted and
+        // not the nested Lucene documents! Besides the fact that we would have zombie Lucene documents, the ordering of
+        // documents inside the Lucene index (document blocks) will be incorrect, as nested documents of different root
+        // documents are then aligned with other root documents. This will lead tothe nested query, sorting, aggregations
+        // and inner hits to fail or yield incorrect results.
+        if (context.mapperService().getIndexSettings().isSingleType()) {
+            IndexableField idField = parentDoc.getField(IdFieldMapper.NAME);
+            if (idField != null) {
+                // We just need to store the id as indexed field, so that IndexWriter#deleteDocuments(term) can then
+                // delete it when the root document is deleted too.
+                if (idField.stringValue() != null) {
+                    // backward compat with 5.x
+                    // TODO: Remove on 7.0
+                    nestedDoc.add(new Field(IdFieldMapper.NAME, idField.stringValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                } else {
+                    nestedDoc.add(new Field(IdFieldMapper.NAME, idField.binaryValue(), IdFieldMapper.Defaults.NESTED_FIELD_TYPE));
+                }
+            } else {
+                throw new IllegalStateException("The root document of a nested document should have an id field");
+            }
+        } else {
+            IndexableField uidField = parentDoc.getField(UidFieldMapper.NAME);
+            if (uidField != null) {
+                /// We just need to store the uid as indexed field, so that IndexWriter#deleteDocuments(term) can then
+                // delete it when the root document is deleted too.
+                nestedDoc.add(new Field(UidFieldMapper.NAME, uidField.stringValue(), UidFieldMapper.Defaults.NESTED_FIELD_TYPE));
+            } else {
+                throw new IllegalStateException("The root document of a nested document should have an uid field");
+            }
         }
+
         // the type of the nested doc starts with __, so we can identify that its a nested one in filters
         // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
         // across types (for example, with similar nested objects)

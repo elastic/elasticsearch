@@ -19,9 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -78,37 +76,12 @@ public class BulkItemRequest implements Streamable {
         if (in.readBoolean()) {
             primaryResponse = BulkItemResponse.readBulkItem(in);
         }
-        if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
-            boolean ignoreOnReplica = in.readBoolean();
-            if (ignoreOnReplica == false && primaryResponse != null) {
-                assert primaryResponse.isFailed() == false : "expected no failure on the primary response";
-            }
-        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(id);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
-            // old nodes expect updated version and version type on the request
-            if (primaryResponse != null) {
-                request.version(primaryResponse.getVersion());
-                request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-                DocWriteRequest.writeDocumentRequest(out, request);
-            } else {
-                DocWriteRequest.writeDocumentRequest(out, request);
-            }
-        } else {
-            DocWriteRequest.writeDocumentRequest(out, request);
-        }
+        DocWriteRequest.writeDocumentRequest(out, request);
         out.writeOptionalStreamable(primaryResponse);
-        if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) { // TODO remove once backported
-            if (primaryResponse != null) {
-                out.writeBoolean(primaryResponse.isFailed()
-                        || primaryResponse.getResponse().getResult() == DocWriteResponse.Result.NOOP);
-            } else {
-                out.writeBoolean(false);
-            }
-        }
     }
 }

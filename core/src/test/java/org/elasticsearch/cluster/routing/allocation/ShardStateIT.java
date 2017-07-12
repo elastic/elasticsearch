@@ -18,12 +18,9 @@
  */
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -51,23 +48,9 @@ public class ShardStateIT extends ESIntegTestCase {
         indicesService.indexService(resolveIndex("test")).getShard(shard).failShard("simulated test failure", null);
 
         logger.info("--> waiting for a yellow index");
-        ensureYellow();
-
-        // this forces the primary term to propagate to the replicas
-        int id = 0;
-        while (true) {
-            // find an ID that routes to the right shard, we will only index to the shard that saw a primary failure
-            final String idAsString = Integer.toString(id);
-            final int hash = Math.floorMod(Murmur3HashFunction.hash(idAsString), 2);
-            if (hash == shard) {
-                client()
-                        .index(new IndexRequest("test", "type", idAsString).source("{ \"f\": \"" + idAsString + "\"}", XContentType.JSON))
-                        .get();
-                break;
-            } else {
-                id++;
-            }
-        }
+        // we can't use ensureYellow since that one is just as happy with a GREEN status.
+        assertBusy(() ->
+            assertThat(client().admin().cluster().prepareHealth("test").get().getStatus(), equalTo(ClusterHealthStatus.YELLOW)));
 
         final long term0 = shard == 0 ? 2 : 1;
         final long term1 = shard == 1 ? 2 : 1;

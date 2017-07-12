@@ -128,6 +128,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return null;
     }
 
+    public static String blockMasterFromFinalizingSnapshot(final String repositoryName) {
+        final String masterName = internalCluster().getMasterName();
+        ((MockRepository)internalCluster().getInstance(RepositoriesService.class, masterName)
+            .repository(repositoryName)).setBlockOnWriteIndexFile(true);
+        return masterName;
+    }
+
     public static String blockNodeWithIndex(final String repositoryName, final String indexName) {
         for(String node : internalCluster().nodesInclude(indexName)) {
             ((MockRepository)internalCluster().getInstance(RepositoriesService.class, node).repository(repositoryName))

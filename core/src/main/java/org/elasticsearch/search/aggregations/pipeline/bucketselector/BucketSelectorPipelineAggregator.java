@@ -22,10 +22,8 @@ package org.elasticsearch.search.aggregations.pipeline.bucketselector;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -84,7 +82,7 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
 
-        CompiledScript compiledScript = reduceContext.scriptService().compile(script, ScriptContext.AGGS);
+        ExecutableScript.Factory factory = reduceContext.scriptService().compile(script, ExecutableScript.AGGS_CONTEXT);
         List<InternalMultiBucketAggregation.InternalBucket> newBuckets = new ArrayList<>();
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
             Map<String, Object> vars = new HashMap<>();
@@ -97,7 +95,8 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
                 Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
                 vars.put(varName, value);
             }
-            ExecutableScript executableScript = reduceContext.scriptService().executable(compiledScript, vars);
+            // TODO: can we use one instance of the script for all buckets? it should be stateless?
+            ExecutableScript executableScript = factory.newInstance(vars);
             Object scriptReturnValue = executableScript.run();
             final boolean keepBucket;
             // TODO: WTF!!!!!

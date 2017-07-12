@@ -57,6 +57,10 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageAction;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequest;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
+import org.elasticsearch.action.admin.cluster.node.usage.NodesUsageResponse;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryAction;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequestBuilder;
@@ -826,6 +830,21 @@ public abstract class AbstractClient extends AbstractComponent implements Client
         @Override
         public NodesStatsRequestBuilder prepareNodesStats(String... nodesIds) {
             return new NodesStatsRequestBuilder(this, NodesStatsAction.INSTANCE).setNodesIds(nodesIds);
+        }
+
+        @Override
+        public ActionFuture<NodesUsageResponse> nodesUsage(final NodesUsageRequest request) {
+            return execute(NodesUsageAction.INSTANCE, request);
+        }
+
+        @Override
+        public void nodesUsage(final NodesUsageRequest request, final ActionListener<NodesUsageResponse> listener) {
+            execute(NodesUsageAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public NodesUsageRequestBuilder prepareNodesUsage(String... nodesIds) {
+            return new NodesUsageRequestBuilder(this, NodesUsageAction.INSTANCE).setNodesIds(nodesIds);
         }
 
         @Override

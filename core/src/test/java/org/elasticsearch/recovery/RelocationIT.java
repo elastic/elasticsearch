@@ -449,7 +449,11 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
-    @TestLogging("org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
+    @TestLogging(
+            "org.elasticsearch.action.bulk:TRACE,"
+                    + "org.elasticsearch.action.search:TRACE,"
+                    + "org.elasticsearch.cluster.service:TRACE,"
+                    + "org.elasticsearch.index.seqno:TRACE")
     public void testIndexAndRelocateConcurrently() throws ExecutionException, InterruptedException {
         int halfNodes = randomIntBetween(1, 3);
         Settings[] nodeSettings = Stream.concat(
@@ -510,7 +514,6 @@ public class RelocationIT extends ESIntegTestCase {
 
         // refresh is a replication action so this forces a global checkpoint sync which is needed as these are asserted on in tear down
         client().admin().indices().prepareRefresh("test").get();
-
     }
 
     class RecoveryCorruption extends MockTransportService.DelegateTransport {

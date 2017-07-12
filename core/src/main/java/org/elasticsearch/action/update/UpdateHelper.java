@@ -29,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
@@ -38,16 +39,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -301,8 +299,8 @@ public class UpdateHelper extends AbstractComponent {
     private Map<String, Object> executeScript(Script script, Map<String, Object> ctx) {
         try {
             if (scriptService != null) {
-                CompiledScript compiledScript = scriptService.compile(script, ScriptContext.UPDATE);
-                ExecutableScript executableScript = scriptService.executable(compiledScript, script.getParams());
+                ExecutableScript.Factory factory = scriptService.compile(script, ExecutableScript.UPDATE_CONTEXT);
+                ExecutableScript executableScript = factory.newInstance(script.getParams());
                 executableScript.setNextVar(ContextFields.CTX, ctx);
                 executableScript.run();
             }
@@ -316,8 +314,9 @@ public class UpdateHelper extends AbstractComponent {
      * Applies {@link UpdateRequest#fetchSource()} to the _source of the updated document to be returned in a update response.
      * For BWC this function also extracts the {@link UpdateRequest#fields()} from the updated document to be returned in a update response
      */
-    public GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long version, final Map<String, Object> source,
-                                      XContentType sourceContentType, @Nullable final BytesReference sourceAsBytes) {
+    public static GetResult extractGetResult(final UpdateRequest request, String concreteIndex, long version,
+                                             final Map<String, Object> source, XContentType sourceContentType,
+                                             @Nullable final BytesReference sourceAsBytes) {
         if ((request.fields() == null || request.fields().length == 0) &&
             (request.fetchSource() == null || request.fetchSource().fetchSource() == false)) {
             return null;
@@ -325,7 +324,7 @@ public class UpdateHelper extends AbstractComponent {
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(source);
         boolean sourceRequested = false;
-        Map<String, GetField> fields = null;
+        Map<String, DocumentField> fields = null;
         if (request.fields() != null && request.fields().length > 0) {
             for (String field : request.fields()) {
                 if (field.equals("_source")) {
@@ -337,12 +336,12 @@ public class UpdateHelper extends AbstractComponent {
                     if (fields == null) {
                         fields = new HashMap<>(2);
                     }
-                    GetField getField = fields.get(field);
-                    if (getField == null) {
-                        getField = new GetField(field, new ArrayList<>(2));
-                        fields.put(field, getField);
+                    DocumentField documentField = fields.get(field);
+                    if (documentField == null) {
+                        documentField = new DocumentField(field, new ArrayList<>(2));
+                        fields.put(field, documentField);
                     }
-                    getField.getValues().add(value);
+                    documentField.getValues().add(value);
                 }
             }
         }

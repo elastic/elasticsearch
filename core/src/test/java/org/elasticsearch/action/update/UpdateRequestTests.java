@@ -26,6 +26,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -37,13 +38,12 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
+import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
@@ -75,10 +75,8 @@ public class UpdateRequestTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        final Path genericConfigFolder = createTempDir();
         final Settings baseSettings = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(Environment.PATH_CONF_SETTING.getKey(), genericConfigFolder)
                 .build();
         final Map<String, Function<Map<String, Object>, Object>> scripts =  new HashMap<>();
         scripts.put(
@@ -136,7 +134,7 @@ public class UpdateRequestTests extends ESTestCase {
         scripts.put("return", vars -> null);
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts);
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
-        ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptContext.BUILTINS);
+        ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS);
         final Settings settings = settings(Version.CURRENT).build();
 
         updateHelper = new UpdateHelper(settings, scriptService);
@@ -159,7 +157,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         // simple verbose script
         request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
-                    .startObject("script").field("inline", "script1").endObject()
+                    .startObject("script").field("source", "script1").endObject()
                 .endObject()));
         script = request.script();
         assertThat(script, notNullValue());
@@ -173,7 +171,7 @@ public class UpdateRequestTests extends ESTestCase {
         request = new UpdateRequest("test", "type", "1");
         request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
             .startObject("script")
-                .field("inline", "script1")
+                .field("source", "script1")
                 .startObject("params")
                     .field("param1", "value1")
                 .endObject()
@@ -195,7 +193,7 @@ public class UpdateRequestTests extends ESTestCase {
                         .startObject("params")
                             .field("param1", "value1")
                         .endObject()
-                        .field("inline", "script1")
+                        .field("source", "script1")
                     .endObject()
                 .endObject()));
         script = request.script();
@@ -215,7 +213,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .startObject("params")
                     .field("param1", "value1")
                 .endObject()
-                .field("inline", "script1")
+                .field("source", "script1")
             .endObject()
             .startObject("upsert")
                 .field("field1", "value1")
@@ -249,7 +247,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .startObject("params")
                     .field("param1", "value1")
                 .endObject()
-                .field("inline", "script1")
+                .field("source", "script1")
             .endObject().endObject()));
         script = request.script();
         assertThat(script, notNullValue());
@@ -534,9 +532,9 @@ public class UpdateRequestTests extends ESTestCase {
         assertNull(UpdateHelper.calculateRouting(getResult, indexRequest));
         assertNull(UpdateHelper.calculateParent(getResult, indexRequest));
 
-        Map<String, GetField> fields = new HashMap<>();
-        fields.put("_parent", new GetField("_parent", Collections.singletonList("parent1")));
-        fields.put("_routing", new GetField("_routing", Collections.singletonList("routing1")));
+        Map<String, DocumentField> fields = new HashMap<>();
+        fields.put("_parent", new DocumentField("_parent", Collections.singletonList("parent1")));
+        fields.put("_routing", new DocumentField("_routing", Collections.singletonList("routing1")));
 
         // Doc exists and has the parent and routing fields
         getResult = new GetResult("test", "type", "1", 0, true, null, fields);

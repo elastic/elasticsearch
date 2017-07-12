@@ -24,7 +24,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -34,7 +34,7 @@ import java.util.Map;
 
 public abstract class PipelineAggregator implements NamedWriteable {
     /**
-     * Parse the {@link PipelineAggregationBuilder} from a {@link QueryParseContext}.
+     * Parse the {@link PipelineAggregationBuilder} from a {@link XContentParser}.
      */
     @FunctionalInterface
     public interface Parser {
@@ -48,13 +48,12 @@ public abstract class PipelineAggregator implements NamedWriteable {
          *
          * @param pipelineAggregatorName
          *            The name of the pipeline aggregation
-         * @param context
-         *            The search context
+         * @param parser the parser
          * @return The resolved pipeline aggregator factory
          * @throws java.io.IOException
          *             When parsing fails
          */
-        PipelineAggregationBuilder parse(String pipelineAggregatorName, QueryParseContext context)
+        PipelineAggregationBuilder parse(String pipelineAggregatorName, XContentParser parser)
                 throws IOException;
     }
 

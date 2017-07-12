@@ -48,7 +48,6 @@ import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointDVIndexFieldDa
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -60,6 +59,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 /**
  * A geo distance based sorting on a geo point like field.
  */
@@ -383,17 +383,16 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     /**
-     * Creates a new {@link GeoDistanceSortBuilder} from the query held by the {@link QueryParseContext} in
+     * Creates a new {@link GeoDistanceSortBuilder} from the query held by the {@link XContentParser} in
      * {@link org.elasticsearch.common.xcontent.XContent} format.
      *
-     * @param context the input parse context. The state on the parser contained in this context will be changed as a
+     * @param parser the input parser. The state on the parser contained in this context will be changed as a
      *                side effect of this method call
      * @param elementName in some sort syntax variations the field name precedes the xContent object that specifies
      *                    further parameters, e.g. in '{ "foo": { "order" : "asc"} }'. When parsing the inner object,
      *                    the field name can be passed in via this argument
      */
-    public static GeoDistanceSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
-        XContentParser parser = context.parser();
+    public static GeoDistanceSortBuilder fromXContent(XContentParser parser, String elementName) throws IOException {
         String fieldName = null;
         List<GeoPoint> geoPoints = new ArrayList<>();
         DistanceUnit unit = DistanceUnit.DEFAULT;
@@ -415,7 +414,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (NESTED_FILTER_FIELD.match(currentName)) {
-                    nestedFilter = context.parseInnerQueryBuilder();
+                    nestedFilter = parseInnerQueryBuilder(parser);
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
                     if (fieldName != null && fieldName.equals(currentName) == false) {

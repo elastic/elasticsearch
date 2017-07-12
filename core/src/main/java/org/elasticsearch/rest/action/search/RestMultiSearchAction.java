@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -70,6 +69,11 @@ public class RestMultiSearchAction extends BaseRestHandler {
     }
 
     @Override
+    public String getName() {
+        return "msearch_action";
+    }
+
+    @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex);
         return channel -> client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
@@ -86,8 +90,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             try {
-                final QueryParseContext queryParseContext = new QueryParseContext(parser);
-                searchRequest.source(SearchSourceBuilder.fromXContent(queryParseContext));
+                searchRequest.source(SearchSourceBuilder.fromXContent(parser));
                 multiRequest.add(searchRequest);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Exception when parsing search request", e);

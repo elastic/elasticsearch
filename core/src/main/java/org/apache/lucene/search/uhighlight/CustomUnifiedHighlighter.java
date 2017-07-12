@@ -27,7 +27,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.highlight.Snippet;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanOrQuery;
@@ -182,13 +181,16 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                     positionSpanQueries[i] = innerQueries[0];
                 }
             }
+
+            if (positionSpanQueries.length == 1) {
+                return Collections.singletonList(positionSpanQueries[0]);
+            }
             // sum position increments beyond 1
             int positionGaps = 0;
             if (positions.length >= 2) {
                 // positions are in increasing order.   max(0,...) is just a safeguard.
                 positionGaps = Math.max(0, positions[positions.length - 1] - positions[0] - positions.length + 1);
             }
-
             //if original slop is 0 then require inOrder
             boolean inorder = (mpq.getSlop() == 0);
             return Collections.singletonList(new SpanNearQuery(positionSpanQueries,

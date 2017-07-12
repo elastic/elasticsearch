@@ -23,6 +23,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.transport.TransportRequest;
 
 import java.util.List;
 
@@ -110,8 +111,9 @@ public interface SearchOperationListener {
      * from the active contexts. If the context is deemed invalid a runtime
      * exception can be thrown, which will prevent the context from being used.
      * @param context the context retrieved from the active contexts
+     * @param transportRequest the request that is going to use the search context
      */
-    default void validateSearchContext(SearchContext context) {}
+    default void validateSearchContext(SearchContext context, TransportRequest transportRequest) {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
@@ -236,11 +238,11 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void validateSearchContext(SearchContext context) {
+        public void validateSearchContext(SearchContext context, TransportRequest request) {
             Exception exception = null;
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.validateSearchContext(context);
+                    listener.validateSearchContext(context, request);
                 } catch (Exception e) {
                     exception = ExceptionsHelper.useOrSuppress(exception, e);
                 }

@@ -19,6 +19,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.seqno.GlobalCheckpointTracker;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -50,13 +51,20 @@ public interface RecoveryTargetHandler {
     void ensureClusterStateVersion(long clusterStateVersion);
 
     /**
+     * Handoff the primary context between the relocation source and the relocation target.
+     *
+     * @param primaryContext the primary context from the relocation source
+     */
+    void handoffPrimaryContext(GlobalCheckpointTracker.PrimaryContext primaryContext);
+
+    /**
      * Index a set of translog operations on the target
      * @param operations operations to index
      * @param totalTranslogOps current number of total operations expected to be indexed
      *
      * @return the local checkpoint on the target shard
      */
-    long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps);
+    long indexTranslogOperations(List<Translog.Operation> operations, int totalTranslogOps) throws IOException;
 
     /**
      * Notifies the target of the files it is going to receive

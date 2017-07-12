@@ -23,7 +23,6 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
@@ -43,7 +42,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
     public static ScriptSortBuilder randomScriptSortBuilder() {
         ScriptSortType type = randomBoolean() ? ScriptSortType.NUMBER : ScriptSortType.STRING;
-        ScriptSortBuilder builder = new ScriptSortBuilder(mockScript(randomAlphaOfLengthBetween(5, 10)),
+        ScriptSortBuilder builder = new ScriptSortBuilder(mockScript("dummy"),
                 type);
         if (randomBoolean()) {
                 builder.order(randomFrom(SortOrder.values()));
@@ -158,7 +157,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 "\"_script\" : {\n" +
                     "\"type\" : \"number\",\n" +
                     "\"script\" : {\n" +
-                        "\"inline\": \"doc['field_name'].value * factor\",\n" +
+                        "\"source\": \"doc['field_name'].value * factor\",\n" +
                         "\"params\" : {\n" +
                             "\"factor\" : 1.1\n" +
                             "}\n" +
@@ -171,8 +170,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(parser);
-        ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
+        ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(parser, null);
         assertEquals("doc['field_name'].value * factor", builder.script().getIdOrCode());
         assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
         assertEquals(1.1, builder.script().getParams().get("factor"));
@@ -197,8 +195,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(parser);
-        ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
+        ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(parser, null);
         assertEquals("doc['field_name'].value", builder.script().getIdOrCode());
         assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
         assertEquals(builder.script().getParams(), Collections.emptyMap());
@@ -217,8 +214,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(parser);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(context, null));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
         assertEquals("[_script] unknown field [bad_field], parser not found", e.getMessage());
     }
 
@@ -230,8 +226,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(parser);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(context, null));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
         assertEquals("[_script] unknown field [bad_field], parser not found", e.getMessage());
     }
 
@@ -242,8 +237,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(parser);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(context, null));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(parser, null));
         assertEquals("[_script] script doesn't support values of type: START_ARRAY", e.getMessage());
     }
 
@@ -258,7 +252,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     }
 
     @Override
-    protected ScriptSortBuilder fromXContent(QueryParseContext context, String fieldName) throws IOException {
-        return ScriptSortBuilder.fromXContent(context, fieldName);
+    protected ScriptSortBuilder fromXContent(XContentParser parser, String fieldName) throws IOException {
+        return ScriptSortBuilder.fromXContent(parser, fieldName);
     }
 }

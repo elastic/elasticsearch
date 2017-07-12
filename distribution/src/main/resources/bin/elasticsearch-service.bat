@@ -27,34 +27,18 @@ if not "%CONF_FILE%" == "" goto conffileset
 set SCRIPT_DIR=%~dp0
 for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
-%JAVA% -Xmx50M -version > nul 2>&1
-
-if errorlevel 1 (
-	echo Warning: Could not start JVM to detect version, defaulting to x86:
-	goto x86
-)
-
-%JAVA% -Xmx50M -version 2>&1 | "%windir%\System32\find" "64-Bit" >nul:
-
-if errorlevel 1 goto x86
 set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x64.exe
 set SERVICE_ID=elasticsearch-service-x64
 set ARCH=64-bit
-goto checkExe
 
-:x86
-set EXECUTABLE=%ES_HOME%\bin\elasticsearch-service-x86.exe
-set SERVICE_ID=elasticsearch-service-x86
-set ARCH=32-bit
-
-:checkExe
 if EXIST "%EXECUTABLE%" goto okExe
-echo elasticsearch-service-(x86|x64).exe was not found...
+echo elasticsearch-service-x64.exe was not found...
+exit /B 1
 
 :okExe
 set ES_VERSION=${project.version}
 
-if "%LOG_DIR%" == "" set LOG_DIR=%ES_HOME%\logs
+if "%SERVICE_LOG_DIR%" == "" set SERVICE_LOG_DIR=%ES_HOME%\logs
 
 if "x%1x" == "xx" goto displayUsage
 set SERVICE_CMD=%1
@@ -64,7 +48,7 @@ set SERVICE_ID=%1
 
 :checkServiceCmd
 
-if "%LOG_OPTS%" == "" set LOG_OPTS=--LogPath "%LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
+if "%LOG_OPTS%" == "" set LOG_OPTS=--LogPath "%SERVICE_LOG_DIR%" --LogPrefix "%SERVICE_ID%" --StdError auto --StdOutput auto
 
 if /i %SERVICE_CMD% == install goto doInstall
 if /i %SERVICE_CMD% == remove goto doRemove
@@ -222,11 +206,10 @@ if "%JVM_SS%" == "" (
 )
 
 CALL "%ES_HOME%\bin\elasticsearch.in.bat"
-if "%DATA_DIR%" == "" set DATA_DIR=%ES_HOME%\data
 
 if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
 
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.conf="%CONF_DIR%"
+set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%"
 
 if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
 if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0
@@ -240,7 +223,7 @@ if not "%SERVICE_USERNAME%" == "" (
 	)
 )
 
-"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StopClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %ES_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%%JAVA_HOME%%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" %SERVICE_PARAMS%
+"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StopClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmMs %JVM_MS% --JvmMx %JVM_MX% --JvmSs %JVM_SS% --JvmOptions %ES_JAVA_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "%SERVICE_DISPLAY_NAME%" --Description "%SERVICE_DESCRIPTION%" --Jvm "%%JAVA_HOME%%%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" --StartParams --path.conf ++StartParams "%CONF_DIR%" %SERVICE_PARAMS%
 
 if not errorlevel 1 goto installed
 echo Failed installing '%SERVICE_ID%' service

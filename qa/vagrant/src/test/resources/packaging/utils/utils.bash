@@ -268,13 +268,16 @@ clean_before_test() {
     userdel elasticsearch > /dev/null 2>&1 || true
     groupdel elasticsearch > /dev/null 2>&1 || true
 
-
     # Removes all files
     for d in "${ELASTICSEARCH_TEST_FILES[@]}"; do
         if [ -e "$d" ]; then
             rm -rf "$d"
         fi
     done
+
+    if is_systemd; then
+        systemctl unmask systemd-sysctl.service
+    fi
 }
 
 purge_elasticsearch() {
@@ -348,7 +351,7 @@ run_elasticsearch_service() {
             local CONF_DIR=""
             local ES_PATH_CONF=""
         else
-            local ES_PATH_CONF="-Epath.conf=$CONF_DIR"
+            local ES_PATH_CONF="--path.conf $CONF_DIR"
         fi
         # we must capture the exit code to compare so we don't want to start as background process in case we expect something other than 0
         local background=""

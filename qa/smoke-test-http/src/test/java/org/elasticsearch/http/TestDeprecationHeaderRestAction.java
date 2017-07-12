@@ -75,6 +75,11 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
                                                DEPRECATED_ENDPOINT, deprecationLogger);
     }
 
+    @Override
+    public String getName() {
+        return "test_deprecation_header_action";
+    }
+
     @SuppressWarnings("unchecked") // List<String> casts
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {

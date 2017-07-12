@@ -44,7 +44,7 @@ public class RecoveryTranslogOperationsResponse extends TransportResponse {
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         // before 6.0.0 we responded with an empty response so we have to maintain that
-        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             out.writeZLong(localCheckpoint);
         }
     }
@@ -52,7 +52,7 @@ public class RecoveryTranslogOperationsResponse extends TransportResponse {
     @Override
     public void readFrom(final StreamInput in) throws IOException {
         // before 6.0.0 we received an empty response so we have to maintain that
-        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1)) {
             localCheckpoint = in.readZLong();
         }
         else {

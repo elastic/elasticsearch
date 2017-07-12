@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -298,16 +299,24 @@ public class ThreadPool extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Get the generic executor service. This executor service {@link Executor#execute(Runnable)} method will run the {@link Runnable} it
-     * is given in the {@link ThreadContext} of the thread that queues it.
+     * Get the generic {@link ExecutorService}. This executor service
+     * {@link Executor#execute(Runnable)} method will run the {@link Runnable} it is given in the
+     * {@link ThreadContext} of the thread that queues it.
+     * <p>
+     * Warning: this {@linkplain ExecutorService} will not throw {@link RejectedExecutionException}
+     * if you submit a task while it shutdown. It will instead silently queue it and not run it.
      */
     public ExecutorService generic() {
         return executor(Names.GENERIC);
     }
 
     /**
-     * Get the executor service with the given name. This executor service's {@link Executor#execute(Runnable)} method will run the
-     * {@link Runnable} it is given in the {@link ThreadContext} of the thread that queues it.
+     * Get the {@link ExecutorService} with the given name. This executor service's
+     * {@link Executor#execute(Runnable)} method will run the {@link Runnable} it is given in the
+     * {@link ThreadContext} of the thread that queues it.
+     * <p>
+     * Warning: this {@linkplain ExecutorService} might not throw {@link RejectedExecutionException}
+     * if you submit a task while it shutdown. It will instead silently queue it and not run it.
      *
      * @param name the name of the executor service to obtain
      * @throws IllegalArgumentException if no executor service with the specified name exists
@@ -612,7 +621,7 @@ public class ThreadPool extends AbstractComponent implements Closeable {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             if (type == ThreadPoolType.FIXED_AUTO_QUEUE_SIZE &&
-                    out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                    out.getVersion().before(Version.V_6_0_0_alpha1)) {
                 // 5.x doesn't know about the "fixed_auto_queue_size" thread pool type, just write fixed.
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else {

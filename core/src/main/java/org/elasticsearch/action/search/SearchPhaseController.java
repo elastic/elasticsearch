@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -329,9 +330,9 @@ public final class SearchPhaseController extends AbstractComponent {
                         }
                         FetchSearchResult fetchResult = searchResultProvider.fetchResult();
                         final int index = fetchResult.counterGetAndIncrement();
-                        assert index < fetchResult.hits().internalHits().length : "not enough hits fetched. index [" + index + "] length: "
-                            + fetchResult.hits().internalHits().length;
-                        SearchHit hit = fetchResult.hits().internalHits()[index];
+                        assert index < fetchResult.hits().getHits().length : "not enough hits fetched. index [" + index + "] length: "
+                            + fetchResult.hits().getHits().length;
+                        SearchHit hit = fetchResult.hits().getHits()[index];
                         CompletionSuggestion.Entry.Option suggestOption =
                             suggestionOptions.get(scoreDocIndex - currentOffset);
                         hit.score(shardDoc.score);
@@ -381,9 +382,9 @@ public final class SearchPhaseController extends AbstractComponent {
                 }
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
                 final int index = fetchResult.counterGetAndIncrement();
-                assert index < fetchResult.hits().internalHits().length : "not enough hits fetched. index [" + index + "] length: "
-                    + fetchResult.hits().internalHits().length;
-                SearchHit searchHit = fetchResult.hits().internalHits()[index];
+                assert index < fetchResult.hits().getHits().length : "not enough hits fetched. index [" + index + "] length: "
+                    + fetchResult.hits().getHits().length;
+                SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.score(shardDoc.score);
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (sorted) {
@@ -405,8 +406,17 @@ public final class SearchPhaseController extends AbstractComponent {
      * @param queryResults a list of non-null query shard results
      */
     public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest) {
-        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(), 0, isScrollRequest);
+        return reducedQueryPhase(queryResults, isScrollRequest, true);
     }
+
+    /**
+     * Reduces the given query results and consumes all aggregations and profile results.
+     * @param queryResults a list of non-null query shard results
+     */
+    public ReducedQueryPhase reducedQueryPhase(Collection<? extends SearchPhaseResult> queryResults, boolean isScrollRequest, boolean trackTotalHits) {
+        return reducedQueryPhase(queryResults, null, new ArrayList<>(), new TopDocsStats(trackTotalHits), 0, isScrollRequest);
+    }
+
 
     /**
      * Reduces the given query results and consumes all aggregations and profile results.
@@ -711,6 +721,7 @@ public final class SearchPhaseController extends AbstractComponent {
         boolean isScrollRequest = request.scroll() != null;
         final boolean hasAggs = source != null && source.aggregations() != null;
         final boolean hasTopDocs = source == null || source.size() != 0;
+        final boolean trackTotalHits = source == null || source.trackTotalHits();
 
         if (isScrollRequest == false && (hasAggs || hasTopDocs)) {
             // no incremental reduce if scroll is used - we only hit a single shard or sometimes more...
@@ -722,18 +733,30 @@ public final class SearchPhaseController extends AbstractComponent {
         return new InitialSearchPhase.SearchPhaseResults(numShards) {
             @Override
             public ReducedQueryPhase reduce() {
-                return reducedQueryPhase(results.asList(), isScrollRequest);
+                return reducedQueryPhase(results.asList(), isScrollRequest, trackTotalHits);
             }
         };
     }
 
     static final class TopDocsStats {
+        final boolean trackTotalHits;
         long totalHits;
         long fetchHits;
         float maxScore = Float.NEGATIVE_INFINITY;
 
+        TopDocsStats() {
+            this(true);
+        }
+
+        TopDocsStats(boolean trackTotalHits) {
+            this.trackTotalHits = trackTotalHits;
+            this.totalHits = trackTotalHits ? 0 : -1;
+        }
+
         void add(TopDocs topDocs) {
-            totalHits += topDocs.totalHits;
+            if (trackTotalHits) {
+                totalHits += topDocs.totalHits;
+            }
             fetchHits += topDocs.scoreDocs.length;
             if (!Float.isNaN(topDocs.getMaxScore())) {
                 maxScore = Math.max(maxScore, topDocs.getMaxScore());

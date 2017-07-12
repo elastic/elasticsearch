@@ -35,7 +35,7 @@ Now, we can execute a script that would increment the counter:
 POST test/type1/1/_update
 {
     "script" : {
-        "inline": "ctx._source.counter += params.count",
+        "source": "ctx._source.counter += params.count",
         "lang": "painless",
         "params" : {
             "count" : 4
@@ -54,7 +54,7 @@ will still add it, since its a list):
 POST test/type1/1/_update
 {
     "script" : {
-        "inline": "ctx._source.tags.add(params.tag)",
+        "source": "ctx._source.tags.add(params.tag)",
         "lang": "painless",
         "params" : {
             "tag" : "blue"
@@ -66,8 +66,8 @@ POST test/type1/1/_update
 // TEST[continued]
 
 In addition to `_source`, the following variables are available through
-the `ctx` map: `_index`, `_type`, `_id`, `_version`, `_routing`,
-`_parent`, and `_now` (the current timestamp).
+the `ctx` map: `_index`, `_type`, `_id`, `_version`, `_routing`
+and `_now` (the current timestamp).
 
 We can also add a new field to the document:
 
@@ -102,7 +102,7 @@ the doc if the `tags` field contain `green`, otherwise it does nothing
 POST test/type1/1/_update
 {
     "script" : {
-        "inline": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
+        "source": "if (ctx._source.tags.contains(params.tag)) { ctx.op = 'delete' } else { ctx.op = 'none' }",
         "lang": "painless",
         "params" : {
             "tag" : "green"
@@ -203,7 +203,7 @@ will be inserted as a new document.  If the document does exist, then the
 POST test/type1/1/_update
 {
     "script" : {
-        "inline": "ctx._source.counter += params.count",
+        "source": "ctx._source.counter += params.count",
         "lang": "painless",
         "params" : {
             "count" : 4
@@ -243,7 +243,7 @@ POST sessions/session/dh3sgudg8gsrgl/_update
 }
 --------------------------------------------------
 // CONSOLE
-// TEST[s/"id": "my_web_session_summariser"/"inline": "ctx._source.page_view_event = params.pageViewEvent"/]
+// TEST[s/"id": "my_web_session_summariser"/"source": "ctx._source.page_view_event = params.pageViewEvent"/]
 // TEST[continued]
 
 [float]
@@ -285,13 +285,6 @@ an exception.
 Routing is used to route the update request to the right shard and sets the
 routing for the upsert request if the document being updated doesn't exist.
 Can't be used to update the routing of an existing document.
-
-`parent`::
-
-Parent is used to route the update request to the right shard and sets the
-parent for the upsert request if the document being updated doesn't exist.
-Can't be used to update the `parent` of an existing document.
-If an alias index routing is specified then it overrides the parent routing and it is used to route the request.
 
 `timeout`::
 

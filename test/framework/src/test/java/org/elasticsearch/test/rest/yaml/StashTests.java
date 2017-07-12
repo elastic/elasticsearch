@@ -95,7 +95,6 @@ public class StashTests extends ESTestCase {
                             + key + "] which unstashes to [foobar]");
     }
 
-
     public void testReplaceStashedValuesStashKeyInList() throws IOException {
         Stash stash = new Stash();
         stash.stashValue("stashed", "bar");
@@ -117,4 +116,43 @@ public class StashTests extends ESTestCase {
         assertEquals(expected, actual);
         assertThat(actual, not(sameInstance(map)));
     }
+
+    public void testPathInList() throws IOException {
+        Stash stash = new Stash();
+        stash.stashValue("body", singletonMap("foo", Arrays.asList("a", "b")));
+
+        Map<String, Object> expected;
+        Map<String, Object> map;
+        if (randomBoolean()) {
+            expected = singletonMap("foo", Arrays.asList("test", "boooooh!"));
+            map = singletonMap("foo", Arrays.asList("test", "${body.$_path}oooooh!"));
+        } else {
+            expected = singletonMap("foo", Arrays.asList("test", "b"));
+            map = singletonMap("foo", Arrays.asList("test", "$body.$_path"));
+        }
+
+        Map<String, Object> actual = stash.replaceStashedValues(map);
+        assertEquals(expected, actual);
+        assertThat(actual, not(sameInstance(map)));
+    }
+
+    public void testPathInMapValue() throws IOException {
+        Stash stash = new Stash();
+        stash.stashValue("body", singletonMap("foo", singletonMap("a", "b")));
+
+        Map<String, Object> expected;
+        Map<String, Object> map;
+        if (randomBoolean()) {
+            expected = singletonMap("foo", singletonMap("a", "boooooh!"));
+            map = singletonMap("foo", singletonMap("a", "${body.$_path}oooooh!"));
+        } else {
+            expected = singletonMap("foo", singletonMap("a", "b"));
+            map = singletonMap("foo", singletonMap("a", "$body.$_path"));
+        }
+
+        Map<String, Object> actual = stash.replaceStashedValues(map);
+        assertEquals(expected, actual);
+        assertThat(actual, not(sameInstance(map)));
+    }
+
 }

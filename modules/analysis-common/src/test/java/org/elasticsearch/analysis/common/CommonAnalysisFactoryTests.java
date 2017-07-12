@@ -19,12 +19,14 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.lucene.analysis.charfilter.HTMLStripCharFilterFactory;
 import org.apache.lucene.analysis.en.PorterStemFilterFactory;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilterFactory;
 import org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory;
 import org.apache.lucene.analysis.reverse.ReverseStringFilterFactory;
 import org.apache.lucene.analysis.snowball.SnowballPorterFilterFactory;
 import org.elasticsearch.index.analysis.HtmlStripCharFilterFactory;
+import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.indices.analysis.AnalysisFactoryTestCase;
 
 import java.util.List;
@@ -42,15 +44,68 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
     @Override
     protected Map<String, Class<?>> getTokenizers() {
         Map<String, Class<?>> tokenizers = new TreeMap<>(super.getTokenizers());
+        tokenizers.put("simplepattern", SimplePatternTokenizerFactory.class);
+        tokenizers.put("simplepatternsplit", SimplePatternSplitTokenizerFactory.class);
         return tokenizers;
     }
 
     @Override
     protected Map<String, Class<?>> getTokenFilters() {
         Map<String, Class<?>> filters = new TreeMap<>(super.getTokenFilters());
-        filters.put("asciifolding",          ASCIIFoldingTokenFilterFactory.class);
-        filters.put("worddelimiter",         WordDelimiterTokenFilterFactory.class);
-        filters.put("worddelimitergraph",    WordDelimiterGraphTokenFilterFactory.class);
+        filters.put("asciifolding", ASCIIFoldingTokenFilterFactory.class);
+        filters.put("keywordmarker", KeywordMarkerTokenFilterFactory.class);
+        filters.put("porterstem", PorterStemTokenFilterFactory.class);
+        filters.put("snowballporter", SnowballTokenFilterFactory.class);
+        filters.put("trim", TrimTokenFilterFactory.class);
+        filters.put("worddelimiter", WordDelimiterTokenFilterFactory.class);
+        filters.put("worddelimitergraph", WordDelimiterGraphTokenFilterFactory.class);
+        filters.put("flattengraph", FlattenGraphTokenFilterFactory.class);
+        filters.put("length", LengthTokenFilterFactory.class);
+        filters.put("greeklowercase", LowerCaseTokenFilterFactory.class);
+        filters.put("irishlowercase", LowerCaseTokenFilterFactory.class);
+        filters.put("lowercase", LowerCaseTokenFilterFactory.class);
+        filters.put("turkishlowercase", LowerCaseTokenFilterFactory.class);
+        filters.put("uppercase", UpperCaseTokenFilterFactory.class);
+        filters.put("ngram", NGramTokenFilterFactory.class);
+        filters.put("edgengram", EdgeNGramTokenFilterFactory.class);
+        filters.put("bulgarianstem", StemmerTokenFilterFactory.class);
+        filters.put("englishminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("englishpossessive", StemmerTokenFilterFactory.class);
+        filters.put("finnishlightstem", StemmerTokenFilterFactory.class);
+        filters.put("frenchlightstem", StemmerTokenFilterFactory.class);
+        filters.put("frenchminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("galicianminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("galicianstem", StemmerTokenFilterFactory.class);
+        filters.put("germanlightstem", StemmerTokenFilterFactory.class);
+        filters.put("germanminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("greekstem", StemmerTokenFilterFactory.class);
+        filters.put("hindistem", StemmerTokenFilterFactory.class);
+        filters.put("hungarianlightstem", StemmerTokenFilterFactory.class);
+        filters.put("indonesianstem", StemmerTokenFilterFactory.class);
+        filters.put("italianlightstem", StemmerTokenFilterFactory.class);
+        filters.put("latvianstem", StemmerTokenFilterFactory.class);
+        filters.put("norwegianlightstem", StemmerTokenFilterFactory.class);
+        filters.put("norwegianminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("portuguesestem", StemmerTokenFilterFactory.class);
+        filters.put("portugueselightstem", StemmerTokenFilterFactory.class);
+        filters.put("portugueseminimalstem", StemmerTokenFilterFactory.class);
+        filters.put("russianlightstem", StemmerTokenFilterFactory.class);
+        filters.put("soranistem", StemmerTokenFilterFactory.class);
+        filters.put("spanishlightstem", StemmerTokenFilterFactory.class);
+        filters.put("swedishlightstem", StemmerTokenFilterFactory.class);
+        filters.put("stemmeroverride", StemmerOverrideTokenFilterFactory.class);
+        filters.put("kstem", KStemTokenFilterFactory.class);
+        filters.put("synonym", SynonymTokenFilterFactory.class);
+        filters.put("dictionarycompoundword", DictionaryCompoundWordTokenFilterFactory.class);
+        filters.put("hyphenationcompoundword", HyphenationCompoundWordTokenFilterFactory.class);
+        filters.put("reversestring", ReverseTokenFilterFactory.class);
+        filters.put("elision", ElisionTokenFilterFactory.class);
+        filters.put("truncate", TruncateTokenFilterFactory.class);
+        filters.put("limittokencount", LimitTokenCountFilterFactory.class);
+        filters.put("commongrams", CommonGramsTokenFilterFactory.class);
+        filters.put("commongramsquery", CommonGramsTokenFilterFactory.class);
+        filters.put("patternreplace", PatternReplaceTokenFilterFactory.class);
+        filters.put("patterncapturegroup", PatternCaptureGroupTokenFilterFactory.class);
         return filters;
     }
 
@@ -64,6 +119,14 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         // TODO: these charfilters are not yet exposed: useful?
         // handling of zwnj for persian
         filters.put("persian",        Void.class);
+        return filters;
+    }
+
+    @Override
+    public Map<String, Class<?>> getPreConfiguredCharFilters() {
+        Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredCharFilters());
+        filters.put("html_strip", HTMLStripCharFilterFactory.class);
+        filters.put("htmlStrip", HTMLStripCharFilterFactory.class);
         return filters;
     }
 
@@ -88,6 +151,7 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
         filters.put("elision", null);
         filters.put("french_stem", SnowballPorterFilterFactory.class);
         filters.put("german_stem", null);
+        filters.put("german_normalization", null);
         filters.put("hindi_normalization", null);
         filters.put("indic_normalization", null);
         filters.put("keyword_repeat", null);
@@ -119,8 +183,9 @@ public class CommonAnalysisFactoryTests extends AnalysisFactoryTestCase {
 
     @Override
     protected Map<String, Class<?>> getPreConfiguredTokenizers() {
-        Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenFilters());
-        
+        Map<String, Class<?>> filters = new TreeMap<>(super.getPreConfiguredTokenizers());
+        filters.put("keyword", null);
+        filters.put("lowercase", null);
         return filters;
     }
 

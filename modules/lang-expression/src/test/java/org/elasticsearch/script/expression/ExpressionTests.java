@@ -21,9 +21,7 @@ package org.elasticsearch.script.expression;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -43,16 +41,16 @@ public class ExpressionTests extends ESSingleNodeTestCase {
         lookup = new SearchLookup(index.mapperService(), index.fieldData(), null);
     }
 
-    private SearchScript compile(String expression) {
-        Object compiled = service.compile(null, expression, Collections.emptyMap());
-        return service.search(new CompiledScript(ScriptType.INLINE, "randomName", "expression", compiled), lookup, Collections.<String, Object>emptyMap());
+    private SearchScript.LeafFactory compile(String expression) {
+        SearchScript.Factory factory = service.compile(null, expression, SearchScript.CONTEXT, Collections.emptyMap());
+        return factory.newFactory(Collections.emptyMap(), lookup);
     }
 
     public void testNeedsScores() {
-        assertFalse(compile("1.2").needsScores());
-        assertFalse(compile("doc['d'].value").needsScores());
-        assertTrue(compile("1/_score").needsScores());
-        assertTrue(compile("doc['d'].value * _score").needsScores());
+        assertFalse(compile("1.2").needs_score());
+        assertFalse(compile("doc['d'].value").needs_score());
+        assertTrue(compile("1/_score").needs_score());
+        assertTrue(compile("doc['d'].value * _score").needs_score());
     }
 
     public void testCompileError() {

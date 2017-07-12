@@ -44,6 +44,10 @@ public class RestPutRepositoryAction extends BaseRestHandler {
         controller.registerHandler(POST, "/_snapshot/{repository}", this);
     }
 
+    @Override
+    public String getName() {
+        return "put_repository_action";
+    }
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {

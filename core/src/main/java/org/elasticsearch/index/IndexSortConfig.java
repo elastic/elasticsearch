@@ -120,13 +120,13 @@ public final class IndexSortConfig {
             .map((name) -> new FieldSortSpec(name))
             .toArray(FieldSortSpec[]::new);
 
-        if (sortSpecs.length > 0 && indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+        if (sortSpecs.length > 0 && indexSettings.getIndexVersionCreated().before(Version.V_6_0_0_alpha1)) {
             /**
              * This index might be assigned to a node where the index sorting feature is not available
              * (ie. versions prior to {@link Version.V_6_0_0_alpha1_UNRELEASED}) so we must fail here rather than later.
              */
             throw new IllegalArgumentException("unsupported index.version.created:" + indexSettings.getIndexVersionCreated() +
-                ", can't set index.sort on versions prior to " + Version.V_6_0_0_alpha1_UNRELEASED);
+                ", can't set index.sort on versions prior to " + Version.V_6_0_0_alpha1);
         }
 
         if (INDEX_SORT_ORDER_SETTING.exists(settings)) {

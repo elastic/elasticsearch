@@ -20,6 +20,7 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -37,13 +38,17 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 
+import java.nio.file.Path;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -57,7 +62,11 @@ public class MockNode extends Node {
     private final Collection<Class<? extends Plugin>> classpathPlugins;
 
     public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(InternalSettingsPreparer.prepareEnvironment(settings, null), classpathPlugins);
+        this(settings, classpathPlugins, null);
+    }
+
+    public MockNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
+        super(InternalSettingsPreparer.prepareEnvironment(settings, null, Collections.emptyMap(), configPath), classpathPlugins);
         this.classpathPlugins = classpathPlugins;
     }
 
@@ -104,8 +113,8 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
-        return new MockNode(settings, classpathPlugins);
+    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins, Path configPath) {
+        return new MockNode(settings, classpathPlugins, configPath);
     }
 
     @Override
@@ -117,11 +126,11 @@ public class MockNode extends Node {
 
     @Override
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
-                                                       ThreadPool threadPool, NodeClient client) {
+                                                       ThreadPool threadPool, NodeClient client, Consumer<ClusterInfo> listener) {
         if (getPluginsService().filterPlugins(MockInternalClusterInfoService.TestPlugin.class).isEmpty()) {
-            return super.newClusterInfoService(settings, clusterService, threadPool, client);
+            return super.newClusterInfoService(settings, clusterService, threadPool, client, listener);
         } else {
-            return new MockInternalClusterInfoService(settings, clusterService, threadPool, client);
+            return new MockInternalClusterInfoService(settings, clusterService, threadPool, client, listener);
         }
     }
 }

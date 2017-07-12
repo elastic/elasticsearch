@@ -62,7 +62,12 @@ configure(subprojects.findAll { it.projectDir.toPath().startsWith(rootPath) }) {
   }
 }
 
-// introspect all versions of ES that may be tested agains for backwards compatibility
+/* Introspect all versions of ES that may be tested agains for backwards
+ * compatibility. It is *super* important that this logic is the same as the
+ * logic in VersionUtils.java, modulo alphas, betas, and rcs which are ignored
+ * in gradle because they don't have any backwards compatibility guarantees
+ * but are not ignored in VersionUtils.java because the tests expect them not
+ * to be. */
 Version currentVersion = Version.fromString(VersionProperties.elasticsearch.minus('-SNAPSHOT'))
 int prevMajor = currentVersion.major - 1
 File versionFile = file('core/src/main/java/org/elasticsearch/Version.java')
@@ -72,13 +77,14 @@ List<Version> versions = []
 int prevMinorIndex = -1 // index in the versions list of the last minor from the prev major
 int lastPrevMinor = -1 // the minor version number from the prev major we most recently seen
 for (String line : versionLines) {
-  Matcher match = line =~ /\W+public static final Version V_(\d+)_(\d+)_(\d+)(_UNRELEASED)? .*/
+  /* Note that this skips alphas and betas which is fine because they aren't
+   * compatible with anything. */
+  Matcher match = line =~ /\W+public static final Version V_(\d+)_(\d+)_(\d+) .*/
   if (match.matches()) {
     int major = Integer.parseInt(match.group(1))
     int minor = Integer.parseInt(match.group(2))
     int bugfix = Integer.parseInt(match.group(3))
-    boolean unreleased = match.group(4) != null
-    Version foundVersion = new Version(major, minor, bugfix, false, unreleased)
+    Version foundVersion = new Version(major, minor, bugfix, false)
     if (currentVersion != foundVersion) {
       versions.add(foundVersion)
     }
@@ -96,10 +102,13 @@ if (currentVersion.bugfix == 0) {
   // If on a release branch, after the initial release of that branch, the bugfix version will
   // be bumped, and will be != 0. On master and N.x branches, we want to test against the
   // unreleased version of closest branch. So for those cases, the version includes -SNAPSHOT,
-  // and the bwc-zip distribution will checkout and build that version.
+  // and the bwc distribution will checkout and build that version.
   Version last = versions[-1]
-  versions[-1] = new Version(last.major, last.minor, last.bugfix,
-      true, last.unreleased)
+  versions[-1] = new Version(last.major, last.minor, last.bugfix, true)
+  if (last.bugfix == 0) {
+    versions[-2] = new Version(
+        versions[-2].major, versions[-2].minor, versions[-2].bugfix, true)
+  }
 }
 
 // injecting groovy property variables into all projects
@@ -112,6 +121,59 @@ allprojects {
     indexCompatVersions = versions
     wireCompatVersions = versions.subList(prevMinorIndex, versions.size())
   }
+}
+
+task verifyVersions {
+  doLast {
+    if (gradle.startParameter.isOffline()) {
+      throw new GradleException("Must run in online mode to verify versions")
+    }
+    // Read the list from maven central
+    Node xml
+    new URL('https://repo1.maven.org/maven2/org/elasticsearch/elasticsearch/maven-metadata.xml').openStream().withStream { s ->
+        xml = new XmlParser().parse(s)
+    }
+    Set<Version> knownVersions = new TreeSet<>(xml.versioning.versions.version.collect { it.text() }.findAll { it ==~ /\d\.\d\.\d/ }.collect { Version.fromString(it) })
+
+    // Limit the known versions to those that should be index compatible, and are not future versions
+    knownVersions = knownVersions.findAll { it.major >= prevMajor && it.before(VersionProperties.elasticsearch) }
+
+    /* Limit the listed versions to those that have been marked as released.
+     * Versions not marked as released don't get the same testing and we want
+     * to make sure that we flip all unreleased versions to released as soon
+     * as possible after release. */
+    Set<Version> actualVersions = new TreeSet<>(indexCompatVersions.findAll { false == it.snapshot })
+
+    // Finally, compare!
+    if (knownVersions.equals(actualVersions) == false) {
+      throw new GradleException("out-of-date released versions\nActual  :" + actualVersions + "\nExpected:" + knownVersions +
+        "\nUpdate Version.java. Note that Version.CURRENT doesn't count because it is not released.")
+    }
+  }
+}
+
+/*
+ * When adding backcompat behavior that spans major versions, temporarily
+ * disabling the backcompat tests is necessary. This flag controls
+ * the enabled state of every bwc task. It should be set back to true
+ * after the backport of the backcompat code is complete.
+ */
+allprojects {
+  ext.bwc_tests_enabled = true
+}
+
+task verifyBwcTestsEnabled {
+  doLast {
+    if (project.bwc_tests_enabled == false) {
+      throw new GradleException('Bwc tests are disabled. They must be re-enabled after completing backcompat behavior backporting.')
+    }
+  }
+}
+
+task branchConsistency {
+  description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
+  group 'Verification'
+  dependsOn verifyVersions, verifyBwcTestsEnabled
 }
 
 subprojects {
@@ -171,10 +233,22 @@ subprojects {
     "org.elasticsearch.plugin:aggs-matrix-stats-client:${version}": ':modules:aggs-matrix-stats',
     "org.elasticsearch.plugin:percolator-client:${version}": ':modules:percolator',
   ]
-  if (wireCompatVersions[-1].snapshot) {
-    // if the most previous version is a snapshot, we need to connect that version to the
-    // bwc-zip project which will checkout and build that snapshot version
-    ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${wireCompatVersions[-1]}"] = ':distribution:bwc-zip'
+  if (indexCompatVersions[-1].snapshot) {
+    /* The last and second to last versions can be snapshots. Rather than use
+     * snapshots built by CI we connect these versions to projects that build
+     * those those versions from the HEAD of the appropriate branch. */
+    if (indexCompatVersions[-1].bugfix == 0) {
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-stable-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-2]}"] = ':distribution:bwc-release-snapshot'
+    } else {
+      ext.projectSubstitutions["org.elasticsearch.distribution.deb:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.rpm:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
+      ext.projectSubstitutions["org.elasticsearch.distribution.zip:elasticsearch:${indexCompatVersions[-1]}"] = ':distribution:bwc-release-snapshot'
+    }
   }
   project.afterEvaluate {
     configurations.all {
@@ -345,4 +419,18 @@ task run(type: Run) {
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
   impliesSubProjects = true
+}
+
+/* Remove assemble on all qa projects because we don't need to publish
+ * artifacts for them. */
+gradle.projectsEvaluated {
+  subprojects {
+    if (project.path.startsWith(':qa')) {
+      Task assemble = project.tasks.findByName('assemble')
+      if (assemble) {
+        project.tasks.remove(assemble)
+        project.build.dependsOn.remove('assemble')
+      }
+    }
+  }
 }

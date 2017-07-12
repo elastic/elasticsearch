@@ -120,7 +120,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "5", "6");
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/23966")
     public void testSimpleQueryStringMinimumShouldMatch() throws Exception {
         createIndex("test");
         ensureGreen("test");
@@ -399,10 +398,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("Bar")).get();
         assertHitCount(resp, 3L);
         assertHits(resp.getHits(), "1", "2", "3");
-
-        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("foa")).get();
-        assertHitCount(resp, 1L);
-        assertHits(resp.getHits(), "3");
     }
 
     public void testWithDate() throws Exception {
@@ -481,8 +476,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("Baz")).get();
         assertHits(resp.getHits(), "1");
-        resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("sbaz")).get();
-        assertHits(resp.getHits(), "1");
         resp = client().prepareSearch("test").setQuery(simpleQueryStringQuery("19")).get();
         assertHits(resp.getHits(), "1");
         // nested doesn't match because it's hidden
@@ -548,11 +541,11 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         indexRandom(true, false, reqs);
 
         SearchResponse resp = client().prepareSearch("test").setQuery(
-                simpleQueryStringQuery("foo eggplent").defaultOperator(Operator.AND)).get();
+                simpleQueryStringQuery("foo eggplant").defaultOperator(Operator.AND)).get();
         assertHitCount(resp, 0L);
 
         resp = client().prepareSearch("test").setQuery(
-                simpleQueryStringQuery("foo eggplent").defaultOperator(Operator.AND).useAllFields(true)).get();
+                simpleQueryStringQuery("foo eggplant").defaultOperator(Operator.AND).useAllFields(true)).get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
 

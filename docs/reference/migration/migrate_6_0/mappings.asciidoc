@@ -29,3 +29,4 @@ now disallowed for these indices' mappings.
 Previously Elasticsearch would silently ignore any dynamic templates that
 included a `match_mapping_type` type that was unrecognized. An exception is now
 thrown on an unrecognized type.
+

@@ -33,77 +33,29 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
     /**
      * The accumulated timings for this query node
      */
-    private final long[] timings;
-
-    private final long[] counts;
-
-    /** Scratch to store the current timing type. */
-    private T currentTimingType;
-
-    /**
-     * The temporary scratch space for holding start-times
-     */
-    private long scratch;
-
-    private T[] timingTypes;
+    private final Timer[] timings;
+    private final T[] timingTypes;
 
     /** Sole constructor. */
-    public AbstractProfileBreakdown(T[] timingTypes) {
-        this.timingTypes = timingTypes;
-        timings = new long[timingTypes.length];
-        counts = new long[timingTypes.length];
+    public AbstractProfileBreakdown(Class<T> clazz) {
+        this.timingTypes = clazz.getEnumConstants();
+        timings = new Timer[timingTypes.length];
+        for (int i = 0; i < timings.length; ++i) {
+            timings[i] = new Timer();
+        }
     }
 
-    /**
-     * Begin timing a query for a specific Timing context
-     * @param timing    The timing context being profiled
-     */
-    public void startTime(T timing) {
-        assert currentTimingType == null;
-        assert scratch == 0;
-        counts[timing.ordinal()] += 1;
-        currentTimingType = timing;
-        scratch = System.nanoTime();
-    }
-
-    /**
-     * Halt the timing process and save the elapsed time.
-     * startTime() must be called for a particular context prior to calling
-     * stopAndRecordTime(), otherwise the elapsed time will be negative and
-     * nonsensical
-     *
-     * @return          The elapsed time
-     */
-    public long stopAndRecordTime() {
-        long time = Math.max(1, System.nanoTime() - scratch);
-        timings[currentTimingType.ordinal()] += time;
-        currentTimingType = null;
-        scratch = 0L;
-        return time;
+    public Timer getTimer(T timing) {
+        return timings[timing.ordinal()];
     }
 
     /** Convert this record to a map from timingType to times. */
     public Map<String, Long> toTimingMap() {
         Map<String, Long> map = new HashMap<>();
         for (T timingType : timingTypes) {
-            map.put(timingType.toString(), timings[timingType.ordinal()]);
-            map.put(timingType.toString() + "_count", counts[timingType.ordinal()]);
+            map.put(timingType.toString(), timings[timingType.ordinal()].getTiming());
+            map.put(timingType.toString() + "_count", timings[timingType.ordinal()].getCount());
         }
         return Collections.unmodifiableMap(map);
-    }
-
-    /**
-     * Add <code>other</code>'s timings into this breakdown
-     * @param other Another Breakdown to merge with this one
-     */
-    public void merge(AbstractProfileBreakdown<T> other) {
-        assert(timings.length == other.timings.length);
-        for (int i = 0; i < timings.length; ++i) {
-            timings[i] += other.timings[i];
-        }
-        assert(counts.length == other.counts.length);
-        for (int i = 0; i < counts.length; ++i) {
-            counts[i] += other.counts[i];
-        }
     }
 }

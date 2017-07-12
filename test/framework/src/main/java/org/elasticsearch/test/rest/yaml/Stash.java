@@ -28,9 +28,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -40,6 +40,7 @@ import java.util.regex.Pattern;
  */
 public class Stash implements ToXContent {
     private static final Pattern EXTENDED_KEY = Pattern.compile("\\$\\{([^}]+)\\}");
+    private static final Pattern PATH = Pattern.compile("\\$_path");
 
     private static final Logger logger = Loggers.getLogger(Stash.class);
 
@@ -125,19 +126,22 @@ public class Stash implements ToXContent {
      */
     @SuppressWarnings("unchecked") // Safe because we check that all the map keys are string in unstashObject
     public Map<String, Object> replaceStashedValues(Map<String, Object> map) throws IOException {
-        return (Map<String, Object>) unstashObject(map);
+        return (Map<String, Object>) unstashObject(new ArrayList<>(), map);
     }
 
-    private Object unstashObject(Object obj) throws IOException {
+    private Object unstashObject(List<Object> path, Object obj) throws IOException {
         if (obj instanceof List) {
             List<?> list = (List<?>) obj;
             List<Object> result = new ArrayList<>();
+            int index = 0;
             for (Object o : list) {
+                path.add(index++);
                 if (containsStashedValue(o)) {
-                    result.add(getValue(o.toString()));
+                    result.add(getValue(path, o.toString()));
                 } else {
-                    result.add(unstashObject(o));
+                    result.add(unstashObject(path, o));
                 }
+                path.remove(path.size() - 1);
             }
             return result;
         }
@@ -150,11 +154,13 @@ public class Stash implements ToXContent {
                 if (containsStashedValue(key)) {
                     key = getValue(key).toString();
                 }
+                path.add(key);
                 if (containsStashedValue(value)) {
-                    value = getValue(value.toString());
+                    value = getValue(path, value.toString());
                 } else {
-                    value = unstashObject(value);
+                    value = unstashObject(path, value);
                 }
+                path.remove(path.size() - 1);
                 if (null != result.putIfAbsent(key, value)) {
                     throw new IllegalArgumentException("Unstashing has caused a key conflict! The map is [" + result + "] and the key is ["
                             + entry.getKey() + "] which unstashes to [" + key + "]");
@@ -163,6 +169,34 @@ public class Stash implements ToXContent {
             return result;
         }
         return obj;
+    }
+
+    /**
+     * Lookup a value from the stash adding support for a special key ({@code $_path}) which
+     * returns a string that is the location in the path of the of the object currently being
+     * unstashed. This is useful during documentation testing.
+     */
+    private Object getValue(List<Object> path, String key) throws IOException {
+        Matcher matcher = PATH.matcher(key);
+        if (false == matcher.find()) {
+            return getValue(key);
+        }
+        StringBuilder pathBuilder = new StringBuilder();
+        Iterator<Object> element = path.iterator();
+        if (element.hasNext()) {
+            pathBuilder.append(element.next());
+            while (element.hasNext()) {
+                pathBuilder.append('.');
+                pathBuilder.append(element.next());
+            }
+        }
+        String builtPath = Matcher.quoteReplacement(pathBuilder.toString());
+        StringBuffer newKey = new StringBuffer(key.length());
+        do {
+            matcher.appendReplacement(newKey, builtPath);
+        } while (matcher.find());
+        matcher.appendTail(newKey);
+        return getValue(newKey.toString());
     }
 
     @Override

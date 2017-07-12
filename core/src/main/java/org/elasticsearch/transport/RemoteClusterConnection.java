@@ -22,6 +22,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
@@ -33,7 +34,7 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -56,11 +57,11 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -81,13 +82,13 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
     private final TransportService transportService;
     private final ConnectionProfile remoteProfile;
-    private final Set<DiscoveryNode> connectedNodes = Collections.newSetFromMap(new ConcurrentHashMap<>());
-    private final Supplier<DiscoveryNode> nodeSupplier;
+    private final ConnectedNodes connectedNodes;
     private final String clusterAlias;
     private final int maxNumRemoteConnections;
     private final Predicate<DiscoveryNode> nodePredicate;
     private volatile List<DiscoveryNode> seedNodes;
     private final ConnectHandler connectHandler;
+    private SetOnce<ClusterName> remoteClusterName = new SetOnce<>();
 
     /**
      * Creates a new {@link RemoteClusterConnection}
@@ -114,19 +115,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             TransportRequestOptions.Type.STATE,
             TransportRequestOptions.Type.RECOVERY);
         remoteProfile = builder.build();
-        nodeSupplier = new Supplier<DiscoveryNode>() {
-            private volatile Iterator<DiscoveryNode> current;
-            @Override
-            public DiscoveryNode get() {
-                if (current == null || current.hasNext() == false) {
-                    current = connectedNodes.iterator();
-                    if (current.hasNext() == false) {
-                        throw new IllegalStateException("No node available for cluster: " + clusterAlias + " nodes: " + connectedNodes);
-                    }
-                }
-                return current.next();
-            }
-        };
+        connectedNodes = new ConnectedNodes(clusterAlias);
         this.seedNodes = Collections.unmodifiableList(seedNodes);
         this.connectHandler = new ConnectHandler();
         transportService.addConnectionListener(this);
@@ -154,21 +143,33 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      */
     public void fetchSearchShards(ClusterSearchShardsRequest searchRequest,
                                   ActionListener<ClusterSearchShardsResponse> listener) {
-        if (connectedNodes.isEmpty()) {
+        if (connectedNodes.size() == 0) {
             // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
             // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
             // we can't proceed with a search on a cluster level.
             // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the caller
             // end since they provide the listener.
-            connectHandler.connect(ActionListener.wrap((x) -> fetchShardsInternal(searchRequest, listener), listener::onFailure));
+            ensureConnected(ActionListener.wrap((x) -> fetchShardsInternal(searchRequest, listener), listener::onFailure));
         } else {
             fetchShardsInternal(searchRequest, listener);
         }
     }
 
+    /**
+     * Ensures that this cluster is connected. If the cluster is connected this operation
+     * will invoke the listener immediately.
+     */
+    public void ensureConnected(ActionListener<Void> voidActionListener) {
+        if (connectedNodes.size() == 0) {
+            connectHandler.connect(voidActionListener);
+        } else {
+            voidActionListener.onResponse(null);
+        }
+    }
+
     private void fetchShardsInternal(ClusterSearchShardsRequest searchShardsRequest,
                                      final ActionListener<ClusterSearchShardsResponse> listener) {
-        final DiscoveryNode node = nodeSupplier.get();
+        final DiscoveryNode node = connectedNodes.get();
         transportService.sendRequest(node, ClusterSearchShardsAction.NAME, searchShardsRequest,
             new TransportResponseHandler<ClusterSearchShardsResponse>() {
 
@@ -195,11 +196,58 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     }
 
     /**
+     * Collects all nodes on the connected cluster and returns / passes a nodeID to {@link DiscoveryNode} lookup function
+     * that returns <code>null</code> if the node ID is not found.
+     */
+    void collectNodes(ActionListener<Function<String, DiscoveryNode>> listener) {
+        Runnable runnable = () -> {
+            final ClusterStateRequest request = new ClusterStateRequest();
+            request.clear();
+            request.nodes(true);
+            request.local(true); // run this on the node that gets the request it's as good as any other
+            final DiscoveryNode node = connectedNodes.get();
+            transportService.sendRequest(node, ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
+                new TransportResponseHandler<ClusterStateResponse>() {
+                    @Override
+                    public ClusterStateResponse newInstance() {
+                        return new ClusterStateResponse();
+                    }
+
+                    @Override
+                    public void handleResponse(ClusterStateResponse response) {
+                        DiscoveryNodes nodes = response.getState().nodes();
+                        listener.onResponse(nodes::get);
+                    }
+
+                    @Override
+                    public void handleException(TransportException exp) {
+                        listener.onFailure(exp);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+                });
+        };
+        if (connectedNodes.size() == 0) {
+            // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
+            // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
+            // we can't proceed with a search on a cluster level.
+            // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the
+            // caller end since they provide the listener.
+            ensureConnected(ActionListener.wrap((x) -> runnable.run(), listener::onFailure));
+        } else {
+            runnable.run();
+        }
+    }
+
+    /**
      * Returns a connection to the remote cluster. This connection might be a proxy connection that redirects internally to the
      * given node.
      */
     Transport.Connection getConnection(DiscoveryNode remoteClusterNode) {
-        DiscoveryNode discoveryNode = nodeSupplier.get();
+        DiscoveryNode discoveryNode = connectedNodes.get();
         Transport.Connection connection = transportService.getConnection(discoveryNode);
         return new Transport.Connection() {
             @Override
@@ -222,12 +270,11 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     }
 
     Transport.Connection getConnection() {
-        DiscoveryNode discoveryNode = nodeSupplier.get();
+        DiscoveryNode discoveryNode = connectedNodes.get();
         return transportService.getConnection(discoveryNode);
     }
 
-
-        @Override
+    @Override
     public void close() throws IOException {
         connectHandler.close();
     }
@@ -362,8 +409,14 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                             ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null));
                         boolean success = false;
                         try {
-                            handshakeNode = transportService.handshake(connection, remoteProfile.getHandshakeTimeout().millis(),
-                                (c) -> true);
+                            try {
+                                handshakeNode = transportService.handshake(connection, remoteProfile.getHandshakeTimeout().millis(),
+                                    (c) -> remoteClusterName.get() == null ? true : c.equals(remoteClusterName.get()));
+                            } catch (IllegalStateException ex) {
+                                logger.warn((Supplier<?>) () -> new ParameterizedMessage("seed node {} cluster name mismatch expected " +
+                                    "cluster name {}", connection.getNode(), remoteClusterName.get()), ex);
+                                throw ex;
+                            }
                             if (nodePredicate.test(handshakeNode) && connectedNodes.size() < maxNumRemoteConnections) {
                                 transportService.connectToNode(handshakeNode, remoteProfile);
                                 connectedNodes.add(handshakeNode);
@@ -457,6 +510,10 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             public void handleResponse(ClusterStateResponse response) {
                 assert transportService.getThreadPool().getThreadContext().isSystemContext() == false : "context is a system context";
                 try {
+                    if (remoteClusterName.get() == null) {
+                        assert response.getClusterName().value() != null;
+                        remoteClusterName.set(response.getClusterName());
+                    }
                     try (Closeable theConnection = connection) { // the connection is unused - see comment in #collectRemoteNodes
                         // we have to close this connection before we notify listeners - this is mainly needed for test correctness
                         // since if we do it afterwards we might fail assertions that check if all high level connections are closed.
@@ -522,12 +579,19 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         return connectedNodes.contains(node);
     }
 
+    DiscoveryNode getConnectedNode() {
+        return connectedNodes.get();
+    }
+
+    void addConnectedNode(DiscoveryNode node) {
+        connectedNodes.add(node);
+    }
 
     /**
      * Fetches connection info for this connection
      */
     public void getConnectionInfo(ActionListener<RemoteConnectionInfo> listener) {
-        final Optional<DiscoveryNode> anyNode = connectedNodes.stream().findAny();
+        final Optional<DiscoveryNode> anyNode = connectedNodes.getAny();
         if (anyNode.isPresent() == false) {
             // not connected we return immediately
             RemoteConnectionInfo remoteConnectionStats = new RemoteConnectionInfo(clusterAlias,
@@ -588,5 +652,69 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
     int getNumNodesConnected() {
         return connectedNodes.size();
+    }
+
+    private static class ConnectedNodes implements Supplier<DiscoveryNode> {
+
+        private final Set<DiscoveryNode> nodeSet = new HashSet<>();
+        private final String clusterAlias;
+
+        private Iterator<DiscoveryNode> currentIterator = null;
+
+        private ConnectedNodes(String clusterAlias) {
+            this.clusterAlias = clusterAlias;
+        }
+
+        @Override
+        public synchronized DiscoveryNode get() {
+            ensureIteratorAvailable();
+            if (currentIterator.hasNext()) {
+                return currentIterator.next();
+            } else {
+                throw new IllegalStateException("No node available for cluster: " + clusterAlias);
+            }
+        }
+
+        synchronized boolean remove(DiscoveryNode node) {
+            final boolean setRemoval = nodeSet.remove(node);
+            if (setRemoval) {
+                currentIterator = null;
+            }
+            return setRemoval;
+        }
+
+        synchronized boolean add(DiscoveryNode node) {
+            final boolean added = nodeSet.add(node);
+            if (added) {
+                currentIterator = null;
+            }
+            return added;
+        }
+
+        synchronized int size() {
+            return nodeSet.size();
+        }
+
+        synchronized boolean contains(DiscoveryNode node) {
+            return nodeSet.contains(node);
+        }
+
+        synchronized Optional<DiscoveryNode> getAny() {
+            ensureIteratorAvailable();
+            if (currentIterator.hasNext()) {
+                return Optional.of(currentIterator.next());
+            } else {
+                return Optional.empty();
+            }
+        }
+
+        private synchronized void ensureIteratorAvailable() {
+            if (currentIterator == null) {
+                currentIterator = nodeSet.iterator();
+            } else if (currentIterator.hasNext() == false && nodeSet.isEmpty() == false) {
+                // iterator rollover
+                currentIterator = nodeSet.iterator();
+            }
+        }
     }
 }

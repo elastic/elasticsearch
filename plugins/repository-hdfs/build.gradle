@@ -29,8 +29,10 @@ esplugin {
   classname 'org.elasticsearch.repositories.hdfs.HdfsPlugin'
 }
 
+apply plugin: 'elasticsearch.vagrantsupport'
+
 versions << [
-  'hadoop2': '2.7.1'
+  'hadoop2': '2.8.1'
 ]
 
 configurations {
@@ -43,7 +45,8 @@ dependencies {
   compile "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
   compile "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
   compile "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
-  compile 'org.apache.htrace:htrace-core:3.1.0-incubating'
+  compile "org.apache.hadoop:hadoop-hdfs-client:${versions.hadoop2}"
+  compile 'org.apache.htrace:htrace-core4:4.0.1-incubating'
   compile 'com.google.guava:guava:11.0.2'
   compile 'com.google.protobuf:protobuf-java:2.5.0'
   compile 'commons-logging:commons-logging:1.1.3'
@@ -83,6 +86,7 @@ task krb5kdcUpdate(type: org.elasticsearch.gradle.vagrant.VagrantCommandTask) {
   subcommand 'update'
   boxName box
   environmentVars vagrantEnvVars
+  dependsOn "vagrantCheckVersion", "virtualboxCheckVersion"
 }
 
 task krb5kdcFixture(type: org.elasticsearch.gradle.test.VagrantFixture) {
@@ -119,13 +123,21 @@ task secureHdfsFixture(type: org.elasticsearch.gradle.test.AntFixture) {
   Path keytabPath = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("hdfs_hdfs.build.elastic.co.keytab")
   Path krb5Config = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf")
 
-  args "-Djava.security.krb5.conf=${krb5Config}", 'hdfs.MiniHDFS',
-          baseDir,
-          "hdfs/hdfs.build.elastic.co@${realm}",
-          "${keytabPath}"
+  final List<String> miniHDFSArgs = ["-Djava.security.krb5.conf=${krb5Config}"]
+
+  if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
+    miniHDFSArgs.add('--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED')
+  }
+
+  miniHDFSArgs.add('hdfs.MiniHDFS')
+  miniHDFSArgs.add(baseDir)
+  miniHDFSArgs.add("hdfs/hdfs.build.elastic.co@${realm}")
+  miniHDFSArgs.add("${keytabPath}")
+
+  args miniHDFSArgs.toArray()
 }
 
-boolean fixtureSupported = false;
+boolean fixtureSupported = false
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   // hdfs fixture will not start without hadoop native libraries on windows
   String nativePath = System.getenv("HADOOP_HOME")
@@ -137,7 +149,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
         Files.exists(path.resolve("bin").resolve("hdfs.dll"))) {
       fixtureSupported = true
     } else {
-      throw new IllegalStateException("HADOOP_HOME: " + path.toString() + " is invalid, does not contain hadoop native libraries in $HADOOP_HOME/bin");
+      throw new IllegalStateException("HADOOP_HOME: ${path} is invalid, does not contain hadoop native libraries in \$HADOOP_HOME/bin");
     }
   }
 } else {
@@ -153,71 +165,61 @@ if (fixtureSupported) {
   integTestRunner.systemProperty 'tests.rest.suite', 'hdfs_repository/10_basic'
 }
 
-boolean secureFixtureSupported = false;
+boolean secureFixtureSupported = false
 if (fixtureSupported) {
-  // Only do secure fixture support if the regular fixture is supported,
-  // and if vagrant is installed. The ignoreExitValue on exec only matters
-  // in cases where the command can be found and successfully started. In
-  // situations where the vagrant command isn't able to be started at all
-  // (it's not installed) then Gradle still throws ExecException.
-  ByteArrayOutputStream pipe = new ByteArrayOutputStream()
-  try {
-    ExecResult runResult = exec {
-      commandLine 'vagrant', '--version'
-      standardOutput pipe
-      ignoreExitValue true
-    }
-    String output = pipe.toString().trim()
-    if (runResult.exitValue == 0) {
-      secureFixtureSupported = (output ==~ /Vagrant 1\.(8\.[6-9]|9\.[0-9])+/)
-    } else {
-      logger.warn("Could not read installed vagrant version:\n" + output)
-    }
-  } catch (org.gradle.process.internal.ExecException e) {
-    logger.warn("Could not find vagrant: " + e.message)
-    // Swallow error. Vagrant isn't installed. Leave secure fixture support off.
-  }
+  secureFixtureSupported = project.rootProject.vagrantSupported
 }
 
 // Create a Integration Test suite just for security based tests
-if (secureFixtureSupported && false) { // This fails due to a vagrant configuration issue - remove the false check to re-enable
-  // This must execute before the afterEvaluate block from integTestSecure
-  project.afterEvaluate {
-    Path elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("elasticsearch.keytab").toAbsolutePath()
-    Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
+// This must execute before the afterEvaluate block from integTestSecure
+project.afterEvaluate {
+  Path elasticsearchKT = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("keytabs").resolve("elasticsearch.keytab").toAbsolutePath()
+  Path krb5conf = project(':test:fixtures:krb5kdc-fixture').buildDir.toPath().resolve("conf").resolve("krb5.conf").toAbsolutePath()
 
-    project.integTestSecureCluster.dependsOn(project.bundlePlugin)
-    project.integTestSecure.clusterConfig.plugin(project.path)
-    project.integTestSecure.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
-    project.integTestSecure.clusterConfig.jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-            " " + "-Djava.security.krb5.conf=${krb5conf}" +
-            " " + System.getProperty('tests.jvm.argline', '')
+  project.integTestSecureCluster.dependsOn(project.bundlePlugin)
+  project.integTestSecure.clusterConfig.plugin(project.path)
+  project.integTestSecure.clusterConfig.extraConfigFile("repository-hdfs/krb5.keytab", "${elasticsearchKT}")
+
+  final String baseJvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
+          " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+          " " + "-Djava.security.krb5.conf=${krb5conf}" +
+          " " + System.getProperty('tests.jvm.argline', '')
+  final String jvmArgs
+  if (project.rootProject.ext.javaVersion == JavaVersion.VERSION_1_9) {
+    jvmArgs = baseJvmArgs + " " + '--add-opens=java.security.jgss/sun.security.krb5=ALL-UNNAMED'
+  } else {
+    jvmArgs = baseJvmArgs
   }
 
-  RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', RestIntegTestTask.class) {
-    description = "Runs rest tests against an elasticsearch cluster with HDFS secured by MIT Kerberos."
-  }
+  project.integTestSecure.clusterConfig.jvmArgs = jvmArgs
+}
 
-  integTestSecure.mustRunAfter(project.integTest)
+RestIntegTestTask integTestSecure = project.tasks.create('integTestSecure', RestIntegTestTask.class) {
+  description = "Runs rest tests against an elasticsearch cluster with HDFS secured by MIT Kerberos."
+}
+
+if (secureFixtureSupported) {
   project.check.dependsOn(integTestSecure)
 
   // Fixture dependencies
   integTestSecureCluster.dependsOn secureHdfsFixture, krb5kdcFixture
   integTestSecureRunner.systemProperty 'tests.rest.suite', 'secure_hdfs_repository'
 } else {
-  logger.warn("secured hdfsFixture is unsupported, please install Vagrant 1.8.6+ to enable")
+  integTestSecure.enabled = false
 }
 
 thirdPartyAudit.excludes = [
   // classes are missing, because we added hadoop jars one by one until tests pass.
   'com.google.gson.stream.JsonReader', 
-  'com.google.gson.stream.JsonWriter', 
-  'com.jcraft.jsch.ChannelExec', 
-  'com.jcraft.jsch.JSch', 
-  'com.jcraft.jsch.Logger', 
-  'com.jcraft.jsch.Session', 
-  'com.sun.jersey.api.ParamException', 
+  'com.google.gson.stream.JsonWriter',
+  'com.jcraft.jsch.ChannelExec',
+  'com.jcraft.jsch.ChannelSftp',
+  'com.jcraft.jsch.ChannelSftp$LsEntry',
+  'com.jcraft.jsch.JSch',
+  'com.jcraft.jsch.Logger',
+  'com.jcraft.jsch.Session',
+  'com.jcraft.jsch.SftpATTRS',
+  'com.sun.jersey.api.ParamException',
   'com.sun.jersey.api.core.HttpContext', 
   'com.sun.jersey.core.spi.component.ComponentContext', 
   'com.sun.jersey.core.spi.component.ComponentScope', 
@@ -241,6 +243,7 @@ thirdPartyAudit.excludes = [
   'io.netty.channel.ChannelHandlerContext',
   'io.netty.channel.ChannelInboundHandlerAdapter',
   'io.netty.channel.ChannelInitializer',
+  'io.netty.channel.ChannelOption',
   'io.netty.channel.ChannelPipeline',
   'io.netty.channel.EventLoopGroup',
   'io.netty.channel.SimpleChannelInboundHandler',
@@ -269,7 +272,8 @@ thirdPartyAudit.excludes = [
   'io.netty.handler.stream.ChunkedStream',
   'io.netty.handler.stream.ChunkedWriteHandler',
   'io.netty.util.concurrent.GlobalEventExecutor',
-  'javax.ws.rs.core.Context', 
+  'io.netty.util.ReferenceCountUtil',
+  'javax.ws.rs.core.Context',
   'javax.ws.rs.core.MediaType', 
   'javax.ws.rs.core.MultivaluedMap', 
   'javax.ws.rs.core.Response$ResponseBuilder', 
@@ -319,8 +323,7 @@ thirdPartyAudit.excludes = [
   'org.apache.commons.digester.substitution.MultiVariableExpander', 
   'org.apache.commons.digester.substitution.VariableSubstitutor', 
   'org.apache.commons.digester.xmlrules.DigesterLoader', 
-  'org.apache.commons.httpclient.util.URIUtil', 
-  'org.apache.commons.jxpath.JXPathContext', 
+  'org.apache.commons.jxpath.JXPathContext',
   'org.apache.commons.jxpath.ri.JXPathContextReferenceImpl', 
   'org.apache.commons.jxpath.ri.QName', 
   'org.apache.commons.jxpath.ri.compiler.NodeNameTest', 
@@ -370,7 +373,8 @@ thirdPartyAudit.excludes = [
   'org.apache.curator.utils.EnsurePath', 
   'org.apache.curator.utils.PathUtils', 
   'org.apache.curator.utils.ThreadUtils', 
-  'org.apache.curator.utils.ZKPaths', 
+  'org.apache.curator.utils.ZKPaths',
+  'org.apache.directory.shared.kerberos.components.EncryptionKey',
   'org.apache.directory.server.kerberos.shared.keytab.Keytab', 
   'org.apache.directory.server.kerberos.shared.keytab.KeytabEntry', 
   'org.apache.http.NameValuePair', 
@@ -404,33 +408,32 @@ thirdPartyAudit.excludes = [
   'org.codehaus.jackson.JsonFactory', 
   'org.codehaus.jackson.JsonGenerator', 
   'org.codehaus.jackson.JsonGenerator$Feature', 
-  'org.codehaus.jackson.JsonNode', 
-  'org.codehaus.jackson.map.MappingJsonFactory', 
+  'org.codehaus.jackson.map.MappingJsonFactory',
   'org.codehaus.jackson.map.ObjectMapper', 
   'org.codehaus.jackson.map.ObjectReader', 
   'org.codehaus.jackson.map.ObjectWriter', 
   'org.codehaus.jackson.node.ContainerNode', 
-  'org.codehaus.jackson.type.TypeReference', 
-  'org.codehaus.jackson.util.MinimalPrettyPrinter', 
+  'org.codehaus.jackson.util.MinimalPrettyPrinter',
   'org.fusesource.leveldbjni.JniDBFactory', 
   'org.iq80.leveldb.DB', 
   'org.iq80.leveldb.Options', 
-  'org.iq80.leveldb.WriteBatch', 
-  'org.mortbay.jetty.Connector', 
-  'org.mortbay.jetty.Handler', 
-  'org.mortbay.jetty.InclusiveByteRange', 
-  'org.mortbay.jetty.MimeTypes', 
-  'org.mortbay.jetty.NCSARequestLog', 
-  'org.mortbay.jetty.RequestLog', 
-  'org.mortbay.jetty.Server', 
-  'org.mortbay.jetty.handler.ContextHandler$SContext', 
-  'org.mortbay.jetty.handler.ContextHandler', 
-  'org.mortbay.jetty.handler.ContextHandlerCollection', 
-  'org.mortbay.jetty.handler.HandlerCollection', 
-  'org.mortbay.jetty.handler.RequestLogHandler', 
-  'org.mortbay.jetty.nio.SelectChannelConnector', 
-  'org.mortbay.jetty.security.SslSocketConnector', 
-  'org.mortbay.jetty.servlet.AbstractSessionManager', 
+  'org.iq80.leveldb.WriteBatch',
+  'org.mortbay.jetty.Connector',
+  'org.mortbay.jetty.Handler',
+  'org.mortbay.jetty.InclusiveByteRange',
+  'org.mortbay.jetty.MimeTypes',
+  'org.mortbay.jetty.NCSARequestLog',
+  'org.mortbay.jetty.RequestLog',
+  'org.mortbay.jetty.Server',
+  'org.mortbay.jetty.handler.ContextHandler$SContext',
+  'org.mortbay.jetty.handler.ContextHandler',
+  'org.mortbay.jetty.handler.ContextHandlerCollection',
+  'org.mortbay.jetty.handler.HandlerCollection',
+  'org.mortbay.jetty.handler.RequestLogHandler',
+  'org.mortbay.jetty.nio.SelectChannelConnector',
+  'org.mortbay.jetty.security.SslSelectChannelConnector',
+  'org.mortbay.jetty.security.SslSocketConnector',
+  'org.mortbay.jetty.servlet.AbstractSessionManager',
   'org.mortbay.jetty.servlet.Context', 
   'org.mortbay.jetty.servlet.DefaultServlet', 
   'org.mortbay.jetty.servlet.FilterHolder', 
@@ -439,8 +442,7 @@ thirdPartyAudit.excludes = [
   'org.mortbay.jetty.servlet.ServletHolder', 
   'org.mortbay.jetty.servlet.SessionHandler', 
   'org.mortbay.jetty.webapp.WebAppContext', 
-  'org.mortbay.log.Log', 
-  'org.mortbay.thread.QueuedThreadPool', 
+  'org.mortbay.thread.QueuedThreadPool',
   'org.mortbay.util.MultiException', 
   'org.mortbay.util.ajax.JSON$Convertible', 
   'org.mortbay.util.ajax.JSON$Output', 
@@ -475,7 +477,20 @@ thirdPartyAudit.excludes = [
   'org.apache.log4j.AppenderSkeleton',
   'org.apache.log4j.AsyncAppender',
   'org.apache.log4j.helpers.ISO8601DateFormat',
-  'org.apache.log4j.spi.ThrowableInformation'
+  'org.apache.log4j.spi.ThrowableInformation',
+
+  // New optional dependencies in 2.8
+  'com.nimbusds.jose.JWSObject$State',
+  'com.nimbusds.jose.crypto.RSASSAVerifier',
+  'com.nimbusds.jwt.ReadOnlyJWTClaimsSet',
+  'com.nimbusds.jwt.SignedJWT',
+  'com.squareup.okhttp.Call',
+  'com.squareup.okhttp.MediaType',
+  'com.squareup.okhttp.OkHttpClient',
+  'com.squareup.okhttp.Request$Builder',
+  'com.squareup.okhttp.RequestBody',
+  'com.squareup.okhttp.Response',
+  'com.squareup.okhttp.ResponseBody'
 ]
 
 // Gradle 2.13 bundles org.slf4j.impl.StaticLoggerBinder in its core.jar which leaks into the forbidden APIs ant task

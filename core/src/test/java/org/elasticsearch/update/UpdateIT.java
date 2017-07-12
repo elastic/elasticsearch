@@ -19,7 +19,21 @@
 
 package org.elasticsearch.update;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteResponse;
@@ -37,29 +51,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.ScriptPlugin;
-import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.SearchScript;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -71,247 +67,76 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateIT extends ESIntegTestCase {
 
-    public static class PutFieldValuesScriptPlugin extends Plugin implements ScriptPlugin {
+    private static final String UPDATE_SCRIPTS = "update_scripts";
+    private static final String PUT_VALUES_SCRIPT = "put_values";
+    private static final String FIELD_INC_SCRIPT = "field_inc";
+    private static final String UPSERT_SCRIPT = "scripted_upsert";
+    private static final String EXTRACT_CTX_SCRIPT = "extract_ctx";
+
+    public static class UpdateScriptsPlugin extends MockScriptPlugin {
         @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
-            return new PutFieldValuesScriptEngine();
+        public String pluginScriptLang() {
+            return UPDATE_SCRIPTS;
         }
-    }
-
-    public static class PutFieldValuesScriptEngine implements ScriptEngine {
-
-        public static final String NAME = "put_values";
-
         @Override
-        public void close() throws IOException {
-        }
+        protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
+            Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
+            scripts.put(PUT_VALUES_SCRIPT, vars -> {
+                Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                assertNotNull(ctx);
 
-        @Override
-        public String getType() {
-            return NAME;
-        }
+                Map<String, Object> params = new HashMap<>((Map<String, Object>) vars.get("params"));
 
-        @Override
-        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-            return new Object(); // unused
-        }
-
-        @Override
-        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> originalParams) {
-            return new ExecutableScript() {
-
-                Map<String, Object> vars = new HashMap<>();
-
-                @Override
-                public void setNextVar(String name, Object value) {
-                    vars.put(name, value);
+                Map<String, Object> newCtx = (Map<String, Object>) params.remove("_ctx");
+                if (newCtx != null) {
+                    assertFalse(newCtx.containsKey("_source"));
+                    ctx.putAll(newCtx);
                 }
 
-                @Override
-                public Object run() {
-                    Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
-                    assertNotNull(ctx);
+                Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                source.putAll(params);
 
-                    Map<String, Object> params = new HashMap<>(originalParams);
+                return ctx;
+            });
+            scripts.put(FIELD_INC_SCRIPT, vars -> {
+                Map<String, Object> params = (Map<String, Object>) vars.get("params");
+                String fieldname = (String) vars.get("field");
+                Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                assertNotNull(ctx);
+                Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                Number currentValue = (Number) source.get(fieldname);
+                Number inc = (Number) params.getOrDefault("inc", 1);
+                source.put(fieldname, currentValue.longValue() + inc.longValue());
+                return ctx;
+            });
+            scripts.put(UPSERT_SCRIPT, vars -> {
+                Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                assertNotNull(ctx);
+                Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                Number payment = (Number) vars.get("payment");
+                Number oldBalance = (Number) source.get("balance");
+                int deduction = "create".equals(ctx.get("op")) ? payment.intValue() / 2 : payment.intValue();
+                source.put("balance", oldBalance.intValue() - deduction);
+                return ctx;
+            });
+            scripts.put(EXTRACT_CTX_SCRIPT, vars -> {
+                Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
+                assertNotNull(ctx);
 
-                    Map<String, Object> newCtx = (Map<String, Object>) params.remove("_ctx");
-                    if (newCtx != null) {
-                        assertFalse(newCtx.containsKey("_source"));
-                        ctx.putAll(newCtx);
-                    }
+                Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
+                Map<String, Object> ctxWithoutSource = new HashMap<>(ctx);
+                ctxWithoutSource.remove("_source");
+                source.put("update_context", ctxWithoutSource);
 
-                    Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
-                    source.putAll(params);
-
-                    return ctx;
-                }
-            };
-        }
-
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
-            throw new UnsupportedOperationException();
-        }
-    }
-
-    public static class FieldIncrementScriptPlugin extends Plugin implements ScriptPlugin {
-        @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
-            return new FieldIncrementScriptEngine();
-        }
-    }
-
-    public static class FieldIncrementScriptEngine implements ScriptEngine {
-
-        public static final String NAME = "field_inc";
-
-        @Override
-        public void close() throws IOException {
-        }
-
-        @Override
-        public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-            return scriptSource;
-        }
-
-        @Override
-        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
-            final String field = (String) compiledScript.compiled();
-            return new ExecutableScript() {
-
-                Map<String, Object> vars = new HashMap<>();
-
-                @Override
-                public void setNextVar(String name, Object value) {
-                    vars.put(name, value);
-                }
-
-                @Override
-                public Object run() {
-                    Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
-                    assertNotNull(ctx);
-                    Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
-                    Number currentValue = (Number) source.get(field);
-                    Number inc = params == null ? 1L : (Number) params.getOrDefault("inc", 1);
-                    source.put(field, currentValue.longValue() + inc.longValue());
-                    return ctx;
-                }
-            };
-        }
-
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
-            throw new UnsupportedOperationException();
-        }
-    }
-
-    public static class ScriptedUpsertScriptPlugin extends Plugin implements ScriptPlugin {
-        @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
-            return new ScriptedUpsertScriptEngine();
-        }
-    }
-
-    public static class ScriptedUpsertScriptEngine implements ScriptEngine {
-
-        public static final String NAME = "scripted_upsert";
-
-        @Override
-        public void close() throws IOException {
-        }
-
-        @Override
-        public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-            return new Object(); // unused
-        }
-
-        @Override
-        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
-            return new ExecutableScript() {
-
-                Map<String, Object> vars = new HashMap<>();
-
-                @Override
-                public void setNextVar(String name, Object value) {
-                    vars.put(name, value);
-                }
-
-                @Override
-                public Object run() {
-                    Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
-                    assertNotNull(ctx);
-                    Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
-                    Number payment = (Number) params.get("payment");
-                    Number oldBalance = (Number) source.get("balance");
-                    int deduction = "create".equals(ctx.get("op")) ? payment.intValue() / 2 : payment.intValue();
-                    source.put("balance", oldBalance.intValue() - deduction);
-                    return ctx;
-                }
-            };
-        }
-
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
-            throw new UnsupportedOperationException();
-        }
-    }
-
-    public static class ExtractContextInSourceScriptPlugin extends Plugin implements ScriptPlugin {
-        @Override
-        public ScriptEngine getScriptEngine(Settings settings) {
-            return new ExtractContextInSourceScriptEngine();
-        }
-    }
-
-    public static class ExtractContextInSourceScriptEngine implements ScriptEngine {
-
-        public static final String NAME = "extract_ctx";
-
-        @Override
-        public void close() throws IOException {
-        }
-
-        @Override
-        public String getType() {
-            return NAME;
-        }
-
-        @Override
-        public Object compile(String scriptName, String scriptSource, Map<String, String> params) {
-            return new Object(); // unused
-        }
-
-        @Override
-        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
-            return new ExecutableScript() {
-
-                Map<String, Object> vars = new HashMap<>();
-
-                @Override
-                public void setNextVar(String name, Object value) {
-                    vars.put(name, value);
-                }
-
-                @Override
-                public Object run() {
-                    Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
-                    assertNotNull(ctx);
-
-                    Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
-                    Map<String, Object> ctxWithoutSource = new HashMap<>(ctx);
-                    ctxWithoutSource.remove("_source");
-                    source.put("update_context", ctxWithoutSource);
-
-                    return ctx;
-                }
-            };
-        }
-
-        @Override
-        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
-            throw new UnsupportedOperationException();
+                return ctx;
+            });
+            return scripts;
         }
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(
-                PutFieldValuesScriptPlugin.class,
-                FieldIncrementScriptPlugin.class,
-                ScriptedUpsertScriptPlugin.class,
-                ExtractContextInSourceScriptPlugin.class,
-                InternalSettingsPlugin.class
-        );
+        return Arrays.asList(UpdateScriptsPlugin.class, InternalSettingsPlugin.class);
     }
 
     private void createTestIndex() throws Exception {
@@ -323,10 +148,11 @@ public class UpdateIT extends ESIntegTestCase {
     public void testUpsert() throws Exception {
         createTestIndex();
         ensureGreen();
+        Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
-                .setScript(new Script(ScriptType.INLINE, "field_inc", "field", Collections.emptyMap()))
+                .setScript(fieldIncScript)
                 .execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -338,7 +164,7 @@ public class UpdateIT extends ESIntegTestCase {
 
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
-                .setScript(new Script(ScriptType.INLINE, "field_inc", "field", Collections.emptyMap()))
+                .setScript(fieldIncScript)
                 .execute().actionGet();
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -367,7 +193,7 @@ public class UpdateIT extends ESIntegTestCase {
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("balance", openingBalance).endObject())
                 .setScriptedUpsert(true)
-                .setScript(new Script(ScriptType.INLINE, "scripted_upsert", "", params))
+                .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, UPSERT_SCRIPT, params))
                 .execute().actionGet();
         assertEquals(DocWriteResponse.Result.CREATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -381,7 +207,7 @@ public class UpdateIT extends ESIntegTestCase {
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("balance", openingBalance).endObject())
                 .setScriptedUpsert(true)
-                .setScript(new Script(ScriptType.INLINE, "scripted_upsert", "", params))
+                .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, UPSERT_SCRIPT, params))
                 .execute().actionGet();
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -425,7 +251,7 @@ public class UpdateIT extends ESIntegTestCase {
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
-                .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("extra", "foo")))
+                .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT, Collections.singletonMap("extra", "foo")))
                 .setFetchSource(true)
                 .execute().actionGet();
 
@@ -437,7 +263,7 @@ public class UpdateIT extends ESIntegTestCase {
 
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
-                .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("extra", "foo")))
+                .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT, Collections.singletonMap("extra", "foo")))
                 .setFields("_source")
                 .execute().actionGet();
 
@@ -447,11 +273,11 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra").toString(), equalTo("foo"));
     }
-    
+
     public void testIndexAutoCreation() throws Exception {
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
-                .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("extra", "foo")))
+                .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT, Collections.singletonMap("extra", "foo")))
                 .setFetchSource(true)
                 .execute().actionGet();
 
@@ -466,9 +292,9 @@ public class UpdateIT extends ESIntegTestCase {
         createTestIndex();
         ensureGreen();
 
+        Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
         try {
-            client().prepareUpdate(indexOrAlias(), "type1", "1")
-                    .setScript(new Script(ScriptType.INLINE, "field_inc", "field", Collections.emptyMap())).execute().actionGet();
+            client().prepareUpdate(indexOrAlias(), "type1", "1").setScript(fieldIncScript).execute().actionGet();
             fail();
         } catch (DocumentMissingException e) {
             // all is well
@@ -477,7 +303,7 @@ public class UpdateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-                .setScript(new Script(ScriptType.INLINE, "field_inc", "field", Collections.emptyMap())).execute().actionGet();
+            .setScript(fieldIncScript).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(2L));
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -489,8 +315,9 @@ public class UpdateIT extends ESIntegTestCase {
 
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 3);
+        params.put("field", "field");
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-                .setScript(new Script(ScriptType.INLINE, "field_inc", "field", params)).execute().actionGet();
+                .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, params)).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
         assertEquals(DocWriteResponse.Result.UPDATED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -502,7 +329,8 @@ public class UpdateIT extends ESIntegTestCase {
 
         // check noop
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-                .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("_ctx", Collections.singletonMap("op", "none")))).execute().actionGet();
+                .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT,
+                    Collections.singletonMap("_ctx", Collections.singletonMap("op", "none")))).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
         assertEquals(DocWriteResponse.Result.NOOP, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -514,7 +342,8 @@ public class UpdateIT extends ESIntegTestCase {
 
         // check delete
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-                .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("_ctx", Collections.singletonMap("op", "delete")))).execute().actionGet();
+                .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, PUT_VALUES_SCRIPT,
+                    Collections.singletonMap("_ctx", Collections.singletonMap("op", "delete")))).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(4L));
         assertEquals(DocWriteResponse.Result.DELETED, updateResponse.getResult());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -527,7 +356,7 @@ public class UpdateIT extends ESIntegTestCase {
         // check fields parameter
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-            .setScript(new Script(ScriptType.INLINE, "field_inc", "field", Collections.emptyMap()))
+            .setScript(fieldIncScript)
             .setFields("field")
             .setFetchSource(true)
             .execute().actionGet();
@@ -540,7 +369,7 @@ public class UpdateIT extends ESIntegTestCase {
         // check _source parameter
         client().prepareIndex("test", "type1", "1").setSource("field1", 1, "field2", 2).execute().actionGet();
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-            .setScript(new Script(ScriptType.INLINE, "field_inc", "field1", Collections.emptyMap()))
+            .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field1")))
             .setFetchSource("field1", "field2")
             .get();
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -600,10 +429,11 @@ public class UpdateIT extends ESIntegTestCase {
         createTestIndex();
         ensureGreen();
 
+        Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
         try {
             client().prepareUpdate(indexOrAlias(), "type1", "1")
                     .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
-                    .setScript(new Script(ScriptType.INLINE, "field_inc", "field", Collections.emptyMap()))
+                    .setScript(fieldIncScript)
                     .execute().actionGet();
             fail("Should have thrown ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
@@ -616,9 +446,10 @@ public class UpdateIT extends ESIntegTestCase {
     public void testUpdateRequestWithScriptAndShouldUpsertDoc() throws Exception {
         createTestIndex();
         ensureGreen();
+        Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
         try {
             client().prepareUpdate(indexOrAlias(), "type1", "1")
-                    .setScript(new Script(ScriptType.INLINE, "field_inc", "field", Collections.emptyMap()))
+                    .setScript(fieldIncScript)
                     .setDocAsUpsert(true)
                     .execute().actionGet();
             fail("Should have thrown ActionRequestValidationException");
@@ -631,7 +462,7 @@ public class UpdateIT extends ESIntegTestCase {
 
     public void testContextVariables() throws Exception {
         assertAcked(prepareCreate("test")
-                        .setSettings("index.mapping.single_type", false)
+                        .setSettings("index.version.created", Version.V_5_6_0.id)
                         .addAlias(new Alias("alias"))
                         .addMapping("type1", XContentFactory.jsonBuilder()
                                 .startObject()
@@ -667,7 +498,7 @@ public class UpdateIT extends ESIntegTestCase {
         // Update the first object and note context variables values
         UpdateResponse updateResponse = client().prepareUpdate("test", "subtype1", "id1")
                 .setRouting("routing1")
-                .setScript(new Script(ScriptType.INLINE, "extract_ctx", "", Collections.emptyMap()))
+                .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, EXTRACT_CTX_SCRIPT, Collections.emptyMap()))
                 .execute().actionGet();
 
         assertEquals(2, updateResponse.getVersion());
@@ -683,7 +514,7 @@ public class UpdateIT extends ESIntegTestCase {
 
         // Idem with the second object
         updateResponse = client().prepareUpdate("test", "type1", "parentId1")
-                .setScript(new Script(ScriptType.INLINE, "extract_ctx", "", Collections.emptyMap()))
+                .setScript(new Script(ScriptType.INLINE, UPDATE_SCRIPTS, EXTRACT_CTX_SCRIPT, Collections.emptyMap()))
                 .execute().actionGet();
 
         assertEquals(2, updateResponse.getVersion());
@@ -710,6 +541,7 @@ public class UpdateIT extends ESIntegTestCase {
         final int numberOfUpdatesPerThread = scaledRandomIntBetween(100, 500);
         final List<Exception> failures = new CopyOnWriteArrayList<>();
 
+        Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
         for (int i = 0; i < numberOfThreads; i++) {
             Runnable r = new Runnable() {
                 @Override
@@ -722,13 +554,13 @@ public class UpdateIT extends ESIntegTestCase {
                             }
                             if (useBulkApi) {
                                 UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "type1", Integer.toString(i))
-                                        .setScript(new Script(ScriptType.INLINE, "field_inc", "field", Collections.emptyMap()))
+                                        .setScript(fieldIncScript)
                                         .setRetryOnConflict(Integer.MAX_VALUE)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject());
                                 client().prepareBulk().add(updateRequestBuilder).execute().actionGet();
                             } else {
                                 client().prepareUpdate(indexOrAlias(), "type1", Integer.toString(i))
-                                        .setScript(new Script(ScriptType.INLINE, "field_inc", "field", Collections.emptyMap()))
+                                        .setScript(fieldIncScript)
                                         .setRetryOnConflict(Integer.MAX_VALUE)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
                                         .execute().actionGet();
@@ -773,6 +605,7 @@ public class UpdateIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)));
         ensureGreen();
 
+        Script fieldIncScript = new Script(ScriptType.INLINE, UPDATE_SCRIPTS, FIELD_INC_SCRIPT, Collections.singletonMap("field", "field"));
         final int numberOfThreads = scaledRandomIntBetween(3,5);
         final int numberOfIdsPerThread = scaledRandomIntBetween(3,10);
         final int numberOfUpdatesPerId = scaledRandomIntBetween(10,100);
@@ -848,7 +681,7 @@ public class UpdateIT extends ESIntegTestCase {
                             updateRequestsOutstanding.acquire();
                             try {
                                 UpdateRequest ur = client().prepareUpdate("test", "type1", Integer.toString(j))
-                                        .setScript(new Script(ScriptType.INLINE, "field_inc", "field", Collections.emptyMap()))
+                                        .setScript(fieldIncScript)
                                         .setRetryOnConflict(retryOnConflict)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
                                         .request();
@@ -948,7 +781,7 @@ public class UpdateIT extends ESIntegTestCase {
         //All the previous operations should be complete or failed at this point
         for (int i = 0; i < numberOfIdsPerThread; ++i) {
             UpdateResponse ur = client().prepareUpdate("test", "type1", Integer.toString(i))
-                    .setScript(new Script(ScriptType.INLINE, "field_inc", "field", Collections.emptyMap()))
+                    .setScript(fieldIncScript)
                 .setRetryOnConflict(Integer.MAX_VALUE)
                 .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
                 .execute().actionGet();

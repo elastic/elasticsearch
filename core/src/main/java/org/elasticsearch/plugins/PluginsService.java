@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 
 import java.io.IOException;
+import java.lang.reflect.Constructor;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
@@ -52,6 +53,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -64,6 +66,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 
 public class PluginsService extends AbstractComponent {
+
+    private final Path configPath;
 
     /**
      * We keep around a list of plugins and modules
@@ -88,14 +92,16 @@ public class PluginsService extends AbstractComponent {
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    public PluginsService(Settings settings, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
+    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
         super(settings);
+
+        this.configPath = configPath;
 
         List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
         List<PluginInfo> pluginsList = new ArrayList<>();
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings);
+            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", pluginClass.getName(), false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
@@ -285,6 +291,27 @@ public class PluginsService extends AbstractComponent {
         return bundles;
     }
 
+    static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
+        /*
+         * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
+         * plugin.
+         */
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory, ".removing-*")) {
+            final Iterator<Path> iterator = stream.iterator();
+            if (iterator.hasNext()) {
+                final Path removing = iterator.next();
+                final String fileName = removing.getFileName().toString();
+                final String name = fileName.substring(1 + fileName.indexOf("-"));
+                final String message = String.format(
+                        Locale.ROOT,
+                        "found file [%s] from a failed attempt to remove the plugin [%s]; execute [elasticsearch-plugin remove %2$s]",
+                        removing,
+                        name);
+                throw new IllegalStateException(message);
+            }
+        }
+    }
+
     static Set<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {
         Logger logger = Loggers.getLogger(PluginsService.class);
 
@@ -295,6 +322,8 @@ public class PluginsService extends AbstractComponent {
 
         Set<Bundle> bundles = new LinkedHashSet<>();
 
+        checkForFailedPluginRemovals(pluginsDirectory);
+
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
             for (Path plugin : stream) {
                 logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
@@ -304,19 +333,6 @@ public class PluginsService extends AbstractComponent {
                 } catch (IOException e) {
                     throw new IllegalStateException("Could not load plugin descriptor for existing plugin ["
                         + plugin.getFileName() + "]. Was the plugin built before 2.0?", e);
-                }
-                /*
-                 * Check for the existence of a marker file that indicates the plugin is in a garbage state from a failed attempt to remove
-                 * the plugin.
-                 */
-                final Path removing = plugin.resolve(".removing-" + info.getName());
-                if (Files.exists(removing)) {
-                    final String message = String.format(
-                            Locale.ROOT,
-                            "found file [%s] from a failed attempt to remove the plugin [%s]; execute [elasticsearch-plugin remove %2$s]",
-                            removing,
-                            info.getName());
-                    throw new IllegalStateException(message);
                 }
 
                 Set<URL> urls = new LinkedHashSet<>();
@@ -369,7 +385,7 @@ public class PluginsService extends AbstractComponent {
             reloadLuceneSPI(loader);
             final Class<? extends Plugin> pluginClass =
                 loadPluginClass(bundle.plugin.getClassname(), loader);
-            final Plugin plugin = loadPlugin(pluginClass, settings);
+            final Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             plugins.add(new Tuple<>(bundle.plugin, plugin));
         }
 
@@ -402,22 +418,45 @@ public class PluginsService extends AbstractComponent {
         }
     }
 
-    private Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings) {
-        try {
-            try {
-                return pluginClass.getConstructor(Settings.class).newInstance(settings);
-            } catch (NoSuchMethodException e) {
-                try {
-                    return pluginClass.getConstructor().newInstance();
-                } catch (NoSuchMethodException e1) {
-                    throw new ElasticsearchException("No constructor for [" + pluginClass + "]. A plugin class must " +
-                        "have either an empty default constructor or a single argument constructor accepting a " +
-                        "Settings instance");
-                }
-            }
-        } catch (Exception e) {
-            throw new ElasticsearchException("Failed to load plugin class [" + pluginClass.getName() + "]", e);
+    private Plugin loadPlugin(Class<? extends Plugin> pluginClass, Settings settings, Path configPath) {
+        final Constructor<?>[] constructors = pluginClass.getConstructors();
+        if (constructors.length == 0) {
+            throw new IllegalStateException("no public constructor for [" + pluginClass.getName() + "]");
         }
+
+        if (constructors.length > 1) {
+            throw new IllegalStateException("no unique public constructor for [" + pluginClass.getName() + "]");
+        }
+
+        final Constructor<?> constructor = constructors[0];
+        if (constructor.getParameterCount() > 2) {
+            throw new IllegalStateException(signatureMessage(pluginClass));
+        }
+
+        final Class[] parameterTypes = constructor.getParameterTypes();
+        try {
+            if (constructor.getParameterCount() == 2 && parameterTypes[0] == Settings.class && parameterTypes[1] == Path.class) {
+                return (Plugin)constructor.newInstance(settings, configPath);
+            } else if (constructor.getParameterCount() == 1 && parameterTypes[0] == Settings.class) {
+                return (Plugin)constructor.newInstance(settings);
+            } else if (constructor.getParameterCount() == 0) {
+                return (Plugin)constructor.newInstance();
+            } else {
+                throw new IllegalStateException(signatureMessage(pluginClass));
+            }
+        } catch (final ReflectiveOperationException e) {
+            throw new IllegalStateException("failed to load plugin class [" + pluginClass.getName() + "]", e);
+        }
+    }
+
+    private String signatureMessage(final Class<? extends Plugin> clazz) {
+        return String.format(
+                Locale.ROOT,
+                "no public constructor of correct signature for [%s]; must be [%s], [%s], or [%s]",
+                clazz.getName(),
+                "(org.elasticsearch.common.settings.Settings,java.nio.file.Path)",
+                "(org.elasticsearch.common.settings.Settings)",
+                "()");
     }
 
     public <T> List<T> filterPlugins(Class<T> type) {

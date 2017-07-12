@@ -386,10 +386,10 @@ public class TribeIT extends ESIntegTestCase {
     public void testTribeOnOneCluster() throws Exception {
         try (Releasable tribeNode = startTribeNode()) {
             // Creates 2 indices, test1 on cluster1 and test2 on cluster2
-            assertAcked(cluster1.client().admin().indices().prepareCreate("test1").setSettings("index.mapping.single_type", false));
+            assertAcked(cluster1.client().admin().indices().prepareCreate("test1"));
             ensureGreen(cluster1.client());
 
-            assertAcked(cluster2.client().admin().indices().prepareCreate("test2").setSettings("index.mapping.single_type", false));
+            assertAcked(cluster2.client().admin().indices().prepareCreate("test2"));
             ensureGreen(cluster2.client());
 
             // Wait for the tribe node to retrieve the indices into its cluster state
@@ -409,21 +409,6 @@ public class TribeIT extends ESIntegTestCase {
                 ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
                 assertThat(clusterState.getMetaData().index("test1").mapping("type1"), notNullValue());
                 assertThat(clusterState.getMetaData().index("test2").mapping("type1"), notNullValue());
-            });
-
-            // More documents with another type
-            indexRandom(true,
-                    client().prepareIndex("test1", "type2", "1").setSource("field1", "value1"),
-                    client().prepareIndex("test2", "type2", "1").setSource("field1", "value1")
-            );
-            assertHitCount(client().prepareSearch().get(), 4L);
-            assertBusy(() -> {
-                ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-                assertThat(clusterState.getMetaData().index("test1").mapping("type1"), notNullValue());
-                assertThat(clusterState.getMetaData().index("test1").mapping("type2"), notNullValue());
-
-                assertThat(clusterState.getMetaData().index("test2").mapping("type1"), notNullValue());
-                assertThat(clusterState.getMetaData().index("test2").mapping("type2"), notNullValue());
             });
 
             // Make sure master level write operations fail... (we don't really have a master)
@@ -511,8 +496,11 @@ public class TribeIT extends ESIntegTestCase {
         Collections.sort(customMetaDatas, (cm1, cm2) -> cm2.getData().compareTo(cm1.getData()));
         final MergableCustomMetaData1 tribeNodeCustomMetaData = customMetaDatas.get(0);
         try (Releasable tribeNode = startTribeNode()) {
+            ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
             putCustomMetaData(cluster1, customMetaData1);
             assertCustomMetaDataUpdated(internalCluster(), customMetaData1);
+            // check that cluster state version is properly incremented
+            assertThat(client().admin().cluster().prepareState().get().getState().getVersion(), equalTo(clusterState.getVersion() + 1));
             putCustomMetaData(cluster2, customMetaData2);
             assertCustomMetaDataUpdated(internalCluster(), tribeNodeCustomMetaData);
         }

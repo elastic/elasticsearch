@@ -321,8 +321,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private boolean shouldPreFilterSearchShards(SearchRequest searchRequest, GroupShardsIterator<SearchShardIterator> shardIterators) {
         SearchSourceBuilder source = searchRequest.source();
-        return searchRequest.searchType() == QUERY_THEN_FETCH && // we can't do this for DFS it needs to fan out
-                // to all shards all the time
+        return searchRequest.searchType() == QUERY_THEN_FETCH && // we can't do this for DFS it needs to fan out to all shards all the time
                 SearchService.canRewriteToMatchNone(source) &&
                 searchRequest.getPreFilterShardSize() < shardIterators.size();
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchTask;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -842,6 +843,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * shard.
      */
     public boolean canMatch(ShardSearchRequest request) throws IOException {
+        assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         try (DefaultSearchContext context = createSearchContext(request, defaultSearchTimeout, null)) {
             SearchSourceBuilder source = context.request().source();
             if (canRewriteToMatchNone(source)) {

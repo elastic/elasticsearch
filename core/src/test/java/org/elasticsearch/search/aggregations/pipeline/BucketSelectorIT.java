@@ -438,7 +438,7 @@ public class BucketSelectorIT extends ESIntegTestCase {
                 .setContent(new BytesArray("{ \"script\": \"Double.isNaN(_value0) ? false : (_value0 + _value1 > 100)\" }"),
                     XContentType.JSON));
 
-        Script script = new Script(ScriptType.STORED, CustomScriptPlugin.NAME, "my_script", Collections.emptyMap());
+        Script script = new Script(ScriptType.STORED, null, "my_script", Collections.emptyMap());
 
         SearchResponse response = client()
                 .prepareSearch("idx")

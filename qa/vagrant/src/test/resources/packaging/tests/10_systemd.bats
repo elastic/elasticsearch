@@ -186,3 +186,12 @@ setup() {
 
     systemctl stop elasticsearch.service
 }
+
+@test "[SYSTEMD] masking systemd-sysctl" {
+    clean_before_test
+
+    systemctl mask systemd-sysctl.service
+    install_package
+
+    systemctl unmask systemd-sysctl.service
+}

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
@@ -201,12 +202,6 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         getResponse = client().admin().cluster()
                 .prepareGetStoredScript(MustacheScriptEngine.NAME, "testTemplate").get();
         assertNull(getResponse.getSource());
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SearchTemplateRequestBuilder(client())
-                .setRequest(new SearchRequest("test").types("type"))
-                .setScript("/template_index/mustache/1000").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
-                .get());
-        assertThat(e.getMessage(), containsString("illegal stored script format [/template_index/mustache/1000] use only <id>"));
     }
 
     public void testIndexedTemplate() throws Exception {
@@ -266,16 +261,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .get();
         assertHitCount(searchResponse.getResponse(), 4);
 
-        expectThrows(IllegalArgumentException.class, () -> new SearchTemplateRequestBuilder(client())
+        expectThrows(ResourceNotFoundException.class, () -> new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest().indices("test").types("type"))
-                .setScript("/template_index/mustache/1000")
-                .setScriptType(ScriptType.STORED)
-                .setScriptParams(templateParams)
-                .get());
-
-        expectThrows(IllegalArgumentException.class, () -> new SearchTemplateRequestBuilder(client())
-                .setRequest(new SearchRequest().indices("test").types("type"))
-                .setScript("/myindex/mustache/1")
+                .setScript("1000")
                 .setScriptType(ScriptType.STORED)
                 .setScriptParams(templateParams)
                 .get());
@@ -283,11 +271,9 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         templateParams.put("fieldParam", "bar");
         searchResponse = new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest("test").types("type"))
-                .setScript("/mustache/2").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
+                .setScript("2").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 1);
-        assertWarnings("use of </lang/id> [/mustache/2] for looking up" +
-            " stored scripts/templates has been deprecated, use only <id> [2] instead");
     }
 
     // Relates to #10397

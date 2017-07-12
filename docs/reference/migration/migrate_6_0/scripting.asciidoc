@@ -26,3 +26,11 @@ The `_index` variable has been removed. If you used it for advanced scoring, con
 
 All of the existing scripting security settings have been removed.  Instead
 they are replaced with `script.allowed_types` and `script.allowed_contexts`.
+
+==== `lang` can no longer be specified when using a stored script as part of a request
+
+The `lang` variable can no longer be specified as part of a request that uses a stored
+script otherwise an error will occur.  Note that a request using a stored script is
+different from a request that puts a stored script.  The language of the script has
+already been stored as part of the cluster state and an `id` is sufficient to access
+all of the information necessary to execute a stored script.

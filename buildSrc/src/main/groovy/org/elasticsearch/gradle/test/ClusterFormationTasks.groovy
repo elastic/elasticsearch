@@ -314,7 +314,7 @@ class ClusterFormationTasks {
         esConfig['cluster.routing.allocation.disk.watermark.low'] = '1b'
         esConfig['cluster.routing.allocation.disk.watermark.high'] = '1b'
         if (Version.fromString(node.nodeVersion).major >= 6) {
-            esConfig['cluster.routing.allocation.disk.watermark.floodstage'] = '1b'
+            esConfig['cluster.routing.allocation.disk.watermark.flood_stage'] = '1b'
         }
         esConfig.putAll(node.config.settings)
 
